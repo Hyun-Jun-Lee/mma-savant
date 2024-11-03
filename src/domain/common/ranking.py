@@ -1,10 +1,10 @@
 from dataclasses import dataclass
 
-from common.weightclass import WeightClass
+from domain.common.weightclass import WeightClass
+from domain.common.base_entity import BaseEntity
 
 @dataclass
-class Ranking:
-    id : int
+class Ranking(BaseEntity):
     fighter_id : int
     ranking : int
     weight_class : WeightClass
