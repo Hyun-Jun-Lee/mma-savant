@@ -1,4 +1,4 @@
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, asdict
 from datetime import date
 from typing import Dict, List
 
@@ -7,7 +7,7 @@ from common.ranking import Ranking
 from common.base_entity import BaseEntity
 
 @dataclass
-class FighterStatistics:
+class FighterRecord:
     fighter_id: int
     win_count: int
     loss_count: int
@@ -18,7 +18,7 @@ class FighterStatistics:
 
     @classmethod
     def from_dict(cls, data: Dict):
-        """DB에서 조회된 데이터를 FighterStatistics 객체로 변환"""
+        """DB에서 조회된 데이터를 FighterRecord 객체로 변환"""
         return cls(
             fighter_id=data["id"],
             win_count=data["win_count"],
@@ -36,7 +36,7 @@ class Fighter(BaseEntity):
     height : int
     reach : int
 
-    statistics : List[FighterStatistics]
+    records : List[FighterRecord]
 
 
     @property
@@ -55,3 +55,8 @@ class Fighter(BaseEntity):
             height=data["height"],
             reach=data["reach"],
         )
+    
+    def to_dict(self) -> dict:
+        return_dict = asdict(self)
+        return_dict["records"] = [record.to_dict() for record in self.records]
+        return return_dict
