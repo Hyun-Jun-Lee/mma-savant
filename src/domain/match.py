@@ -1,10 +1,10 @@
 from typing import Optional, List
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, asdict
 
 from domain.common.base_entity import BaseEntity
 
 @dataclass
-class MatchStatistics:
+class MatchStatistics(BaseEntity):
     match_id: int
     fighter_id: int
 
@@ -44,15 +44,3 @@ class Match(BaseEntity):
     statistics: List[MatchStatistics] = field(default_factory=list)
 
     is_main_event: bool = False
-
-    def get_winner_stats(self, stat_name: str) -> Optional[MatchStatistics]:
-        for stat in self.statistics:
-            if stat.fighter_id == self.winner_fighter_id:
-                return stat
-        return None
-
-    def get_loser_stats(self, stat_name: str) -> Optional[MatchStatistics]:
-        for stat in self.statistics:
-            if stat.fighter_id == self.loser_fighter_id:
-                return stat
-        return None
