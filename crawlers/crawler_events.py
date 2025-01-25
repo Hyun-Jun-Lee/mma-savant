@@ -3,7 +3,7 @@ from typing import List, Dict, Optional
 from pathlib import Path
 import logging
 
-def extract_events_from_html(html_path: str) -> List[Dict[str, str]]:
+def scrap_all_events(html_path: str) -> List[Dict[str, str]]:
     with open(html_path, 'r', encoding='utf-8') as f:
         html_content = f.read()
     
@@ -52,7 +52,7 @@ if __name__ == "__main__":
     from datetime import datetime
     
     html_path = "./downloaded_pages/statistics_events_completed_20250118_225554.html"
-    events = extract_events_from_html(html_path)
+    events = scrap_all_events(html_path)
     
     # Create data directory if it doesn't exist
     Path("data").mkdir(exist_ok=True)
