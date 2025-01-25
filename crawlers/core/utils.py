@@ -62,3 +62,50 @@ def download_html(url: str, output_dir: str = "downloaded_pages", wait_for_load:
         except Exception as e:
             logging.error(f"Failed to download HTML from {url}: {str(e)}")
             raise
+
+def convert_height(height_str: str) -> tuple[float, float]:
+    """Convert height from '5' 11"' format to 5.11 and calculate cm"""
+    if not height_str or height_str == '--':
+        return 0.0, 0.0
+    
+    try:
+        # Extract feet and inches using regex
+        match = re.match(r"(\d+)'\s*(\d+)", height_str)
+        if match:
+            feet, inches = map(int, match.groups())
+            # Convert to cm: 1 foot = 30.48 cm, 1 inch = 2.54 cm
+            cm = round((feet * 30.48) + (inches * 2.54), 1)
+            # Convert to decimal format (e.g., 5'11" -> 5.11)
+            decimal_height = float(f"{feet}.{inches:02d}")
+            return decimal_height, cm
+    except (ValueError, AttributeError):
+        pass
+    return 0.0, 0.0
+
+def convert_weight(weight_str: str) -> tuple[float, float]:
+    """Convert weight from 'X lbs.' format to numeric values"""
+    if not weight_str or weight_str == '--':
+        return 0.0, 0.0
+    
+    try:
+        # Extract numeric value
+        lbs = float(weight_str.replace('lbs.', '').strip())
+        # Convert to kg
+        kg = round(lbs * 0.453592, 1)
+        return lbs, kg
+    except ValueError:
+        return 0.0, 0.0
+
+def convert_reach(reach_str: str) -> tuple[float, float]:
+    """Convert reach from 'XX"' format to numeric values and calculate cm"""
+    if not reach_str or reach_str == '--':
+        return 0.0, 0.0
+    
+    try:
+        # Extract numeric value (e.g., '72.0"' -> 72.0)
+        inches = float(reach_str.replace('"', '').strip())
+        # Convert to cm
+        cm = round(inches * 2.54, 1)
+        return inches, cm
+    except ValueError:
+        return 0.0, 0.0
