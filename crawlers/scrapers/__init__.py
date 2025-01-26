@@ -1,0 +1,3 @@
+from scrapers.events import scrap_all_events
+from scrapers.fighters import scrap_fighters
+from scrapers.event_detail import scrap_event_detail
