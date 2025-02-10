@@ -32,6 +32,10 @@ def scrap_event_detail(html_path):
     fights = []
     fight_rows = soup.find_all('tr', class_='b-fight-details__table-row')
     
+    # 전체 경기 수 계산 (헤더 row 제외)
+    total_fights = len([row for row in fight_rows[1:] if row.find_all('td', class_='b-fight-details__table-col')])
+    current_order = total_fights
+    
     for row in fight_rows[1:]:  # Skip header row
         cols = row.find_all('td', class_='b-fight-details__table-col')
         if not cols:
@@ -94,12 +98,15 @@ def scrap_event_detail(html_path):
             
             # Create new fight entry
             current_fight = {
+                'order': current_order,  # 현재 경기 순서 (메인이벤트가 가장 큰 숫자)
                 'weight_class': weight_class,
                 'method': method,
                 'round': round_num,
                 'time': time,
                 'fighters': []
             }
+            current_order -= 1  # 다음 경기를 위해 순서 감소
+            
             fights.append(current_fight)
         
         # Add fighter details to current fight
