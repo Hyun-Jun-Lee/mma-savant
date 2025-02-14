@@ -21,6 +21,36 @@ def convert_time_to_seconds(time_str):
     minutes, seconds = map(int, time_str.split(':'))
     return minutes * 60 + seconds
 
+def calculate_total_stats(rounds: List[Dict]) -> Dict:
+    """
+    모든 라운드의 통계를 합산합니다.
+    """
+    total = {
+        'knockdowns': 0,
+        'control_time_seconds': 0,
+        'submission_attempts': 0,
+        'sig_str_landed': 0,
+        'sig_str_attempted': 0,
+        'total_str_landed': 0,
+        'total_str_attempted': 0,
+        'td_landed': 0,
+        'td_attempted': 0
+    }
+    
+    for round_stats in rounds:
+        total['knockdowns'] += int(round_stats['knockdowns'])
+        total['control_time_seconds'] += round_stats['control_time_seconds']
+        total['submission_attempts'] += int(round_stats['submission_attempts'])
+        total['sig_str_landed'] += int(round_stats['sig_str_landed'])
+        total['sig_str_attempted'] += int(round_stats['sig_str_attempted'])
+        total['total_str_landed'] += int(round_stats['total_str_landed'])
+        total['total_str_attempted'] += int(round_stats['total_str_attempted'])
+        total['td_landed'] += int(round_stats['td_landed'])
+        total['td_attempted'] += int(round_stats['td_attempted'])
+    
+    # 숫자를 문자열로 변환
+    return {k: str(v) for k, v in total.items()}
+
 def scrap_match_detail_total(html_path: str) -> Dict:
     """
     UFC 경기 상세 페이지에서 데이터를 추출합니다.
@@ -34,19 +64,18 @@ def scrap_match_detail_total(html_path: str) -> Dict:
     with open(html_path, 'r', encoding='utf-8') as f:
         soup = BeautifulSoup(f, 'html.parser')
     
-    match_details = {}
-    
     # 테이블 찾기
     table = soup.find('table', {'class': 'b-fight-details__table'})
     if not table:
         logging.warning(f"테이블을 찾을 수 없습니다: {html_path}")
-        return match_details
+        return {}
     
     # 선수별 통계 데이터 추출
-    stats = []
+    fighter_1_rounds = []
+    fighter_2_rounds = []
     rows = table.find_all('tr', class_='b-fight-details__table-row')[1:]  # 헤더 제외
     
-    for row in rows:
+    for round_num, row in enumerate(rows, 1):
         cols = row.find_all('td', class_='b-fight-details__table-col')
         if not cols:
             continue
@@ -71,12 +100,55 @@ def scrap_match_detail_total(html_path: str) -> Dict:
         sub_att_data = [sub_att.strip() for sub_att in cols[7].get_text(strip=False).lstrip().split('\n') if sub_att.strip()]
         sub_att_1, sub_att_2 = sub_att_data[:2]
         
-        curl_data = [curl.strip() for curl in cols[9].get_text(strip=False).lstrip().split('\n') if curl.strip()]
-        curl_1, curl_2 = [convert_time_to_seconds(t) for t in curl_data[:2]]
+        ctrl_time_data = [ctrl_time.strip() for ctrl_time in cols[9].get_text(strip=False).lstrip().split('\n') if ctrl_time.strip()]
+        ctrl_time_1, ctrl_time_2 = [convert_time_to_seconds(t) for t in ctrl_time_data[:2]]
+
+        # fighter_1 데이터 구성
+        fighter_1_stats = {
+            'knockdowns': kd_1,
+            'control_time_seconds': ctrl_time_1,
+            'submission_attempts': sub_att_1,
+            **sig_str_1,
+            **total_str_1,
+            **td_1
+        }
+        
+        # fighter_2 데이터 구성
+        fighter_2_stats = {
+            'knockdowns': kd_2,
+            'control_time_seconds': ctrl_time_2,
+            'submission_attempts': sub_att_2,
+            **sig_str_2,
+            **total_str_2,
+            **td_2
+        }
+        
+        # 라운드 번호 추가
+        fighter_1_stats['round'] = round_num
+        fighter_2_stats['round'] = round_num
+        
+        fighter_1_rounds.append(fighter_1_stats)
+        fighter_2_rounds.append(fighter_2_stats)
     
-    return match_details
+    # 총계 통계 계산
+    fighter_1_total = calculate_total_stats(fighter_1_rounds)
+    fighter_2_total = calculate_total_stats(fighter_2_rounds)
+    
+    return {
+        'fighter_1': {
+            'name': fighter_1,
+            'rounds': fighter_1_rounds,
+            'total': fighter_1_total
+        },
+        'fighter_2': {
+            'name': fighter_2,
+            'rounds': fighter_2_rounds,
+            'total': fighter_2_total
+        }
+    }
 
 if __name__ == "__main__":
     # 테스트용 코드
     html_path = "./downloaded_pages/fight-details_f39941b3743bf18c_20250210.html"
-    match_details = scrap_match_detail(html_path)
+    match_details = scrap_match_detail_total(html_path)
+    print(match_details)
