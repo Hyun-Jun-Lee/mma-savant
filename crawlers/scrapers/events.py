@@ -1,11 +1,18 @@
-from bs4 import BeautifulSoup
-from typing import List, Dict, Optional
-from pathlib import Path
 import logging
+import json
+from datetime import datetime
+from typing import List, Dict
+from pathlib import Path
 
-def scrap_all_events(html_path: str) -> List[Dict[str, str]]:
-    with open(html_path, 'r', encoding='utf-8') as f:
-        html_content = f.read()
+from bs4 import BeautifulSoup
+
+from core.driver import PlaywrightDriver
+
+def scrap_all_events(all_events_url: str) -> List[Dict[str, str]]:
+    with PlaywrightDriver() as driver:
+        page = driver.new_page()
+        page.goto(all_events_url)
+        html_content = page.content()
     
     soup = BeautifulSoup(html_content, 'html.parser')
     events_table = soup.find('table', class_='b-statistics__table-events')
@@ -22,7 +29,7 @@ def scrap_all_events(html_path: str) -> List[Dict[str, str]]:
         if not row.find_all('td'):
             continue
             
-        # Find event link and name
+        # Find event link
         event_link = row.find('a', class_='b-link')
         if not event_link:
             continue
@@ -48,11 +55,7 @@ def scrap_all_events(html_path: str) -> List[Dict[str, str]]:
     return events
 
 if __name__ == "__main__":
-    import json
-    from datetime import datetime
-    
-    html_path = "./downloaded_pages/statistics_events_completed_20250118_225554.html"
-    events = scrap_all_events(html_path)
+    events = scrap_all_events("http://ufcstats.com/statistics/events/completed?page=all")
     
     # Create data directory if it doesn't exist
     Path("data").mkdir(exist_ok=True)

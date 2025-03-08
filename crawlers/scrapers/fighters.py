@@ -5,16 +5,19 @@ import json
 import logging
 from datetime import datetime
 
-from src.domain.fighter import Fighter, FighterRecord
 from core.utils import convert_height, convert_weight, convert_reach
+from core.driver import PlaywrightDriver
 
 
-def scrap_fighters(html_path: str) -> List[Dict[str, str]]:
+def scrap_fighters(fighters_url: str) -> List[Dict[str, str]]:
         """
         Extract fighters information from HTML file
         """
-        with open(html_path, 'r', encoding='utf-8') as f:
-            soup = BeautifulSoup(f, 'html.parser')
+        with PlaywrightDriver() as driver:
+            page = driver.new_page()
+            page.goto(fighters_url)
+            html_content = page.content()
+            soup = BeautifulSoup(html_content, 'html.parser')
         
         # Find the table
         table = soup.find('table', class_='b-statistics__table')
@@ -104,35 +107,14 @@ def scrap_fighters(html_path: str) -> List[Dict[str, str]]:
                         else:
                             fighter_data[key] = value
                 
-                # Create FighterRecord object
-                record = FighterRecord(
-                    fighter_id=0,  # 임시 ID, DB 저장 시 할당
-                    win_count=fighter_data.get('wins', 0),
-                    loss_count=fighter_data.get('losses', 0),
-                    draw_count=fighter_data.get('draws', 0),
-                    weight_classes=[],  # 추후 weight class 매핑 필요
-                    rankings=[]  # 추후 ranking 정보 추가 필요
-                )
-                
-                # Create Fighter object
-                fighter = Fighter(
-                    id=0,  # 임시 ID, DB 저장 시 할당
-                    name=fighter_data['name'],
-                    nickname=fighter_data.get('nickname'),
-                    birthdate=None,  # 생년월일 정보는 현재 크롤링되지 않음
-                    height=fighter_data.get('height', 0),
-                    reach=fighter_data.get('reach', 0),
-                    records=[record]
-                )
-                
-                fighters.append(fighter)
+                fighters.append(fighter_data)
         
         return fighters
 
 
 if __name__ == "__main__":
-    html_path = "./downloaded_pages/statistics_fighters_20250125.html"
-    fighters = scrap_fighters(html_path)
+    fighters_url = "http://ufcstats.com/statistics/fighters?char=i&page=all"
+    fighters = scrap_fighters(fighters_url)
     
     # Create sample_data directory if it doesn't exist
     Path("sample_data").mkdir(exist_ok=True)

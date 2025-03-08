@@ -1,7 +1,11 @@
 import logging
-from pathlib import Path
-from bs4 import BeautifulSoup
+import json
+from datetime import datetime
 from typing import Dict, List, Optional
+
+from bs4 import BeautifulSoup
+
+from core.driver import PlaywrightDriver
 
 def parse_stat_with_of(text: str, kind: str) -> Dict[str, str]:
     """
@@ -77,18 +81,21 @@ def calculate_total_stats(rounds: List[Dict]) -> Dict:
     # 숫자를 문자열로 변환
     return {k: str(v) for k, v in total.items()}
 
-def scrap_match_detail_total(html_path: str) -> Dict:
+def scrap_match_detail_total(match_detail_url: str) -> Dict:
     """
     UFC 경기 상세 페이지에서 데이터를 추출합니다.
     
     Args:
-        html_path (str): HTML 파일 경로
+        match_detail_url (str): HTML 파일 경로
         
     Returns:
         Dict: 추출된 경기 상세 정보
     """
-    with open(html_path, 'r', encoding='utf-8') as f:
-        soup = BeautifulSoup(f, 'html.parser')
+    with PlaywrightDriver() as driver:
+        page = driver.new_page()
+        page.goto(match_detail_url)
+        html_content = page.content()
+        soup = BeautifulSoup(html_content, 'html.parser')
     
     # 테이블 찾기
     table = soup.find('table', {'class': 'b-fight-details__table'})
@@ -173,12 +180,15 @@ def scrap_match_detail_total(html_path: str) -> Dict:
         }
     }
 
-def scrap_match_detail_sig(html_path: str) -> Dict:
+def scrap_match_detail_sig(match_detail_url: str) -> Dict:
     """
     UFC 경기 상세 페이지에서 significant strikes 데이터를 추출합니다.
     """
-    with open(html_path, 'r', encoding='utf-8') as f:
-        soup = BeautifulSoup(f, 'html.parser')
+    with PlaywrightDriver() as driver:
+        page = driver.new_page()
+        page.goto(match_detail_url)
+        html_content = page.content()
+        soup = BeautifulSoup(html_content, 'html.parser')
     
     # Significant Strikes 테이블 찾기
     sig_tables = soup.find_all('table', class_='b-fight-details__table')
@@ -270,8 +280,16 @@ def scrap_match_detail_sig(html_path: str) -> Dict:
 
 if __name__ == "__main__":
     # 테스트용 코드
-    html_path = "./downloaded_pages/fight-details_f39941b3743bf18c_20250210.html"
-    match_details = scrap_match_detail_total(html_path)
-    match_sig_details = scrap_match_detail_sig(html_path)
+    match_detail_url = "http://ufcstats.com/fight-details/d13849f49f99bf01"
+    match_details = scrap_match_detail_total(match_detail_url)
+    match_sig_details = scrap_match_detail_sig(match_detail_url)
     
-    print(match_sig_details)
+    # Generate filename with timestamp
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    output_path = f"sample_data/match_details_{timestamp}.json"
+
+    # Save to JSON file
+    with open(output_path, 'w', encoding='utf-8') as f:
+        json.dump(match_sig_details, f, indent=2, ensure_ascii=False)
+
+    logging.info(f"Saved match details to {output_path}")
