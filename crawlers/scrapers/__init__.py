@@ -1,3 +1,4 @@
 from scrapers.events import scrap_all_events
 from scrapers.fighters import scrap_fighters
 from scrapers.event_detail import scrap_event_detail
+from scrapers.match_detail import scrap_match_detail_total, scrap_match_detail_sig
