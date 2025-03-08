@@ -2,7 +2,7 @@ from typing import List, Dict, Optional
 
 from repository.base_repository import BaseRepository
 
-class FighterRepository(BaseRepository):
+class EventRepository(BaseRepository):
 
     # NOTE : find method return dict[name,id]
     
