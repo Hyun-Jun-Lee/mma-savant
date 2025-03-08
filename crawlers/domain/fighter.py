@@ -25,8 +25,6 @@ class FighterRecord:
             "win_count": self.win_count,
             "loss_count": self.loss_count,
             "draw_count": self.draw_count,
-            "weight_classes": self.weight_classes,
-            "rankings": self.rankings,
             "updated_at": self.updated_at
         }
 
@@ -37,6 +35,8 @@ class Fighter:
     birthdate: Optional[date]
     height: Optional[float]
     height_cm: Optional[float]
+    weight: Optional[float]
+    weight_kg: Optional[float]
     reach: Optional[float]
     reach_cm: Optional[float]
     record: Optional[FighterRecord] = None
@@ -70,12 +70,13 @@ class Fighter:
     def to_dict(self) -> Dict:
         """Fighter 객체를 MongoDB document로 변환"""
         doc = {
-            "_id": self.document_id,
             "name": self.name,
             "nickname": self.nickname,
             "birthdate": self.birthdate,
             "height": self.height,
             "height_cm": self.height_cm,
+            "weight": self.weight,
+            "weight_kg": self.weight_kg,
             "reach": self.reach,
             "reach_cm": self.reach_cm,
             "created_at": self.created_at,
