@@ -1,15 +1,26 @@
+import json
 import logging
 from pathlib import Path
-from datetime import datetime
-from bs4 import BeautifulSoup
-import json
+from datetime import datetime, timedelta
+from typing import Dict
 
-def scrap_event_detail(html_path):
+from bs4 import BeautifulSoup
+
+from core.driver import PlaywrightDriver
+
+def scrap_event_detail(event_detail_url: str) -> Dict[str, str]:
     """
     Extract event details from a UFC event detail page HTML file
     """
-    with open(html_path, 'r', encoding='utf-8') as f:
-        soup = BeautifulSoup(f, 'html.parser')
+    # Check if event is future event
+    is_future_event = False
+
+    with PlaywrightDriver() as driver:
+        page = driver.new_page()
+        page.goto(event_detail_url)
+        html_content = page.content()
+    
+    soup = BeautifulSoup(html_content, 'html.parser')
     
     event_details = {}
     
@@ -27,16 +38,28 @@ def scrap_event_detail(html_path):
                 key = title.get_text(strip=True).lower().replace(':', '')
                 value = item.get_text(strip=True).replace(title.get_text(strip=True), '').strip()
                 event_details[key] = value
+
+    fight_date = event_details.get('date', '')
+    if fight_date:
+        date_obj = datetime.strptime(fight_date, '%B %d, %Y')
+        kst_date_obj = date_obj + timedelta(days=1)
+        
+        # Compare with current time
+        current_time = datetime.now()
+        if kst_date_obj > current_time:
+            is_future_event = True
+        
     
     # Find fights
     fights = []
     fight_rows = soup.find_all('tr', class_='b-fight-details__table-row')
     
-    # 전체 경기 수 계산 (헤더 row 제외)
+    # calculate total fights
     total_fights = len([row for row in fight_rows[1:] if row.find_all('td', class_='b-fight-details__table-col')])
+    # order of fighter (main event is biggest number)
     current_order = total_fights
     
-    for row in fight_rows[1:]:  # Skip header row
+    for row in fight_rows[1:]:
         cols = row.find_all('td', class_='b-fight-details__table-col')
         if not cols:
             continue
@@ -50,62 +73,77 @@ def scrap_event_detail(html_path):
         win_element = cols[0].find('a', class_='b-flag b-flag_style_green')
         draw_nc_element = cols[0].find('a', class_='b-flag b-flag_style_bordered')
         
-        if win_element:
-            fighter_1_result = "win"
-            fighter_2_result = "loss"
-        elif draw_nc_element:
-            result = draw_nc_element.get_text(strip=True).lower()
-            if result == "draw":
-                fighter_1_result = fighter_2_result = "draw"
-            elif result == "nc":
-                fighter_1_result = fighter_2_result = "nc"
+        if is_future_event:
+            fighter_1_result = fighter_2_result = None
         else:
-            fighter_1_result = "loss"
-            fighter_2_result = "win"
+            if win_element:
+                fighter_1_result = "win"
+                fighter_2_result = "loss"
+            elif draw_nc_element:
+                result = draw_nc_element.get_text(strip=True).lower()
+                if result == "draw":
+                    fighter_1_result = fighter_2_result = "draw"
+                elif result == "nc":
+                    fighter_1_result = fighter_2_result = "nc"
+            else:
+                fighter_1_result = "loss"
+                fighter_2_result = "win"
         
         # Extract other stats
         kd_text = cols[2].get_text().lstrip().replace('\n', '').split('  ')
         kd_list = [k.strip() for k in kd_text if k.strip()]
-        kd_fighter_1, kd_fighter_2 = kd_list
+        if not kd_list:
+            kd_fighter_1, kd_fighter_2 = 0, 0
+        else:
+            kd_fighter_1, kd_fighter_2 = kd_list
         
         # Extract striking stats
         str_text = cols[3].get_text().lstrip().replace('\n', '').split('  ')
         str_list = [s.strip() for s in str_text if s.strip()]
-        str_fighter_1, str_fighter_2 = str_list
+        if not str_list:
+            str_fighter_1, str_fighter_2 = 0, 0
+        else:
+            str_fighter_1, str_fighter_2 = str_list
         
         # Extract takedown stats
         td_text = cols[4].get_text().lstrip().replace('\n', '').split('  ')
         td_list = [t.strip() for t in td_text if t.strip()]
-        td_fighter_1, td_fighter_2 = td_list
+        if not td_list or td_list[0] == 'View Matchup':
+            td_fighter_1, td_fighter_2 = 0, 0
+        else:
+            td_fighter_1, td_fighter_2 = td_list
         
         # Extract submission attempts
         sub_text = cols[5].get_text().lstrip().replace('\n', '').split('  ')
         sub_list = [s.strip() for s in sub_text if s.strip()]
-        sub_fighter_1, sub_fighter_2 = sub_list
+        if not sub_list:
+            sub_fighter_1, sub_fighter_2 = 0, 0
+        else:
+            sub_fighter_1, sub_fighter_2 = sub_list
         
-        # Get fight details (only for first row of each fight)
-        if len(fights) == 0 or fights[-1]['fighters']:  # If no fights or last fight is complete
+        # Get fight details
+        if len(fights) == 0 or fights[-1]['fighters']:
             weight_class = cols[6].get_text(strip=True)
             method_text = cols[7].get_text().lstrip().replace('\n', '').split('  ')
             method_list = [m.strip() for m in method_text if m.strip()]
             if len(method_list)>1:
                 method = '-'.join(method_list)
             else:
-                method = method_list[0]
+                method = method_list[0] if method_list else None
 
             round_num = cols[8].get_text(strip=True)
             time = cols[9].get_text(strip=True)
             
             # Create new fight entry
             current_fight = {
-                'order': current_order,  # 현재 경기 순서 (메인이벤트가 가장 큰 숫자)
+                'order': current_order,
                 'weight_class': weight_class,
                 'method': method,
                 'round': round_num,
                 'time': time,
                 'fighters': []
             }
-            current_order -= 1  # 다음 경기를 위해 순서 감소
+            current_order -= 1
             
             fights.append(current_fight)
         
@@ -134,9 +172,7 @@ def scrap_event_detail(html_path):
     return event_details
 
 if __name__ == "__main__":
-    html_path = "./downloaded_pages/event-details_39f68882def7a507_20250119.html"
-    # html_path = "./downloaded_pages/event-details_13a0fb8fbdafb54f_20250125.html"
-    event_details = scrap_event_detail(html_path)
+    event_details = scrap_event_detail("http://ufcstats.com/event-details/ca936c67687789e9")
     
     # Create sample_data directory if it doesn't exist
     Path("sample_data").mkdir(exist_ok=True)
