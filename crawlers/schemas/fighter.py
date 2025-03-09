@@ -5,12 +5,6 @@ from pydantic import ConfigDict
 
 from schemas.base import BaseSchema
 
-class FighterRecord(BaseSchema):
-    wins: int = 0
-    losses: int = 0
-    draws: int = 0
-    
-    model_config = ConfigDict(from_attributes=True)
 
 class Fighter(BaseSchema):
     name: str
@@ -25,6 +19,8 @@ class Fighter(BaseSchema):
     belt: bool = False
     birthdate: Optional[date] = None
 
-    record: Optional[FighterRecord] = None
+    wins: int = 0
+    losses: int = 0
+    draws: int = 0
     
     model_config = ConfigDict(from_attributes=True)

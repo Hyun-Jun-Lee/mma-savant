@@ -4,8 +4,8 @@ from pydantic import ConfigDict
 
 from schemas.base import BaseSchema
 
-class MatchStatistics(BaseSchema):
-    fighter_name: str
+class StrikeDetail(BaseSchema):
+    fighter_match_id: int
     head_strikes_landed: Optional[int] = 0
     head_strikes_attempts: Optional[int] = 0
     body_strikes_landed: Optional[int] = 0
@@ -18,17 +18,34 @@ class MatchStatistics(BaseSchema):
     clinch_strikes_attempts: Optional[int] = 0
     ground_strikes_landed: Optional[int] = 0
     ground_strikes_attempts: Optional[int] = 0
+
+    round: Optional[int] = 0
+    
+    model_config = ConfigDict(from_attributes=True)
+
+class MatchStatistics(BaseSchema):
+    fighter_match_id: int
+    knockdowns: Optional[int] = 0
+    control_time_seconds: Optional[int] = 0
+    submission_attempts: Optional[int] = 0
+    sig_str_landed: Optional[int] = 0
+    sig_str_attempted: Optional[int] = 0
+    total_str_landed: Optional[int] = 0
+    total_str_attempted: Optional[int] = 0
+    td_landed: Optional[int] = 0
+    td_attempted: Optional[int] = 0
+
+    round: Optional[int] = 0
     
     model_config = ConfigDict(from_attributes=True)
 
 class Match(BaseSchema):
     event_name: str
-    winner_name: Optional[str] = None
-    loser_name: Optional[str] = None
     method: Optional[str] = None
-    rounds: Optional[int] = 0
+    result_round: Optional[int] = 0
     is_main_event: bool = False
-    statistics: List[MatchStatistics] = []
 
+    statistics: List[MatchStatistics] = []
+    strike_detail: List[StrikeDetail] = []
     
     model_config = ConfigDict(from_attributes=True)
