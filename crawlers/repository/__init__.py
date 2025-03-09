@@ -1,0 +1,3 @@
+from repository.base_repository import BaseRepository
+from repository.fighter_repository import FighterRepository
+from repository.event_repository import EventRepository
