@@ -105,7 +105,13 @@ def scrap_fighters(fighters_url: str) -> List[Dict[str, str]]:
                             except ValueError:
                                 fighter_data[key] = 0
                         else:
-                            fighter_data[key] = value
+                            # 벨트 아이콘이 있는지 확인
+                            if key == "belt":
+                                # 벨트 이미지 태그가 있는지 확인
+                                belt_img = col.find('img', src=lambda x: x and 'belt.png' in x)
+                                fighter_data[key] = True if belt_img else False
+                            else:
+                                fighter_data[key] = value
                 
                 fighters.append(fighter_data)
         
@@ -113,7 +119,7 @@ def scrap_fighters(fighters_url: str) -> List[Dict[str, str]]:
 
 
 if __name__ == "__main__":
-    fighters_url = "http://ufcstats.com/statistics/fighters?char=i&page=all"
+    fighters_url = "http://ufcstats.com/statistics/fighters?char=m&page=3"
     fighters = scrap_fighters(fighters_url)
     
     # Create sample_data directory if it doesn't exist
