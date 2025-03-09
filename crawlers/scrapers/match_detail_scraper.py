@@ -287,9 +287,12 @@ if __name__ == "__main__":
     # Generate filename with timestamp
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     output_path = f"sample_data/match_details_{timestamp}.json"
+    output_path_sig = f"sample_data/match_sig_details_{timestamp}.json"
 
     # Save to JSON file
     with open(output_path, 'w', encoding='utf-8') as f:
+        json.dump(match_details, f, indent=2, ensure_ascii=False)
+    with open(output_path_sig, 'w', encoding='utf-8') as f:
         json.dump(match_sig_details, f, indent=2, ensure_ascii=False)
 
     logging.info(f"Saved match details to {output_path}")
