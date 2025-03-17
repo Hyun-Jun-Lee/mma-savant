@@ -1,0 +1,154 @@
+{
+  "fighter_1": {
+    "name": "Dricus Du Plessis",
+    "rounds": [
+      {
+        "knockdowns": "0",
+        "control_time_seconds": 0,
+        "submission_attempts": "0",
+        "sig_str_landed": "20",
+        "sig_str_attempted": "45",
+        "total_str_landed": "20",
+        "total_str_attempted": "45",
+        "td_landed": "0",
+        "td_attempted": "0",
+        "round": 1
+      },
+      {
+        "knockdowns": "0",
+        "control_time_seconds": 0,
+        "submission_attempts": "0",
+        "sig_str_landed": "31",
+        "sig_str_attempted": "60",
+        "total_str_landed": "31",
+        "total_str_attempted": "60",
+        "td_landed": "0",
+        "td_attempted": "0",
+        "round": 2
+      },
+      {
+        "knockdowns": "0",
+        "control_time_seconds": 5,
+        "submission_attempts": "0",
+        "sig_str_landed": "39",
+        "sig_str_attempted": "79",
+        "total_str_landed": "39",
+        "total_str_attempted": "79",
+        "td_landed": "1",
+        "td_attempted": "1",
+        "round": 3
+      },
+      {
+        "knockdowns": "0",
+        "control_time_seconds": 0,
+        "submission_attempts": "0",
+        "sig_str_landed": "21",
+        "sig_str_attempted": "66",
+        "total_str_landed": "23",
+        "total_str_attempted": "68",
+        "td_landed": "0",
+        "td_attempted": "0",
+        "round": 4
+      },
+      {
+        "knockdowns": "0",
+        "control_time_seconds": 0,
+        "submission_attempts": "0",
+        "sig_str_landed": "36",
+        "sig_str_attempted": "64",
+        "total_str_landed": "36",
+        "total_str_attempted": "64",
+        "td_landed": "0",
+        "td_attempted": "1",
+        "round": 5
+      }
+    ],
+    "total": {
+      "knockdowns": "0",
+      "control_time_seconds": "5",
+      "submission_attempts": "0",
+      "sig_str_landed": "147",
+      "sig_str_attempted": "314",
+      "total_str_landed": "149",
+      "total_str_attempted": "316",
+      "td_landed": "1",
+      "td_attempted": "2"
+    }
+  },
+  "fighter_2": {
+    "name": "Sean Strickland",
+    "rounds": [
+      {
+        "knockdowns": "0",
+        "control_time_seconds": 0,
+        "submission_attempts": "0",
+        "sig_str_landed": "16",
+        "sig_str_attempted": "49",
+        "total_str_landed": "16",
+        "total_str_attempted": "49",
+        "td_landed": "0",
+        "td_attempted": "0",
+        "round": 1
+      },
+      {
+        "knockdowns": "0",
+        "control_time_seconds": 0,
+        "submission_attempts": "0",
+        "sig_str_landed": "29",
+        "sig_str_attempted": "54",
+        "total_str_landed": "29",
+        "total_str_attempted": "54",
+        "td_landed": "0",
+        "td_attempted": "0",
+        "round": 2
+      },
+      {
+        "knockdowns": "0",
+        "control_time_seconds": 0,
+        "submission_attempts": "0",
+        "sig_str_landed": "24",
+        "sig_str_attempted": "47",
+        "total_str_landed": "24",
+        "total_str_attempted": "47",
+        "td_landed": "0",
+        "td_attempted": "0",
+        "round": 3
+      },
+      {
+        "knockdowns": "0",
+        "control_time_seconds": 0,
+        "submission_attempts": "0",
+        "sig_str_landed": "28",
+        "sig_str_attempted": "51",
+        "total_str_landed": "28",
+        "total_str_attempted": "51",
+        "td_landed": "0",
+        "td_attempted": "0",
+        "round": 4
+      },
+      {
+        "knockdowns": "0",
+        "control_time_seconds": 0,
+        "submission_attempts": "0",
+        "sig_str_landed": "31",
+        "sig_str_attempted": "62",
+        "total_str_landed": "31",
+        "total_str_attempted": "62",
+        "td_landed": "0",
+        "td_attempted": "0",
+        "round": 5
+      }
+    ],
+    "total": {
+      "knockdowns": "0",
+      "control_time_seconds": "0",
+      "submission_attempts": "0",
+      "sig_str_landed": "128",
+      "sig_str_attempted": "263",
+      "total_str_landed": "128",
+      "total_str_attempted": "263",
+      "td_landed": "0",
+      "td_attempted": "0"
+    }
+  }
+}
