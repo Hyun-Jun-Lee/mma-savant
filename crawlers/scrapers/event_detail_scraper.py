@@ -8,10 +8,11 @@ from bs4 import BeautifulSoup
 
 from core.driver import PlaywrightDriver
 
-def scrap_event_detail(event_detail_url: str) -> Dict[str, str]:
+def scrap_event_detail(event_detail_url: str, event_id: int, fighter_data: Dict[str, int]) -> Dict[str, str]:
     """
     Extract event details from a UFC event detail page HTML file
     """
+    # TODO : Need to scrap fight-detail url
     # Check if event is future event
     is_future_event = False
 
