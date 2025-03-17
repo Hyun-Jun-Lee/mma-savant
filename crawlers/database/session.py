@@ -1,10 +1,10 @@
 from typing import Generator
 from sqlalchemy import create_engine, inspect
 from sqlalchemy.orm import sessionmaker
-from core.config import database_config
+from core.config import get_database_url
 from contextlib import contextmanager
 
-DATABASE_URL = f"postgresql+psycopg2://postgres:{database_config.DB_PASSWORD}@{database_config.DB_HOST}:{database_config.DB_PORT}/{database_config.DB_NAME}"
+DATABASE_URL = get_database_url()
 
 engine = create_engine(
     DATABASE_URL, pool_size=20, max_overflow=40, connect_args={"connect_timeout": 30}

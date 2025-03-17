@@ -8,4 +8,5 @@ class DatabaseConfig:
     DB_NAME: str = os.getenv("DB_NAME", "ufc_stats")
 
 
-database_config = DatabaseConfig()
+def get_database_url() -> str:
+    return f"postgresql+psycopg2://postgres:{database_config.DB_PASSWORD}@{database_config.DB_HOST}:{database_config.DB_PORT}/{database_config.DB_NAME}"
