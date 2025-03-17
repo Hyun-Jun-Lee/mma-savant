@@ -69,6 +69,10 @@ def scrap_fighters(fighters_url: str) -> List[Dict[str, str]]:
                         link = col.find('a', class_='b-link b-link_style_black')
                         value = link.get_text(strip=True) if link else None
                         
+                        # 파이터 상세 URL 저장 (첫 번째 컬럼에서만 저장)
+                        if i == 0 and link and 'href' in link.attrs:
+                            fighter_data['url_id'] = link['href'].split('/')[-1]
+                        
                         if key == 'first':
                             first_name = value
                             continue
@@ -113,7 +117,8 @@ def scrap_fighters(fighters_url: str) -> List[Dict[str, str]]:
                             else:
                                 fighter_data[key] = value
                 
-                fighters.append(fighter_data)
+                fighter_schema = Fighter(**fighter_data)
+                fighters.append(fighter_schema)
         
         return fighters
 
