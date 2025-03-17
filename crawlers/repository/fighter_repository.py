@@ -9,10 +9,10 @@ class FighterRepository(BaseRepository):
     def __init__(self, session) -> None:
         self.session = session
 
-    def upsert(self, data: Dict) -> bool:
+    def upsert(self, data: Dict) -> Dict[int,str]:
         pass
 
-    def bulk_upsert(self, data_list: List[Dict]) -> bool:
+    def bulk_upsert(self, data_list: List[Dict]) -> Dict[int,str]:
         pass
 
     def find_by_id(self, id: str) -> Optional[Dict]:

@@ -4,12 +4,14 @@ from repository.base_repository import BaseRepository
 
 class EventRepository(BaseRepository):
 
-    # NOTE : find method return dict[name,id]
+    
     
     def __init__(self, session) -> None:
         self.session = session
 
-    def upsert(self, data: Dict) -> bool:
+    def upsert(self, data: Dict) -> Dict[int,str]:
+        # NOTE : return dict[date,id] or Dict[title, id]
+        # NOTE : event랑 event_detail 구분 필요
         pass
 
     def bulk_upsert(self, data_list: List[Dict]) -> bool:

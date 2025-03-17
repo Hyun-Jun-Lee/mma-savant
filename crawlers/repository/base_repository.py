@@ -8,7 +8,7 @@ class BaseRepository(ABC):
     """
     
     @abstractmethod
-    def upsert(self, data: Dict) -> bool:
+    def upsert(self, data: Dict) -> Dict[int,str]:
         """
         데이터를 생성하거나 업데이트
         """
