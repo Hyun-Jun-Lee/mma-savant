@@ -25,3 +25,10 @@ class Fighter(BaseSchema):
     draws: int = 0
     
     model_config = ConfigDict(from_attributes=True)
+
+class FighterMatch(BaseSchema):
+    fighter_id: int
+    match_id: int
+    is_winner: bool
+
+    model_config = ConfigDict(from_attributes=True)
