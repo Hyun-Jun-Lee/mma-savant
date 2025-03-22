@@ -22,3 +22,15 @@ class EventModel(BaseModel):
             event_date=event.event_date,
             url=event.url
         )
+        
+    def to_schema(self) -> Event:
+        """SQLAlchemy 모델을 Pydantic 스키마로 변환"""
+        return Event(
+            id=self.id,
+            name=self.name,
+            location=self.location,
+            event_date=self.event_date,
+            url=self.url,
+            created_at=self.created_at,
+            updated_at=self.updated_at,
+        )

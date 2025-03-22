@@ -18,6 +18,7 @@ class FighterModel(BaseModel):
     stance = Column(String)
     birthdate = Column(String)
     belt = Column(Boolean, default=False)
+    detail_url = Column(String)
 
     wins = Column(Integer, default=0)
     losses = Column(Integer, default=0)
@@ -41,7 +42,32 @@ class FighterModel(BaseModel):
             wins=fighter.wins,
             losses=fighter.losses,
             draws=fighter.draws,
-            belt=fighter.belt
+            belt=fighter.belt,
+            detail_url=fighter.detail_url,
+            birthdate=fighter.birthdate
+        )
+        
+    def to_schema(self) -> Fighter:
+        """SQLAlchemy 모델을 Pydantic 스키마로 변환"""
+        return Fighter(
+            id=self.id,
+            name=self.name,
+            nickname=self.nickname,
+            height=self.height,
+            height_cm=self.height_cm,
+            weight=self.weight,
+            weight_kg=self.weight_kg,
+            reach=self.reach,
+            reach_cm=self.reach_cm,
+            stance=self.stance,
+            wins=self.wins,
+            losses=self.losses,
+            draws=self.draws,
+            belt=self.belt,
+            detail_url=self.detail_url,
+            birthdate=self.birthdate,
+            created_at=self.created_at,
+            updated_at=self.updated_at,
         )
 
 class RankingModel(BaseModel):
@@ -59,4 +85,15 @@ class RankingModel(BaseModel):
             fighter_id=ranking.fighter_id,
             ranking=ranking.ranking,
             weight_class=ranking.weight_class
+        )
+        
+    def to_schema(self) -> Ranking:
+        """SQLAlchemy 모델을 Pydantic 스키마로 변환"""
+        return Ranking(
+            id=self.id,
+            fighter_id=self.fighter_id,
+            ranking=self.ranking,
+            weight_class=self.weight_class,
+            created_at=self.created_at,
+            updated_at=self.updated_at,
         )

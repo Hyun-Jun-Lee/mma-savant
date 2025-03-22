@@ -2,7 +2,7 @@ from sqlalchemy import Column, String, Float, Integer, Boolean, ForeignKey
 from sqlalchemy.orm import relationship
 
 from models.base import BaseModel
-from schemas import Match, StrikeDetail, MatchStatistics
+from schemas import Match, StrikeDetail, MatchStatistics, FighterMatch
 
 class MatchModel(BaseModel):
     __tablename__ = "match"
@@ -23,6 +23,19 @@ class MatchModel(BaseModel):
             result_round=match.result_round,
             is_main_event=match.is_main_event
         )
+        
+    def to_schema(self) -> Match:
+        """SQLAlchemy 모델을 Pydantic 스키마로 변환"""
+        return Match(
+            id=self.id,
+            event_id=self.event_id,
+            method=self.method,
+            result_round=self.result_round,
+            is_main_event=self.is_main_event,
+            created_at=self.created_at,
+            updated_at=self.updated_at,
+            is_active=self.is_active
+        )
 
 class FighterMatchModel(BaseModel):
     __tablename__ = "fighter_match"
@@ -39,11 +52,24 @@ class FighterMatchModel(BaseModel):
     match_statistics = relationship("MatchStatisticsModel", back_populates="fighter_match", uselist=False)
 
     @classmethod
-    def from_schema(cls, fighter_id: int, match_id: int, is_winner: bool) -> None:
+    def from_schema(cls, fighter_id: int, match_id: int, is_winner: bool, strike_detail: StrikeDetail, match_statistics: MatchStatistics) -> None:
         return cls(
             fighter_id=fighter_id,
             match_id=match_id,
-            is_winner=is_winner
+            is_winner=is_winner,
+            strike_detail=strike_detail,
+            match_statistics=match_statistics
+        )
+        
+    def to_schema(self) -> FighterMatch:
+        """SQLAlchemy 모델을 Pydantic 스키마로 변환"""
+        return FighterMatch(
+            id=self.id,
+            fighter_id=self.fighter_id,
+            match_id=self.match_id,
+            is_winner=self.is_winner,
+            created_at=self.created_at,
+            updated_at=self.updated_at,
         )
 
 
@@ -87,6 +113,28 @@ class StrikeDetailModel(BaseModel):
             ground_strikes_landed=strike_detail.ground_strikes_landed,
             ground_strikes_attempts=strike_detail.ground_strikes_attempts
         )
+        
+    def to_schema(self) -> StrikeDetail:
+        """SQLAlchemy 모델을 Pydantic 스키마로 변환"""
+        return StrikeDetail(
+            id=self.id,
+            fighter_match_id=self.fighter_match_id,
+            round=self.round,
+            head_strikes_landed=self.head_strikes_landed,
+            head_strikes_attempts=self.head_strikes_attempts,
+            body_strikes_landed=self.body_strikes_landed,
+            body_strikes_attempts=self.body_strikes_attempts,
+            leg_strikes_landed=self.leg_strikes_landed,
+            leg_strikes_attempts=self.leg_strikes_attempts,
+            takedowns_landed=self.takedowns_landed,
+            takedowns_attempts=self.takedowns_attempts,
+            clinch_strikes_landed=self.clinch_strikes_landed,
+            clinch_strikes_attempts=self.clinch_strikes_attempts,
+            ground_strikes_landed=self.ground_strikes_landed,
+            ground_strikes_attempts=self.ground_strikes_attempts,
+            created_at=self.created_at,
+            updated_at=self.updated_at,
+        )
 
 
 class MatchStatisticsModel(BaseModel):
@@ -121,4 +169,23 @@ class MatchStatisticsModel(BaseModel):
             total_str_attempted=match_statistics.total_str_attempted,
             td_landed=match_statistics.td_landed,
             td_attempted=match_statistics.td_attempted
+        )
+        
+    def to_schema(self) -> MatchStatistics:
+        """SQLAlchemy 모델을 Pydantic 스키마로 변환"""
+        return MatchStatistics(
+            id=self.id,
+            fighter_match_id=self.fighter_match_id,
+            round=self.round,
+            knockdowns=self.knockdowns,
+            control_time_seconds=self.control_time_seconds,
+            submission_attempts=self.submission_attempts,
+            sig_str_landed=self.sig_str_landed,
+            sig_str_attempted=self.sig_str_attempted,
+            total_str_landed=self.total_str_landed,
+            total_str_attempted=self.total_str_attempted,
+            td_landed=self.td_landed,
+            td_attempted=self.td_attempted,
+            created_at=self.created_at,
+            updated_at=self.updated_at
         )
