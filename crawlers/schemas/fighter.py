@@ -19,6 +19,7 @@ class Fighter(BaseSchema):
     belt: bool = False
     birthdate: Optional[date] = None
     url_id: Optional[str] = None
+    detail_url: Optional[str] = None
 
     wins: int = 0
     losses: int = 0

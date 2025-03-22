@@ -40,13 +40,9 @@ class MatchStatistics(BaseSchema):
     model_config = ConfigDict(from_attributes=True)
 
 class Match(BaseSchema):
-    # TODO : event_name is not used in the database, need to change to id
-    event_name: str
+    event_id: int
     method: Optional[str] = None
     result_round: Optional[int] = 0
     is_main_event: bool = False
-
-    statistics: List[MatchStatistics] = []
-    strike_detail: List[StrikeDetail] = []
     
     model_config = ConfigDict(from_attributes=True)
