@@ -20,13 +20,11 @@ def create_flow():
 
         # scrape event details
         with db_session() as session:
-            match_list = scrap_event_detail_task(session, events_list, fighter_dict)
+            fighter_match_dict = scrap_event_detail_task(session, events_list, fighter_dict)
 
-        fight_detail_urls = [match.detail_url for match in match_list if match.detail_url is not None]
-        
         # scrape match details
         with db_session() as session:
-            scrap_match_detail_task(session, fight_detail_urls, fighter_dict)
+            scrap_match_detail_task(session, fighter_match_dict, fighter_dict)
 
 if __name__ == "__main__":
     logger.info("UFC 통계 크롤링 시작")
