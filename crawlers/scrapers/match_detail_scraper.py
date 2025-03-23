@@ -1,11 +1,12 @@
 import logging
 import json
 from datetime import datetime
-from typing import Dict, List, Optional
+from typing import Dict, List
 
 from bs4 import BeautifulSoup
 
 from core.driver import PlaywrightDriver
+from schemas import FighterMatch, MatchStatistics
 
 def parse_stat_with_of(text: str, kind: str) -> Dict[str, str]:
     """
@@ -81,7 +82,7 @@ def calculate_total_stats(rounds: List[Dict]) -> Dict:
     # 숫자를 문자열로 변환
     return {k: str(v) for k, v in total.items()}
 
-def scrap_match_detail_total(match_detail_url: str) -> Dict:
+def scrap_match_detail_total(match_detail_url: str, fighter_dict: Dict[str, int], fighter_match_dict: Dict[int, FighterMatch]) -> Dict:
     """
     UFC 경기 상세 페이지에서 데이터를 추출합니다.
     
@@ -91,6 +92,7 @@ def scrap_match_detail_total(match_detail_url: str) -> Dict:
     Returns:
         Dict: 추출된 경기 상세 정보
     """
+
     with PlaywrightDriver() as driver:
         page = driver.new_page()
         page.goto(match_detail_url)
@@ -116,6 +118,10 @@ def scrap_match_detail_total(match_detail_url: str) -> Dict:
         fighter_text = cols[0].get_text(strip=False).lstrip()
         fighters = [name.strip() for name in fighter_text.split('\n') if name.strip()]
         fighter_1, fighter_2 = fighters[:2]
+        fighter_1_id, fighter_2_id = fighter_dict.get(fighter_1, 0), fighter_dict.get(fighter_2, 0)
+        fighter_1_match = fighter_match_dict.get(fighter_1_id, None)
+        fighter_2_match = fighter_match_dict.get(fighter_2_id, None)
+        
         
         kd_text = cols[1].get_text(strip=False).lstrip().split('\n')
         kd_data = [kd.strip() for kd in kd_text if kd.strip()]
@@ -167,20 +173,21 @@ def scrap_match_detail_total(match_detail_url: str) -> Dict:
     fighter_1_total = calculate_total_stats(fighter_1_rounds)
     fighter_2_total = calculate_total_stats(fighter_2_rounds)
     
+    # TODO : MatchStatistics
     return {
         'fighter_1': {
-            'name': fighter_1,
+            'fighter_match_id': fighter_1_match.id,
             'rounds': fighter_1_rounds,
             'total': fighter_1_total
         },
         'fighter_2': {
-            'name': fighter_2,
+            'fighter_match_id': fighter_2_match.id,
             'rounds': fighter_2_rounds,
             'total': fighter_2_total
         }
     }
 
-def scrap_match_detail_sig(match_detail_url: str) -> Dict:
+def scrap_match_detail_sig(match_detail_url: str, fighter_dict: Dict[str, int], fighter_match_dict: Dict[int, FighterMatch]) -> Dict:
     """
     UFC 경기 상세 페이지에서 significant strikes 데이터를 추출합니다.
     """
