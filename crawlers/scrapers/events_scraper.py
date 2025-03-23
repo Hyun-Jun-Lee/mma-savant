@@ -1,14 +1,15 @@
 import logging
 import json
 from datetime import datetime
-from typing import List, Dict
+from typing import List
 from pathlib import Path
 
 from bs4 import BeautifulSoup
 
 from core.driver import PlaywrightDriver
+from schemas import Event
 
-def scrap_all_events(all_events_url: str) -> List[Dict[str, str]]:
+def scrap_all_events(all_events_url: str) -> List[Event]:
     with PlaywrightDriver() as driver:
         page = driver.new_page()
         page.goto(all_events_url)
@@ -45,12 +46,12 @@ def scrap_all_events(all_events_url: str) -> List[Dict[str, str]]:
         location_col = row.find('td', class_='b-statistics__table-col_style_big-top-padding')
         event_location = location_col.get_text(strip=True) if location_col else ''
         
-        events.append({
-            'name': event_name,
-            'date': event_date,
-            'location': event_location,
-            'url': event_url
-        })
+        events.append(Event(
+            name=event_name,
+            date=event_date,
+            location=event_location,
+            url=event_url
+        ))
     
     return events
 

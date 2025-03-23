@@ -7,9 +7,10 @@ from datetime import datetime
 
 from core.utils import convert_height, convert_weight, convert_reach
 from core.driver import PlaywrightDriver
+from schemas import Fighter
 
 
-def scrap_fighters(fighters_url: str) -> List[Dict[str, str]]:
+def scrap_fighters(fighters_url: str) -> List[Fighter]:
         """
         Extract fighters information from HTML file
         """
