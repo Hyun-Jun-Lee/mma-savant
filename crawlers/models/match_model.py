@@ -8,10 +8,15 @@ class MatchModel(BaseModel):
     __tablename__ = "match"
 
     event_id = Column(Integer, ForeignKey("event.id"))
+    weight_class_id = Column(Integer, ForeignKey("weight_class.id"))
     method = Column(String)
     result_round = Column(Integer)
+    time = Column(String)
+    order = Column(Integer)
     is_main_event = Column(Boolean)
+    detail_url = Column(String)
 
+    weight_class = relationship("WeightClassModel", back_populates="matches")
     fighter_matches = relationship("FighterMatchModel", back_populates="match")
     event = relationship("EventModel", back_populates="matches")
 
@@ -19,9 +24,13 @@ class MatchModel(BaseModel):
     def from_schema(cls, match: Match) -> None:
         return cls(
             event_id=match.event_id,
+            weight_class_id=match.weight_class_id,
             method=match.method,
             result_round=match.result_round,
-            is_main_event=match.is_main_event
+            time=match.time,
+            order=match.order,
+            is_main_event=match.is_main_event,
+            detail_url=match.detail_url
         )
         
     def to_schema(self) -> Match:
@@ -29,8 +38,11 @@ class MatchModel(BaseModel):
         return Match(
             id=self.id,
             event_id=self.event_id,
+            weight_class_id=self.weight_class_id,
             method=self.method,
             result_round=self.result_round,
+            time=self.time,
+            order=self.order,
             is_main_event=self.is_main_event,
             created_at=self.created_at,
             updated_at=self.updated_at,
@@ -43,7 +55,7 @@ class FighterMatchModel(BaseModel):
     fighter_id = Column(Integer, ForeignKey("fighter.id"), primary_key=True)
     match_id = Column(Integer, ForeignKey("match.id"), primary_key=True)
     
-    is_winner = Column(Boolean, default=False)
+    result = Column(String)
     
     fighter = relationship("FighterModel", back_populates="fighter_matches")
     match = relationship("MatchModel", back_populates="fighter_matches")
@@ -52,11 +64,11 @@ class FighterMatchModel(BaseModel):
     match_statistics = relationship("MatchStatisticsModel", back_populates="fighter_match", uselist=False)
 
     @classmethod
-    def from_schema(cls, fighter_id: int, match_id: int, is_winner: bool, strike_detail: StrikeDetail, match_statistics: MatchStatistics) -> None:
+    def from_schema(cls, fighter_id: int, match_id: int, result: str, strike_detail: StrikeDetail, match_statistics: MatchStatistics) -> None:
         return cls(
             fighter_id=fighter_id,
             match_id=match_id,
-            is_winner=is_winner,
+            result=result,
             strike_detail=strike_detail,
             match_statistics=match_statistics
         )
@@ -67,7 +79,7 @@ class FighterMatchModel(BaseModel):
             id=self.id,
             fighter_id=self.fighter_id,
             match_id=self.match_id,
-            is_winner=self.is_winner,
+            result=self.result,
             created_at=self.created_at,
             updated_at=self.updated_at,
         )
