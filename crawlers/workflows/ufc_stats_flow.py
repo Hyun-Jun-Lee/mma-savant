@@ -9,15 +9,20 @@ def create_flow():
         # NOTE : repository에 데이터 전달할 떄 어떤 형태로 전달할건지 결정 (pydantic schmea or dict or model)
         # scrape events
         with db_session() as session:
-            events_dict = scrap_all_events_task(session)
+            events_list = scrap_all_events_task(session)
 
         # scrape fighters
         with db_session() as session:
-            fighter_dict = scrap_all_fighter_task(session)
+            fighter_list = scrap_all_fighter_task(session)
+
+        # make fighter dict{name: id}
+        fighter_dict = {fighter.name: fighter.id for fighter in fighter_list}
 
         # scrape event details
         with db_session() as session:
-            fight_detail_urls = scrap_event_detail_task(session, events_dict, fighter_dict)
+            match_list = scrap_event_detail_task(session, events_list, fighter_dict)
+
+        fight_detail_urls = [match.detail_url for match in match_list if match.detail_url is not None]
         
         # scrape match details
         with db_session() as session:
