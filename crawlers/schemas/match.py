@@ -41,8 +41,12 @@ class MatchStatistics(BaseSchema):
 
 class Match(BaseSchema):
     event_id: int
+    weight_class_id: int
     method: Optional[str] = None
     result_round: Optional[int] = 0
+    time: Optional[str] = None
+    order: Optional[int] = 0
     is_main_event: bool = False
+    detail_url: Optional[str] = None
     
     model_config = ConfigDict(from_attributes=True)
