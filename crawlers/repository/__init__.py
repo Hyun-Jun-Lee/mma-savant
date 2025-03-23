@@ -1,3 +1,4 @@
 from repository.base_repository import BaseRepository
 from repository.fighter_repository import FighterRepository
 from repository.event_repository import EventRepository
+from repository.match_repository import MatchRepository, FighterMatchRepository
