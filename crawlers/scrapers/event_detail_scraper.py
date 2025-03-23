@@ -1,34 +1,27 @@
-import json
-import logging
-from pathlib import Path
 from datetime import datetime, timedelta
 from typing import Dict
 
 from bs4 import BeautifulSoup
 
 from core.driver import PlaywrightDriver
+from schemas import Match, FighterMatch, WeightClass
 
-def scrap_event_detail(event_detail_url: str, event_id: int, fighter_data: Dict[str, int]) -> Dict[str, str]:
+def scrap_event_detail(event_url: str, event_id: int, fighter_dict: Dict[str, int]) -> Dict[str, str]:
     """
     Extract event details from a UFC event detail page HTML file
     """
-    # TODO : Need to scrap fight-detail url
     # Check if event is future event
     is_future_event = False
+    event_details = {}
+    match_data_list = []
 
     with PlaywrightDriver() as driver:
         page = driver.new_page()
-        page.goto(event_detail_url)
+        page.goto(event_url)
         html_content = page.content()
     
     soup = BeautifulSoup(html_content, 'html.parser')
-    
-    event_details = {}
-    
-    # Find event title
-    title_element = soup.find('span', class_='b-content__title-highlight')
-    event_details['title'] = title_element.get_text(strip=True) if title_element else ''
-    
+
     # Find event info
     info_box = soup.find('div', class_='b-list__info-box')
     if info_box:
@@ -61,6 +54,10 @@ def scrap_event_detail(event_detail_url: str, event_id: int, fighter_data: Dict[
     current_order = total_fights
     
     for row in fight_rows[1:]:
+        detail_url = None
+        # fight-details 링크 추출
+        if 'js-fight-details-click' in row.get('class', []):
+            detail_url = row.get('data-link')
         cols = row.find_all('td', class_='b-fight-details__table-col')
         if not cols:
             continue
@@ -69,6 +66,8 @@ def scrap_event_detail(event_detail_url: str, event_id: int, fighter_data: Dict[
         fighter_text = cols[1].get_text(strip=False).lstrip().replace('\n', '')
         fighters = [f.strip() for f in fighter_text.split('  ') if f.strip()]
         fighter_1, fighter_2 = fighters
+        fighter_1_id = fighter_dict.get(fighter_1)
+        fighter_2_id = fighter_dict.get(fighter_2)
         
         # Check fight result
         win_element = cols[0].find('a', class_='b-flag b-flag_style_green')
@@ -89,39 +88,7 @@ def scrap_event_detail(event_detail_url: str, event_id: int, fighter_data: Dict[
             else:
                 fighter_1_result = "loss"
                 fighter_2_result = "win"
-        
-        # Extract other stats
-        kd_text = cols[2].get_text().lstrip().replace('\n', '').split('  ')
-        kd_list = [k.strip() for k in kd_text if k.strip()]
-        if not kd_list:
-            kd_fighter_1, kd_fighter_2 = 0, 0
-        else:
-            kd_fighter_1, kd_fighter_2 = kd_list
-        
-        # Extract striking stats
-        str_text = cols[3].get_text().lstrip().replace('\n', '').split('  ')
-        str_list = [s.strip() for s in str_text if s.strip()]
-        if not str_list:
-            str_fighter_1, str_fighter_2 = 0, 0
-        else:
-            str_fighter_1, str_fighter_2 = str_list
-        
-        # Extract takedown stats
-        td_text = cols[4].get_text().lstrip().replace('\n', '').split('  ')
-        td_list = [t.strip() for t in td_text if t.strip()]
-        if not td_list or td_list[0] == 'View Matchup':
-            td_fighter_1, td_fighter_2 = 0, 0
-        else:
-            td_fighter_1, td_fighter_2 = td_list
-        
-        # Extract submission attempts
-        sub_text = cols[5].get_text().lstrip().replace('\n', '').split('  ')
-        sub_list = [s.strip() for s in sub_text if s.strip()]
-        if not sub_list:
-            sub_fighter_1, sub_fighter_2 = 0, 0
-        else:
-            sub_fighter_1, sub_fighter_2 = sub_list
-        
+
         # Get fight details
         if len(fights) == 0 or fights[-1]['fighters']:
             weight_class = cols[6].get_text(strip=True)
@@ -134,56 +101,29 @@ def scrap_event_detail(event_detail_url: str, event_id: int, fighter_data: Dict[
 
             round_num = cols[8].get_text(strip=True)
             time = cols[9].get_text(strip=True)
+
+            weight_class_id = WeightClass.get_id_by_name(weight_class)
             
             # Create new fight entry
-            current_fight = {
-                'order': current_order,
-                'weight_class': weight_class,
-                'method': method,
-                'round': round_num,
-                'time': time,
-                'fighters': []
+            match_data ={ 
+                "match" : Match(
+                event_id=event_id,
+                order=current_order,
+                weight_class_id=weight_class_id,
+                detail_url=detail_url if detail_url else None,
+                method=method,
+                round=round_num,
+                time=time),
+                "fighters" : [
+                    {"fighter_id": fighter_1_id, "result": fighter_1_result},
+                    {"fighter_id": fighter_2_id, "result": fighter_2_result}
+                ]
             }
             current_order -= 1
-            
-            fights.append(current_fight)
-        
-        # Add fighter details to current fight
-        fights[-1]['fighters'].extend([
-            {
-                'name': fighter_1,
-                'result': fighter_1_result,
-                'kd': kd_fighter_1,
-                'str': str_fighter_1,
-                'td': td_fighter_1,
-                'sub': sub_fighter_1
-            },
-            {
-                'name': fighter_2,
-                'result': fighter_2_result,
-                'kd': kd_fighter_2,
-                'str': str_fighter_2,
-                'td': td_fighter_2,
-                'sub': sub_fighter_2
-            }
-        ])
+            match_data_list.append(match_data)
     
-    event_details['fights'] = fights
-    
-    return event_details
+    return match_data_list
 
 if __name__ == "__main__":
-    event_details = scrap_event_detail("http://ufcstats.com/event-details/ca936c67687789e9")
-    
-    # Create sample_data directory if it doesn't exist
-    Path("sample_data").mkdir(exist_ok=True)
-    
-    # Generate filename with timestamp
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    output_path = f"sample_data/event_details_{timestamp}.json"
-    
-    # Save to JSON file
-    with open(output_path, 'w', encoding='utf-8') as f:
-        json.dump(event_details, f, indent=2, ensure_ascii=False)
-    
-    logging.info(f"Saved event details to {output_path}")
+    match_data_list = scrap_event_detail("http://ufcstats.com/event-details/ca936c67687789e9",1,{})
+    print(match_data_list)
