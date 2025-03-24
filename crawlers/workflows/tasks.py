@@ -5,7 +5,7 @@ from prefect import task
 from crawlers.schemas.fighter import FighterMatch
 from repository import BaseRepository, FighterRepository, EventRepository, MatchRepository, FighterMatchRepository
 from schemas import BaseSchema, Event, Fighter, Match
-from scrapers import scrap_fighters, scrap_all_events, scrap_event_detail, scrap_match_detail_total, scrap_match_detail_sig
+from scrapers import scrap_fighters, scrap_all_events, scrap_event_detail, scrape_match_basic_statistics, scrape_match_significant_strikes
 
 def save_data(data : List[BaseSchema], repository: BaseRepository) -> List[BaseSchema]:
     return repository.bulk_upsert(data)
@@ -58,8 +58,8 @@ def scrap_event_detail_task(session, events_list: List[Event], fighter_dict: Dic
 @task(max_retries=3, retry_delay=30)
 def scrap_match_detail_task(session, fighter_match_dict: Dict[str, Dict[int, FighterMatch]], fighter_dict: Dict[str, int])-> None:
     for detail_url, fighter_match_dict in fighter_match_dict.items():
-        match_detail_total = scrap_match_detail_total(detail_url, fighter_dict, fighter_match_dict)
+        match_detail_total = scrape_match_basic_statistics(detail_url, fighter_dict, fighter_match_dict)
         save_data(match_detail_total, EventRepository(session))
 
-        match_detail_sig = scrap_match_detail_sig(detail_url, fighter_dict, fighter_match_dict)
+        match_detail_sig = scrape_match_significant_strikes(detail_url, fighter_dict, fighter_match_dict)
         save_data(match_detail_sig, EventRepository(session))
