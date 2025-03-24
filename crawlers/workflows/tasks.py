@@ -4,6 +4,8 @@ from prefect import task
 
 from crawlers.schemas.fighter import FighterMatch
 from repository import BaseRepository, FighterRepository, EventRepository, MatchRepository, FighterMatchRepository
+from repository.match_statistics_repository import MatchStatisticsRepository
+from repository.strike_detail_repository import StrikeDetailRepository
 from schemas import BaseSchema, Event, Fighter, Match
 from scrapers import scrap_fighters, scrap_all_events, scrap_event_detail, scrape_match_basic_statistics, scrape_match_significant_strikes
 
@@ -57,9 +59,22 @@ def scrap_event_detail_task(session, events_list: List[Event], fighter_dict: Dic
 
 @task(max_retries=3, retry_delay=30)
 def scrap_match_detail_task(session, fighter_match_dict: Dict[str, Dict[int, FighterMatch]], fighter_dict: Dict[str, int])-> None:
-    for detail_url, fighter_match_dict in fighter_match_dict.items():
-        match_detail_total = scrape_match_basic_statistics(detail_url, fighter_dict, fighter_match_dict)
-        save_data(match_detail_total, EventRepository(session))
-
-        match_detail_sig = scrape_match_significant_strikes(detail_url, fighter_dict, fighter_match_dict)
-        save_data(match_detail_sig, EventRepository(session))
+    """
+    매치 상세 정보를 스크랩하는 태스크
+    
+    Args:
+        session: 데이터베이스 세션
+        fighter_match_dict: {detail_url: {fighter_id: fighter_match}} 형태의 딕셔너리
+        fighter_dict: {fighter_name: fighter_id} 형태의 딕셔너리
+    """
+    for detail_url, fighter_matches in fighter_match_dict.items():
+        if not detail_url:
+            continue
+            
+        # 매치 기본 통계 정보 스크랩 및 저장
+        match_statistics_list = scrape_match_basic_statistics(detail_url, fighter_dict, fighter_matches)
+        save_data(match_statistics_list, MatchStatisticsRepository(session))
+        
+        # 매치 스트라이크 상세 정보 스크랩 및 저장
+        strike_details_list = scrape_match_significant_strikes(detail_url, fighter_dict, fighter_matches)
+        save_data(strike_details_list, StrikeDetailRepository(session))
