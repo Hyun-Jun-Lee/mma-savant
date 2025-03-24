@@ -4,8 +4,8 @@ from prefect import task
 
 from crawlers.schemas.fighter import FighterMatch
 from repository import BaseRepository, FighterRepository, EventRepository, MatchRepository, FighterMatchRepository
-from repository.match_statistics_repository import MatchStatisticsRepository
-from repository.strike_detail_repository import StrikeDetailRepository
+from repository.match_statistics_repository import BasicMatchStatRepository
+from repository.strike_detail_repository import SigStrMatchStatRepository
 from schemas import BaseSchema, Event, Fighter, Match
 from scrapers import scrap_fighters, scrap_all_events, scrap_event_detail, scrape_match_basic_statistics, scrape_match_significant_strikes
 
@@ -73,8 +73,8 @@ def scrap_match_detail_task(session, fighter_match_dict: Dict[str, Dict[int, Fig
             
         # 매치 기본 통계 정보 스크랩 및 저장
         match_statistics_list = scrape_match_basic_statistics(detail_url, fighter_dict, fighter_matches)
-        save_data(match_statistics_list, MatchStatisticsRepository(session))
+        save_data(match_statistics_list, BasicMatchStatRepository(session))
         
         # 매치 스트라이크 상세 정보 스크랩 및 저장
         strike_details_list = scrape_match_significant_strikes(detail_url, fighter_dict, fighter_matches)
-        save_data(strike_details_list, StrikeDetailRepository(session))
+        save_data(strike_details_list, SigStrMatchStatRepository(session))

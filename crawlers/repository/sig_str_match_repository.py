@@ -1,22 +1,22 @@
 from sqlalchemy.orm import Session
 from typing import Optional, List
 
-from models.match_model import StrikeDetailModel
-from schemas.match import StrikeDetail
+from models.match_model import SigStrMatchStatModel
+from schemas.match import SigStrMatchStat
 
-class StrikeDetailRepository:
+class SigStrMatchStatRepository:
     def __init__(self, session: Session):
         self.session = session
     
-    def upsert(self, strike_detail: StrikeDetail) -> StrikeDetail:
+    def upsert(self, strike_detail: SigStrMatchStat) -> SigStrMatchStat:
         """스트라이크 상세 정보를 업서트합니다."""
         # 이미 존재하는 스트라이크 상세 정보인지 확인
         existing_detail = self.find_by_fighter_match_id(strike_detail.fighter_match_id)
         
         if existing_detail:
             # 기존 스트라이크 상세 정보 업데이트
-            detail_model = self.session.query(StrikeDetailModel).filter(
-                StrikeDetailModel.fighter_match_id == strike_detail.fighter_match_id
+            detail_model = self.session.query(SigStrMatchStatModel).filter(
+                SigStrMatchStatModel.fighter_match_id == strike_detail.fighter_match_id
             ).first()
             
             # 필드 업데이트
@@ -35,32 +35,32 @@ class StrikeDetailRepository:
             return detail_model.to_schema()
         else:
             # 새 스트라이크 상세 정보 생성
-            detail_model = StrikeDetailModel.from_schema(strike_detail)
+            detail_model = SigStrMatchStatModel.from_schema(strike_detail)
             self.session.add(detail_model)
             self.session.commit()
             return detail_model.to_schema()
     
-    def bulk_upsert(self, strike_details: List[StrikeDetail]) -> List[StrikeDetail]:
+    def bulk_upsert(self, strike_details: List[SigStrMatchStat]) -> List[SigStrMatchStat]:
         """여러 스트라이크 상세 정보를 업서트합니다."""
         result = []
         for strike_detail in strike_details:
             result.append(self.upsert(strike_detail))
         return result
     
-    def find_by_fighter_match_id(self, fighter_match_id: int) -> Optional[StrikeDetail]:
+    def find_by_fighter_match_id(self, fighter_match_id: int) -> Optional[SigStrMatchStat]:
         """파이터 매치 ID로 스트라이크 상세 정보를 조회합니다."""
-        detail_model = self.session.query(StrikeDetailModel).filter(
-            StrikeDetailModel.fighter_match_id == fighter_match_id
+        detail_model = self.session.query(SigStrMatchStatModel).filter(
+            SigStrMatchStatModel.fighter_match_id == fighter_match_id
         ).first()
         
         if detail_model:
             return detail_model.to_schema()
         return None
     
-    def find_all_by_fighter_match_id(self, fighter_match_id: int) -> List[StrikeDetail]:
+    def find_all_by_fighter_match_id(self, fighter_match_id: int) -> List[SigStrMatchStat]:
         """파이터 매치 ID로 모든 스트라이크 상세 정보를 조회합니다."""
-        detail_models = self.session.query(StrikeDetailModel).filter(
-            StrikeDetailModel.fighter_match_id == fighter_match_id
+        detail_models = self.session.query(SigStrMatchStatModel).filter(
+            SigStrMatchStatModel.fighter_match_id == fighter_match_id
         ).all()
         
         return [detail_model.to_schema() for detail_model in detail_models]

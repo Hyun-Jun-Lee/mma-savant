@@ -2,7 +2,7 @@ from sqlalchemy import Column, String, Float, Integer, Boolean, ForeignKey
 from sqlalchemy.orm import relationship
 
 from models.base import BaseModel
-from schemas import Match, StrikeDetail, MatchStatistics, FighterMatch
+from schemas import Match, SigStrMatchStat, BasicMatchStat, FighterMatch
 
 class MatchModel(BaseModel):
     __tablename__ = "match"
@@ -60,11 +60,11 @@ class FighterMatchModel(BaseModel):
     fighter = relationship("FighterModel", back_populates="fighter_matches")
     match = relationship("MatchModel", back_populates="fighter_matches")
     
-    strike_detail = relationship("StrikeDetailModel", back_populates="fighter_match", uselist=False)
-    match_statistics = relationship("MatchStatisticsModel", back_populates="fighter_match", uselist=False)
+    strike_detail = relationship("SigStrMatchStatModel", back_populates="fighter_match", uselist=False)
+    match_statistics = relationship("BasicMatchStatModel", back_populates="fighter_match", uselist=False)
 
     @classmethod
-    def from_schema(cls, fighter_id: int, match_id: int, result: str, strike_detail: StrikeDetail, match_statistics: MatchStatistics) -> None:
+    def from_schema(cls, fighter_id: int, match_id: int, result: str, strike_detail: SigStrMatchStat, match_statistics: BasicMatchStat) -> None:
         return cls(
             fighter_id=fighter_id,
             match_id=match_id,
@@ -86,7 +86,7 @@ class FighterMatchModel(BaseModel):
 
 
 
-class StrikeDetailModel(BaseModel):
+class SigStrMatchStatModel(BaseModel):
     __tablename__ = "strike_detail"
     
     fighter_match_id = Column(Integer, ForeignKey("fighter_match.id"), primary_key=True)
@@ -108,7 +108,7 @@ class StrikeDetailModel(BaseModel):
     fighter_match = relationship("FighterMatchModel", back_populates="strike_detail")
     
     @classmethod
-    def from_schema(cls, strike_detail: StrikeDetail) -> None:
+    def from_schema(cls, strike_detail: SigStrMatchStat) -> None:
         return cls(
             fighter_match_id=strike_detail.fighter_match_id,
             round=strike_detail.round,
@@ -126,9 +126,9 @@ class StrikeDetailModel(BaseModel):
             ground_strikes_attempts=strike_detail.ground_strikes_attempts
         )
         
-    def to_schema(self) -> StrikeDetail:
+    def to_schema(self) -> SigStrMatchStat:
         """SQLAlchemy 모델을 Pydantic 스키마로 변환"""
-        return StrikeDetail(
+        return SigStrMatchStat(
             id=self.id,
             fighter_match_id=self.fighter_match_id,
             round=self.round,
@@ -149,7 +149,7 @@ class StrikeDetailModel(BaseModel):
         )
 
 
-class MatchStatisticsModel(BaseModel):
+class BasicMatchStatModel(BaseModel):
     __tablename__ = "match_statistics"
     
     fighter_match_id = Column(Integer, ForeignKey("fighter_match.id"), primary_key=True)
@@ -169,7 +169,7 @@ class MatchStatisticsModel(BaseModel):
     fighter_match = relationship("FighterMatchModel", back_populates="match_statistics")
     
     @classmethod
-    def from_schema(cls, match_statistics: MatchStatistics) -> None:
+    def from_schema(cls, match_statistics: BasicMatchStat) -> None:
         return cls(
             fighter_match_id=match_statistics.fighter_match_id,
             knockdowns=match_statistics.knockdowns,
@@ -183,9 +183,9 @@ class MatchStatisticsModel(BaseModel):
             td_attempted=match_statistics.td_attempted
         )
         
-    def to_schema(self) -> MatchStatistics:
+    def to_schema(self) -> BasicMatchStat:
         """SQLAlchemy 모델을 Pydantic 스키마로 변환"""
-        return MatchStatistics(
+        return BasicMatchStat(
             id=self.id,
             fighter_match_id=self.fighter_match_id,
             round=self.round,

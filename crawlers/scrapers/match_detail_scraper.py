@@ -6,7 +6,7 @@ from typing import Dict, List
 from bs4 import BeautifulSoup
 
 from core.driver import PlaywrightDriver
-from schemas import FighterMatch, MatchStatistics, StrikeDetail
+from schemas import FighterMatch, BasicMatchStat, SigStrMatchStat
 
 def parse_stat_with_of(text: str, kind: str) -> Dict[str, str]:
     """
@@ -82,7 +82,7 @@ def calculate_total_stats(rounds: List[Dict]) -> Dict:
     # 숫자를 문자열로 변환
     return {k: str(v) for k, v in total.items()}
 
-def scrape_match_basic_statistics(match_detail_url: str, fighter_dict: Dict[str, int], fighter_match_dict: Dict[int, FighterMatch]) -> Dict:
+def scrape_match_basic_statistics(match_detail_url: str, fighter_dict: Dict[str, int], fighter_match_dict: Dict[int, FighterMatch]) -> List[BasicMatchStat]:
     """
     UFC 경기 상세 페이지에서 데이터를 추출합니다.
     
@@ -141,8 +141,8 @@ def scrape_match_basic_statistics(match_detail_url: str, fighter_dict: Dict[str,
         ctrl_time_data = [ctrl_time.strip() for ctrl_time in cols[9].get_text(strip=False).lstrip().split('\n') if ctrl_time.strip()]
         ctrl_time_1, ctrl_time_2 = [convert_time_to_seconds(t) for t in ctrl_time_data[:2]]
 
-        # TODO : MatchStatistics
-        fighter_1_match_statistics = MatchStatistics(
+        # TODO : BasicMatchStat
+        fighter_1_match_statistics = BasicMatchStat(
             fighter_match_id=fighter_1_match.id,
             knockdowns=kd_1,
             control_time_seconds=ctrl_time_1,
@@ -155,7 +155,7 @@ def scrape_match_basic_statistics(match_detail_url: str, fighter_dict: Dict[str,
             td_attempted=td_1[1],
             round=round_num
         )
-        fighter_2_match_statistics = MatchStatistics(
+        fighter_2_match_statistics = BasicMatchStat(
             fighter_match_id=fighter_2_match.id,
             knockdowns=kd_2,
             control_time_seconds=ctrl_time_2,
@@ -178,7 +178,7 @@ def scrape_match_basic_statistics(match_detail_url: str, fighter_dict: Dict[str,
 
     return fighter_rounds
 
-def scrape_match_significant_strikes(match_detail_url: str, fighter_dict: Dict[str, int], fighter_match_dict: Dict[int, FighterMatch]) -> Dict:
+def scrape_match_significant_strikes(match_detail_url: str, fighter_dict: Dict[str, int], fighter_match_dict: Dict[int, FighterMatch]) -> List[SigStrMatchStat]:
     """
     UFC 경기 상세 페이지에서 significant strikes 데이터를 추출합니다.
     """
@@ -233,7 +233,7 @@ def scrape_match_significant_strikes(match_detail_url: str, fighter_dict: Dict[s
         ground_data = [ground.strip() for ground in cols[8].get_text(strip=False).lstrip().split('\n') if ground.strip()]
         ground_1, ground_2 = map(parse_stat_with_of, ground_data[:2], ["ground", "ground"])
 
-        fighter_1_strike_detail = StrikeDetail(
+        fighter_1_strike_detail = SigStrMatchStat(
             fighter_match_id=fighter_1_match.id,
             head_strikes_landed=head_1[0],
             head_strikes_attempts=head_1[1],
@@ -248,7 +248,7 @@ def scrape_match_significant_strikes(match_detail_url: str, fighter_dict: Dict[s
             round=round_num
         )
         
-        fighter_2_strike_detail = StrikeDetail(
+        fighter_2_strike_detail = SigStrMatchStat(
             fighter_match_id=fighter_2_match.id,
             head_strikes_landed=head_2[0],
             head_strikes_attempts=head_2[1],

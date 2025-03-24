@@ -4,7 +4,7 @@ from pydantic import ConfigDict
 
 from schemas.base import BaseSchema
 
-class StrikeDetail(BaseSchema):
+class SigStrMatchStat(BaseSchema):
     fighter_match_id: int
     head_strikes_landed: Optional[int] = 0
     head_strikes_attempts: Optional[int] = 0
@@ -23,7 +23,7 @@ class StrikeDetail(BaseSchema):
     
     model_config = ConfigDict(from_attributes=True)
 
-class MatchStatistics(BaseSchema):
+class BasicMatchStat(BaseSchema):
     fighter_match_id: int
     knockdowns: Optional[int] = 0
     control_time_seconds: Optional[int] = 0
