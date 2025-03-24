@@ -6,7 +6,7 @@ from typing import Dict, List
 from bs4 import BeautifulSoup
 
 from core.driver import PlaywrightDriver
-from schemas import FighterMatch, MatchStatistics
+from schemas import FighterMatch, MatchStatistics, StrikeDetail
 
 def parse_stat_with_of(text: str, kind: str) -> Dict[str, str]:
     """
@@ -82,7 +82,7 @@ def calculate_total_stats(rounds: List[Dict]) -> Dict:
     # 숫자를 문자열로 변환
     return {k: str(v) for k, v in total.items()}
 
-def scrap_match_detail_total(match_detail_url: str, fighter_dict: Dict[str, int], fighter_match_dict: Dict[int, FighterMatch]) -> Dict:
+def scrape_match_basic_statistics(match_detail_url: str, fighter_dict: Dict[str, int], fighter_match_dict: Dict[int, FighterMatch]) -> Dict:
     """
     UFC 경기 상세 페이지에서 데이터를 추출합니다.
     
@@ -106,8 +106,7 @@ def scrap_match_detail_total(match_detail_url: str, fighter_dict: Dict[str, int]
         return {}
     
     # 선수별 통계 데이터 추출
-    fighter_1_rounds = []
-    fighter_2_rounds = []
+    fighter_rounds = []
     rows = table.find_all('tr', class_='b-fight-details__table-row')[1:]  # 헤더 제외
     
     for round_num, row in enumerate(rows, 1):
@@ -142,52 +141,44 @@ def scrap_match_detail_total(match_detail_url: str, fighter_dict: Dict[str, int]
         ctrl_time_data = [ctrl_time.strip() for ctrl_time in cols[9].get_text(strip=False).lstrip().split('\n') if ctrl_time.strip()]
         ctrl_time_1, ctrl_time_2 = [convert_time_to_seconds(t) for t in ctrl_time_data[:2]]
 
-        # fighter_1 데이터 구성
-        fighter_1_stats = {
-            'knockdowns': kd_1,
-            'control_time_seconds': ctrl_time_1,
-            'submission_attempts': sub_att_1,
-            **sig_str_1,
-            **total_str_1,
-            **td_1
-        }
+        # TODO : MatchStatistics
+        fighter_1_match_statistics = MatchStatistics(
+            fighter_match_id=fighter_1_match.id,
+            knockdowns=kd_1,
+            control_time_seconds=ctrl_time_1,
+            submission_attempts=sub_att_1,
+            sig_str_landed=sig_str_1[0],
+            sig_str_attempted=sig_str_1[1],
+            total_str_landed=total_str_1[0],
+            total_str_attempted=total_str_1[1],
+            td_landed=td_1[0],
+            td_attempted=td_1[1],
+            round=round_num
+        )
+        fighter_2_match_statistics = MatchStatistics(
+            fighter_match_id=fighter_2_match.id,
+            knockdowns=kd_2,
+            control_time_seconds=ctrl_time_2,
+            submission_attempts=sub_att_2,
+            sig_str_landed=sig_str_2[0],
+            sig_str_attempted=sig_str_2[1],
+            total_str_landed=total_str_2[0],
+            total_str_attempted=total_str_2[1],
+            td_landed=td_2[0],
+            td_attempted=td_2[1],
+            round=round_num
+        )
         
-        # fighter_2 데이터 구성
-        fighter_2_stats = {
-            'knockdowns': kd_2,
-            'control_time_seconds': ctrl_time_2,
-            'submission_attempts': sub_att_2,
-            **sig_str_2,
-            **total_str_2,
-            **td_2
-        }
-        
-        # 라운드 번호 추가
-        fighter_1_stats['round'] = round_num
-        fighter_2_stats['round'] = round_num
-        
-        fighter_1_rounds.append(fighter_1_stats)
-        fighter_2_rounds.append(fighter_2_stats)
+        fighter_rounds.append(fighter_1_match_statistics)
+        fighter_rounds.append(fighter_2_match_statistics)
     
-    # 총계 통계 계산
-    fighter_1_total = calculate_total_stats(fighter_1_rounds)
-    fighter_2_total = calculate_total_stats(fighter_2_rounds)
-    
-    # TODO : MatchStatistics
-    return {
-        'fighter_1': {
-            'fighter_match_id': fighter_1_match.id,
-            'rounds': fighter_1_rounds,
-            'total': fighter_1_total
-        },
-        'fighter_2': {
-            'fighter_match_id': fighter_2_match.id,
-            'rounds': fighter_2_rounds,
-            'total': fighter_2_total
-        }
-    }
+    # NOTE : total 값이 필요한가?
+    # fighter_1_total = calculate_total_stats(fighter_1_rounds)
+    # fighter_2_total = calculate_total_stats(fighter_2_rounds)
 
-def scrap_match_detail_sig(match_detail_url: str, fighter_dict: Dict[str, int], fighter_match_dict: Dict[int, FighterMatch]) -> Dict:
+    return fighter_rounds
+
+def scrape_match_significant_strikes(match_detail_url: str, fighter_dict: Dict[str, int], fighter_match_dict: Dict[int, FighterMatch]) -> Dict:
     """
     UFC 경기 상세 페이지에서 significant strikes 데이터를 추출합니다.
     """
@@ -213,8 +204,7 @@ def scrap_match_detail_sig(match_detail_url: str, fighter_dict: Dict[str, int], 
         raise Exception("Significant strikes 테이블을 찾을 수 없습니다")
     
     # 라운드별 데이터 추출
-    fighter_1_rounds = []
-    fighter_2_rounds = []
+    fighter_rounds = []
     rows = sig_table.find_all('tr', class_='b-fight-details__table-row')[1:]  # 헤더 제외
     
     for round_num, row in enumerate(rows, 1):
@@ -242,64 +232,44 @@ def scrap_match_detail_sig(match_detail_url: str, fighter_dict: Dict[str, int], 
         
         ground_data = [ground.strip() for ground in cols[8].get_text(strip=False).lstrip().split('\n') if ground.strip()]
         ground_1, ground_2 = map(parse_stat_with_of, ground_data[:2], ["ground", "ground"])
+
+        fighter_1_strike_detail = StrikeDetail(
+            fighter_match_id=fighter_1_match.id,
+            head_strikes_landed=head_1[0],
+            head_strikes_attempts=head_1[1],
+            body_strikes_landed=body_1[0],
+            body_strikes_attempts=body_1[1],
+            leg_strikes_landed=leg_1[0],
+            leg_strikes_attempts=leg_1[1],
+            clinch_strikes_landed=clinch_1[0],
+            clinch_strikes_attempts=clinch_1[1],
+            ground_strikes_landed=ground_1[0],
+            ground_strikes_attempts=ground_1[1],
+            round=round_num
+        )
         
-        # fighter_1 데이터 구성
-        fighter_1_stats = {
-            'round': round_num,
-            **head_1,
-            **body_1,
-            **leg_1,
-            **distance_1,
-            **clinch_1,
-            **ground_1
-        }
+        fighter_2_strike_detail = StrikeDetail(
+            fighter_match_id=fighter_2_match.id,
+            head_strikes_landed=head_2[0],
+            head_strikes_attempts=head_2[1],
+            body_strikes_landed=body_2[0],
+            body_strikes_attempts=body_2[1],
+            leg_strikes_landed=leg_2[0],
+            leg_strikes_attempts=leg_2[1],
+            clinch_strikes_landed=clinch_2[0],
+            clinch_strikes_attempts=clinch_2[1],
+            ground_strikes_landed=ground_2[0],
+            ground_strikes_attempts=ground_2[1],
+            round=round_num
+        )
         
-        # fighter_2 데이터 구성
-        fighter_2_stats = {
-            'round': round_num,
-            **head_2,
-            **body_2,
-            **leg_2,
-            **distance_2,
-            **clinch_2,
-            **ground_2
-        }
-        
-        fighter_1_rounds.append(fighter_1_stats)
-        fighter_2_rounds.append(fighter_2_stats)
+        fighter_rounds.append(fighter_1_strike_detail)
+        fighter_rounds.append(fighter_2_strike_detail)
     
-    # 총계 통계 계산
-    fighter_1_total = calculate_sig_total_stats(fighter_1_rounds)
-    fighter_2_total = calculate_sig_total_stats(fighter_2_rounds)
-    
-    return {
-        'fighter_1': {
-            'name': fighter_1,
-            'rounds': fighter_1_rounds,
-            'total': fighter_1_total
-        },
-        'fighter_2': {
-            'name': fighter_2,
-            'rounds': fighter_2_rounds,
-            'total': fighter_2_total
-        }
-    }
+    return fighter_rounds
 
 if __name__ == "__main__":
     # 테스트용 코드
     match_detail_url = "http://ufcstats.com/fight-details/d13849f49f99bf01"
-    match_details = scrap_match_detail_total(match_detail_url)
-    match_sig_details = scrap_match_detail_sig(match_detail_url)
-    
-    # Generate filename with timestamp
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    output_path = f"sample_data/match_details_{timestamp}.json"
-    output_path_sig = f"sample_data/match_sig_details_{timestamp}.json"
-
-    # Save to JSON file
-    with open(output_path, 'w', encoding='utf-8') as f:
-        json.dump(match_details, f, indent=2, ensure_ascii=False)
-    with open(output_path_sig, 'w', encoding='utf-8') as f:
-        json.dump(match_sig_details, f, indent=2, ensure_ascii=False)
-
-    logging.info(f"Saved match details to {output_path}")
+    fighter_1_match_details, fighter_2_match_details = scrape_match_basic_statistics(match_detail_url)
+    fighter_1_match_sig_details, fighter_2_match_sig_details = scrape_match_significant_strikes(match_detail_url)
