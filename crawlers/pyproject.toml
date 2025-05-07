@@ -65,7 +65,7 @@ dependencies = [
     "pathspec==0.12.1",
     "pendulum==3.0.0",
     "playwright==1.41.0",
-    "prefect==3.2.11",
+    "prefect>=3.4.0",
     "prometheus-client==0.21.1",
     "pycparser==2.22",
     "pydantic==2.10.6",
