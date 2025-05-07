@@ -10,7 +10,7 @@ from scrapers import scrap_fighters, scrap_all_events, scrap_event_detail, scrap
 def save_data(data : List[BaseSchema], repository: BaseRepository) -> List[BaseSchema]:
     return repository.bulk_upsert(data)
 
-@task(max_retries=3, retry_delay=30)
+@task(retries=3)
 def scrap_all_fighter_task(session)-> List[Fighter]:
     fighter_data = []
     for char in 'abcdefghijklmnopqrstuvwxyz':
@@ -21,14 +21,14 @@ def scrap_all_fighter_task(session)-> List[Fighter]:
     return fighter_data
 
 
-@task(max_retries=3, retry_delay=30)
+@task(retries=3)
 def scrap_all_events_task(session) -> List[Event]:
     all_events_url = "http://ufcstats.com/statistics/events/completed?page=all"
     event_schema_list = scrap_all_events(all_events_url)
     saved_event_list = save_data(event_schema_list, EventRepository(session))
     return saved_event_list
 
-@task(max_retries=3, retry_delay=30)
+@task(retries=3)
 def scrap_event_detail_task(session, events_list: List[Event], fighter_dict: Dict[str, int]) -> Dict[str, Dict[int, FighterMatch]]:
     result_dict = {}
     for event in events_list:
@@ -55,7 +55,7 @@ def scrap_event_detail_task(session, events_list: List[Event], fighter_dict: Dic
                 result_dict[detail_url][fighter_id] = saved_fighter_match
     return result_dict
 
-@task(max_retries=3, retry_delay=30)
+@task(retries=3)
 def scrap_match_detail_task(session, fighter_match_dict: Dict[str, Dict[int, FighterMatch]], fighter_dict: Dict[str, int])-> None:
     """
     매치 상세 정보를 스크랩하는 태스크
