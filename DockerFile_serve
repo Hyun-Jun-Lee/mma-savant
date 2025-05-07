@@ -1,0 +1,9 @@
+FROM prefecthq/prefect:3-python3.9
+
+# 소스 코드 복사
+COPY ./crawlers/ /app/crawlers/
+
+# 필요한 Python 패키지 설치
+WORKDIR /app/crawlers
+RUN pip install --no-cache-dir -r requirements.txt
+RUN pip install --no-cache-dir alembic psycopg2-binary

@@ -1,0 +1,33 @@
+services:
+  flow_serve:
+    build:
+      context: .
+      dockerfile: Dockerfile_serve
+    container_name: flow_serve
+    env_file:
+      - .env
+    environment:
+      - PREFECT_API_KEY=${PREFECT_API_KEY}
+      - PREFECT_API_URL=${PREFECT_API_URL}
+      - DB_HOST=savant_db
+      - DB_PORT=${DB_PORT}
+      - DB_NAME=${DB_NAME}
+      - DB_PASSWORD=${DB_PASSWORD}
+    entrypoint: ["/bin/bash", "/entrypoint.sh"]
+    depends_on:
+      - savant_db
+
+  savant_db:
+    image: postgres:13
+    container_name: savant_db
+    env_file:
+      - .env
+    environment:
+      - POSTGRES_PASSWORD=${DB_PASSWORD}
+      - POSTGRES_DB=${DB_NAME}
+    volumes:
+      - savant_db:/var/lib/postgresql/data
+
+
+volumes:
+  savant_db:
