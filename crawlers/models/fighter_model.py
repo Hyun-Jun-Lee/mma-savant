@@ -26,6 +26,7 @@ class FighterModel(BaseModel):
 
     fighter_matches = relationship("FighterMatchModel", back_populates="fighter")
     matches = relationship("MatchModel", secondary="fighter_match", viewonly=True)
+    rankings = relationship("RankingModel", back_populates="fighter")
 
     @classmethod
     def from_schema(cls, fighter: Fighter) -> None:

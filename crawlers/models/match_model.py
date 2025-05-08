@@ -52,8 +52,8 @@ class MatchModel(BaseModel):
 class FighterMatchModel(BaseModel):
     __tablename__ = "fighter_match"
     
-    fighter_id = Column(Integer, ForeignKey("fighter.id"), primary_key=True)
-    match_id = Column(Integer, ForeignKey("match.id"), primary_key=True)
+    fighter_id = Column(Integer, ForeignKey("fighter.id"))
+    match_id = Column(Integer, ForeignKey("match.id"))
     
     result = Column(String)
     
@@ -89,7 +89,7 @@ class FighterMatchModel(BaseModel):
 class SigStrMatchStatModel(BaseModel):
     __tablename__ = "strike_detail"
     
-    fighter_match_id = Column(Integer, ForeignKey("fighter_match.id"), primary_key=True)
+    fighter_match_id = Column(Integer, ForeignKey("fighter_match.id"))
     round = Column(Integer, default=0)
 
     head_strikes_landed = Column(Integer, default=0)
@@ -152,7 +152,7 @@ class SigStrMatchStatModel(BaseModel):
 class BasicMatchStatModel(BaseModel):
     __tablename__ = "match_statistics"
     
-    fighter_match_id = Column(Integer, ForeignKey("fighter_match.id"), primary_key=True)
+    fighter_match_id = Column(Integer, ForeignKey("fighter_match.id"))
     round = Column(Integer, default=0)
     
     knockdowns = Column(Integer, default=0)
