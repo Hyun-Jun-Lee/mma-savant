@@ -2,9 +2,8 @@ from typing import List, Dict
 
 from prefect import task
 
-from crawlers.schemas.fighter import FighterMatch
 from repository import BaseRepository, FighterRepository, EventRepository, MatchRepository, FighterMatchRepository, BasicMatchStatRepository, SigStrMatchStatRepository
-from crawlers.schemas import BaseSchema, Event, Fighter, Match
+from schemas import BaseSchema, Event, Fighter, Match, FighterMatch
 from scrapers import scrap_fighters, scrap_all_events, scrap_event_detail, scrape_match_basic_statistics, scrape_match_significant_strikes
 
 def save_data(data : List[BaseSchema], repository: BaseRepository) -> List[BaseSchema]:
