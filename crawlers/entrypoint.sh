@@ -14,7 +14,7 @@ alembic upgrade head
 
 # 체급 클래스 초기화
 echo "체급 클래스 초기화 중..."
-PGPASSWORD=$DB_PASSWORD psql -h $DB_HOST -U postgres -d $DB_NAME -f ./init_weight_classes.sql
+python init_weight_classes.py
 
 # 메인 애플리케이션 실행
 echo "메인 애플리케이션 실행 중..."

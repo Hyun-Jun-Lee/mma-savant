@@ -5,5 +5,5 @@ COPY ./crawlers/ /app/crawlers/
 
 # 필요한 Python 패키지 설치
 WORKDIR /app/crawlers
+RUN pip install --upgrade pip
 RUN pip install --no-cache-dir -r requirements.txt
-RUN pip install --no-cache-dir alembic psycopg2-binary
