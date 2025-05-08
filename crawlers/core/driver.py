@@ -1,4 +1,4 @@
-from playwright.sync_api import sync_playwright, Browser, Page
+from playwright.async_api import async_playwright, Browser, Page
 from typing import Optional, Callable
 import logging
 
@@ -15,69 +15,62 @@ class PlaywrightDriver:
         if not hasattr(self, 'playwright'):
             self.playwright = None
 
-    def initialize(self, headless: bool = True) -> None:
-        """Initialize the Playwright browser if not already initialized"""
+    async def initialize(self, headless: bool = True) -> None:
+        """비동기적으로 Playwright 브라우저를 초기화합니다"""
         if self._browser is None:
-            self.playwright = sync_playwright().start()
+            self.playwright = await async_playwright().start()
             
-            # Browser launch options for avoiding bot detection
+            # 봇 감지 방지를 위한 브라우저 실행 옵션
             browser_options = {
                 "headless": headless,
+                "user_agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/96.0.4664.110 Safari/537.36",
                 "args": [
                     "--disable-blink-features=AutomationControlled",
-                    "--disable-features=IsolateOrigins,site-per-process",
-                    "--disable-site-isolation-trials"
+                    "--no-sandbox",
+                    "--disable-infobars",
+                    "--disable-extensions",
+                    "--disable-dev-shm-usage",
+                    "--disable-gpu",
                 ],
-                "firefox_user_prefs": {
-                    "dom.webdriver.enabled": False,
-                    "media.navigator.permission.disabled": True,
-                    "media.navigator.streams.fake": True
-                },
-                "chromium_sandbox": False
             }
             
-            self._browser = self.playwright.chromium.launch(**browser_options)
+            self._browser = await self.playwright.chromium.launch(**browser_options)
             logging.info("Playwright browser initialized with anti-bot detection")
 
-    def new_page(self) -> Page:
-        """Create and return a new page with anti-bot detection settings"""
+    async def new_page(self) -> Page:
+        """스텔스 설정으로 새 페이지를 생성합니다"""
         if self._browser is None:
-            self.initialize()
+            await self.initialize()
+
+        page = await self._browser.new_page()
         
-        page = self._browser.new_page()
-        
-        # Add anti-bot detection settings
-        page.set_extra_http_headers({
+        # 감지 방지를 위한 추가 설정 적용
+        await page.set_extra_http_headers({
             'Accept-Language': 'en-US,en;q=0.9',
             'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
         })
         
-        # Modify navigator properties
-        js_script = """
-        Object.defineProperty(navigator, 'webdriver', {
-            get: () => undefined
-        });
-        Object.defineProperty(navigator, 'languages', {
-            get: () => ['en-US', 'en']
-        });
-        """
-        page.add_init_script(js_script)
+        await page.add_init_script("""
+        Object.defineProperty(navigator, 'webdriver', {get: () => undefined});  
+        Object.defineProperty(navigator, 'languages', {get: () => ['en-US', 'en']});
+        """)
         
         return page
 
-    def close(self) -> None:
-        """Close the browser and playwright instance"""
-        if self._browser:
-            self._browser.close()
+    async def close(self) -> None:
+        """브라우저와 playwright를 종료합니다"""
+        if self._browser is not None:
+            await self._browser.close()
             self._browser = None
-        if self.playwright:
-            self.playwright.stop()
+
+        if hasattr(self, 'playwright') and self.playwright is not None:
+            await self.playwright.stop()
             self.playwright = None
             logging.info("Playwright browser closed")
 
-    def __enter__(self):
-        self.initialize()
+    async def __aenter__(self):
+        await self.initialize()
         return self
 
-    def __exit__(self, exc_type, exc_val, exc_tb):
-        self.close()
+    async def __aexit__(self, exc_type, exc_val, exc_tb):
+        await self.close()
