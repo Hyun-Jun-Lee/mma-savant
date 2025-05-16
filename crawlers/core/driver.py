@@ -23,7 +23,6 @@ class PlaywrightDriver:
             # 봇 감지 방지를 위한 브라우저 실행 옵션
             browser_options = {
                 "headless": headless,
-                "user_agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/96.0.4664.110 Safari/537.36",
                 "args": [
                     "--disable-blink-features=AutomationControlled",
                     "--no-sandbox",

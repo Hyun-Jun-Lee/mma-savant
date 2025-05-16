@@ -11,6 +11,14 @@ from bs4 import BeautifulSoup
 from core.driver import PlaywrightDriver
 from schemas import Event
 
+def parse_date(date_str):
+    if not date_str:
+        return None
+    try:
+        return datetime.strptime(date_str, "%B %d, %Y").date()
+    except ValueError:
+        return None
+
 async def scrap_all_events(all_events_url: str) -> List[Event]:
     try:
         async with PlaywrightDriver() as driver:
@@ -47,14 +55,16 @@ async def scrap_all_events(all_events_url: str) -> List[Event]:
         # Find date
         event_date_span = row.find('span', class_='b-statistics__date')
         event_date = event_date_span.get_text(strip=True) if event_date_span else ''
-        
+        if not event_date:
+            print(event_name, event_date)
+        parsed_event_date = parse_date(event_date)
         # Find location
         location_col = row.find('td', class_='b-statistics__table-col_style_big-top-padding')
         event_location = location_col.get_text(strip=True) if location_col else ''
         
         events.append(Event(
             name=event_name,
-            date=event_date,
+            date=parsed_event_date,
             location=event_location,
             url=event_url
         ))
