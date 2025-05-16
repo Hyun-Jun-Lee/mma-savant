@@ -4,21 +4,27 @@ from pathlib import Path
 import json
 import logging
 from datetime import datetime
+import asyncio
+import traceback
 
 from core.utils import convert_height, convert_weight, convert_reach
 from core.driver import PlaywrightDriver
 from schemas import Fighter
 
 
-def scrap_fighters(fighters_url: str) -> List[Fighter]:
+async def scrap_fighters(fighters_url: str) -> List[Fighter]:
         """
         Extract fighters information from HTML file
         """
-        with PlaywrightDriver() as driver:
-            page = driver.new_page()
-            page.goto(fighters_url)
-            html_content = page.content()
-            soup = BeautifulSoup(html_content, 'html.parser')
+        try:
+            async with PlaywrightDriver() as driver:
+                page = await driver.new_page()
+                await page.goto(fighters_url)
+                html_content = await page.content()
+                soup = BeautifulSoup(html_content, 'html.parser')
+        except Exception as e:
+            logging.error(f"크롤링 중 오류 발생: {traceback.format_exc()}")
+            return []
         
         # Find the table
         table = soup.find('table', class_='b-statistics__table')
@@ -124,20 +130,29 @@ def scrap_fighters(fighters_url: str) -> List[Fighter]:
         return fighters
 
 
+async def main():
+    try:
+        fighters_url = "http://ufcstats.com/statistics/fighters?char=m&page=3"
+        fighters = await scrap_fighters(fighters_url)
+        
+        # Create sample_data directory if it doesn't exist
+        Path("sample_data").mkdir(exist_ok=True)
+        
+        # Generate filename with timestamp
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        output_path = f"sample_data/fighters_{timestamp}.json"
+        
+        # Save to JSON file
+        with open(output_path, 'w', encoding='utf-8') as f:
+            json.dump([fighter.dict() for fighter in fighters], f, indent=2, ensure_ascii=False)
+        
+        logging.info(f"Saved fighters data to {output_path}")
+    except Exception as e:
+        logging.error(f"데이터 저장 중 오류 발생: {traceback.format_exc()}")
+
 if __name__ == "__main__":
-    fighters_url = "http://ufcstats.com/statistics/fighters?char=m&page=3"
-    fighters = scrap_fighters(fighters_url)
+    # 로깅 설정
+    logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
     
-    # Create sample_data directory if it doesn't exist
-    Path("sample_data").mkdir(exist_ok=True)
-    
-    # Generate filename with timestamp
-    from datetime import datetime
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    output_path = f"sample_data/fighters_{timestamp}.json"
-    
-    # Save to JSON file
-    with open(output_path, 'w', encoding='utf-8') as f:
-        json.dump(fighters, f, indent=2, ensure_ascii=False)
-    
-    logging.info(f"Saved fighters data to {output_path}")
+    # 비동기 실행
+    asyncio.run(main())

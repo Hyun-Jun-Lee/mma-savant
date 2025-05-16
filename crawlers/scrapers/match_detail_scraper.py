@@ -1,7 +1,9 @@
 import logging
 import json
 from datetime import datetime
-from typing import Dict, List
+from typing import Dict, List, Tuple, Optional
+import asyncio
+import traceback
 
 from bs4 import BeautifulSoup
 
@@ -82,22 +84,27 @@ def calculate_total_stats(rounds: List[Dict]) -> Dict:
     # 숫자를 문자열로 변환
     return {k: str(v) for k, v in total.items()}
 
-def scrape_match_basic_statistics(match_detail_url: str, fighter_dict: Dict[str, int], fighter_match_dict: Dict[int, FighterMatch]) -> List[BasicMatchStat]:
+async def scrape_match_basic_statistics(match_detail_url: str, fighter_dict: Dict[str, int] = None, fighter_match_dict: Dict[int, FighterMatch] = None) -> List[BasicMatchStat]:
     """
     UFC 경기 상세 페이지에서 데이터를 추출합니다.
     
     Args:
         match_detail_url (str): HTML 파일 경로
+        fighter_dict (Dict[str, int], optional): 선수 이름-ID 매핑 딕셔너리
+        fighter_match_dict (Dict[int, FighterMatch], optional): 선수 매치 정보 딕셔너리
         
     Returns:
-        Dict: 추출된 경기 상세 정보
+        List[BasicMatchStat]: 추출된 기본 경기 통계 목록
     """
-
-    with PlaywrightDriver() as driver:
-        page = driver.new_page()
-        page.goto(match_detail_url)
-        html_content = page.content()
-        soup = BeautifulSoup(html_content, 'html.parser')
+    try:
+        async with PlaywrightDriver() as driver:
+            page = await driver.new_page()
+            await page.goto(match_detail_url)
+            html_content = await page.content()
+            soup = BeautifulSoup(html_content, 'html.parser')
+    except Exception as e:
+        logging.error(f"매치 기본 통계 크롤링 중 오류 발생: {traceback.format_exc()}")
+        return []
     
     # 테이블 찾기
     table = soup.find('table', {'class': 'b-fight-details__table'})
@@ -178,15 +185,28 @@ def scrape_match_basic_statistics(match_detail_url: str, fighter_dict: Dict[str,
 
     return fighter_rounds
 
-def scrape_match_significant_strikes(match_detail_url: str, fighter_dict: Dict[str, int], fighter_match_dict: Dict[int, FighterMatch]) -> List[SigStrMatchStat]:
+async def scrape_match_significant_strikes(match_detail_url: str, fighter_dict: Dict[str, int] = None, fighter_match_dict: Dict[int, FighterMatch] = None) -> List[SigStrMatchStat]:
     """
     UFC 경기 상세 페이지에서 significant strikes 데이터를 추출합니다.
+    
+    Args:
+        match_detail_url (str): 매치 상세 페이지 URL
+        fighter_dict (Dict[str, int], optional): 선수 이름-ID 매핑 딕셔너리
+        fighter_match_dict (Dict[int, FighterMatch], optional): 선수 매치 정보 딕셔너리
+        
+    Returns:
+        List[SigStrMatchStat]: 추출된 유의미한 타격 통계 목록
     """
-    with PlaywrightDriver() as driver:
-        page = driver.new_page()
-        page.goto(match_detail_url)
-        html_content = page.content()
+    try:
+        async with PlaywrightDriver() as driver:
+            page = await driver.new_page()
+            await page.goto(match_detail_url)
+            html_content = await page.content()
+        
         soup = BeautifulSoup(html_content, 'html.parser')
+    except Exception as e:
+        logging.error(f"유의미한 타격 통계 크롤링 중 오류 발생: {traceback.format_exc()}")
+        return []
     
     # Significant Strikes 테이블 찾기
     sig_tables = soup.find_all('table', class_='b-fight-details__table')
@@ -268,8 +288,28 @@ def scrape_match_significant_strikes(match_detail_url: str, fighter_dict: Dict[s
     
     return fighter_rounds
 
+async def main():
+    try:
+        # 테스트용 코드
+        match_detail_url = "http://ufcstats.com/fight-details/d13849f49f99bf01"
+        basic_stats = await scrape_match_basic_statistics(match_detail_url)
+        sig_stats = await scrape_match_significant_strikes(match_detail_url)
+        
+        logging.info(f"기본 매치 통계: {len(basic_stats)}개 항목 추출됨")
+        logging.info(f"유의미한 타격 통계: {len(sig_stats)}개 항목 추출됨")
+        
+        # 결과 출력 (첫 번째 항목만 샘플로 표시)
+        if basic_stats:
+            logging.info(f"기본 통계 예시: {basic_stats[0]}")
+        if sig_stats:
+            logging.info(f"타격 통계 예시: {sig_stats[0]}")
+            
+    except Exception as e:
+        logging.error(f"메인 함수 실행 중 오류 발생: {traceback.format_exc()}")
+
 if __name__ == "__main__":
-    # 테스트용 코드
-    match_detail_url = "http://ufcstats.com/fight-details/d13849f49f99bf01"
-    fighter_1_match_details, fighter_2_match_details = scrape_match_basic_statistics(match_detail_url)
-    fighter_1_match_sig_details, fighter_2_match_sig_details = scrape_match_significant_strikes(match_detail_url)
+    # 로깅 설정
+    logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+    
+    # 비동기 실행
+    asyncio.run(main())

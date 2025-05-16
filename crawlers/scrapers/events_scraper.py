@@ -3,19 +3,25 @@ import json
 from datetime import datetime
 from typing import List
 from pathlib import Path
+import asyncio
+import traceback
 
 from bs4 import BeautifulSoup
 
 from core.driver import PlaywrightDriver
 from schemas import Event
 
-def scrap_all_events(all_events_url: str) -> List[Event]:
-    with PlaywrightDriver() as driver:
-        page = driver.new_page()
-        page.goto(all_events_url)
-        html_content = page.content()
-    
-    soup = BeautifulSoup(html_content, 'html.parser')
+async def scrap_all_events(all_events_url: str) -> List[Event]:
+    try:
+        async with PlaywrightDriver() as driver:
+            page = await driver.new_page()
+            await page.goto(all_events_url)
+            html_content = await page.content()
+        
+        soup = BeautifulSoup(html_content, 'html.parser')
+    except Exception as e:
+        logging.error(f"크롤링 중 오류 발생: {traceback.format_exc()}")
+        return []
     events_table = soup.find('table', class_='b-statistics__table-events')
     
     if not events_table:
@@ -55,18 +61,28 @@ def scrap_all_events(all_events_url: str) -> List[Event]:
     
     return events
 
+async def main():
+    try:
+        events = await scrap_all_events("http://ufcstats.com/statistics/events/completed?page=all")
+        
+        # Create data directory if it doesn't exist
+        Path("sample_data").mkdir(exist_ok=True)
+        
+        # Generate filename with timestamp
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        output_path = f"sample_data/events_{timestamp}.json"
+        
+        # Save to JSON file
+        with open(output_path, 'w', encoding='utf-8') as f:
+            json.dump([event.dict() for event in events], f, indent=2, ensure_ascii=False)
+        
+        logging.info(f"저장 완료: {len(events)}개 이벤트를 {output_path}에 저장")
+    except Exception as e:
+        logging.error(f"데이터 저장 중 오류 발생: {traceback.format_exc()}")
+
 if __name__ == "__main__":
-    events = scrap_all_events("http://ufcstats.com/statistics/events/completed?page=all")
+    # 로깅 설정
+    logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
     
-    # Create data directory if it doesn't exist
-    Path("data").mkdir(exist_ok=True)
-    
-    # Generate filename with timestamp
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    output_path = f"sample_data/events_{timestamp}.json"
-    
-    # Save to JSON file
-    with open(output_path, 'w', encoding='utf-8') as f:
-        json.dump(events, f, indent=2, ensure_ascii=False)
-    
-    logging.info(f"Saved {len(events)} events to {output_path}")
+    # 비동기 실행
+    asyncio.run(main())

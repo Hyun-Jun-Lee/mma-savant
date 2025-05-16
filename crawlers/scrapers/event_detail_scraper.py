@@ -1,26 +1,33 @@
 from datetime import datetime, timedelta
-from typing import Dict
+from typing import Dict, List
+import asyncio
+import traceback
+import logging
 
 from bs4 import BeautifulSoup
 
 from core.driver import PlaywrightDriver
 from schemas import Match, FighterMatch, WeightClass
 
-def scrap_event_detail(event_url: str, event_id: int, fighter_dict: Dict[str, int]) -> Dict[str, str]:
+async def scrap_event_detail(event_url: str, event_id: int, fighter_dict: Dict[str, int]) -> List[Dict]:
     """
     Extract event details from a UFC event detail page HTML file
     """
-    # Check if event is future event
-    is_future_event = False
-    event_details = {}
-    match_data_list = []
+    try:
+        # Check if event is future event
+        is_future_event = False
+        event_details = {}
+        match_data_list = []
 
-    with PlaywrightDriver() as driver:
-        page = driver.new_page()
-        page.goto(event_url)
-        html_content = page.content()
-    
-    soup = BeautifulSoup(html_content, 'html.parser')
+        async with PlaywrightDriver() as driver:
+            page = await driver.new_page()
+            await page.goto(event_url)
+            html_content = await page.content()
+        
+        soup = BeautifulSoup(html_content, 'html.parser')
+    except Exception as e:
+        logging.error(f"이벤트 상세정보 크롤링 중 오류 발생: {traceback.format_exc()}")
+        return []
 
     # Find event info
     info_box = soup.find('div', class_='b-list__info-box')
@@ -124,6 +131,18 @@ def scrap_event_detail(event_url: str, event_id: int, fighter_dict: Dict[str, in
     
     return match_data_list
 
+async def main():
+    try:
+        match_data_list = await scrap_event_detail("http://ufcstats.com/event-details/ca936c67687789e9", 1, {})
+        print(f"이벤트 상세정보: {len(match_data_list)}개의 매치 데이터 추출됨")
+        for match in match_data_list:
+            print(match)
+    except Exception as e:
+        logging.error(f"메인 함수 오류 발생: {traceback.format_exc()}")
+
 if __name__ == "__main__":
-    match_data_list = scrap_event_detail("http://ufcstats.com/event-details/ca936c67687789e9",1,{})
-    print(match_data_list)
+    # 로깅 설정
+    logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+    
+    # 비동기 실행
+    asyncio.run(main())
