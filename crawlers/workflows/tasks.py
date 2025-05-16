@@ -1,6 +1,9 @@
 from typing import List, Dict
+from traceback import format_exc
 
 from prefect import task
+from prefect.logging import get_run_logger
+from prefect.cache_policies import NO_CACHE
 
 from repository import BaseRepository, FighterRepository, EventRepository, MatchRepository, FighterMatchRepository, BasicMatchStatRepository, SigStrMatchStatRepository
 from schemas import BaseSchema, Event, Fighter, Match, FighterMatch
@@ -9,31 +12,47 @@ from scrapers import scrap_fighters, scrap_all_events, scrap_event_detail, scrap
 def save_data(data : List[BaseSchema], repository: BaseRepository) -> List[BaseSchema]:
     return repository.bulk_upsert(data)
 
-@task(retries=3)
-def scrap_all_fighter_task(session)-> List[Fighter]:
+@task(retries=3, cache_policy=NO_CACHE)
+async def scrap_all_fighter_task(session)-> List[Fighter]:
     fighter_data = []
+    logger = get_run_logger()
     for char in 'abcdefghijklmnopqrstuvwxyz':
         fighters_url = f"http://ufcstats.com/statistics/fighters?char={char}&page=all"
-        fighter_schema_list = scrap_fighters(fighters_url)
-        saved_fighter_list = save_data(fighter_schema_list, FighterRepository(session))
-        fighter_data.extend(saved_fighter_list)
+        try:
+            fighter_schema_list = await scrap_fighters(fighters_url)
+            saved_fighter_list = save_data(fighter_schema_list, FighterRepository(session))
+            fighter_data.extend(saved_fighter_list)
+        except Exception as e:
+            logger.error(f"크롤링 중 오류 발생: {str(e)}")
+            logger.error(format_exc())
     return fighter_data
 
 
-@task(retries=3)
-def scrap_all_events_task(session) -> List[Event]:
+@task(retries=3, cache_policy=NO_CACHE)
+async def scrap_all_events_task(session) -> List[Event]:
     all_events_url = "http://ufcstats.com/statistics/events/completed?page=all"
-    event_schema_list = scrap_all_events(all_events_url)
-    saved_event_list = save_data(event_schema_list, EventRepository(session))
-    return saved_event_list
+    logger = get_run_logger()
+    try:
+        event_schema_list = await scrap_all_events(all_events_url)
+        saved_event_list = save_data(event_schema_list, EventRepository(session))
+        return saved_event_list
+    except Exception as e:
+        logger.error(f"크롤링 중 오류 발생: {str(e)}")
+        logger.error(format_exc())
 
-@task(retries=3)
-def scrap_event_detail_task(session, events_list: List[Event], fighter_dict: Dict[str, int]) -> Dict[str, Dict[int, FighterMatch]]:
+@task(retries=3, cache_policy=NO_CACHE)
+async def scrap_event_detail_task(session, events_list: List[Event], fighter_dict: Dict[str, int]) -> Dict[str, Dict[int, FighterMatch]]:
     result_dict = {}
+    logger = get_run_logger()
     for event in events_list:
         event_url = event.url
         event_id = event.id
-        matches_data = scrap_event_detail(event_url, event_id, fighter_dict)
+        try:
+            matches_data = await scrap_event_detail(event_url, event_id, fighter_dict)
+        except Exception as e:
+            logger.error(f"이벤트 세부 정보 크롤링 중 오류 발생: {str(e)}")
+            logger.error(format_exc())
+            continue
 
         for match_data in matches_data:
             match = match_data["match"]
@@ -54,8 +73,8 @@ def scrap_event_detail_task(session, events_list: List[Event], fighter_dict: Dic
                 result_dict[detail_url][fighter_id] = saved_fighter_match
     return result_dict
 
-@task(retries=3)
-def scrap_match_detail_task(session, fighter_match_dict: Dict[str, Dict[int, FighterMatch]], fighter_dict: Dict[str, int])-> None:
+@task(retries=3, cache_policy=NO_CACHE)
+async def scrap_match_detail_task(session, fighter_match_dict: Dict[str, Dict[int, FighterMatch]], fighter_dict: Dict[str, int])-> None:
     """
     매치 상세 정보를 스크랩하는 태스크
     
@@ -64,14 +83,25 @@ def scrap_match_detail_task(session, fighter_match_dict: Dict[str, Dict[int, Fig
         fighter_match_dict: {detail_url: {fighter_id: fighter_match}} 형태의 딕셔너리
         fighter_dict: {fighter_name: fighter_id} 형태의 딕셔너리
     """
+    logger = get_run_logger()
     for detail_url, fighter_matches in fighter_match_dict.items():
         if not detail_url:
             continue
             
         # 매치 기본 통계 정보 스크랩 및 저장
-        match_statistics_list = scrape_match_basic_statistics(detail_url, fighter_dict, fighter_matches)
-        save_data(match_statistics_list, BasicMatchStatRepository(session))
+        try:
+            match_statistics_list = await scrape_match_basic_statistics(detail_url, fighter_dict, fighter_matches)
+            save_data(match_statistics_list, BasicMatchStatRepository(session))
+        except Exception as e:
+            logger.error(f"매치 기본 통계 정보 크롤링 중 오류 발생: {str(e)}")
+            logger.error(format_exc())
+            continue
         
         # 매치 스트라이크 상세 정보 스크랩 및 저장
-        strike_details_list = scrape_match_significant_strikes(detail_url, fighter_dict, fighter_matches)
-        save_data(strike_details_list, SigStrMatchStatRepository(session))
+        try:
+            strike_details_list = await scrape_match_significant_strikes(detail_url, fighter_dict, fighter_matches)
+            save_data(strike_details_list, SigStrMatchStatRepository(session))
+        except Exception as e:
+            logger.error(f"매치 스트라이크 상세 정보 크롤링 중 오류 발생: {str(e)}")
+            logger.error(format_exc())
+            continue
