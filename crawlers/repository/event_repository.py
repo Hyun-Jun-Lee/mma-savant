@@ -50,6 +50,7 @@ class EventRepository(BaseRepository):
     def bulk_upsert(self, events: List[Event]) -> List[Event]:
         """
         여러 이벤트를 일괄 생성하거나 업데이트합니다.
+        URL을 기본 식별자로 사용하여 기존 이벤트를 찾습니다.
         
         Args:
             events: 저장할 이벤트 스키마 리스트
@@ -59,58 +60,23 @@ class EventRepository(BaseRepository):
         """
         result = []
         try:
-            # 단일 트랜잭션 내에서 처리
-            # 기존 이벤트 이름 목록을 한 번에 조회
-            event_names = [e.name for e in events if e.name]
-            
-            # 이름으로 먼저 기존 이벤트 조회
-            name_to_events = {}
-            if event_names:
-                stmt = select(EventModel).where(EventModel.name.in_(event_names))
-                for event in self.session.execute(stmt).scalars().all():
-                    if event.name not in name_to_events:
-                        name_to_events[event.name] = []
-                    name_to_events[event.name].append(event)
-            
-            # URL로 조회할 이벤트 목록 준비
-            events_to_query_by_url = []
-            for event in events:
-                if not event.name or event.name not in name_to_events:
-                    # 이름이 없거나 이름으로 찾을 수 없는 경우
-                    if event.url:
-                        events_to_query_by_url.append(event)
-                    continue
-                
-                # 이름으로 찾은 결과가 여러 개인 경우
-                if len(name_to_events[event.name]) > 1 and event.url:
-                    events_to_query_by_url.append(event)
-            
-            # URL로 추가 조회가 필요한 경우
+            # URL이 있는 이벤트만 URL로 조회
+            event_urls = [e.url for e in events if e.url]
             url_to_event = {}
-            if events_to_query_by_url:
-                event_urls = [e.url for e in events_to_query_by_url if e.url]
-                if event_urls:
-                    stmt = select(EventModel).where(EventModel.url.in_(event_urls))
-                    for event in self.session.execute(stmt).scalars().all():
-                        if event.url:
-                            url_to_event[event.url] = event
+            
+            # URL로 한 번에 기존 이벤트 조회
+            if event_urls:
+                stmt = select(EventModel).where(EventModel.url.in_(event_urls))
+                for event in self.session.execute(stmt).scalars().all():
+                    if event.url:
+                        url_to_event[event.url] = event
             
             # 일괄 처리
             for event in events:
+                # URL로만 기존 이벤트 찾기
                 existing_event = None
-                
-                # 1. 이름으로 찾기
-                if event.name and event.name in name_to_events:
-                    if len(name_to_events[event.name]) == 1:
-                        # 이름으로 찾은 결과가 하나만 있는 경우
-                        existing_event = name_to_events[event.name][0]
-                    elif event.url and event.url in url_to_event:
-                        # 이름으로 찾은 결과가 여러 개인 경우, URL로 필터링
-                        existing_event = url_to_event[event.url]
-                
-                # 2. URL로 찾기 (이름으로 찾지 못한 경우)
-                elif event.url and event.url in url_to_event:
-                    existing_event = url_to_event[event.url]
+                if event.url:
+                    existing_event = url_to_event.get(event.url)
                 
                 if existing_event:
                     # 기존 이벤트 업데이트
@@ -131,11 +97,12 @@ class EventRepository(BaseRepository):
             updated_result = []
             for item in result:
                 if not getattr(item, 'id', None):
-                    # 새로 생성된 이벤트는 ID가 없으므로 다시 조회
-                    stmt = select(EventModel).where(
-                        (EventModel.url == item.url) & 
-                        (EventModel.name == item.name)
-                    )
+                    # 새로 생성된 이벤트는 ID가 없는 경우만 다시 조회
+                    if item.url:  # URL이 있는 경우 URL로 조회
+                        stmt = select(EventModel).where(EventModel.url == item.url)
+                    else:  # URL이 없는 경우 이름으로 조회
+                        stmt = select(EventModel).where(EventModel.name == item.name)
+                    
                     new_event = self.session.execute(stmt).scalars().first()
                     if new_event:
                         updated_result.append(new_event.to_schema())

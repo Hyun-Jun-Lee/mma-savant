@@ -44,9 +44,9 @@ class MatchModel(BaseModel):
             time=self.time,
             order=self.order,
             is_main_event=self.is_main_event,
+            detail_url=self.detail_url,
             created_at=self.created_at,
             updated_at=self.updated_at,
-            is_active=self.is_active
         )
 
 class FighterMatchModel(BaseModel):
