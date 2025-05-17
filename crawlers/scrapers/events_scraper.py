@@ -5,7 +5,7 @@ from typing import List
 from pathlib import Path
 import asyncio
 import traceback
-
+import re
 from bs4 import BeautifulSoup
 
 from core.driver import PlaywrightDriver
@@ -14,10 +14,23 @@ from schemas import Event
 def parse_date(date_str):
     if not date_str:
         return None
+        
+    cleaned_str = re.sub(r'\s+', ' ', date_str.strip())  # 다중 공백을 단일 공백으로
+    cleaned_str = re.sub(r'\s*,\s*', ', ', cleaned_str)  # 쉼표 주변 공백 정규화
+
     try:
-        return datetime.strptime(date_str, "%B %d, %Y").date()
-    except ValueError:
-        return None
+        parsed_date = datetime.strptime(cleaned_str, "%B %d, %Y").date()
+        return parsed_date
+    except ValueError as e:
+        print(e)
+        # 추가 형식 시도 (예: 'May 17 1996')
+        try:
+            cleaned_str = re.sub(r',\s*', ' ', cleaned_str)  # 쉼표 제거
+            parsed_date = datetime.strptime(cleaned_str, "%B %d %Y").date()
+            return parsed_date
+        except ValueError as e:
+            print(e)
+            return None
 
 async def scrap_all_events(all_events_url: str) -> List[Event]:
     try:
@@ -55,19 +68,19 @@ async def scrap_all_events(all_events_url: str) -> List[Event]:
         # Find date
         event_date_span = row.find('span', class_='b-statistics__date')
         event_date = event_date_span.get_text(strip=True) if event_date_span else ''
-        if not event_date:
-            print(event_name, event_date)
         parsed_event_date = parse_date(event_date)
+            
         # Find location
         location_col = row.find('td', class_='b-statistics__table-col_style_big-top-padding')
         event_location = location_col.get_text(strip=True) if location_col else ''
-        
-        events.append(Event(
+        event_schema = Event(
             name=event_name,
-            date=parsed_event_date,
+            event_date=parsed_event_date,
             location=event_location,
             url=event_url
-        ))
+        )
+        
+        events.append(event_schema)
     
     return events
 

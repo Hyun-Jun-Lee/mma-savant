@@ -154,12 +154,12 @@ async def scrape_match_basic_statistics(match_detail_url: str, fighter_dict: Dic
             knockdowns=kd_1,
             control_time_seconds=ctrl_time_1,
             submission_attempts=sub_att_1,
-            sig_str_landed=sig_str_1[0],
-            sig_str_attempted=sig_str_1[1],
-            total_str_landed=total_str_1[0],
-            total_str_attempted=total_str_1[1],
-            td_landed=td_1[0],
-            td_attempted=td_1[1],
+            sig_str_landed=sig_str_1['sig_str_landed'],
+            sig_str_attempted=sig_str_1['sig_str_attempted'],
+            total_str_landed=total_str_1['total_str_landed'],
+            total_str_attempted=total_str_1['total_str_attempted'],
+            td_landed=td_1['td_landed'],
+            td_attempted=td_1['td_attempted'],
             round=round_num
         )
         fighter_2_match_statistics = BasicMatchStat(
@@ -167,12 +167,12 @@ async def scrape_match_basic_statistics(match_detail_url: str, fighter_dict: Dic
             knockdowns=kd_2,
             control_time_seconds=ctrl_time_2,
             submission_attempts=sub_att_2,
-            sig_str_landed=sig_str_2[0],
-            sig_str_attempted=sig_str_2[1],
-            total_str_landed=total_str_2[0],
-            total_str_attempted=total_str_2[1],
-            td_landed=td_2[0],
-            td_attempted=td_2[1],
+            sig_str_landed=sig_str_2['sig_str_landed'],
+            sig_str_attempted=sig_str_2['sig_str_attempted'],
+            total_str_landed=total_str_2['total_str_landed'],
+            total_str_attempted=total_str_2['total_str_attempted'],
+            td_landed=td_2['td_landed'],
+            td_attempted=td_2['td_attempted'],
             round=round_num
         )
         
@@ -233,6 +233,9 @@ async def scrape_match_significant_strikes(match_detail_url: str, fighter_dict: 
         fighter_text = cols[0].get_text(strip=False).lstrip()
         fighters = [name.strip() for name in fighter_text.split('\n') if name.strip()]
         fighter_1, fighter_2 = fighters[:2]
+        fighter_1_id, fighter_2_id = fighter_dict.get(fighter_1, 0), fighter_dict.get(fighter_2, 0)
+        fighter_1_match = fighter_match_dict.get(fighter_1_id, None)
+        fighter_2_match = fighter_match_dict.get(fighter_2_id, None)
 
         # 모든 타격 데이터 추출
         head_data = [head.strip() for head in cols[3].get_text(strip=False).lstrip().split('\n') if head.strip()]
@@ -255,31 +258,31 @@ async def scrape_match_significant_strikes(match_detail_url: str, fighter_dict: 
 
         fighter_1_strike_detail = SigStrMatchStat(
             fighter_match_id=fighter_1_match.id,
-            head_strikes_landed=head_1[0],
-            head_strikes_attempts=head_1[1],
-            body_strikes_landed=body_1[0],
-            body_strikes_attempts=body_1[1],
-            leg_strikes_landed=leg_1[0],
-            leg_strikes_attempts=leg_1[1],
-            clinch_strikes_landed=clinch_1[0],
-            clinch_strikes_attempts=clinch_1[1],
-            ground_strikes_landed=ground_1[0],
-            ground_strikes_attempts=ground_1[1],
+            head_strikes_landed=head_1['head_landed'],
+            head_strikes_attempts=head_1['head_attempted'],
+            body_strikes_landed=body_1['body_landed'],
+            body_strikes_attempts=body_1['body_attempted'],
+            leg_strikes_landed=leg_1['leg_landed'],
+            leg_strikes_attempts=leg_1['leg_attempted'],
+            clinch_strikes_landed=clinch_1['clinch_landed'],
+            clinch_strikes_attempts=clinch_1['clinch_attempted'],
+            ground_strikes_landed=ground_1['ground_landed'],
+            ground_strikes_attempts=ground_1['ground_attempted'],
             round=round_num
         )
         
         fighter_2_strike_detail = SigStrMatchStat(
             fighter_match_id=fighter_2_match.id,
-            head_strikes_landed=head_2[0],
-            head_strikes_attempts=head_2[1],
-            body_strikes_landed=body_2[0],
-            body_strikes_attempts=body_2[1],
-            leg_strikes_landed=leg_2[0],
-            leg_strikes_attempts=leg_2[1],
-            clinch_strikes_landed=clinch_2[0],
-            clinch_strikes_attempts=clinch_2[1],
-            ground_strikes_landed=ground_2[0],
-            ground_strikes_attempts=ground_2[1],
+            head_strikes_landed=head_2['head_landed'],
+            head_strikes_attempts=head_2['head_attempted'],
+            body_strikes_landed=body_2['body_landed'],
+            body_strikes_attempts=body_2['body_attempted'],
+            leg_strikes_landed=leg_2['leg_landed'],
+            leg_strikes_attempts=leg_2['leg_attempted'],
+            clinch_strikes_landed=clinch_2['clinch_landed'],
+            clinch_strikes_attempts=clinch_2['clinch_attempted'],
+            ground_strikes_landed=ground_2['ground_landed'],
+            ground_strikes_attempts=ground_2['ground_attempted'],
             round=round_num
         )
         
@@ -292,8 +295,16 @@ async def main():
     try:
         # 테스트용 코드
         match_detail_url = "http://ufcstats.com/fight-details/d13849f49f99bf01"
-        basic_stats = await scrape_match_basic_statistics(match_detail_url)
-        sig_stats = await scrape_match_significant_strikes(match_detail_url)
+        fighter_dict = {
+            "Stefan Struve": 1,
+            "Khabib Nurmagomedov": 2
+        }
+        fighter_match_dict = {
+            1: FighterMatch(id=1, fighter_id=1, match_id=1),
+            2: FighterMatch(id=2, fighter_id=2, match_id=1)
+        }
+        basic_stats = await scrape_match_basic_statistics(match_detail_url, fighter_dict, fighter_match_dict)
+        sig_stats = await scrape_match_significant_strikes(match_detail_url, fighter_dict, fighter_match_dict)
         
         logging.info(f"기본 매치 통계: {len(basic_stats)}개 항목 추출됨")
         logging.info(f"유의미한 타격 통계: {len(sig_stats)}개 항목 추출됨")
