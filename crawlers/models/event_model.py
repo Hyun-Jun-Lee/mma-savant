@@ -1,4 +1,4 @@
-from sqlalchemy import Column, String, Float, Integer, Boolean
+from sqlalchemy import Column, String, Date
 from sqlalchemy.orm import relationship
 
 from models.base import BaseModel
@@ -9,7 +9,7 @@ class EventModel(BaseModel):
 
     name = Column(String, nullable=False)
     location = Column(String)
-    event_date = Column(String)
+    event_date = Column(Date)
     url = Column(String)
 
     matches = relationship("MatchModel", back_populates="event")

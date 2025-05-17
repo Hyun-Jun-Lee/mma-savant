@@ -30,6 +30,6 @@ class Fighter(BaseSchema):
 class FighterMatch(BaseSchema):
     fighter_id: int
     match_id: int
-    result: str
+    result: Optional[str] = None
 
     model_config = ConfigDict(from_attributes=True)
