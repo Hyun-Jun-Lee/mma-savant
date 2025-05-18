@@ -41,7 +41,7 @@ class BasicMatchStat(BaseSchema):
 
 class Match(BaseSchema):
     event_id: int
-    weight_class_id: int
+    weight_class_id: Optional[int] = None
     method: Optional[str] = None
     result_round: Optional[int] = 0
     time: Optional[str] = None
