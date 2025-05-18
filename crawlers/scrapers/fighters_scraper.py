@@ -78,7 +78,7 @@ async def scrap_fighters(fighters_url: str) -> List[Fighter]:
                         
                         # 파이터 상세 URL 저장 (첫 번째 컬럼에서만 저장)
                         if i == 0 and link and 'href' in link.attrs:
-                            fighter_data['url_id'] = link['href'].split('/')[-1]
+                            fighter_data['detail_url'] = link['href'].split('/')[-1]
                         
                         if key == 'first':
                             first_name = value
@@ -86,7 +86,7 @@ async def scrap_fighters(fighters_url: str) -> List[Fighter]:
                         elif key == 'last':
                             last_name = value
                             # Combine first and last name
-                            fighter_data['name'] = f"{first_name} {last_name}".strip()
+                            fighter_data['name'] = f"{first_name} {last_name}".lower().strip()
                             continue
                         else:
                             fighter_data[key] = value

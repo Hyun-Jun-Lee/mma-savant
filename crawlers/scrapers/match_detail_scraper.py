@@ -124,10 +124,13 @@ async def scrape_match_basic_statistics(match_detail_url: str, fighter_dict: Dic
         fighter_text = cols[0].get_text(strip=False).lstrip()
         fighters = [name.strip() for name in fighter_text.split('\n') if name.strip()]
         fighter_1, fighter_2 = fighters[:2]
-        fighter_1_id, fighter_2_id = fighter_dict.get(fighter_1, 0), fighter_dict.get(fighter_2, 0)
+        fighter_1_id, fighter_2_id = fighter_dict.get(fighter_1.lower().strip(), 0), fighter_dict.get(fighter_2.lower().strip(), 0)
         fighter_1_match = fighter_match_dict.get(fighter_1_id, None)
         fighter_2_match = fighter_match_dict.get(fighter_2_id, None)
         
+        if not fighter_1_match or not fighter_2_match:
+            logging.warning(f"매치 정보를 찾을 수 없습니다: {fighter_1} vs {fighter_2}, - {match_detail_url}")
+            continue
         
         kd_text = cols[1].get_text(strip=False).lstrip().split('\n')
         kd_data = [kd.strip() for kd in kd_text if kd.strip()]
@@ -221,7 +224,8 @@ async def scrape_match_significant_strikes(match_detail_url: str, fighter_dict: 
             break
     
     if not sig_table:
-        raise Exception("Significant strikes 테이블을 찾을 수 없습니다")
+        print(f"Significant strikes 테이블을 찾을 수 없습니다 - {match_detail_url}")
+        return []
     
     # 라운드별 데이터 추출
     fighter_rounds = []
@@ -233,7 +237,7 @@ async def scrape_match_significant_strikes(match_detail_url: str, fighter_dict: 
         fighter_text = cols[0].get_text(strip=False).lstrip()
         fighters = [name.strip() for name in fighter_text.split('\n') if name.strip()]
         fighter_1, fighter_2 = fighters[:2]
-        fighter_1_id, fighter_2_id = fighter_dict.get(fighter_1, 0), fighter_dict.get(fighter_2, 0)
+        fighter_1_id, fighter_2_id = fighter_dict.get(fighter_1.lower().strip(), 0), fighter_dict.get(fighter_2.lower().strip(), 0)
         fighter_1_match = fighter_match_dict.get(fighter_1_id, None)
         fighter_2_match = fighter_match_dict.get(fighter_2_id, None)
 

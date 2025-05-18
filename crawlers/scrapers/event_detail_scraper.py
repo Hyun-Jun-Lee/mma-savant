@@ -73,9 +73,9 @@ async def scrap_event_detail(event_url: str, event_id: int, fighter_dict: Dict[s
         fighter_text = cols[1].get_text(strip=False).lstrip().replace('\n', '')
         fighters = [f.strip() for f in fighter_text.split('  ') if f.strip()]
         fighter_1, fighter_2 = fighters
-        fighter_1_id = fighter_dict.get(fighter_1)
-        fighter_2_id = fighter_dict.get(fighter_2)
-        
+        fighter_1_id = fighter_dict.get(fighter_1.lower().strip())
+        fighter_2_id = fighter_dict.get(fighter_2.lower().strip())
+
         # Check fight result
         win_element = cols[0].find('a', class_='b-flag b-flag_style_green')
         draw_nc_element = cols[0].find('a', class_='b-flag b-flag_style_bordered')
@@ -110,6 +110,9 @@ async def scrap_event_detail(event_url: str, event_id: int, fighter_dict: Dict[s
             time = cols[9].get_text(strip=True)
 
             weight_class_id = WeightClass.get_id_by_name(weight_class)
+            if not weight_class_id:
+                print("weight_class", weight_class)
+                
             
             # Create new fight entry
             match_data ={ 
