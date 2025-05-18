@@ -1,4 +1,6 @@
 from sqlalchemy.orm import Session
+from sqlalchemy import select
+
 from typing import Optional, List, Dict
 
 from models.match_model import MatchModel, FighterMatchModel
@@ -141,3 +143,30 @@ class FighterMatchRepository:
         ).all()
         
         return [fighter_match.to_schema() for fighter_match in fighter_matches]
+
+    def find_all(self)-> List[FighterMatch]:
+        fighter_matches = self.session.query(FighterMatchModel).all()
+        return [fighter_match.to_schema() for fighter_match in fighter_matches]
+    
+    def find_match_fighter_mapping(self) -> Dict[str, Dict[int, FighterMatch]]:
+        """detail_url을 키로 하고 fighter_id를 서브키로 하는 딕셔너리 반환"""
+        result_dict = {}
+        
+        # Match와 FighterMatch 조인하여 한 번에 가져오기
+        stmt = (
+            select(MatchModel, FighterMatchModel)
+            .join(FighterMatchModel, FighterMatchModel.match_id == MatchModel.id)
+            .where(MatchModel.detail_url.is_not(None))
+        )
+        
+        rows = self.session.execute(stmt).all()
+        
+        for match, fighter_match in rows:
+            detail_url = match.detail_url
+            fighter_id = fighter_match.fighter_id
+            
+            if detail_url not in result_dict:
+                result_dict[detail_url] = {}
+            result_dict[detail_url][fighter_id] = fighter_match.to_schema()
+        
+        return result_dict

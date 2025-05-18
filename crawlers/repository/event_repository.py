@@ -151,7 +151,7 @@ class EventRepository(BaseRepository):
             print(f"이벤트 조회 중 오류 발생: {str(e)}")
             return None
 
-    def find_all(self, is_active: bool = True) -> List[Event]:
+    def find_all(self) -> List[Event]:
         """
         모든 이벤트를 조회합니다.
         
@@ -162,7 +162,7 @@ class EventRepository(BaseRepository):
             조회된 이벤트 스키마 리스트
         """
         try:
-            stmt = select(EventModel).where(EventModel.is_active == is_active)
+            stmt = select(EventModel)
             events = self.session.execute(stmt).scalars().all()
             return [event.to_schema() for event in events]
         except SQLAlchemyError as e:
