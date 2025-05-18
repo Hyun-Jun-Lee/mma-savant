@@ -62,58 +62,32 @@ class FighterRepository(BaseRepository):
         """
         result = []
         try:
-            # 단일 트랜잭션 내에서 처리
-            # 기존 파이터 이름 목록을 한 번에 조회
-            fighter_names = [f.name for f in fighters if f.name]
+            # 입력 리스트에서 중복 제거 (동일 이름 파이터 중 마지막 항목만 유지)
+            unique_fighters = {}
+            for fighter in fighters:
+                if fighter.name:  # 이름이 있는 경우만 처리
+                    if fighter.name not in unique_fighters:
+                        unique_fighters[fighter.name] = fighter
             
-            # 이름으로 먼저 기존 파이터 조회
+            # 중복 제거된 고유 파이터 리스트 생성
+            unique_fighter_list = list(unique_fighters.values())
+            
+            # 기존 파이터 이름 목록을 한 번에 조회
             name_to_fighters = {}
+            fighter_names = [f.name for f in unique_fighter_list if f.name]
             if fighter_names:
                 stmt = select(FighterModel).where(FighterModel.name.in_(fighter_names))
                 for fighter in self.session.execute(stmt).scalars().all():
                     if fighter.name not in name_to_fighters:
-                        name_to_fighters[fighter.name] = []
-                    name_to_fighters[fighter.name].append(fighter)
-            
-            # URL로 조회할 파이터 목록 준비
-            fighters_to_query_by_url = []
-            for fighter in fighters:
-                if not fighter.name or fighter.name not in name_to_fighters:
-                    # 이름이 없거나 이름으로 찾을 수 없는 경우
-                    if fighter.detail_url:
-                        fighters_to_query_by_url.append(fighter)
-                    continue
-                
-                # 이름으로 찾은 결과가 여러 개인 경우
-                if len(name_to_fighters[fighter.name]) > 1 and fighter.detail_url:
-                    fighters_to_query_by_url.append(fighter)
-            
-            # URL로 추가 조회가 필요한 경우
-            url_to_fighter = {}
-            if fighters_to_query_by_url:
-                fighter_urls = [f.detail_url for f in fighters_to_query_by_url if f.detail_url]
-                if fighter_urls:
-                    stmt = select(FighterModel).where(FighterModel.detail_url.in_(fighter_urls))
-                    for fighter in self.session.execute(stmt).scalars().all():
-                        if fighter.detail_url:
-                            url_to_fighter[fighter.detail_url] = fighter
-            
+                        name_to_fighters[fighter.name] = fighter
+
             # 일괄 처리
-            for fighter in fighters:
+            for fighter in unique_fighter_list:
                 existing_fighter = None
                 
-                # 1. 이름으로 찾기
+                # 이름으로만 찾기
                 if fighter.name and fighter.name in name_to_fighters:
-                    if len(name_to_fighters[fighter.name]) == 1:
-                        # 이름으로 찾은 결과가 하나만 있는 경우
-                        existing_fighter = name_to_fighters[fighter.name][0]
-                    elif fighter.detail_url and fighter.detail_url in url_to_fighter:
-                        # 이름으로 찾은 결과가 여러 개인 경우, URL로 필터링
-                        existing_fighter = url_to_fighter[fighter.detail_url]
-                
-                # 2. URL로 찾기 (이름으로 찾지 못한 경우)
-                elif fighter.detail_url and fighter.detail_url in url_to_fighter:
-                    existing_fighter = url_to_fighter[fighter.detail_url]
+                    existing_fighter = name_to_fighters[fighter.name]
                 
                 if existing_fighter:
                     # 기존 파이터 업데이트
@@ -135,10 +109,7 @@ class FighterRepository(BaseRepository):
             for item in result:
                 if not getattr(item, 'id', None):
                     # 새로 생성된 파이터는 ID가 없으므로 다시 조회
-                    stmt = select(FighterModel).where(
-                        (FighterModel.name == item.name) & 
-                        (FighterModel.detail_url == item.detail_url)
-                    )
+                    stmt = select(FighterModel).where(FighterModel.name == item.name)
                     new_fighter = self.session.execute(stmt).scalars().first()
                     if new_fighter:
                         updated_result.append(new_fighter.to_schema())
@@ -205,7 +176,7 @@ class FighterRepository(BaseRepository):
             print(f"파이터 조회 중 오류 발생: {str(e)}")
             return None
 
-    def find_all(self, is_active: bool = True) -> List[Fighter]:
+    def find_all(self) -> List[Fighter]:
         """
         모든 파이터를 조회합니다.
         
@@ -216,7 +187,7 @@ class FighterRepository(BaseRepository):
             조회된 파이터 스키마 리스트
         """
         try:
-            stmt = select(FighterModel).where(FighterModel.is_active == is_active)
+            stmt = select(FighterModel)
             fighters = self.session.execute(stmt).scalars().all()
             return [fighter.to_schema() for fighter in fighters]
         except SQLAlchemyError as e:
