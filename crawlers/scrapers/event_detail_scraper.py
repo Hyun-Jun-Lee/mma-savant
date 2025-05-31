@@ -1,15 +1,14 @@
 from datetime import datetime, timedelta
-from typing import Dict, List
+from typing import Dict, List, Callable
 import asyncio
 import traceback
 import logging
 
 from bs4 import BeautifulSoup
 
-from core.driver import PlaywrightDriver
 from schemas import Match, FighterMatch, WeightClass
 
-async def scrap_event_detail(event_url: str, event_id: int, fighter_dict: Dict[str, int]) -> List[Dict]:
+async def scrap_event_detail(crawler_fn: Callable, event_url: str, event_id: int, fighter_dict: Dict[str, int]) -> List[Dict]:
     """
     Extract event details from a UFC event detail page HTML file
     """
@@ -19,11 +18,10 @@ async def scrap_event_detail(event_url: str, event_id: int, fighter_dict: Dict[s
         event_details = {}
         match_data_list = []
 
-        async with PlaywrightDriver() as driver:
-            page = await driver.new_page()
-            await page.goto(event_url)
-            html_content = await page.content()
-        
+        html_content = await crawler_fn(event_url)
+        if not html_content:
+            return []
+
         soup = BeautifulSoup(html_content, 'html.parser')
     except Exception as e:
         logging.error(f"이벤트 상세정보 크롤링 중 오류 발생: {traceback.format_exc()}")
@@ -135,8 +133,10 @@ async def scrap_event_detail(event_url: str, event_id: int, fighter_dict: Dict[s
     return match_data_list
 
 async def main():
+    from core.crawler import crawl_with_httpx
+    
     try:
-        match_data_list = await scrap_event_detail("http://ufcstats.com/event-details/ca936c67687789e9", 1, {})
+        match_data_list = await scrap_event_detail(crawl_with_httpx, "http://ufcstats.com/event-details/ca936c67687789e9", 1, {})
         print(f"이벤트 상세정보: {len(match_data_list)}개의 매치 데이터 추출됨")
         for match in match_data_list:
             print(match)

@@ -1,7 +1,7 @@
 import logging
 import json
 from datetime import datetime
-from typing import List
+from typing import List, Callable
 from pathlib import Path
 import asyncio
 import traceback
@@ -32,14 +32,14 @@ def parse_date(date_str):
             print(e)
             return None
 
-async def scrap_all_events(all_events_url: str) -> List[Event]:
+async def scrap_all_events(crawler_fn: Callable, all_events_url: str) -> List[Event]:
     try:
-        async with PlaywrightDriver() as driver:
-            page = await driver.new_page()
-            await page.goto(all_events_url)
-            html_content = await page.content()
+        html_content = await crawler_fn(all_events_url) 
+        if not html_content:
+            return []
         
         soup = BeautifulSoup(html_content, 'html.parser')
+        
     except Exception as e:
         logging.error(f"크롤링 중 오류 발생: {traceback.format_exc()}")
         return []
@@ -85,21 +85,13 @@ async def scrap_all_events(all_events_url: str) -> List[Event]:
     return events
 
 async def main():
+    from core.crawler import crawl_with_httpx
+    
     try:
-        events = await scrap_all_events("http://ufcstats.com/statistics/events/completed?page=all")
+        events = await scrap_all_events(crawl_with_httpx, "http://ufcstats.com/statistics/events/completed?page=all")
         
-        # Create data directory if it doesn't exist
-        Path("sample_data").mkdir(exist_ok=True)
-        
-        # Generate filename with timestamp
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        output_path = f"sample_data/events_{timestamp}.json"
-        
-        # Save to JSON file
-        with open(output_path, 'w', encoding='utf-8') as f:
-            json.dump([event.dict() for event in events], f, indent=2, ensure_ascii=False)
-        
-        logging.info(f"저장 완료: {len(events)}개 이벤트를 {output_path}에 저장")
+        for event in events[:5]:
+            print(event)
     except Exception as e:
         logging.error(f"데이터 저장 중 오류 발생: {traceback.format_exc()}")
 
