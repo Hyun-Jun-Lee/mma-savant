@@ -1,6 +1,8 @@
 import httpx
 import traceback
 
+from user_agent import generate_user_agent
+
 from core.driver import PlaywrightDriver
 
 async def crawl_with_playwright(url: str) -> str:
@@ -15,9 +17,12 @@ async def crawl_with_playwright(url: str) -> str:
         return None
 
 async def crawl_with_httpx(url: str) -> str:
+    headers = {
+        "User-Agent": generate_user_agent(os=('mac', 'linux'), device_type='desktop')
+    }
     async with httpx.AsyncClient(timeout=30.0) as client:
         try:
-            response = await client.get(url)
+            response = await client.get(url, headers=headers)
             response.raise_for_status()
             return response.text
         except Exception as e:

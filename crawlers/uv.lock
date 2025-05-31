@@ -361,6 +361,7 @@ dependencies = [
     { name = "tzlocal" },
     { name = "ujson" },
     { name = "urllib3" },
+    { name = "user-agent" },
     { name = "uv" },
     { name = "uvicorn" },
     { name = "websockets" },
@@ -472,6 +473,7 @@ requires-dist = [
     { name = "tzlocal", specifier = "==5.3.1" },
     { name = "ujson", specifier = "==5.10.0" },
     { name = "urllib3", specifier = "==2.3.0" },
+    { name = "user-agent", specifier = ">=0.1.10" },
     { name = "uv", specifier = "==0.6.5" },
     { name = "uvicorn", specifier = "==0.34.0" },
     { name = "websockets", specifier = "==15.0.1" },
@@ -1869,6 +1871,15 @@ sdist = { url = "https://files.pythonhosted.org/packages/aa/63/e53da845320b757bf
 wheels = [
     { url = "https://files.pythonhosted.org/packages/c8/19/4ec628951a74043532ca2cf5d97b7b14863931476d117c471e8e2b1eb39f/urllib3-2.3.0-py3-none-any.whl", hash = "sha256:1cee9ad369867bfdbbb48b7dd50374c0967a0bb7710050facf0dd6911440e3df", size = 128369 },
 ]
+
+[[package]]
+name = "user-agent"
+version = "0.1.10"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "six" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/b5/db/559a95b7cc146b269a0cc4cb7a53471ddd270ce9b29f23a5ed5e118acd4e/user_agent-0.1.10.tar.gz", hash = "sha256:b86537cb2a9d3bda0e2afcc654ec15b383502836877a67520654acadf73f1723", size = 20965 }
 
 [[package]]
 name = "uv"

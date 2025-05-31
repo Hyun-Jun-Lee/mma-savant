@@ -1,6 +1,9 @@
-from playwright.async_api import async_playwright, Browser, Page
 from typing import Optional, Callable
 import logging
+
+from user_agent import generate_user_agent
+
+from playwright.async_api import async_playwright, Browser, Page
 
 class PlaywrightDriver:
     _browser: Optional[Browser] = None
@@ -46,7 +49,7 @@ class PlaywrightDriver:
         # 감지 방지를 위한 추가 설정 적용
         await page.set_extra_http_headers({
             'Accept-Language': 'en-US,en;q=0.9',
-            'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+            'User-Agent': generate_user_agent(os=('mac', 'linux'), device_type='desktop')
         })
         
         await page.add_init_script("""

@@ -107,6 +107,7 @@ dependencies = [
     "tzlocal==5.3.1",
     "ujson==5.10.0",
     "urllib3==2.3.0",
+    "user-agent>=0.1.10",
     "uv==0.6.5",
     "uvicorn==0.34.0",
     "websockets==15.0.1",
