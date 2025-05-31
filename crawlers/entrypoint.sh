@@ -16,6 +16,9 @@ alembic upgrade head
 echo "체급 클래스 초기화 중..."
 python init_weight_classes.py
 
+# playwright install
+playwright install
+
 # 메인 애플리케이션 실행
 echo "메인 애플리케이션 실행 중..."
 python main.py
