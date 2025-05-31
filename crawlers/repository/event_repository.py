@@ -93,23 +93,7 @@ class EventRepository(BaseRepository):
             # 모든 변경사항을 한 번에 커밋
             self.session.commit()
             
-            # 새로 생성된 이벤트의 스키마 업데이트 (ID 포함)
-            updated_result = []
-            for item in result:
-                if not getattr(item, 'id', None):
-                    # 새로 생성된 이벤트는 ID가 없는 경우만 다시 조회
-                    if item.url:  # URL이 있는 경우 URL로 조회
-                        stmt = select(EventModel).where(EventModel.url == item.url)
-                    else:  # URL이 없는 경우 이름으로 조회
-                        stmt = select(EventModel).where(EventModel.name == item.name)
-                    
-                    new_event = self.session.execute(stmt).scalars().first()
-                    if new_event:
-                        updated_result.append(new_event.to_schema())
-                else:
-                    updated_result.append(item)
-            
-            return updated_result
+            return result
         except SQLAlchemyError as e:
             self.session.rollback()
             print(f"이벤트 일괄 저장 중 오류 발생: {str(e)}")
