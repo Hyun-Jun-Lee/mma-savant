@@ -6,19 +6,20 @@ from schemas.base import BaseSchema
 
 class WeightClassEnum(str, Enum):
     """UFC 체급 Enum"""
-    FLYWEIGHT = "Flyweight"
-    BANTAMWEIGHT = "Bantamweight"
-    FEATHERWEIGHT = "Featherweight"
-    LIGHTWEIGHT = "Lightweight"
-    WELTERWEIGHT = "Welterweight"
-    MIDDLEWEIGHT = "Middleweight"
-    LIGHT_HEAVYWEIGHT = "Light Heavyweight"
-    HEAVYWEIGHT = "Heavyweight"
-    WOMENS_STRAWWEIGHT = "Women's Strawweight"
-    WOMENS_FLYWEIGHT = "Women's Flyweight"
-    WOMENS_BANTAMWEIGHT = "Women's Bantamweight"
-    WOMENS_FEATHERWEIGHT = "Women's Featherweight"
-    CATCH_WEIGHT = "Catch Weight"
+    FLYWEIGHT = "flyweight"
+    BANTAMWEIGHT = "bantamweight"
+    FEATHERWEIGHT = "featherweight"
+    LIGHTWEIGHT = "lightweight"
+    WELTERWEIGHT = "welterweight"
+    MIDDLEWEIGHT = "middleweight"
+    LIGHT_HEAVYWEIGHT = "light heavyweight"
+    HEAVYWEIGHT = "heavyweight"
+    WOMENS_STRAWWEIGHT = "women's strawweight"
+    WOMENS_FLYWEIGHT = "women's flyweight"
+    WOMENS_BANTAMWEIGHT = "women's bantamweight"
+    WOMENS_FEATHERWEIGHT = "women's featherweight"
+    CATCH_WEIGHT = "catch weight"
+    OPEN_WEIGHT = "open weight"
 
 class WeightClass(BaseSchema):
     name: str
@@ -38,6 +39,7 @@ class WeightClass(BaseSchema):
         WeightClassEnum.WOMENS_BANTAMWEIGHT.value: 11,
         WeightClassEnum.WOMENS_FEATHERWEIGHT.value: 12,
         WeightClassEnum.CATCH_WEIGHT.value: 13,
+        WeightClassEnum.OPEN_WEIGHT.value: 14,
     }
     
     model_config = ConfigDict(from_attributes=True)

@@ -27,19 +27,20 @@ def initialize_weight_classes():
     
     # 체급 정보 생성
     weight_classes = [
-        WeightClassModel(name="Flyweight"),
-        WeightClassModel(name="Bantamweight"),
-        WeightClassModel(name="Featherweight"),
-        WeightClassModel(name="Lightweight"),
-        WeightClassModel(name="Welterweight"),
-        WeightClassModel(name="Middleweight"),
-        WeightClassModel(name="Light Heavyweight"),
-        WeightClassModel(name="Heavyweight"),
-        WeightClassModel(name="Women's Strawweight"),
-        WeightClassModel(name="Women's Flyweight"),
-        WeightClassModel(name="Women's Bantamweight"),
-        WeightClassModel(name="Women's Featherweight"),
-        WeightClassModel(name="Catch Weight"),
+        WeightClassModel(id=1, name="flyweight"),
+        WeightClassModel(id=2, name="bantamweight"),
+        WeightClassModel(id=3, name="featherweight"),
+        WeightClassModel(id=4, name="lightweight"),
+        WeightClassModel(id=5, name="welterweight"),
+        WeightClassModel(id=6, name="middleweight"),
+        WeightClassModel(id=7, name="light heavyweight"),
+        WeightClassModel(id=8, name="heavyweight"),
+        WeightClassModel(id=9, name="women's strawweight"),
+        WeightClassModel(id=10, name="women's flyweight"),
+        WeightClassModel(id=11, name="women's bantamweight"),
+        WeightClassModel(id=12, name="women's featherweight"),
+        WeightClassModel(id=13, name="catch weight"),
+        WeightClassModel(id=14, name="open weight"),
     ]
     
     # 데이터베이스에 체급 정보 저장
@@ -54,7 +55,7 @@ def initialize_weight_classes():
     with engine.connect() as connection:
         connection.execute(text("SELECT setval('weight_class_id_seq', 13, true)"))
     
-    print("체급 테이블 초기화 완료: 13개 항목 생성됨")
+    print("체급 테이블 초기화 완료: 14개 항목 생성됨")
 
 
 if __name__ == "__main__":
