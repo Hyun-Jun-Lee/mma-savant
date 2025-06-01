@@ -58,24 +58,26 @@ async def scrap_all_events_task(session, crawler_fn : Callable) -> None:
         LOGGER.error(f"scrap_all_events_task failed: {str(e)}")
         LOGGER.error(format_exc())
 
-@task(retries=3, cache_policy=NO_CACHE)
-async def scrap_event_detail_task(session, crawler_fn : Callable) -> None:
-    LOGGER.info("scrap_event_detail_task started")
-    events_list = EventRepository(session).find_all()
-    all_fighters = FighterRepository(session).find_all()
-    fighter_dict = {fighter.name: fighter.id for fighter in all_fighters}
-    
-    for idx, event in enumerate(events_list):
+async def process_event_detail(
+    idx: int,
+    event,
+    crawler_fn: Callable,
+    fighter_dict: dict,
+    session,
+    total_events: int,
+    semaphore: asyncio.Semaphore
+) -> None:
+    async with semaphore:  # 동시 실행 제한
         await asyncio.sleep(RANDOM_DELAY)
-        LOGGER.info(f"[{idx+1}/{len(events_list)}] - event_id: {event.id} event detail scraping started")
+        LOGGER.info(f"[{idx+1}/{total_events}] - event_id: {event.id} event detail scraping started")
         event_url = event.url
         event_id = event.id
         try:
             matches_data = await scrap_event_detail(crawler_fn, event_url, event_id, fighter_dict)
         except Exception as e:
-            LOGGER.error(f"[{idx+1}/{len(events_list)}] - event_id: {event_id} event detail scraping failed: {str(e)}")
+            LOGGER.error(f"[{idx+1}/{total_events}] - event_id: {event_id} event detail scraping failed: {str(e)}")
             LOGGER.error(format_exc())
-            continue
+            return
 
         saved_match_count = 0
         for match_data in matches_data:
@@ -92,47 +94,86 @@ async def scrap_event_detail_task(session, crawler_fn : Callable) -> None:
                 fighter_match = FighterMatch(fighter_id=fighter_id, match_id=match_id, result=result)
                 save_data([fighter_match], FighterMatchRepository(session))
             saved_match_count += len(saved_match)
-        LOGGER.info(f"[{idx+1}/{len(events_list)}] - event_id: {event_id} event detail scraping completed : {saved_match_count} matches saved")
+        LOGGER.info(f"[{idx+1}/{total_events}] - event_id: {event_id} event detail scraping completed : {saved_match_count} matches saved")
+
+@task(retries=3, cache_policy=NO_CACHE)
+async def scrap_event_detail_task(session, crawler_fn : Callable) -> None:
+    LOGGER.info("scrap_event_detail_task started")
+    events_list = EventRepository(session).find_all()
+    all_fighters = FighterRepository(session).find_all()
+    fighter_dict = {fighter.name: fighter.id for fighter in all_fighters}
+
+    # 최대 5개의 동시 요청을 허용하는 Semaphore
+    semaphore = asyncio.Semaphore(3)
+
+    # 모든 이벤트에 대해 비동기 작업 생성
+    tasks = [
+        process_event_detail(idx, event, crawler_fn, fighter_dict, session, len(events_list), semaphore)
+        for idx, event in enumerate(events_list)
+    ]
+
+    # 모든 작업을 동시에 실행
+    await asyncio.gather(*tasks, return_exceptions=True)
+
     LOGGER.info("scrap_event_detail_task completed")
+
+
+async def process_detail_url(
+    idx: int,
+    detail_url: str,
+    fighter_matches: dict,
+    crawler_fn: Callable,
+    fighter_dict: dict,
+    session,
+    total_urls: int,
+    semaphore: asyncio.Semaphore
+) -> None:
+    async with semaphore:  # 동시 실행 제한
+        await asyncio.sleep(RANDOM_DELAY)
+        if not detail_url:
+            return
+
+        # 매치 기본 통계 정보 스크랩 및 저장
+        try:
+            match_statistics_list = await scrape_match_basic_statistics(crawler_fn, detail_url, fighter_dict, fighter_matches)
+            save_data(match_statistics_list, BasicMatchStatRepository(session))
+            LOGGER.info(f"[{idx+1}/{total_urls}] - detail_url: {detail_url} BasicMatchStat scraping completed")
+        except Exception as e:
+            LOGGER.error(f"[{idx+1}/{total_urls}] - detail_url: {detail_url} BasicMatchStat scraping failed: {str(e)}")
+            LOGGER.error(format_exc())
+
+        # 매치 스트라이크 상세 정보 스크랩 및 저장
+        try:
+            strike_details_list = await scrape_match_significant_strikes(crawler_fn, detail_url, fighter_dict, fighter_matches)
+            save_data(strike_details_list, SigStrMatchStatRepository(session))
+            LOGGER.info(f"[{idx+1}/{total_urls}] - detail_url: {detail_url} SigStrMatchStat scraping completed")
+        except Exception as e:
+            LOGGER.error(f"[{idx+1}/{total_urls}] - detail_url: {detail_url} SigStrMatchStat scraping failed: {str(e)}")
+            LOGGER.error(format_exc())
+
+        LOGGER.info(f"[{idx+1}/{total_urls}] - detail_url: {detail_url} match detail scraping completed")
+
 
 @task(retries=3, cache_policy=NO_CACHE)
 async def scrap_match_detail_task(session, crawler_fn : Callable)-> None:
     """
     매치 상세 정보를 스크랩하는 태스크
-    
-    Args:
-        session: 데이터베이스 세션
-        fighter_match_dict: {detail_url: {fighter_id: fighter_match}} 형태의 딕셔너리
-        fighter_dict: {fighter_name: fighter_id} 형태의 딕셔너리
     """
     LOGGER.info("scrap_match_detail_task started")
     all_fighters = FighterRepository(session).find_all()
     fighter_dict = {fighter.name: fighter.id for fighter in all_fighters}
     fighter_match_dict = FighterMatchRepository(session).find_match_fighter_mapping()
 
-    for idx, (detail_url, fighter_matches) in enumerate(fighter_match_dict.items()):
-        await asyncio.sleep(RANDOM_DELAY)
-        LOGGER.info(f"[{idx+1}/{len(fighter_match_dict)}] - detail_url: {detail_url} match detail scraping started")
-        if not detail_url:
-            continue
-            
-        # 매치 기본 통계 정보 스크랩 및 저장
-        try:
-            match_statistics_list = await scrape_match_basic_statistics(crawler_fn, detail_url, fighter_dict, fighter_matches)
-            save_data(match_statistics_list, BasicMatchStatRepository(session))
-            LOGGER.info(f"[{idx+1}/{len(fighter_match_dict)}] - detail_url: {detail_url} BasicMatchStat scraping completed")
-        except Exception as e:
-            LOGGER.error(f"[{idx+1}/{len(fighter_match_dict)}] - detail_url: {detail_url} BasicMatchStat scraping failed: {str(e)}")
-            LOGGER.error(format_exc())
-            continue
-        
-        # 매치 스트라이크 상세 정보 스크랩 및 저장
-        try:
-            strike_details_list = await scrape_match_significant_strikes(crawler_fn, detail_url, fighter_dict, fighter_matches)
-            save_data(strike_details_list, SigStrMatchStatRepository(session))
-            LOGGER.info(f"[{idx+1}/{len(fighter_match_dict)}] - detail_url: {detail_url} SigStrMatchStat scraping completed")
-        except Exception as e:
-            LOGGER.error(f"[{idx+1}/{len(fighter_match_dict)}] - detail_url: {detail_url} SigStrMatchStat scraping failed: {str(e)}")
-            LOGGER.error(format_exc())
-            continue
-        LOGGER.info(f"[{idx+1}/{len(fighter_match_dict)}] - detail_url: {detail_url} match detail scraping completed")
+    # 최대 5개의 동시 요청을 허용하는 Semaphore
+    semaphore = asyncio.Semaphore(3)
+
+    # 모든 URL에 대해 비동기 작업 생성
+    tasks = [
+        process_detail_url(idx, detail_url, fighter_matches, crawler_fn, fighter_dict, session, len(fighter_match_dict), semaphore)
+        for idx, (detail_url, fighter_matches) in enumerate(fighter_match_dict.items())
+    ]
+
+    # 모든 작업을 동시에 실행
+    await asyncio.gather(*tasks, return_exceptions=True)
+
+    LOGGER.info("scrap_match_detail_task completed")

@@ -22,6 +22,9 @@ def parse_stat_with_of(text: str, kind: str) -> Dict[str, str]:
 
 def convert_time_to_seconds(time_str):
     """Convert time string (M:SS) to seconds"""
+    if time_str == '--':
+        return 0
+    
     minutes, seconds = map(int, time_str.split(':'))
     return minutes * 60 + seconds
 
@@ -95,7 +98,7 @@ async def scrape_match_basic_statistics(crawler_fn: Callable, match_detail_url: 
     # 테이블 찾기
     table = soup.find('table', {'class': 'b-fight-details__table'})
     if not table:
-        logging.warning(f"테이블을 찾을 수 없습니다: {html_path}")
+        logging.warning(f"테이블을 찾을 수 없습니다: {match_detail_url}")
         return {}
     
     # 선수별 통계 데이터 추출
