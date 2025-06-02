@@ -1,5 +1,7 @@
 from sqlalchemy import Column, String, Float, Integer, Boolean, ForeignKey
 from sqlalchemy.orm import relationship
+from pydantic import ConfigDict
+from typing import Optional
 
 from models.base import BaseModel, BaseSchema
 

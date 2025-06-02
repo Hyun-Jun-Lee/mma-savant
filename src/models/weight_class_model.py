@@ -1,8 +1,9 @@
-from typing import Dict
+from typing import Dict, Optional
 from enum import Enum
 
 from sqlalchemy import Column, String
 from sqlalchemy.orm import relationship
+from pydantic import ConfigDict
 
 from models.base import BaseModel, BaseSchema
 

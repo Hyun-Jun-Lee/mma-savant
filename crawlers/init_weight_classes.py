@@ -53,7 +53,7 @@ def initialize_weight_classes():
     
     # ID 시퀀스 설정 (PostgreSQL 전용)
     with engine.connect() as connection:
-        connection.execute(text("SELECT setval('weight_class_id_seq', 13, true)"))
+        connection.execute(text("SELECT setval('weight_class_id_seq', 14, true)"))
     
     print("체급 테이블 초기화 완료: 14개 항목 생성됨")
 
