@@ -17,4 +17,4 @@ def get_redis_config() -> RedisConfig:
 
 def get_database_url() -> str:
     database_config = DatabaseConfig()
-    return f"postgresql+psycopg2://postgres:{database_config.DB_PASSWORD}@{database_config.DB_HOST}:{database_config.DB_PORT}/{database_config.DB_NAME}"
+    return f"postgresql+asyncpg://postgres:{database_config.DB_PASSWORD}@{database_config.DB_HOST}:{database_config.DB_PORT}/{database_config.DB_NAME}"
