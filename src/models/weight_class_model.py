@@ -28,7 +28,7 @@ class WeightClassEnum(str, Enum):
     CATCH_WEIGHT = "catch weight"
     OPEN_WEIGHT = "open weight"
 
-class WeightClassSchmea(BaseSchema):
+class WeightClassSchema(BaseSchema):
     name: str
     
     # 체급별 ID 매핑 (DB에 미리 저장된 ID와 일치해야 함)
@@ -68,14 +68,14 @@ class WeightClassModel(BaseModel):
     matches = relationship("MatchModel", back_populates="weight_class")
 
     @classmethod
-    def from_schema(cls, weight_class: WeightClassSchmea) -> None:
+    def from_schema(cls, weight_class: WeightClassSchema) -> None:
         return cls(
             name=weight_class.name,
         )
     
-    def to_schema(self) -> WeightClassSchmea:
+    def to_schema(self) -> WeightClassSchema:
         """SQLAlchemy 모델을 Pydantic 스키마로 변환"""
-        return WeightClassSchmea(
+        return WeightClassSchema(
             id=self.id,
             name=self.name,
             created_at=self.created_at,

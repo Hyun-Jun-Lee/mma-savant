@@ -9,7 +9,7 @@ from models.base import BaseModel, BaseSchema
 ########## SCHEMA ###########
 #############################
 
-class SigStrMatchStatSchmea(BaseSchema):
+class SigStrMatchStatSchema(BaseSchema):
     fighter_match_id: int
     head_strikes_landed: Optional[int] = 0
     head_strikes_attempts: Optional[int] = 0
@@ -28,7 +28,7 @@ class SigStrMatchStatSchmea(BaseSchema):
     
     model_config = ConfigDict(from_attributes=True)
 
-class BasicMatchStatSchmea(BaseSchema):
+class BasicMatchStatSchema(BaseSchema):
     fighter_match_id: int
     knockdowns: Optional[int] = 0
     control_time_seconds: Optional[int] = 0
@@ -44,7 +44,7 @@ class BasicMatchStatSchmea(BaseSchema):
     
     model_config = ConfigDict(from_attributes=True)
 
-class MatchSchmea(BaseSchema):
+class MatchSchema(BaseSchema):
     event_id: int
     weight_class_id: Optional[int] = None
     method: Optional[str] = None
@@ -56,7 +56,7 @@ class MatchSchmea(BaseSchema):
     
     model_config = ConfigDict(from_attributes=True)
 
-class FighterMatchSchmea(BaseSchema):
+class FighterMatchSchema(BaseSchema):
     fighter_id: int
     match_id: int
     result: Optional[str] = None
@@ -84,7 +84,7 @@ class MatchModel(BaseModel):
     event = relationship("EventModel", back_populates="matches")
 
     @classmethod
-    def from_schema(cls, match: MatchSchmea) -> None:
+    def from_schema(cls, match: MatchSchema) -> None:
         return cls(
             event_id=match.event_id,
             weight_class_id=match.weight_class_id,
@@ -96,9 +96,9 @@ class MatchModel(BaseModel):
             detail_url=match.detail_url
         )
         
-    def to_schema(self) -> MatchSchmea:
+    def to_schema(self) -> MatchSchema:
         """SQLAlchemy 모델을 Pydantic 스키마로 변환"""
-        return MatchSchmea(
+        return MatchSchema(
             id=self.id,
             event_id=self.event_id,
             weight_class_id=self.weight_class_id,
@@ -127,7 +127,7 @@ class FighterMatchModel(BaseModel):
     match_statistics = relationship("BasicMatchStatModel", back_populates="fighter_match", uselist=False)
 
     @classmethod
-    def from_schema(cls, fighter_id: int, match_id: int, result: str, strike_detail: SigStrMatchStatSchmea, match_statistics: BasicMatchStatSchmea) -> None:
+    def from_schema(cls, fighter_id: int, match_id: int, result: str, strike_detail: SigStrMatchStatSchema, match_statistics: BasicMatchStatSchema) -> None:
         return cls(
             fighter_id=fighter_id,
             match_id=match_id,
@@ -136,9 +136,9 @@ class FighterMatchModel(BaseModel):
             match_statistics=match_statistics
         )
         
-    def to_schema(self) -> FighterMatchSchmea:
+    def to_schema(self) -> FighterMatchSchema:
         """SQLAlchemy 모델을 Pydantic 스키마로 변환"""
-        return FighterMatchSchmea(
+        return FighterMatchSchema(
             id=self.id,
             fighter_id=self.fighter_id,
             match_id=self.match_id,
@@ -169,7 +169,7 @@ class SigStrMatchStatModel(BaseModel):
     fighter_match = relationship("FighterMatchModel", back_populates="strike_detail")
     
     @classmethod
-    def from_schema(cls, strike_detail: SigStrMatchStatSchmea) -> None:
+    def from_schema(cls, strike_detail: SigStrMatchStatSchema) -> None:
         return cls(
             fighter_match_id=strike_detail.fighter_match_id,
             round=strike_detail.round,
@@ -187,9 +187,9 @@ class SigStrMatchStatModel(BaseModel):
             ground_strikes_attempts=strike_detail.ground_strikes_attempts
         )
         
-    def to_schema(self) -> SigStrMatchStatSchmea:
+    def to_schema(self) -> SigStrMatchStatSchema:
         """SQLAlchemy 모델을 Pydantic 스키마로 변환"""
-        return SigStrMatchStatSchmea(
+        return SigStrMatchStatSchema(
             id=self.id,
             fighter_match_id=self.fighter_match_id,
             round=self.round,
@@ -229,7 +229,7 @@ class BasicMatchStatModel(BaseModel):
     fighter_match = relationship("FighterMatchModel", back_populates="match_statistics")
     
     @classmethod
-    def from_schema(cls, match_statistics: BasicMatchStatSchmea) -> None:
+    def from_schema(cls, match_statistics: BasicMatchStatSchema) -> None:
         return cls(
             fighter_match_id=match_statistics.fighter_match_id,
             round=match_statistics.round,
@@ -244,9 +244,9 @@ class BasicMatchStatModel(BaseModel):
             td_attempted=match_statistics.td_attempted
         )
         
-    def to_schema(self) -> BasicMatchStatSchmea:
+    def to_schema(self) -> BasicMatchStatSchema:
         """SQLAlchemy 모델을 Pydantic 스키마로 변환"""
-        return BasicMatchStatSchmea(
+        return BasicMatchStatSchema(
             id=self.id,
             fighter_match_id=self.fighter_match_id,
             round=self.round,

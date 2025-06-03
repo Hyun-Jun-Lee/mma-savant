@@ -11,7 +11,7 @@ from models.base import BaseModel, BaseSchema
 ########## SCHEMA ###########
 #############################
 
-class ConversationSchmea(BaseSchema):
+class ConversationSchema(BaseSchema):
     user_id : int
     session_id : str
     messages : List[Dict]
@@ -36,7 +36,7 @@ class ConversationModel(BaseModel):
     
 
     @classmethod
-    def from_schema(cls, conversation: ConversationSchmea) -> None:
+    def from_schema(cls, conversation: ConversationSchema) -> None:
         return cls(
             user_id=conversation.user_id,
             session_id=conversation.session_id,
@@ -44,9 +44,9 @@ class ConversationModel(BaseModel):
             tool_results=conversation.tool_results
         )
 
-    def to_schema(self) -> ConversationSchmea:
+    def to_schema(self) -> ConversationSchema:
         """SQLAlchemy 모델을 Pydantic 스키마로 변환"""
-        return ConversationSchmea(
+        return ConversationSchema(
             id=self.id,
             user_id=self.user_id,
             session_id=self.session_id,

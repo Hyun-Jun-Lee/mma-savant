@@ -11,7 +11,7 @@ from models.base import BaseModel, BaseSchema
 ########## SCHEMA ###########
 #############################
 
-class FighterSchmea(BaseSchema):
+class FighterSchema(BaseSchema):
     name: str
     nickname: Optional[str] = None
     height: Optional[float] = 0
@@ -31,7 +31,7 @@ class FighterSchmea(BaseSchema):
 
     model_config = ConfigDict(from_attributes=True)
 
-class RankingSchmea(BaseSchema):
+class RankingSchema(BaseSchema):
     fighter_id: int
     ranking: int = None
     weight_class: str = None
@@ -67,7 +67,7 @@ class FighterModel(BaseModel):
     rankings = relationship("RankingModel", back_populates="fighter")
 
     @classmethod
-    def from_schema(cls, fighter: FighterSchmea) -> None:
+    def from_schema(cls, fighter: FighterSchema) -> None:
         return cls(
             name=fighter.name,
             nickname=fighter.nickname,
@@ -86,9 +86,9 @@ class FighterModel(BaseModel):
             birthdate=fighter.birthdate
         )   
         
-    def to_schema(self) -> FighterSchmea:
+    def to_schema(self) -> FighterSchema:
         """SQLAlchemy 모델을 Pydantic 스키마로 변환"""
-        return FighterSchmea(
+        return FighterSchema(
             id=self.id,
             name=self.name,
             nickname=self.nickname,
@@ -119,16 +119,16 @@ class RankingModel(BaseModel):
     fighter = relationship("FighterModel", back_populates="rankings")
 
     @classmethod
-    def from_schema(cls, ranking: RankingSchmea) -> None:
+    def from_schema(cls, ranking: RankingSchema) -> None:
         return cls(
             fighter_id=ranking.fighter_id,
             ranking=ranking.ranking,
             weight_class=ranking.weight_class
         )
         
-    def to_schema(self) -> RankingSchmea:
+    def to_schema(self) -> RankingSchema:
         """SQLAlchemy 모델을 Pydantic 스키마로 변환"""
-        return RankingSchmea(
+        return RankingSchema(
             id=self.id,
             fighter_id=self.fighter_id,
             ranking=self.ranking,

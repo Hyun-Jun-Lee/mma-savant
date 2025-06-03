@@ -8,7 +8,7 @@ from models.base import BaseModel, BaseSchema
 ########## SCHEMA ###########
 #############################
 
-class UserSchmea(BaseSchema):
+class UserSchema(BaseSchema):
     email : str
     password_hash : str
 
@@ -28,15 +28,15 @@ class UserModel(BaseModel):
     conversations = relationship("ConversationModel", back_populates="user")
 
     @classmethod
-    def from_schema(cls, user: UserSchmea) -> None:
+    def from_schema(cls, user: UserSchema) -> None:
         return cls(
             email=user.email,
             password_hash=user.password_hash
         )
 
-    def to_schema(self) -> UserSchmea:
+    def to_schema(self) -> UserSchema:
         """SQLAlchemy 모델을 Pydantic 스키마로 변환"""
-        return UserSchmea(
+        return UserSchema(
             id=self.id,
             email=self.email,
             password_hash=self.password_hash,

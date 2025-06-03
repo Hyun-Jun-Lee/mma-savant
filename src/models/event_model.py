@@ -11,7 +11,7 @@ from models.base import BaseModel, BaseSchema
 ########## SCHEMA ###########
 #############################
 
-class EventSchmea(BaseSchema):
+class EventSchema(BaseSchema):
     name: str = None
     location: str = None
     event_date: Optional[date] = None
@@ -34,7 +34,7 @@ class EventModel(BaseModel):
     matches = relationship("MatchModel", back_populates="event")
 
     @classmethod
-    def from_schema(cls, event: EventSchmea) -> None:
+    def from_schema(cls, event: EventSchema) -> None:
         return cls(
             name=event.name,
             location=event.location,
@@ -42,9 +42,9 @@ class EventModel(BaseModel):
             url=event.url
         )
         
-    def to_schema(self) -> EventSchmea:
+    def to_schema(self) -> EventSchema:
         """SQLAlchemy 모델을 Pydantic 스키마로 변환"""
-        return EventSchmea(
+        return EventSchema(
             id=self.id,
             name=self.name,
             location=self.location,
