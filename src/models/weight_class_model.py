@@ -65,6 +65,7 @@ class WeightClassModel(BaseModel):
     
     name = Column(String, nullable=False, unique=True)
     
+    rankings = relationship("RankingModel", back_populates="weight_class")
     matches = relationship("MatchModel", back_populates="weight_class")
 
     @classmethod

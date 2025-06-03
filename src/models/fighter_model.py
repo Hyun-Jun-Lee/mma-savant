@@ -113,17 +113,18 @@ class RankingModel(BaseModel):
     __tablename__ = "ranking"
 
     fighter_id = Column(Integer, ForeignKey("fighter.id"))
+    weight_class_id = Column(Integer, ForeignKey("weight_class.id"))
     ranking = Column(Integer)
-    weight_class = Column(String)
 
     fighter = relationship("FighterModel", back_populates="rankings")
+    weight_class = relationship("WeightClassModel", back_populates="rankings")
 
     @classmethod
     def from_schema(cls, ranking: RankingSchema) -> None:
         return cls(
             fighter_id=ranking.fighter_id,
+            weight_class_id=ranking.weight_class_id,
             ranking=ranking.ranking,
-            weight_class=ranking.weight_class
         )
         
     def to_schema(self) -> RankingSchema:
@@ -131,8 +132,8 @@ class RankingModel(BaseModel):
         return RankingSchema(
             id=self.id,
             fighter_id=self.fighter_id,
+            weight_class_id=self.weight_class_id,
             ranking=self.ranking,
-            weight_class=self.weight_class,
             created_at=self.created_at,
             updated_at=self.updated_at,
         )
