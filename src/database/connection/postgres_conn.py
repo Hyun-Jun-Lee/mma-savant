@@ -1,23 +1,29 @@
-from sqlalchemy import create_engine
+from contextlib import contextmanager, asynccontextmanager
+
+from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
 from sqlalchemy.orm import sessionmaker
+from sqlalchemy import create_engine
+
 from config import get_database_url
-from contextlib import contextmanager
 
 DATABASE_URL = get_database_url()
 
-engine = create_engine(
-    DATABASE_URL, pool_size=20, max_overflow=40, connect_args={"connect_timeout": 30}
+# 비동기 엔진
+async_engine = create_async_engine(
+    DATABASE_URL, pool_size=20, max_overflow=40
 )
-SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+AsyncSessionLocal = sessionmaker(
+    async_engine, class_=AsyncSession, autocommit=False, autoflush=False
+)
 
-@contextmanager
-def db_session():
-    session = SessionLocal()
+@asynccontextmanager
+async def async_db_session():
+    session = AsyncSessionLocal()
     try:
         yield session
-        session.commit()
+        await session.commit()
     except Exception as e:
-        session.rollback()
+        await session.rollback()
         raise e
     finally:
-        session.close()
+        await session.close()
