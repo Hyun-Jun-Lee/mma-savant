@@ -1,16 +1,13 @@
 import asyncio
-from sqlalchemy import text, inspect
-from sqlalchemy.schema import MetaData
+from sqlalchemy import text
 
-from models.user_model import UserModel
-from models.conversation_model import ConversationModel
+from user.models import UserModel
+from conversation.models import ConversationModel
 from database.connection.postgres_conn import async_engine
 
 async def init_tables():
     try:
-        # 비동기 검사기를 사용하여 테이블 존재 여부 확인
         async with async_engine.connect() as conn:
-            # 메타데이터에서 테이블 정보 가져오기
             result = await conn.execute(text("""
                 SELECT EXISTS (
                     SELECT FROM information_schema.tables 
@@ -31,7 +28,6 @@ async def init_tables():
             print("Tables 'user' and 'conversation' already exist, skipping initialization")
             return
 
-        # 테이블 생성
         async with async_engine.begin() as conn:
             await conn.run_sync(lambda sync_conn: UserModel.__table__.create(sync_conn, checkfirst=True))
             await conn.run_sync(lambda sync_conn: ConversationModel.__table__.create(sync_conn, checkfirst=True))
