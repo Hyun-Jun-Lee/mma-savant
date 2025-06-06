@@ -3,8 +3,8 @@ from typing import List, Optional
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from models.conversation_model import ConversationModel, ConversationSchema
-from models.user_model import UserModel
+from conversation.models import ConversationModel, ConversationSchema
+from user.models import UserModel
 
 async def create_conversation(session: AsyncSession, conversation: ConversationSchema) -> ConversationSchema:
     """

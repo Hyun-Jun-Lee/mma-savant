@@ -5,7 +5,7 @@ from sqlalchemy import Column, String, Float, Integer, Boolean, ForeignKey
 from sqlalchemy.orm import relationship
 from pydantic import ConfigDict
 
-from models.base import BaseModel, BaseSchema
+from common.base_model import BaseModel, BaseSchema
 
 #############################
 ########## SCHEMA ###########

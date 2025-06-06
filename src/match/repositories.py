@@ -4,7 +4,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import aliased, selectinload
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from models.match_model import (
+from match.models import (
     MatchModel,
     FighterMatchModel,
     BasicMatchStatModel,

@@ -5,7 +5,7 @@ from sqlalchemy import Column, String, Integer, ForeignKey
 from sqlalchemy.dialects.postgresql import JSONB
 
 from sqlalchemy.orm import relationship
-from models.base import BaseModel, BaseSchema
+from common.base_model import BaseModel, BaseSchema
 
 #############################
 ########## SCHEMA ###########

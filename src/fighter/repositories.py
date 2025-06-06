@@ -3,8 +3,8 @@ from typing import List, Optional, Dict
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from models.fighter_model import FighterModel, RankingModel, FighterSchema, RankingSchema
-from models.match_model import FighterMatchModel
+from fighter.models import FighterModel, RankingModel, FighterSchema, RankingSchema
+from match.models import FighterMatchModel
 
 async def get_fighter_by_id(session: AsyncSession, fighter_id: int) -> Optional[FighterSchema]:
     """

@@ -4,8 +4,8 @@ from typing import Optional
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from models.event_model import EventModel, EventSchema
-from models.match_model import MatchModel, FighterMatchModel
+from event.models import EventModel, EventSchema
+from match.models import MatchModel, FighterMatchModel
 
 async def get_upcoming_fighter_match(session: AsyncSession, fighter_id: int) -> Optional[EventSchema]:
     """

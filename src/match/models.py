@@ -3,7 +3,7 @@ from sqlalchemy.orm import relationship
 from pydantic import ConfigDict
 from typing import Optional
 
-from models.base import BaseModel, BaseSchema
+from common.base_model import BaseModel, BaseSchema
 
 #############################
 ########## SCHEMA ###########

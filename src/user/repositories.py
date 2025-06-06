@@ -3,7 +3,7 @@ from typing import List, Optional
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from models.user_model import UserModel, UserSchema
+from user.models import UserModel, UserSchema
 
 async def get_user_by_id(session: AsyncSession, user_id: int) -> Optional[UserSchema]:
     """

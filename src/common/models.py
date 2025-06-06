@@ -1,32 +1,15 @@
 from typing import Dict, Optional
-from enum import Enum
 
 from sqlalchemy import Column, String
 from sqlalchemy.orm import relationship
 from pydantic import ConfigDict
 
-from models.base import BaseModel, BaseSchema
+from common.base_model import BaseModel, BaseSchema
+from common.enums import WeightClassEnum
 
 #############################
 ########## SCHEMA ###########
 #############################
-
-class WeightClassEnum(str, Enum):
-    """UFC 체급 Enum"""
-    FLYWEIGHT = "flyweight"
-    BANTAMWEIGHT = "bantamweight"
-    FEATHERWEIGHT = "featherweight"
-    LIGHTWEIGHT = "lightweight"
-    WELTERWEIGHT = "welterweight"
-    MIDDLEWEIGHT = "middleweight"
-    LIGHT_HEAVYWEIGHT = "light heavyweight"
-    HEAVYWEIGHT = "heavyweight"
-    WOMENS_STRAWWEIGHT = "women's strawweight"
-    WOMENS_FLYWEIGHT = "women's flyweight"
-    WOMENS_BANTAMWEIGHT = "women's bantamweight"
-    WOMENS_FEATHERWEIGHT = "women's featherweight"
-    CATCH_WEIGHT = "catch weight"
-    OPEN_WEIGHT = "open weight"
 
 class WeightClassSchema(BaseSchema):
     name: str
