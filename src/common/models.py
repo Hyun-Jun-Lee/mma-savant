@@ -32,12 +32,21 @@ class WeightClassSchema(BaseSchema):
         WeightClassEnum.OPEN_WEIGHT.value: 14,
     }
     
+    
+    
     model_config = ConfigDict(from_attributes=True)
     
     @classmethod
     def get_id_by_name(cls, name: str) -> Optional[int]:
         """체급 이름으로 ID를 조회합니다."""
         return cls.WEIGHT_CLASS_IDS.get(name)
+    
+    @classmethod
+    def get_name_by_id(cls, weight_class_id: int) -> Optional[str]:
+        """체급 ID로 체급 이름을 조회합니다."""
+        # 역방향 매핑 (ID -> 이름) - 조회 성능 최적화용
+        WEIGHT_CLASS_NAMES = {v: k for k, v in cls.WEIGHT_CLASS_IDS.items()}
+        return WEIGHT_CLASS_NAMES.get(weight_class_id)
 
 #############################
 ########## MODEL ###########
