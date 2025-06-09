@@ -8,6 +8,14 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from event.models import EventModel, EventSchema
 from match.models import MatchModel, FighterMatchModel
 
+async def get_event_by_id(session: AsyncSession, event_id: int) -> Optional[EventSchema]:
+    result = await session.execute(
+        select(EventModel)
+        .where(EventModel.id == event_id)
+    )
+    event = result.scalar_one_or_none()
+    return event.to_schema() if event else None
+
 async def get_events(
     session: AsyncSession, 
     limit: int = 5, 
