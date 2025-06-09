@@ -34,7 +34,7 @@ class FighterSchema(BaseSchema):
 class RankingSchema(BaseSchema):
     fighter_id: int
     ranking: int = None
-    weight_class: str = None
+    weight_class_id: int = None
     
     model_config = ConfigDict(from_attributes=True)
 
