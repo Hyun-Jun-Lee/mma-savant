@@ -3,16 +3,13 @@ from contextlib import contextmanager
 
 import redis
 
-from config import get_redis_config
-
-# Redis 설정 가져오기
-redis_config = get_redis_config()
+from config import Config
 
 # Redis 클라이언트 생성
 redis_client = redis.Redis(
-    host=redis_config.REDIS_HOST,
-    port=redis_config.REDIS_PORT,
-    password=redis_config.REDIS_PASSWORD,
+    host=Config.REDIS_HOST,
+    port=Config.REDIS_PORT,
+    password=Config.REDIS_PASSWORD,
     decode_responses=True,  # 문자열 응답을 자동으로 디코딩
     socket_timeout=5,       # 소켓 타임아웃 (초)
     socket_connect_timeout=5,  # 연결 타임아웃 (초)
@@ -36,9 +33,9 @@ def redis_connection() -> redis.Redis:
         print(f"Redis 연결 실패, 재연결 시도 중: {str(e)}")
         # Redis 연결 재설정
         new_client = redis.Redis(
-            host=redis_config.REDIS_HOST,
-            port=redis_config.REDIS_PORT,
-            password=redis_config.REDIS_PASSWORD,
+            host=Config.REDIS_HOST,
+            port=Config.REDIS_PORT,
+            password=Config.REDIS_PASSWORD,
             decode_responses=True,
             socket_timeout=5,
             socket_connect_timeout=5,

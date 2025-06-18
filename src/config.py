@@ -1,20 +1,105 @@
 import os
 
-class DatabaseConfig:
+class Config:
     DB_HOST: str = os.getenv("DB_HOST", "localhost")
     DB_PORT: int = int(os.getenv("DB_PORT", "5432"))
     DB_USER: str = os.getenv("DB_USER", "postgres")
     DB_PASSWORD: str = os.getenv("DB_PASSWORD", "postgres")
     DB_NAME: str = os.getenv("DB_NAME", "ufc_stats")
 
-class RedisConfig:
     REDIS_HOST: str = os.getenv("REDIS_HOST", "localhost")
     REDIS_PORT: int = int(os.getenv("REDIS_PORT", "6379"))
     REDIS_PASSWORD: str = os.getenv("REDIS_PASSWORD")
 
-def get_redis_config() -> RedisConfig:
-    return RedisConfig()
-
 def get_database_url() -> str:
-    database_config = DatabaseConfig()
-    return f"postgresql+asyncpg://postgres:{database_config.DB_PASSWORD}@{database_config.DB_HOST}:{database_config.DB_PORT}/{database_config.DB_NAME}"
+    return f"postgresql+asyncpg://postgres:{Config.DB_PASSWORD}@{Config.DB_HOST}:{Config.DB_PORT}/{Config.DB_NAME}"
+
+def get_logging_config() -> Dict[str, Any]:
+    """환경에 따른 로깅 설정을 반환합니다."""
+    
+    # 환경변수에서 설정 가져오기
+    log_level = os.getenv("LOG_LEVEL", "INFO").upper()
+    environment = os.getenv("ENVIRONMENT", "development")
+    log_dir = os.getenv("LOG_DIR", "logs")
+    
+    # 로그 디렉토리 생성
+    os.makedirs(log_dir, exist_ok=True)
+    
+    base_config = {
+        "version": 1,
+        "disable_existing_loggers": False,
+        "formatters": {
+            "default": {
+                "format": "%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+                "datefmt": "%Y-%m-%d %H:%M:%S"
+            },
+            "detailed": {
+                "format": "%(asctime)s - %(name)s - %(levelname)s - %(filename)s:%(lineno)d - %(funcName)s() - %(message)s",
+                "datefmt": "%Y-%m-%d %H:%M:%S"
+            }
+        },
+        "handlers": {
+            "console": {
+                "class": "logging.StreamHandler",
+                "formatter": "default",
+                "level": log_level
+            }
+        },
+        "loggers": {
+            "": {  # 루트 로거
+                "level": log_level,
+                "handlers": ["console"],
+                "propagate": False
+            },
+            "uvicorn": {
+                "level": "INFO",
+                "handlers": ["console"],
+                "propagate": False
+            },
+            "uvicorn.access": {
+                "level": "WARNING",  # 액세스 로그는 WARNING 이상만
+                "handlers": ["console"],
+                "propagate": False
+            },
+            "uvicorn.error": {
+                "level": "ERROR",
+                "handlers": ["console"],
+                "propagate": False
+            },
+            # "sqlalchemy.engine": {  # DB 쿼리 로깅
+            #     "level": "WARNING" if environment == "production" else "INFO",
+            #     "handlers": ["console"],
+            #     "propagate": False
+            # }
+        }
+    }
+    
+    # 환경별 추가 설정
+    if environment != "development":
+        # 파일 핸들러 추가
+        base_config["handlers"].update({
+            "file": {
+                "class": "logging.handlers.RotatingFileHandler",
+                "filename": f"{log_dir}/app.log",
+                "maxBytes": 10485760,  # 10MB
+                "backupCount": 5,
+                "formatter": "detailed",
+                "level": log_level
+            },
+            "error_file": {
+                "class": "logging.handlers.RotatingFileHandler",
+                "filename": f"{log_dir}/error.log",
+                "maxBytes": 10485760,  # 10MB
+                "backupCount": 5,
+                "formatter": "detailed",
+                "level": "ERROR"
+            }
+        })
+        
+        # 모든 로거에 파일 핸들러 추가
+        for logger_name in base_config["loggers"]:
+            base_config["loggers"][logger_name]["handlers"].extend(["file"])
+            if logger_name in ["", "uvicorn.error"]:  # 에러 로그는 별도 파일에도 저장
+                base_config["loggers"][logger_name]["handlers"].append("error_file")
+    
+    return base_config
