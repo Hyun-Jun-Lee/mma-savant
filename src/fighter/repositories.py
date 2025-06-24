@@ -1,10 +1,9 @@
-from typing import List, Literal, Optional, Dict
+from typing import List, Optional, Dict, Literal
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from fighter.models import FighterModel, RankingModel, FighterSchema, RankingSchema
-from match.models import BasicMatchStatModel, FighterMatchModel, SigStrMatchStatModel
 
 async def get_fighter_by_id(session: AsyncSession, fighter_id: int) -> Optional[FighterSchema]:
     """
@@ -47,58 +46,48 @@ async def get_ranking_by_fighter_id(session: AsyncSession, fighter_id: int) -> L
     rankings = result.scalars().all()
     return [ranking.to_schema() for ranking in rankings]
 
-async def get_fighters_by_weight_class_ranking(session: AsyncSession, weight_class_id: int) -> List[Dict[int,FighterSchema]]:
+async def get_fighters_by_weight_class_ranking(session: AsyncSession, weight_class_id: int) -> List[FighterSchema]:
     """
     특정 체급에 소속된 랭킹 있는 파이터들을 랭킹 순으로 조회
     """
     result = await session.execute(
-        select(FighterModel, RankingModel.ranking)
+        select(FighterModel)
         .join(RankingModel, FighterModel.id == RankingModel.fighter_id)
         .where(RankingModel.weight_class_id == weight_class_id)
         .order_by(RankingModel.ranking)
     )
-    rows = result.all()
-    ranking_dict = [{ranking: fighter.to_schema()} for fighter, ranking in rows]
-    return ranking_dict
-
-async def get_all_opponents(session: AsyncSession, fighter_id: int) -> List[FighterSchema]:
-    subq = (
-        select(FighterMatchModel.match_id)
-        .where(FighterMatchModel.fighter_id == fighter_id)
-        .subquery()
-    )
-
-    result = await session.execute(
-        select(FighterModel)
-        .join(FighterMatchModel)
-        .where(
-            FighterMatchModel.match_id.in_(subq),
-            FighterModel.id != fighter_id
-        )
-    )
-
     fighters = result.scalars().all()
     return [fighter.to_schema() for fighter in fighters]
 
-async def get_top_fighter_by_stat(session: AsyncSession, stat_model: Literal[BasicMatchStatModel, SigStrMatchStatModel], stat_name: str, limit:int = 10):
+async def get_top_fighter_by_record(session: AsyncSession, record: Literal["win", "loss", "draw"], weight_class_id: Optional[int] = None, limit: int = 10) -> List[Dict[int, FighterSchema]]:
     """
-    특정 스탯에서 상위 파이터들을 조회
+    파이터의 승,패,무 기준 상위 선수들 조회
     """
-
-    stat_column = getattr(stat_model, stat_name)
-
-    stmt = (
-        select(
-            FighterModel, 
-            func.sum(stat_column).label("total_stat")
-        )
-        .join(FighterMatchModel, FighterModel.id == FighterMatchModel.fighter_id)
-        .join(stat_model, stat_model.fighter_match_id == FighterMatchModel.id)
-        .group_by(FighterModel.id)
-        .order_by(desc("total_stat"))
-        .limit(limit)
-    )
+    # record에 따른 정렬 기준 설정
+    if record == "win":
+        order_by_clause = FighterModel.wins.desc()
+        record_field = FighterModel.wins
+    elif record == "loss":
+        order_by_clause = FighterModel.losses.desc()
+        record_field = FighterModel.losses
+    elif record == "draw":
+        order_by_clause = FighterModel.draws.desc()
+        record_field = FighterModel.draws
+    else:
+        return []
     
-    result = await session.execute(stmt)
-    rows = result.fetchall()
-    return [{"fighter": fighter.to_schema(), "stat": total_stat} for fighter, total_stat in rows]
+    # 쿼리 빌드 - record 값도 함께 조회
+    query = select(FighterModel, record_field).order_by(order_by_clause)
+    
+    # 체급 필터링이 있으면 적용
+    if weight_class_id is not None:
+        # 체급 테이블과 조인하여 해당 체급의 파이터만 필터링
+        query = query.join(RankingModel, FighterModel.id == RankingModel.fighter_id)\
+                   .filter(RankingModel.weight_class_id == weight_class_id)
+    
+    query = query.limit(limit)
+    
+    result = await session.execute(query)
+    rows = result.all()
+    
+    return [{"ranking": idx + 1, "fighter": fighter.to_schema()} for idx, (fighter, _) in enumerate(rows)]
