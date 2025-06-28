@@ -76,9 +76,10 @@ class RankingModel(BaseModel):
 
     fighter_id = Column(Integer, ForeignKey("fighter.id"))
     ranking = Column(Integer)
-    weight_class = Column(String)
+    weight_class_id = Column(Integer, ForeignKey("weight_class.id"))
 
     fighter = relationship("FighterModel", back_populates="rankings")
+    weight_class_model = relationship("WeightClassModel", back_populates="rankings")
 
     @classmethod
     def from_schema(cls, ranking: Ranking) -> None:

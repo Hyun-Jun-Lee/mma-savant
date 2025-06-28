@@ -11,6 +11,7 @@ class WeightClassModel(BaseModel):
     name = Column(String, nullable=False, unique=True)
     
     matches = relationship("MatchModel", back_populates="weight_class")
+    rankings = relationship("RankingModel", back_populates="weight_class_model")
 
     @classmethod
     def from_schema(cls, weight_class: WeightClass) -> None:
