@@ -1,6 +1,8 @@
-from typing import Optional, Callable
+from typing import Optional, Callable, Dict, Any
 import logging
 
+from crawl4ai import AsyncWebCrawler
+from crawl4ai.async_configs import BrowserConfig, CrawlerRunConfig
 from user_agent import generate_user_agent
 
 from playwright.async_api import async_playwright, Browser, Page
@@ -76,3 +78,95 @@ class PlaywrightDriver:
 
     async def __aexit__(self, exc_type, exc_val, exc_tb):
         await self.close()
+
+
+class Crawl4AIDriver:
+    _instance = None
+    
+    def __new__(cls, *args, **kwargs):
+        if cls._instance is None:
+            cls._instance = super().__new__(cls)
+        return cls._instance
+    
+    def __init__(self, headless: bool = True) -> None:
+        if hasattr(self, '_initialized'):
+            return
+        
+        self.browser: Optional[BrowserContext] = None
+        self.browser_config: Optional[BrowserConfig] = None
+        self.run_config: Optional[CrawlerRunConfig] = None
+        self.driver_type = "crawl4ai"
+        self.headless = headless
+        self.crawler: Optional[AsyncWebCrawler] = None
+        self._initialized = True
+        
+        self._set_driver()
+        
+    def _set_driver(self) -> None:
+        """Crawl4AI 드라이버 초기화"""
+        try:
+            extra_args = {
+                "--disable-blink-features=AutomationControlled",
+                "--no-sandbox",
+                "--disable-infobars",
+                "--disable-extensions",
+                "--disable-dev-shm-usage",
+                "--disable-gpu",
+            }
+            
+            js_code = """
+                Object.defineProperty(navigator, 'webdriver', {get: () => undefined});
+                Object.defineProperty(navigator, 'languages', {get: () => ['ko-KR', 'ko']});
+                Object.defineProperty(navigator, 'platform', {get: () => 'MacIntel'});
+                Object.defineProperty(navigator, 'plugins', {get: () => [1, 2, 3, 4, 5]});
+            """
+            
+            self.browser_config = BrowserConfig(
+                user_agent=generate_user_agent(os=('mac', 'linux'), device_type='desktop'),
+                extra_args=extra_args,
+                headless=self.headless
+            )
+            
+            self.run_config = CrawlerRunConfig(
+                remove_overlay_elements=True,
+                process_iframes=True,
+                screenshot=True,
+                capture_network_requests=False,
+                # wait_for_timeout=5000,
+                js_code=js_code
+            )
+            
+            logging.info("Crawl4AIDriver initialized with optimized settings")
+        except Exception as e:
+            logging.error(f"Crawl4AIDriver initialization error: {e}")
+            raise
+
+    async def get_driver(self) -> AsyncWebCrawler:
+        if not self.crawler:
+            self.crawler = AsyncWebCrawler(config=self.browser_config)
+        return self.crawler
+
+    async def run_crawl(self, url: str, run_config: Any = None) -> Dict[str, Any]:
+        """
+        페이지 크롤링 실행
+        """
+        crawler = await self.get_driver()
+        
+        try:
+            result = await crawler.arun(
+                url=url,
+                config=run_config or self.run_config,
+                magic=True
+            )
+            return result
+            
+        except Exception as e:
+            logging.error(f"Crawling failed for {url}: {e}")
+            raise
+
+    async def close(self):
+        """브라우저 정리"""
+        if self.crawler:
+            await self.crawler.close()
+            self.crawler = None
+            logging.info("Crawl4AI driver closed")
