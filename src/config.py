@@ -1,4 +1,5 @@
 import os
+from typing import Dict, Any
 
 class Config:
     DB_HOST: str = os.getenv("DB_HOST", "localhost")
@@ -10,6 +11,8 @@ class Config:
     REDIS_HOST: str = os.getenv("REDIS_HOST", "localhost")
     REDIS_PORT: int = int(os.getenv("REDIS_PORT", "6379"))
     REDIS_PASSWORD: str = os.getenv("REDIS_PASSWORD")
+
+    LLM_API_KEY: str = os.getenv("LLM_API_KEY")
 
 def get_database_url() -> str:
     return f"postgresql+asyncpg://postgres:{Config.DB_PASSWORD}@{Config.DB_HOST}:{Config.DB_PORT}/{Config.DB_NAME}"
