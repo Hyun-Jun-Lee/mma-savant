@@ -3,6 +3,7 @@ import logging
 from typing import Callable
 from urllib.parse import urlparse
 from functools import wraps
+from unidecode import unidecode
 
 
 def _calculate_percentage(numerator: int, denominator: int) -> float:
@@ -90,3 +91,6 @@ def convert_reach(reach_str: str) -> tuple[float, float]:
         return inches, cm
     except ValueError:
         return 0.0, 0.0
+
+def normalize_name(name: str) -> str:
+    return unidecode(name).lower()
