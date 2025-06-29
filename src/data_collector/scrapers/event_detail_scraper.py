@@ -9,7 +9,7 @@ from bs4 import BeautifulSoup
 from match.models import MatchSchema
 from common.models import WeightClassSchema
 
-async def scrap_event_detail(crawler_fn: Callable, event_url: str, event_id: int, fighter_dict: Dict[str, int]) -> List[Dict]:
+async def scrap_event_detail(crawler_fn: Callable, event_url: str, event_id: int, fighter_name_to_id_map: Dict[str, int]) -> List[Dict]:
     """
     Extract event details from a UFC event detail page HTML file
     """
@@ -72,8 +72,8 @@ async def scrap_event_detail(crawler_fn: Callable, event_url: str, event_id: int
         fighter_text = cols[1].get_text(strip=False).lstrip().replace('\n', '')
         fighters = [f.strip() for f in fighter_text.split('  ') if f.strip()]
         fighter_1, fighter_2 = fighters
-        fighter_1_id = fighter_dict.get(fighter_1.lower().strip())
-        fighter_2_id = fighter_dict.get(fighter_2.lower().strip())
+        fighter_1_id = fighter_name_to_id_map.get(fighter_1.lower().strip())
+        fighter_2_id = fighter_name_to_id_map.get(fighter_2.lower().strip())
 
         # Check fight result
         win_element = cols[0].find('a', class_='b-flag b-flag_style_green')

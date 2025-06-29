@@ -18,7 +18,7 @@ async def get_event_by_id(session: AsyncSession, event_id: int) -> Optional[Even
 
 async def get_events(
     session: AsyncSession, 
-    limit: int = 5, 
+    limit: int = None, 
     order_by: Literal["asc", "desc"] = "desc",
     sort_by: Literal["event_date"] = "event_date"
 ) -> List[EventSchema]:

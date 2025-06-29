@@ -269,7 +269,7 @@ async def scrap_match_significant_strikes(crawler_fn: Callable, match_detail_url
     return fighter_rounds
 
 async def main():
-    from core.crawler import crawl_with_httpx
+    from data_collector.crawler import crawl_with_httpx
 
     try:
         # 테스트용 코드
@@ -279,8 +279,8 @@ async def main():
             "Khabib Nurmagomedov": 2
         }
         fighter_match_dict = {
-            1: FighterMatch(id=1, fighter_id=1, match_id=1),
-            2: FighterMatch(id=2, fighter_id=2, match_id=1)
+            1: FighterMatchSchema(id=1, fighter_id=1, match_id=1),
+            2: FighterMatchSchema(id=2, fighter_id=2, match_id=1)
         }
         basic_stats = await scrap_match_basic_statistics(crawl_with_httpx, match_detail_url, fighter_dict, fighter_match_dict)
         sig_stats = await scrap_match_significant_strikes(crawl_with_httpx, match_detail_url, fighter_dict, fighter_match_dict)

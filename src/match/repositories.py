@@ -215,3 +215,26 @@ async def get_fighter_match_by_match_id(
     )
     fighter_matches = result.scalars().all()
     return [fighter_match.to_schema() for fighter_match in fighter_matches]
+
+async def get_match_fighter_mapping(session: AsyncSession) -> Dict[str, Dict[int, FighterMatchSchema]]:
+    """detail_url을 키로 하고 fighter_id를 서브키로 하는 딕셔너리 반환"""
+    result_dict = {}
+    
+    # Match와 FighterMatch 조인하여 한 번에 가져오기
+    stmt = (
+        select(MatchModel, FighterMatchModel)
+        .join(FighterMatchModel, FighterMatchModel.match_id == MatchModel.id)
+        .where(MatchModel.detail_url.is_not(None))
+    )
+    
+    rows = await session.execute(stmt).all()
+    
+    for match, fighter_match in rows:
+        detail_url = match.detail_url
+        fighter_id = fighter_match.fighter_id
+        
+        if detail_url not in result_dict:
+            result_dict[detail_url] = {}
+        result_dict[detail_url][fighter_id] = fighter_match.to_schema()
+    
+    return result_dict

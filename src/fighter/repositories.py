@@ -1,10 +1,17 @@
 from typing import List, Optional, Dict, Literal
 
-from unidecode import unidecode
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from fighter.models import FighterModel, RankingModel, FighterSchema, RankingSchema
+from common.utils import normalize_name
+
+async def get_all_fighter(session: AsyncSession) -> List[FighterSchema]:
+    result = await session.execute(
+        select(FighterModel)
+    )
+    fighters = result.scalars().all()
+    return [fighter.to_schema() for fighter in fighters]
 
 async def get_fighter_by_id(session: AsyncSession, fighter_id: int) -> Optional[FighterSchema]:
     """
@@ -20,7 +27,7 @@ async def get_fighter_by_name(session: AsyncSession, name: str) -> Optional[Figh
     """
     fighter_name로 fighter 조회.
     """
-    normalized_name = unidecode(name).lower()
+    normalized_name = normalize_name(name)
     result = await session.execute(
         select(FighterModel).where(FighterModel.name == normalized_name)
     )
@@ -31,8 +38,9 @@ async def get_fighter_by_nickname(session: AsyncSession, nickname: str) -> Optio
     """
     fighter_nickname로 fighter 조회.
     """
+    normalized_nickname = normalize_name(nickname)
     result = await session.execute(
-        select(FighterModel).where(FighterModel.nickname == nickname)
+        select(FighterModel).where(FighterModel.nickname == normalized_nickname)
     )
     fighter = result.scalar_one_or_none()
     return fighter.to_schema() if fighter else None
@@ -93,3 +101,7 @@ async def get_top_fighter_by_record(session: AsyncSession, record: Literal["win"
     rows = result.all()
     
     return [{"ranking": idx + 1, "fighter": fighter.to_schema()} for idx, (fighter, _) in enumerate(rows)]
+
+async def delete_all_rankings(session: AsyncSession) -> None:
+    await session.execute(delete(RankingModel))
+    await session.commit()
