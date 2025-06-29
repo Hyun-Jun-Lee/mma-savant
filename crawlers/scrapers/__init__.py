@@ -1,4 +1,0 @@
-from scrapers.event_detail_scraper import scrap_event_detail
-from scrapers.events_scraper import scrap_all_events
-from scrapers.fighters_scraper import scrap_fighters
-from scrapers.match_detail_scraper import scrape_match_significant_strikes, scrape_match_basic_statistics
