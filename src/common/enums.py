@@ -16,3 +16,5 @@ class WeightClassEnum(str, Enum):
     WOMENS_FEATHERWEIGHT = "women's featherweight"
     CATCH_WEIGHT = "catch weight"
     OPEN_WEIGHT = "open weight"
+    MENS_POUND_FOR_POUND = "men's pound-for-pound"
+    WOMENS_POUND_FOR_POUND = "women's pound-for-pound"

@@ -1,4 +1,4 @@
-from typing import Dict, Optional
+from typing import Dict, Optional, ClassVar
 
 from sqlalchemy import Column, String
 from sqlalchemy.orm import relationship
@@ -15,7 +15,7 @@ class WeightClassSchema(BaseSchema):
     name: str
     
     # 체급별 ID 매핑 (DB에 미리 저장된 ID와 일치해야 함)
-    WEIGHT_CLASS_IDS: Dict[str, int] = {
+    WEIGHT_CLASS_IDS: ClassVar[Dict[str, int]] = {
         WeightClassEnum.FLYWEIGHT.value: 1,
         WeightClassEnum.BANTAMWEIGHT.value: 2,
         WeightClassEnum.FEATHERWEIGHT.value: 3,
@@ -30,6 +30,8 @@ class WeightClassSchema(BaseSchema):
         WeightClassEnum.WOMENS_FEATHERWEIGHT.value: 12,
         WeightClassEnum.CATCH_WEIGHT.value: 13,
         WeightClassEnum.OPEN_WEIGHT.value: 14,
+        WeightClassEnum.MENS_POUND_FOR_POUND.value: 15,
+        WeightClassEnum.WOMENS_POUND_FOR_POUND.value: 16,
     }
     
     
@@ -39,7 +41,7 @@ class WeightClassSchema(BaseSchema):
     @classmethod
     def get_id_by_name(cls, name: str) -> Optional[int]:
         """체급 이름으로 ID를 조회합니다."""
-        return cls.WEIGHT_CLASS_IDS.get(name)
+        return cls.WEIGHT_CLASS_IDS.get(name.lower())
     
     @classmethod
     def get_name_by_id(cls, weight_class_id: int) -> Optional[str]:
