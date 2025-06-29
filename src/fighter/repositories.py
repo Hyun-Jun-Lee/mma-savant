@@ -1,5 +1,6 @@
 from typing import List, Optional, Dict, Literal
 
+from unidecode import unidecode
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -19,8 +20,9 @@ async def get_fighter_by_name(session: AsyncSession, name: str) -> Optional[Figh
     """
     fighter_name로 fighter 조회.
     """
+    normalized_name = unidecode(name).lower()
     result = await session.execute(
-        select(FighterModel).where(FighterModel.name == name)
+        select(FighterModel).where(FighterModel.name == normalized_name)
     )
     fighter = result.scalar_one_or_none()
     return fighter.to_schema() if fighter else None
