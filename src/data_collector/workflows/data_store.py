@@ -75,15 +75,15 @@ async def save_match(session, match: MatchSchema) -> MatchSchema:
         # 업데이트
         for key, value in match.model_dump(exclude={'id', 'created_at', 'updated_at'}).items():
             setattr(existing_model, key, value)
-        return_schema = existing_model.to_schema()
+        return_model = existing_model
     else:
         # 새로 생성
         new_match = MatchModel.from_schema(match)
         session.add(new_match)
-        return_schema = new_match.to_schema()
+        return_model = new_match
     
     await session.commit()
-    return return_schema
+    return return_model.to_schema()
     
 
 async def save_fighter_match(session, fighter_id: int, match_id: int, result: str) -> FighterMatchSchema:
@@ -96,7 +96,7 @@ async def save_fighter_match(session, fighter_id: int, match_id: int, result: st
         # 업데이트
         for key, value in match.model_dump(exclude={'id', 'created_at', 'updated_at'}).items():
             setattr(existing_model, key, value)
-        return_schema = existing_model.to_schema()
+        return_model = existing_model
     else:
         # 새로 생성
         new_match = FighterMatchModel(
@@ -105,10 +105,10 @@ async def save_fighter_match(session, fighter_id: int, match_id: int, result: st
             result=result
         )
         session.add(new_match)
-        return_schema = new_match.to_schema()
+        return_model = new_match
     
     await session.commit()
-    return return_schema
+    return return_model.to_schema()
 
 async def save_basic_match_stat(session, basic_match_stat_list: List[BasicMatchStatSchema]):
     for basic_match_stat in basic_match_stat_list:
