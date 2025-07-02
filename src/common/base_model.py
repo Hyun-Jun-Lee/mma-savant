@@ -2,12 +2,12 @@ from datetime import datetime
 from typing import Optional
 
 from pydantic import BaseModel as PydanticModel, Field, ConfigDict
-from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy.orm import declarative_base
 from sqlalchemy import Column, Integer, DateTime
 
-DECLARTIVE_BASE = declarative_base()
+DECLARATIVE_BASE = declarative_base()
 
-class BaseModel(DECLARTIVE_BASE):
+class BaseModel(DECLARATIVE_BASE):
     __abstract__ = True
     id = Column(Integer, primary_key=True, index=True)
     created_at = Column(DateTime, default=datetime.now)
