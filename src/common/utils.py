@@ -1,7 +1,6 @@
 import re
 import logging
-from typing import Callable
-from urllib.parse import urlparse
+from typing import Callable, Dict
 from functools import wraps
 from unidecode import unidecode
 

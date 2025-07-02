@@ -111,12 +111,11 @@ async def mapping_ranking_fighter(session, ranking_dict: Dict[str, Dict[int, str
 
 async def scrap_rankings(session, crawler_fn: Callable) -> List[RankingSchema]:
     try:
-        lang_result = await crawler_fn("https://www.ufc.com/language/switch/en")
-        rankings_url = "https://www.ufc.com/rankings"
-        
-        if not lang_result.success:
+        lang_result = await crawler_fn("https://www.ufc.com/language/switch/en")        
+        if not lang_result or not lang_result.success:
             print(f"언어 설정 실패: {lang_result.error_message}")
             return None 
+        rankings_url = "https://www.ufc.com/rankings"
         
         crawl_result = await crawler_fn(rankings_url)
         if not crawl_result:

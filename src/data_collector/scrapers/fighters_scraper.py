@@ -120,7 +120,7 @@ async def scrap_fighters(crawler_fn: Callable, fighters_url: str) -> List[Fighte
                             else:
                                 fighter_data[key] = value
                 
-                fighter_schema = Fighter(**fighter_data)
+                fighter_schema = FighterSchema(**fighter_data)
                 fighters.append(fighter_schema)
         
         return fighters
