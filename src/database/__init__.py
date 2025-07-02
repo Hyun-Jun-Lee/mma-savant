@@ -10,4 +10,19 @@ from common.models import WeightClassModel
 from event.models import EventModel
 from fighter.models import FighterModel, RankingModel
 
-from match.models import MatchModel
+# 3. Match 관련 모델들 (의존성 순서 고려)
+from match.models import (
+    MatchModel, 
+    FighterMatchModel, 
+    SigStrMatchStatModel, 
+    BasicMatchStatModel
+)
+
+# 4. User 관련 모델들
+from user.models import UserModel
+
+# 5. Conversation 관련 모델들 (있다면)
+try:
+    from conversation.models import ConversationModel
+except ImportError:
+    pass  # 존재하지 않으면 무시
