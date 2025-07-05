@@ -1762,6 +1762,18 @@ wheels = [
 ]
 
 [[package]]
+name = "pytest-asyncio"
+version = "1.0.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "pytest" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/d0/d4/14f53324cb1a6381bef29d698987625d80052bb33932d8e7cbf9b337b17c/pytest_asyncio-1.0.0.tar.gz", hash = "sha256:d15463d13f4456e1ead2594520216b225a16f781e144f8fdf6c5bb4667c48b3f", size = 46960 }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/30/05/ce271016e351fddc8399e546f6e23761967ee09c8c568bbfbecb0c150171/pytest_asyncio-1.0.0-py3-none-any.whl", hash = "sha256:4f024da9f1ef945e680dc68610b52550e36590a67fd31bb3b4943979a1f90ef3", size = 15976 },
+]
+
+[[package]]
 name = "python-dateutil"
 version = "2.9.0.post0"
 source = { registry = "https://pypi.org/simple" }
@@ -2243,6 +2255,7 @@ dependencies = [
     { name = "pyopenssl" },
     { name = "pyperclip" },
     { name = "pytest" },
+    { name = "pytest-asyncio" },
     { name = "python-dateutil" },
     { name = "python-dotenv" },
     { name = "python-slugify" },
@@ -2381,7 +2394,7 @@ requires-dist = [
     { name = "psutil", specifier = "==7.0.0" },
     { name = "psycopg2-binary", specifier = "==2.9.10" },
     { name = "pycparser", specifier = "==2.22" },
-    { name = "pydantic", specifier = "==2.10.6" },
+    { name = "pydantic", specifier = ">=2.10.6" },
     { name = "pydantic-core", specifier = "==2.27.2" },
     { name = "pydantic-extra-types", specifier = "==2.10.2" },
     { name = "pydantic-settings", specifier = "==2.8.1" },
@@ -2390,6 +2403,7 @@ requires-dist = [
     { name = "pyopenssl", specifier = "==25.1.0" },
     { name = "pyperclip", specifier = "==1.9.0" },
     { name = "pytest", specifier = ">=8.4.1" },
+    { name = "pytest-asyncio", specifier = ">=1.0.0" },
     { name = "python-dateutil", specifier = "==2.9.0.post0" },
     { name = "python-dotenv", specifier = "==1.0.1" },
     { name = "python-slugify", specifier = "==8.0.4" },

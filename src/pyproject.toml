@@ -93,7 +93,7 @@ dependencies = [
     "psutil==7.0.0",
     "psycopg2-binary==2.9.10",
     "pycparser==2.22",
-    "pydantic==2.10.6",
+    "pydantic>=2.10.6",
     "pydantic-core==2.27.2",
     "pydantic-extra-types==2.10.2",
     "pydantic-settings==2.8.1",
@@ -102,6 +102,7 @@ dependencies = [
     "pyopenssl==25.1.0",
     "pyperclip==1.9.0",
     "pytest>=8.4.1",
+    "pytest-asyncio>=1.0.0",
     "python-dateutil==2.9.0.post0",
     "python-dotenv==1.0.1",
     "python-slugify==8.0.4",
@@ -148,4 +149,14 @@ dependencies = [
     "xxhash==3.5.0",
     "yarl==1.20.1",
     "zipp==3.21.0",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["./"]
+asyncio_mode = "auto"
+norecursedirs = ["data_collector/scrapers/test-by-html", "workflows/tests/"]
+filterwarnings = [
+    "ignore::DeprecationWarning:fake_http_header.*",
+    "ignore::DeprecationWarning:importlib.resources.*",
+    "ignore::pydantic.warnings.PydanticDeprecatedSince20"
 ]
