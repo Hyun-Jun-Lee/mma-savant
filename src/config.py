@@ -6,7 +6,8 @@ class Config:
     DB_PORT: int = int(os.getenv("DB_PORT", "5432"))
     DB_USER: str = os.getenv("DB_USER", "postgres")
     DB_PASSWORD: str = os.getenv("DB_PASSWORD", "postgres")
-    DB_NAME: str = os.getenv("DB_NAME", "ufc_stats")
+    DB_NAME: str = os.getenv("DB_NAME", "savant_db")
+    TEST_DB_NAME: str = os.getenv("TEST_DB_NAME", "test_savant_db")
 
     REDIS_HOST: str = os.getenv("REDIS_HOST", "localhost")
     REDIS_PORT: int = int(os.getenv("REDIS_PORT", "6379"))
@@ -14,7 +15,9 @@ class Config:
 
     LLM_API_KEY: str = os.getenv("LLM_API_KEY")
 
-def get_database_url() -> str:
+def get_database_url(is_test : bool = False) -> str:
+    if is_test:
+        return f"postgresql+asyncpg://postgres:{Config.DB_PASSWORD}@{Config.DB_HOST}:{Config.DB_PORT}/{Config.TEST_DB_NAME}"
     return f"postgresql+asyncpg://postgres:{Config.DB_PASSWORD}@{Config.DB_HOST}:{Config.DB_PORT}/{Config.DB_NAME}"
 
 def get_logging_config() -> Dict[str, Any]:

@@ -1,21 +1,8 @@
-"""
-Fighter 모델의 from_schema, to_schema 메서드 테스트
-"""
 import pytest
 from datetime import date, datetime
-import sys
-import os
 
-# 현재 파일의 상위 디렉토리들을 sys.path에 추가
-current_dir = os.path.dirname(os.path.abspath(__file__))
-parent_dir = os.path.dirname(current_dir)
-grandparent_dir = os.path.dirname(parent_dir)
-sys.path.insert(0, grandparent_dir)
+import database
 
-# database.__init__.py를 통해 올바른 순서로 모델들을 import
-import database  # 이것이 모든 모델을 올바른 순서로 로드함
-
-# 이제 안전하게 모델들을 import 가능
 from fighter.models import FighterModel, FighterSchema, RankingModel, RankingSchema
 
 
