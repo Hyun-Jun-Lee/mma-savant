@@ -1,4 +1,4 @@
-from typing import Optional, List, Literal
+from typing import Optional, Literal
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -14,7 +14,8 @@ async def _build_fighter_with_rankings(session: AsyncSession, fighter: FighterSc
     ranking_result = {}
     for ranking_obj in rankings:
         weight_class_name = WeightClassSchema.get_name_by_id(ranking_obj.weight_class_id)
-        ranking_result[weight_class_name] = ranking_obj.ranking
+        if weight_class_name:  # None 값 체크
+            ranking_result[weight_class_name] = ranking_obj.ranking
     
     return FighterWithRankingsDTO(
         fighter=fighter,
@@ -27,7 +28,7 @@ async def get_fighter_by_id(session: AsyncSession, fighter_id: int) -> Optional[
     """
     fighter = await fighter_repo.get_fighter_by_id(session, fighter_id)
     if not fighter:
-        raise fighter_exc.FighterNotFoundError(fighter_id)
+        raise fighter_exc.FighterNotFoundError(str(fighter_id))
 
     return await _build_fighter_with_rankings(session, fighter)
     
@@ -77,7 +78,7 @@ async def get_fighter_ranking_by_weight_class(session: AsyncSession, weight_clas
         rankings=ranked_fighters,
     )
 
-async def get_top_fighters_by_record(session: AsyncSession, record: Literal["win", "loss", "draw"], weight_class_id: int = None, limit: int = 10) -> List[RankedFighterDTO]:
+async def get_top_fighters_by_record(session: AsyncSession, record: Literal["win", "loss", "draw"], weight_class_id: int = None, limit: int = 10) -> WeightClassRankingsDTO:
     """
     파이터의 기록(승,패,무) 기준으로 상위 limit개의 파이터 조회
     """

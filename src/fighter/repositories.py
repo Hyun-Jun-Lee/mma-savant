@@ -1,6 +1,6 @@
 from typing import List, Optional, Dict, Literal
 
-from sqlalchemy import select
+from sqlalchemy import select, delete
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from fighter.models import FighterModel, RankingModel, FighterSchema, RankingSchema

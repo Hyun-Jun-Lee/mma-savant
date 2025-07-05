@@ -1,4 +1,4 @@
-from typing import Dict, List
+from typing import Dict, List, Optional
 from pydantic import BaseModel, Field
 
 from fighter.models import FighterSchema
@@ -17,7 +17,7 @@ class RankedFighterDTO(BaseModel):
 
 class WeightClassRankingsDTO(BaseModel):
     """특정 체급의 랭킹 리스트"""
-    weight_class_name: str
+    weight_class_name: Optional[str] = None
     rankings: List[RankedFighterDTO] = Field(
         example=[
             {"ranking": 1, "fighter": {"name": "Islam Makhachev"}},
