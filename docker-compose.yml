@@ -32,6 +32,7 @@ services:
       - POSTGRES_DB=${DB_NAME}
     volumes:
       - savant_db:/var/lib/postgresql/data
+      - ./init_sqls:/docker-entrypoint-initdb.d
 
   redis:
     container_name: savant_redis
