@@ -15,7 +15,7 @@ class EventSchema(BaseSchema):
     name: str = None
     location: str = None
     event_date: Optional[date] = None
-    url: str = None 
+    url: Optional[str] = None 
 
     model_config = ConfigDict(from_attributes=True)
 

@@ -7,7 +7,7 @@ from event import repositories as event_repo
 from fighter import repositories as fighter_repo
 
 
-async def get_event_matches(session: AsyncSession, event_name: int) -> Optional[Dict]:
+async def get_event_matches(session: AsyncSession, event_name: str) -> Optional[Dict]:
     """
     특정 이벤트에 속한 모든 경기와 참가 파이터 정보를 조회합니다.
     """
