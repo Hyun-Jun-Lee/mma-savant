@@ -1,0 +1,532 @@
+"""
+Event Services 테스트
+event/services.py의 비즈니스 로직 레이어에 대한 포괄적인 테스트
+"""
+import pytest
+from unittest.mock import AsyncMock, patch
+from datetime import date, timedelta
+
+from event import services as event_service
+
+
+class TestEventServicesWithTestDB:
+    """Test DB를 사용한 Event Services 테스트"""
+    
+    @pytest.mark.asyncio
+    async def test_get_event_timeline_monthly(self, multiple_events_different_dates, clean_test_session):
+        """월별 이벤트 타임라인 조회 테스트"""
+        # When: 월별 타임라인 조회
+        result = await event_service.get_event_timeline(clean_test_session, period="month")
+        
+        # Then: 월별 타임라인 데이터 반환
+        assert result is not None
+        assert isinstance(result, dict)
+        assert result["period"] == "monthly"
+        assert "current_period" in result
+        assert "previous_events" in result
+        assert "current_events" in result
+        assert "upcoming_events" in result
+        
+        # 각 섹션이 리스트인지 확인
+        assert isinstance(result["previous_events"], list)
+        assert isinstance(result["current_events"], list)
+        assert isinstance(result["upcoming_events"], list)
+    
+    @pytest.mark.asyncio
+    async def test_get_event_timeline_yearly(self, multiple_events_different_dates, clean_test_session):
+        """연도별 이벤트 타임라인 조회 테스트"""
+        # When: 연도별 타임라인 조회
+        result = await event_service.get_event_timeline(clean_test_session, period="year")
+        
+        # Then: 연도별 타임라인 데이터 반환
+        assert result is not None
+        assert isinstance(result, dict)
+        assert result["period"] == "yearly"
+        assert "current_period" in result
+        assert "previous_events" in result
+        assert "current_events" in result
+        assert "upcoming_events" in result
+    
+    @pytest.mark.asyncio
+    async def test_get_event_timeline_invalid_period(self, clean_test_session):
+        """잘못된 기간으로 타임라인 조회 테스트"""
+        # When & Then: 잘못된 기간으로 조회시 ValueError 발생
+        with pytest.raises(ValueError, match="period must be 'month' or 'year'"):
+            await event_service.get_event_timeline(clean_test_session, period="invalid")
+    
+    @pytest.mark.asyncio
+    async def test_get_event_summary_existing_event(self, sample_event, clean_test_session):
+        """존재하는 이벤트의 요약 정보 조회 테스트"""
+        # When: 이벤트 요약 정보 조회
+        result = await event_service.get_event_summary(clean_test_session, sample_event.id)
+        
+        # Then: 이벤트 요약 정보 반환
+        assert result is not None
+        assert isinstance(result, dict)
+        assert "event" in result
+        assert "stats" in result
+        
+        # 이벤트 정보 확인
+        assert result["event"].id == sample_event.id
+        assert result["event"].name == sample_event.name
+        
+        # 통계 정보 확인
+        stats = result["stats"]
+        assert "total_matches" in stats
+        assert "main_events" in stats
+        assert "finish_methods" in stats
+        assert isinstance(stats["total_matches"], int)
+        assert isinstance(stats["main_events"], int)
+        assert isinstance(stats["finish_methods"], dict)
+    
+    @pytest.mark.asyncio
+    async def test_get_event_summary_nonexistent_event(self, clean_test_session):
+        """존재하지 않는 이벤트의 요약 정보 조회 테스트"""
+        # When: 존재하지 않는 이벤트로 조회
+        result = await event_service.get_event_summary(clean_test_session, 99999)
+        
+        # Then: None 반환
+        assert result is None
+    
+    @pytest.mark.asyncio
+    async def test_search_events_by_name(self, multiple_events_different_names, clean_test_session):
+        """이름으로 이벤트 검색 테스트"""
+        # When: "UFC"로 검색
+        result = await event_service.search_events(
+            clean_test_session, query="UFC", search_type="name", limit=5
+        )
+        
+        # Then: 검색 결과 반환
+        assert isinstance(result, list)
+        assert len(result) >= 1
+        
+        for item in result:
+            assert isinstance(item, dict)
+            assert "event" in item
+            assert "match_type" in item
+            assert "relevance" in item
+            assert item["match_type"] == "name"
+            assert 0 <= item["relevance"] <= 1.0
+            assert "UFC" in item["event"].name.upper()
+    
+    @pytest.mark.asyncio
+    async def test_search_events_by_location(self, events_different_locations, clean_test_session):
+        """장소로 이벤트 검색 테스트"""
+        # When: "Las Vegas"로 장소 검색
+        result = await event_service.search_events(
+            clean_test_session, query="Las Vegas", search_type="location", limit=5
+        )
+        
+        # Then: 검색 결과 반환
+        assert isinstance(result, list)
+        assert len(result) >= 1
+        
+        for item in result:
+            assert isinstance(item, dict)
+            assert "event" in item
+            assert "match_type" in item
+            assert "relevance" in item
+            assert item["match_type"] == "location"
+            assert "Las Vegas" in item["event"].location
+    
+    @pytest.mark.asyncio
+    async def test_search_events_all_types(self, multiple_events_different_names, events_different_locations, clean_test_session):
+        """통합 검색 테스트"""
+        # When: "UFC"로 전체 검색 (이름과 장소 모두)
+        result = await event_service.search_events(
+            clean_test_session, query="Vegas", search_type="all", limit=10
+        )
+        
+        # Then: 이름과 장소 검색 결과 모두 포함
+        assert isinstance(result, list)
+        
+        # 관련성으로 정렬되어 있는지 확인
+        for i in range(len(result) - 1):
+            assert result[i]["relevance"] >= result[i + 1]["relevance"]
+    
+    @pytest.mark.asyncio
+    async def test_get_events_calendar_monthly(self, events_for_calendar_test, clean_test_session):
+        """월별 이벤트 캘린더 조회 테스트"""
+        # When: 2024년 8월 캘린더 조회
+        result = await event_service.get_events_calendar(clean_test_session, year=2024, month=8)
+        
+        # Then: 월별 캘린더 데이터 반환
+        assert result is not None
+        assert isinstance(result, dict)
+        assert result["type"] == "monthly"
+        assert result["year"] == 2024
+        assert result["month"] == 8
+        assert "total_events" in result
+        assert "calendar" in result
+        
+        # 캘린더 데이터 확인
+        calendar_data = result["calendar"]
+        assert isinstance(calendar_data, dict)
+        
+        # 특정 날짜에 이벤트가 있는지 확인
+        if "1" in calendar_data:
+            assert isinstance(calendar_data["1"], list)
+            assert len(calendar_data["1"]) >= 1
+    
+    @pytest.mark.asyncio
+    async def test_get_events_calendar_yearly(self, multiple_events_different_dates, clean_test_session):
+        """연도별 이벤트 캘린더 조회 테스트"""
+        # When: 2024년 연도별 캘린더 조회
+        result = await event_service.get_events_calendar(clean_test_session, year=2024)
+        
+        # Then: 연도별 캘린더 데이터 반환
+        assert result is not None
+        assert isinstance(result, dict)
+        assert result["type"] == "yearly"
+        assert result["year"] == 2024
+        assert "total_events" in result
+        assert "monthly_breakdown" in result
+        
+        # 월별 분석 데이터 확인
+        monthly_breakdown = result["monthly_breakdown"]
+        assert isinstance(monthly_breakdown, dict)
+        
+        for month_data in monthly_breakdown.values():
+            assert "count" in month_data
+            assert "events" in month_data
+            assert isinstance(month_data["count"], int)
+            assert isinstance(month_data["events"], list)
+    
+    @pytest.mark.asyncio
+    async def test_get_location_statistics(self, events_different_locations, clean_test_session):
+        """장소별 통계 조회 테스트"""
+        # When: 장소별 통계 조회
+        result = await event_service.get_location_statistics(clean_test_session)
+        
+        # Then: 장소별 통계 데이터 반환
+        assert result is not None
+        assert isinstance(result, dict)
+        assert "location_breakdown" in result
+        assert "total_major_locations" in result
+        assert "total_events_this_year" in result
+        assert "other_locations" in result
+        
+        # 각 필드 타입 확인
+        assert isinstance(result["location_breakdown"], dict)
+        assert isinstance(result["total_major_locations"], int)
+        assert isinstance(result["total_events_this_year"], int)
+        assert isinstance(result["other_locations"], int)
+    
+    @pytest.mark.asyncio
+    async def test_get_event_recommendations_upcoming(self, events_past_and_future, clean_test_session):
+        """다가오는 이벤트 추천 테스트"""
+        # When: 다가오는 이벤트 추천 조회
+        result = await event_service.get_event_recommendations(
+            clean_test_session, recommendation_type="upcoming"
+        )
+        
+        # Then: 추천 데이터 반환
+        assert result is not None
+        assert isinstance(result, dict)
+        assert result["type"] == "upcoming"
+        assert "title" in result
+        assert "events" in result
+        assert "description" in result
+        
+        # 이벤트 리스트 확인
+        assert isinstance(result["events"], list)
+        assert len(result["events"]) <= 5
+    
+    @pytest.mark.asyncio
+    async def test_get_event_recommendations_recent(self, events_past_and_future, clean_test_session):
+        """최근 이벤트 추천 테스트"""
+        # When: 최근 이벤트 추천 조회
+        result = await event_service.get_event_recommendations(
+            clean_test_session, recommendation_type="recent"
+        )
+        
+        # Then: 추천 데이터 반환
+        assert result is not None
+        assert result["type"] == "recent"
+        assert isinstance(result["events"], list)
+    
+    @pytest.mark.asyncio
+    async def test_get_event_recommendations_popular(self, events_past_and_future, clean_test_session):
+        """인기 이벤트 추천 테스트"""
+        # When: 인기 이벤트 추천 조회
+        result = await event_service.get_event_recommendations(
+            clean_test_session, recommendation_type="popular"
+        )
+        
+        # Then: 추천 데이터 반환
+        assert result is not None
+        assert result["type"] == "popular"
+        assert isinstance(result["events"], list)
+    
+    @pytest.mark.asyncio
+    async def test_get_event_recommendations_invalid_type(self, clean_test_session):
+        """잘못된 추천 타입 테스트"""
+        # When & Then: 잘못된 추천 타입으로 조회시 ValueError 발생
+        with pytest.raises(ValueError, match="recommendation_type must be"):
+            await event_service.get_event_recommendations(
+                clean_test_session, recommendation_type="invalid"
+            )
+    
+    @pytest.mark.asyncio
+    async def test_get_next_and_last_events(self, events_past_and_future, clean_test_session):
+        """다음/최근 이벤트 조회 테스트"""
+        # When: 다음/최근 이벤트 조회
+        result = await event_service.get_next_and_last_events(clean_test_session)
+        
+        # Then: 다음/최근 이벤트 데이터 반환
+        assert result is not None
+        assert isinstance(result, dict)
+        assert "next_event" in result
+        assert "last_event" in result
+        
+        # 일수 계산 필드들 확인
+        if result["next_event"]:
+            assert "days_until_next" in result
+            assert isinstance(result["days_until_next"], int)
+        
+        if result["last_event"]:
+            assert "days_since_last" in result
+            assert isinstance(result["days_since_last"], int)
+    
+    @pytest.mark.asyncio
+    async def test_get_event_trends_yearly(self, multiple_events_different_dates, clean_test_session):
+        """연도별 이벤트 트렌드 조회 테스트"""
+        # When: 연도별 트렌드 조회
+        result = await event_service.get_event_trends(clean_test_session, period="yearly")
+        
+        # Then: 트렌드 데이터 반환
+        assert result is not None
+        assert isinstance(result, dict)
+        assert result["period"] == "yearly"
+        assert "trends" in result
+        assert "total" in result
+        assert "average" in result
+        
+        # 트렌드 데이터 확인
+        trends = result["trends"]
+        assert isinstance(trends, dict)
+        assert len(trends) == 5  # 최근 5년
+        
+        # 통계 값 확인
+        assert isinstance(result["total"], int)
+        assert isinstance(result["average"], (int, float))
+    
+    @pytest.mark.asyncio
+    async def test_get_event_trends_monthly(self, multiple_events_different_dates, clean_test_session):
+        """월별 이벤트 트렌드 조회 테스트"""
+        # When: 월별 트렌드 조회
+        result = await event_service.get_event_trends(clean_test_session, period="monthly")
+        
+        # Then: 트렌드 데이터 반환
+        assert result is not None
+        assert result["period"] == "monthly"
+        assert isinstance(result["trends"], dict)
+        assert len(result["trends"]) == 12  # 12개월
+
+
+class TestEventServicesWithMocks:
+    """Mock을 사용한 Event Services 단위 테스트"""
+    
+    @pytest.mark.asyncio
+    async def test_get_event_summary_with_matches(self, clean_test_session):
+        """매치가 있는 이벤트 요약 테스트 (Mock 사용)"""
+        # Given: Mock 데이터 설정
+        mock_event = AsyncMock()
+        mock_event.id = 1
+        mock_event.name = "UFC Test Event"
+        mock_event.location = "Las Vegas, NV"
+        
+        mock_matches = [
+            AsyncMock(method="KO/TKO", is_main_event=True),
+            AsyncMock(method="Decision - Unanimous", is_main_event=False),
+            AsyncMock(method="Submission", is_main_event=False)
+        ]
+        
+        # When: Mock을 사용하여 service 함수 호출
+        with patch('event.services.event_repo.get_event_by_id', return_value=mock_event), \
+             patch('match.repositories.get_matches_by_event_id', return_value=mock_matches):
+            
+            result = await event_service.get_event_summary(clean_test_session, 1)
+        
+        # Then: 매치 통계가 올바르게 계산됨
+        assert result is not None
+        assert result["stats"]["total_matches"] == 3
+        assert result["stats"]["main_events"] == 1
+        
+        # 결승 방식 통계 확인
+        finish_methods = result["stats"]["finish_methods"]
+        assert finish_methods["KO/TKO"] == 1
+        assert finish_methods["Decision - Unanimous"] == 1
+        assert finish_methods["Submission"] == 1
+    
+    @pytest.mark.asyncio
+    async def test_search_events_relevance_sorting(self, clean_test_session):
+        """검색 결과 관련성 정렬 테스트 (Mock 사용)"""
+        # Given: Mock 데이터 설정
+        mock_name_event1 = AsyncMock()
+        mock_name_event1.id = 1
+        mock_name_event1.name = "UFC Vegas"
+        mock_name_event1.location = "Las Vegas, NV"
+        
+        mock_name_event2 = AsyncMock()
+        mock_name_event2.id = 2
+        mock_name_event2.name = "UFC Fight Night"
+        mock_name_event2.location = "New York, NY"
+        
+        mock_location_event = AsyncMock()
+        mock_location_event.id = 3
+        mock_location_event.name = "Bellator"
+        mock_location_event.location = "Las Vegas, Nevada"
+        
+        mock_name_events = [mock_name_event1, mock_name_event2]
+        mock_location_events = [mock_location_event]
+        
+        # When: Mock을 사용하여 service 함수 호출
+        with patch('event.services.event_repo.search_events_by_name', return_value=mock_name_events), \
+             patch('event.services.event_repo.get_events_by_location', return_value=mock_location_events):
+            
+            result = await event_service.search_events(
+                clean_test_session, query="Vegas", search_type="all", limit=10
+            )
+        
+        # Then: 관련성 순으로 정렬됨
+        assert isinstance(result, list)
+        assert len(result) == 3
+        
+        # 관련성 순서 확인
+        for i in range(len(result) - 1):
+            assert result[i]["relevance"] >= result[i + 1]["relevance"]
+        
+        # 중복 제거 확인 (같은 이벤트 ID가 두 번 나오지 않음)
+        event_ids = [item["event"].id for item in result]
+        assert len(event_ids) == len(set(event_ids))
+    
+    @pytest.mark.asyncio
+    async def test_get_events_calendar_with_empty_days(self, clean_test_session):
+        """빈 날짜가 있는 월별 캘린더 테스트 (Mock 사용)"""
+        # Given: Mock 데이터 설정 (8월에 몇 개 이벤트만)
+        mock_events = [
+            AsyncMock(event_date=date(2024, 8, 1)),
+            AsyncMock(event_date=date(2024, 8, 15))
+        ]
+        
+        # When: Mock을 사용하여 service 함수 호출
+        with patch('event.services.event_repo.get_events_by_month', return_value=mock_events):
+            result = await event_service.get_events_calendar(clean_test_session, year=2024, month=8)
+        
+        # Then: 이벤트가 있는 날짜만 캘린더에 포함됨
+        assert result["type"] == "monthly"
+        assert result["total_events"] == 2
+        
+        calendar_data = result["calendar"]
+        assert "1" in calendar_data
+        assert "15" in calendar_data
+        assert "16" not in calendar_data  # 이벤트가 없는 날은 포함되지 않음
+    
+    @pytest.mark.asyncio
+    async def test_get_location_statistics_calculation(self, clean_test_session):
+        """장소별 통계 계산 테스트 (Mock 사용)"""
+        # Given: Mock 데이터 설정
+        location_counts = {
+            "Las Vegas": 15,
+            "New York": 8,
+            "London": 5,
+            "Other": 0
+        }
+        
+        # Mock function to return different counts based on location
+        async def mock_count_by_location(session, location):
+            return location_counts.get(location, 0)
+        
+        # When: Mock을 사용하여 service 함수 호출
+        with patch('event.services.event_repo.get_event_count_by_location', side_effect=mock_count_by_location), \
+             patch('event.services.event_repo.get_event_count_by_year', return_value=30):
+            
+            result = await event_service.get_location_statistics(clean_test_session)
+        
+        # Then: 통계가 올바르게 계산됨
+        assert result["location_breakdown"]["Las Vegas"] == 15
+        assert result["location_breakdown"]["New York"] == 8
+        assert result["location_breakdown"]["London"] == 5
+        assert result["total_major_locations"] == 28  # 15 + 8 + 5
+        assert result["total_events_this_year"] == 30
+        assert result["other_locations"] == 2  # 30 - 28
+    
+    @pytest.mark.asyncio
+    async def test_get_next_and_last_events_date_calculations(self, clean_test_session):
+        """다음/최근 이벤트 날짜 계산 테스트 (Mock 사용)"""
+        # Given: Mock 데이터 설정
+        today = date.today()
+        next_event_date = today + timedelta(days=10)
+        last_event_date = today - timedelta(days=5)
+        
+        mock_next_event = AsyncMock()
+        mock_next_event.event_date = next_event_date
+        
+        mock_last_event = AsyncMock()
+        mock_last_event.event_date = last_event_date
+        
+        # When: Mock을 사용하여 service 함수 호출
+        with patch('event.services.event_repo.get_next_event', return_value=mock_next_event), \
+             patch('event.services.event_repo.get_last_event', return_value=mock_last_event):
+            
+            result = await event_service.get_next_and_last_events(clean_test_session)
+        
+        # Then: 날짜 계산이 올바름
+        assert result["days_until_next"] == 10
+        assert result["days_since_last"] == 5
+        assert result["next_event"] == mock_next_event
+        assert result["last_event"] == mock_last_event
+
+
+class TestEventServicesErrorHandling:
+    """Event Services 에러 처리 테스트"""
+    
+    @pytest.mark.asyncio
+    async def test_get_event_summary_repository_error_handling(self, clean_test_session):
+        """Repository 에러 시 처리 테스트"""
+        # Given: event_repo에서 예외 발생하도록 설정
+        with patch('event.services.event_repo.get_event_by_id', side_effect=Exception("Database error")):
+            
+            # When & Then: 예외가 전파됨
+            with pytest.raises(Exception, match="Database error"):
+                await event_service.get_event_summary(clean_test_session, 1)
+    
+    @pytest.mark.asyncio
+    async def test_search_events_empty_query_handling(self, clean_test_session):
+        """빈 검색어 처리 테스트"""
+        # Given: 빈 검색어
+        with patch('event.services.event_repo.search_events_by_name', return_value=[]), \
+             patch('event.services.event_repo.get_events_by_location', return_value=[]):
+            
+            # When: 빈 검색어로 검색
+            result = await event_service.search_events(clean_test_session, query="", search_type="all")
+        
+        # Then: 빈 결과 반환
+        assert isinstance(result, list)
+        assert len(result) == 0
+    
+    @pytest.mark.asyncio
+    async def test_get_events_calendar_future_date_handling(self, clean_test_session):
+        """미래 날짜로 캘린더 조회 테스트"""
+        # Given: 미래 날짜로 설정
+        future_year = date.today().year + 10
+        
+        with patch('event.services.event_repo.get_events_by_month', return_value=[]):
+            # When: 미래 날짜로 캘린더 조회
+            result = await event_service.get_events_calendar(
+                clean_test_session, year=future_year, month=1
+            )
+        
+        # Then: 빈 캘린더 반환
+        assert result["type"] == "monthly"
+        assert result["year"] == future_year
+        assert result["total_events"] == 0
+        assert result["calendar"] == {}
+
+
+if __name__ == "__main__":
+    print("Event Services 테스트 실행...")
+    print("✅ 비즈니스 로직 레이어 완전 테스트!")
+    print("\n테스트 실행:")
+    print("uv run pytest tests/event/test_services.py -v")

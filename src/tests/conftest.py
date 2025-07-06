@@ -459,3 +459,190 @@ async def fighters_with_multiple_matches(clean_test_session):
     await clean_test_session.flush()
     
     return fighters, matches, fighter_matches
+
+
+# Event 관련 fixtures (Event Repository 테스트용)
+
+@pytest_asyncio.fixture
+async def multiple_events_different_dates(clean_test_session):
+    """
+    다양한 날짜의 이벤트들 생성
+    날짜별 테스트용
+    """
+    events = [
+        EventModel(
+            name="UFC 290",
+            event_date=date(2024, 1, 15),
+            location="Las Vegas, NV"
+        ),
+        EventModel(
+            name="UFC 291", 
+            event_date=date(2024, 3, 20),
+            location="Miami, FL"
+        ),
+        EventModel(
+            name="UFC 292",
+            event_date=date(2024, 6, 10),
+            location="Boston, MA"
+        ),
+        EventModel(
+            name="UFC 293",
+            event_date=date(2024, 9, 5),
+            location="Sydney, Australia"
+        )
+    ]
+    clean_test_session.add_all(events)
+    await clean_test_session.flush()
+    return events
+
+
+@pytest_asyncio.fixture  
+async def multiple_events_different_names(clean_test_session):
+    """
+    다양한 이름의 이벤트들 생성
+    이름 검색 테스트용
+    """
+    events = [
+        EventModel(
+            name="UFC 300: Championship Night",
+            event_date=date(2024, 4, 13),
+            location="Las Vegas, NV"
+        ),
+        EventModel(
+            name="UFC Fight Night: London",
+            event_date=date(2024, 5, 18),
+            location="London, UK"
+        ),
+        EventModel(
+            name="Bellator 301",
+            event_date=date(2024, 6, 22),
+            location="Chicago, IL"
+        ),
+        EventModel(
+            name="ONE Championship: Singapore",
+            event_date=date(2024, 7, 15),
+            location="Singapore"
+        )
+    ]
+    clean_test_session.add_all(events)
+    await clean_test_session.flush()
+    return events
+
+
+@pytest_asyncio.fixture
+async def events_past_and_future(clean_test_session):
+    """
+    과거와 미래 이벤트들 생성
+    시간 기반 테스트용
+    """
+    from datetime import timedelta
+    today = date.today()
+    
+    # 과거 이벤트들
+    past_events = [
+        EventModel(
+            name="UFC Past Event 1",
+            event_date=today - timedelta(days=30),
+            location="Las Vegas, NV"
+        ),
+        EventModel(
+            name="UFC Past Event 2", 
+            event_date=today - timedelta(days=15),
+            location="New York, NY"
+        ),
+        EventModel(
+            name="UFC Past Event 3",
+            event_date=today - timedelta(days=7),
+            location="Los Angeles, CA"
+        )
+    ]
+    
+    # 미래 이벤트들
+    future_events = [
+        EventModel(
+            name="UFC Future Event 1",
+            event_date=today + timedelta(days=7),
+            location="Miami, FL"
+        ),
+        EventModel(
+            name="UFC Future Event 2",
+            event_date=today + timedelta(days=20),
+            location="Boston, MA"
+        ),
+        EventModel(
+            name="UFC Future Event 3",
+            event_date=today + timedelta(days=45),
+            location="London, UK"
+        )
+    ]
+    
+    all_events = past_events + future_events
+    clean_test_session.add_all(all_events)
+    await clean_test_session.flush()
+    
+    return past_events, future_events
+
+
+@pytest_asyncio.fixture
+async def events_different_locations(clean_test_session):
+    """
+    다양한 장소의 이벤트들 생성
+    장소별 테스트용
+    """
+    events = [
+        EventModel(
+            name="UFC Vegas 1",
+            event_date=date(2024, 2, 10),
+            location="Las Vegas, Nevada"
+        ),
+        EventModel(
+            name="UFC Vegas 2",
+            event_date=date(2024, 3, 15),
+            location="Las Vegas, NV"
+        ),
+        EventModel(
+            name="UFC London",
+            event_date=date(2024, 4, 20),
+            location="London, England"
+        ),
+        EventModel(
+            name="UFC Paris",
+            event_date=date(2024, 5, 25),
+            location="Paris, France"
+        ),
+        EventModel(
+            name="UFC Abu Dhabi",
+            event_date=date(2024, 6, 30),
+            location="Abu Dhabi, UAE"
+        )
+    ]
+    clean_test_session.add_all(events)
+    await clean_test_session.flush()
+    return events
+
+
+@pytest_asyncio.fixture
+async def events_for_calendar_test(clean_test_session):
+    """
+    캘린더 테스트용 특정 월의 이벤트들 생성
+    """
+    events = [
+        EventModel(
+            name="UFC Event Day 1",
+            event_date=date(2024, 8, 1),
+            location="Las Vegas, NV"
+        ),
+        EventModel(
+            name="UFC Event Day 15",
+            event_date=date(2024, 8, 15),
+            location="New York, NY"
+        ),
+        EventModel(
+            name="UFC Event Day 30",
+            event_date=date(2024, 8, 30),
+            location="Los Angeles, CA"
+        )
+    ]
+    clean_test_session.add_all(events)
+    await clean_test_session.flush()
+    return events
