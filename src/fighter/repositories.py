@@ -29,7 +29,7 @@ async def get_fighter_by_name(session: AsyncSession, name: str) -> Optional[Figh
     """
     normalized_name = normalize_name(name)
     result = await session.execute(
-        select(FighterModel).where(FighterModel.name == normalized_name)
+        select(FighterModel).where(FighterModel.name.ilike(f'%{normalized_name}%'))
     )
     fighter = result.scalar_one_or_none()
     return fighter.to_schema() if fighter else None
