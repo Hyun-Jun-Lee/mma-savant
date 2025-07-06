@@ -10,6 +10,8 @@ from typing import List
 import database
 from database.connection.test_postgres_conn import test_db_session, cleanup_test_db, reset_test_db_sequences
 from fighter.models import FighterModel, FighterSchema, RankingModel, RankingSchema
+from match.models import MatchModel, FighterMatchModel, SigStrMatchStatModel, BasicMatchStatModel
+from event.models import EventModel
 from common.utils import normalize_name
 
 
@@ -223,3 +225,237 @@ async def fighters_for_record_test(clean_test_session):
     clean_test_session.add_all(fighters)
     await clean_test_session.flush()
     return fighters
+
+
+# Match 관련 fixtures
+
+@pytest_asyncio.fixture
+async def sample_event(clean_test_session):
+    """
+    기본적인 테스트용 이벤트 생성
+    매치 테스트용 이벤트
+    """
+    event = EventModel(
+        name="UFC Test Event",
+        event_date=date(2024, 1, 15),
+        location="Las Vegas, NV"
+    )
+    clean_test_session.add(event)
+    await clean_test_session.flush()
+    return event
+
+
+@pytest_asyncio.fixture
+async def sample_match(sample_event, clean_test_session):
+    """
+    기본적인 테스트용 매치 생성
+    다양한 매치 테스트용
+    """
+    match = MatchModel(
+        event_id=sample_event.id,
+        weight_class_id=5,  # Welterweight
+        method="Decision - Unanimous",
+        result_round=3,
+        time="15:00",
+        order=1,
+        is_main_event=False,
+        detail_url="http://example.com/match/test"
+    )
+    clean_test_session.add(match)
+    await clean_test_session.flush()
+    return match
+
+
+@pytest_asyncio.fixture
+async def match_with_fighters(sample_match, sample_fighter, clean_test_session):
+    """
+    파이터들이 포함된 매치 생성
+    FighterMatch 관계 테스트용
+    """
+    # 두 번째 파이터 생성
+    fighter2 = FighterModel(
+        name="Opponent Fighter",
+        nickname="The Opponent",
+        wins=8,
+        losses=3,
+        draws=0
+    )
+    clean_test_session.add(fighter2)
+    await clean_test_session.flush()
+    
+    # FighterMatch 관계 생성
+    fighter_matches = [
+        FighterMatchModel(
+            fighter_id=sample_fighter.id,
+            match_id=sample_match.id,
+            result="win"
+        ),
+        FighterMatchModel(
+            fighter_id=fighter2.id,
+            match_id=sample_match.id,
+            result="loss"
+        )
+    ]
+    clean_test_session.add_all(fighter_matches)
+    await clean_test_session.flush()
+    
+    return sample_match, [sample_fighter, fighter2], fighter_matches
+
+
+@pytest_asyncio.fixture
+async def match_with_statistics(match_with_fighters, clean_test_session):
+    """
+    통계가 포함된 매치 생성
+    매치 통계 테스트용
+    """
+    match, fighters, fighter_matches = match_with_fighters
+    
+    # 기본 매치 통계 생성
+    basic_stats = [
+        BasicMatchStatModel(
+            fighter_match_id=fighter_matches[0].id,
+            knockdowns=1,
+            control_time_seconds=240,
+            submission_attempts=2,
+            sig_str_landed=45,
+            sig_str_attempted=75,
+            total_str_landed=65,
+            total_str_attempted=95,
+            td_landed=3,
+            td_attempted=6,
+            round=3
+        ),
+        BasicMatchStatModel(
+            fighter_match_id=fighter_matches[1].id,
+            knockdowns=0,
+            control_time_seconds=120,
+            submission_attempts=1,
+            sig_str_landed=32,
+            sig_str_attempted=58,
+            total_str_landed=48,
+            total_str_attempted=72,
+            td_landed=1,
+            td_attempted=4,
+            round=3
+        )
+    ]
+    
+    # 스트라이크 세부 통계 생성
+    strike_stats = [
+        SigStrMatchStatModel(
+            fighter_match_id=fighter_matches[0].id,
+            head_strikes_landed=25,
+            head_strikes_attempts=40,
+            body_strikes_landed=15,
+            body_strikes_attempts=25,
+            leg_strikes_landed=5,
+            leg_strikes_attempts=10,
+            takedowns_landed=3,
+            takedowns_attempts=6,
+            round=3
+        ),
+        SigStrMatchStatModel(
+            fighter_match_id=fighter_matches[1].id,
+            head_strikes_landed=18,
+            head_strikes_attempts=35,
+            body_strikes_landed=10,
+            body_strikes_attempts=18,
+            leg_strikes_landed=4,
+            leg_strikes_attempts=5,
+            takedowns_landed=1,
+            takedowns_attempts=4,
+            round=3
+        )
+    ]
+    
+    clean_test_session.add_all(basic_stats + strike_stats)
+    await clean_test_session.flush()
+    
+    return match, fighters, fighter_matches, basic_stats, strike_stats
+
+
+@pytest_asyncio.fixture
+async def multiple_matches_for_event(sample_event, clean_test_session):
+    """
+    하나의 이벤트에 여러 매치 생성
+    이벤트별 매치 조회 테스트용
+    """
+    matches = [
+        MatchModel(
+            event_id=sample_event.id,
+            weight_class_id=4,  # Lightweight
+            method="KO/TKO",
+            result_round=2,
+            time="3:24",
+            order=1,
+            is_main_event=False
+        ),
+        MatchModel(
+            event_id=sample_event.id,
+            weight_class_id=5,  # Welterweight  
+            method="Submission",
+            result_round=1,
+            time="4:55",
+            order=2,
+            is_main_event=False
+        ),
+        MatchModel(
+            event_id=sample_event.id,
+            weight_class_id=6,  # Middleweight
+            method="Decision - Unanimous",
+            result_round=5,
+            time="25:00",
+            order=3,
+            is_main_event=True
+        )
+    ]
+    clean_test_session.add_all(matches)
+    await clean_test_session.flush()
+    return sample_event, matches
+
+
+@pytest_asyncio.fixture
+async def fighters_with_multiple_matches(clean_test_session):
+    """
+    여러 매치를 가진 파이터들 생성
+    파이터별 매치 기록 조회 테스트용
+    """
+    # 파이터들 생성
+    fighters = [
+        FighterModel(name="Multi Match Fighter 1", wins=15, losses=2, draws=0),
+        FighterModel(name="Multi Match Fighter 2", wins=12, losses=5, draws=1)
+    ]
+    clean_test_session.add_all(fighters)
+    await clean_test_session.flush()
+    
+    # 이벤트 생성
+    events = [
+        EventModel(name="UFC Event 1", event_date=date(2024, 1, 1), location="Vegas"),
+        EventModel(name="UFC Event 2", event_date=date(2024, 2, 1), location="New York"),
+        EventModel(name="UFC Event 3", event_date=date(2024, 3, 1), location="London")
+    ]
+    clean_test_session.add_all(events)
+    await clean_test_session.flush()
+    
+    # 매치들 생성
+    matches = [
+        MatchModel(event_id=events[0].id, weight_class_id=5, method="Decision", result_round=3, time="15:00", order=1, is_main_event=False),
+        MatchModel(event_id=events[1].id, weight_class_id=5, method="KO/TKO", result_round=2, time="3:45", order=1, is_main_event=False),
+        MatchModel(event_id=events[2].id, weight_class_id=5, method="Submission", result_round=1, time="2:30", order=1, is_main_event=True)
+    ]
+    clean_test_session.add_all(matches)
+    await clean_test_session.flush()
+    
+    # FighterMatch 관계 생성 (두 파이터가 3번 싸움)
+    fighter_matches = []
+    for i, match in enumerate(matches):
+        # 첫 번째 파이터가 모든 경기에서 승리
+        fighter_matches.extend([
+            FighterMatchModel(fighter_id=fighters[0].id, match_id=match.id, result="win"),
+            FighterMatchModel(fighter_id=fighters[1].id, match_id=match.id, result="loss")
+        ])
+    
+    clean_test_session.add_all(fighter_matches)
+    await clean_test_session.flush()
+    
+    return fighters, matches, fighter_matches
