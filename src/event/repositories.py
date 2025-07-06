@@ -2,11 +2,10 @@ from datetime import date
 from typing import Optional, List
 from typing_extensions import Literal
 
-from sqlalchemy import select, extract
+from sqlalchemy import select, extract, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from event.models import EventModel, EventSchema
-from match.models import MatchModel, FighterMatchModel
 
 async def get_event_by_id(session: AsyncSession, event_id: int) -> Optional[EventSchema]:
     result = await session.execute(
@@ -103,20 +102,130 @@ async def get_events_by_date(
     events = result.scalars().all()
     return [event.to_schema() for event in events]
 
-async def get_upcoming_fighter_match(session: AsyncSession, fighter_id: int) -> Optional[EventSchema]:
+async def get_recent_events(session: AsyncSession, limit: int = 5) -> List[EventSchema]:
     """
-    특정 파이터의 다가오는 경기(오늘 이후)가 포함된 가장 가까운 이벤트를 조회합니다.
+    최근 개최된 이벤트들을 조회합니다. (과거 이벤트)
     """
     result = await session.execute(
         select(EventModel)
-        .join(EventModel.matches)
-        .join(MatchModel.fighter_matches)
-        .where(
-            FighterMatchModel.fighter_id == fighter_id,
-            EventModel.event_date > date.today()
-        )
+        .where(EventModel.event_date <= date.today())
+        .order_by(EventModel.event_date.desc())
+        .limit(limit)
+    )
+    events = result.scalars().all()
+    return [event.to_schema() for event in events]
+
+async def get_upcoming_events(session: AsyncSession, limit: int = 5) -> List[EventSchema]:
+    """
+    다가오는 이벤트들을 조회합니다. (미래 이벤트)
+    """
+    result = await session.execute(
+        select(EventModel)
+        .where(EventModel.event_date > date.today())
+        .order_by(EventModel.event_date.asc())
+        .limit(limit)
+    )
+    events = result.scalars().all()
+    return [event.to_schema() for event in events]
+
+async def get_events_by_location(session: AsyncSession, location: str) -> List[EventSchema]:
+    """
+    특정 장소에서 개최된 이벤트들을 조회합니다. (부분 매칭)
+    """
+    result = await session.execute(
+        select(EventModel)
+        .where(EventModel.location.ilike(f"%{location}%"))
+        .order_by(EventModel.event_date.desc())
+    )
+    events = result.scalars().all()
+    return [event.to_schema() for event in events]
+
+async def search_events_by_name(session: AsyncSession, search_term: str, limit: int = 10) -> List[EventSchema]:
+    """
+    이벤트 이름으로 검색합니다. (부분 매칭, 대소문자 무시)
+    """
+    result = await session.execute(
+        select(EventModel)
+        .where(EventModel.name.ilike(f"%{search_term}%"))
+        .order_by(EventModel.event_date.desc())
+        .limit(limit)
+    )
+    events = result.scalars().all()
+    return [event.to_schema() for event in events]
+
+async def get_event_by_exact_name(session: AsyncSession, name: str) -> Optional[EventSchema]:
+    """
+    정확한 이벤트 이름으로 조회합니다. (대소문자 무시)
+    """
+    result = await session.execute(
+        select(EventModel)
+        .where(EventModel.name.ilike(name))
+    )
+    event = result.scalar_one_or_none()
+    return event.to_schema() if event else None
+
+async def get_next_event(session: AsyncSession) -> Optional[EventSchema]:
+    """
+    가장 가까운 다음 이벤트를 조회합니다.
+    """
+    result = await session.execute(
+        select(EventModel)
+        .where(EventModel.event_date > date.today())
         .order_by(EventModel.event_date.asc())
         .limit(1)
     )
     event = result.scalar_one_or_none()
     return event.to_schema() if event else None
+
+async def get_last_event(session: AsyncSession) -> Optional[EventSchema]:
+    """
+    가장 최근에 개최된 이벤트를 조회합니다.
+    """
+    result = await session.execute(
+        select(EventModel)
+        .where(EventModel.event_date <= date.today())
+        .order_by(EventModel.event_date.desc())
+        .limit(1)
+    )
+    event = result.scalar_one_or_none()
+    return event.to_schema() if event else None
+
+async def get_events_date_range(
+    session: AsyncSession, 
+    start_date: date, 
+    end_date: date
+) -> List[EventSchema]:
+    """
+    특정 날짜 범위에 개최된 이벤트들을 조회합니다.
+    """
+    result = await session.execute(
+        select(EventModel)
+        .where(
+            EventModel.event_date >= start_date,
+            EventModel.event_date <= end_date
+        )
+        .order_by(EventModel.event_date.asc())
+    )
+    events = result.scalars().all()
+    return [event.to_schema() for event in events]
+
+async def get_event_count_by_year(session: AsyncSession, year: int) -> int:
+    """
+    특정 연도에 개최된 이벤트 개수를 반환합니다.
+    """
+    result = await session.execute(
+        select(func.count(EventModel.id))
+        .where(extract("year", EventModel.event_date) == year)
+    )
+    return result.scalar() or 0
+
+async def get_event_count_by_location(session: AsyncSession, location: str) -> int:
+    """
+    특정 장소에서 개최된 이벤트 개수를 반환합니다.
+    """
+    result = await session.execute(
+        select(func.count(EventModel.id))
+        .where(EventModel.location.ilike(f"%{location}%"))
+    )
+    return result.scalar() or 0
+
