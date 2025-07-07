@@ -2,12 +2,14 @@ from typing import Optional, Dict
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from match.dto import EventMatchesDTO, MatchWithFightersDTO, FighterBasicInfoDTO
+
 from match import repositories as match_repo
 from event import repositories as event_repo
 from fighter import repositories as fighter_repo
 
 
-async def get_event_matches(session: AsyncSession, event_name: str) -> Optional[Dict]:
+async def get_event_matches(session: AsyncSession, event_name: str) -> Optional[EventMatchesDTO]:
     """
     특정 이벤트에 속한 모든 경기와 참가 파이터 정보를 조회합니다.
     """
@@ -16,11 +18,7 @@ async def get_event_matches(session: AsyncSession, event_name: str) -> Optional[
         return None
 
     matches = await match_repo.get_matches_by_event_id(session, event.id)
-    final_result = {
-        "event_name" : event.name,
-        "event_date" : event.event_date,
-        "matches" : []
-    }
+    matches_list = []
     # match.order로 정렬
     sorted_matches = sorted(matches, key=lambda m: m.order if m.order is not None else 999)
     
@@ -36,33 +34,35 @@ async def get_event_matches(session: AsyncSession, event_name: str) -> Optional[
                 continue
             
             if fighter_match.result == "win":
-                winner_fighter = {
-                    "id": fighter.id,
-                    "name": fighter.name
-                }
+                winner_fighter = FighterBasicInfoDTO(
+                    id=fighter.id,
+                    name=fighter.name
+                )
             elif fighter_match.result == "loss":
-                loser_fighter = {
-                    "id": fighter.id,
-                    "name": fighter.name
-                }
+                loser_fighter = FighterBasicInfoDTO(
+                    id=fighter.id,
+                    name=fighter.name
+                )
             elif fighter_match.result == "draw":
-                draw_fighters.append({
-                    "id": fighter.id,
-                    "name": fighter.name
-                })
+                draw_fighters.append(FighterBasicInfoDTO(
+                    id=fighter.id,
+                    name=fighter.name
+                ))
         
-        match_info = {
-            "match": match,
-            "winner_fighter": winner_fighter,
-            "loser_fighter": loser_fighter
-        }
-        
-        if draw_fighters:
-            match_info["draw_fighters"] = draw_fighters
+        match_info = MatchWithFightersDTO(
+            match=match,
+            winner_fighter=winner_fighter,
+            loser_fighter=loser_fighter,
+            draw_fighters=draw_fighters if draw_fighters else None
+        )
             
-        final_result['matches'].append(match_info)
+        matches_list.append(match_info)
 
-    return final_result
+    return EventMatchesDTO(
+        event_name=event.name,
+        event_date=event.event_date,
+        matches=matches_list
+    )
 
 async def get_match_detail(session: AsyncSession, match_id: int) -> Optional[Dict]:
     """

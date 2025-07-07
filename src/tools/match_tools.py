@@ -47,7 +47,7 @@ async def get_event_matches(event_name: str) -> Optional[Dict]:
     """
     async with async_db_session() as session:
         result = await match_services.get_event_matches(session, event_name)
-        return result
+        return result.model_dump() if result else None
 
 
 @mcp.tool()

@@ -122,7 +122,7 @@ async def search_events(query: str, search_type: str = "name", limit: int = 10) 
     """
     async with async_db_session() as session:
         results = await event_services.search_events(session, query, search_type, limit)
-        return [result for result in results]
+        return results.model_dump()
 
 
 @mcp.tool()
@@ -219,24 +219,7 @@ async def get_next_and_last_events() -> Dict[str, Any]:
     """
     async with async_db_session() as session:
         result = await event_services.get_next_and_last_events(session)
-        
-        formatted_result = {}
-        if result.get("next_event"):
-            formatted_result["next_event"] = result["next_event"].model_dump()
-        else:
-            formatted_result["next_event"] = None
-            
-        if result.get("last_event"):
-            formatted_result["last_event"] = result["last_event"].model_dump()
-        else:
-            formatted_result["last_event"] = None
-            
-        if "days_until_next" in result:
-            formatted_result["days_until_next"] = result["days_until_next"]
-        if "days_since_last" in result:
-            formatted_result["days_since_last"] = result["days_since_last"]
-            
-        return formatted_result
+        return result.model_dump()
 
 
 @mcp.tool()
@@ -259,16 +242,7 @@ async def get_event_timeline(period: str = "month") -> Dict[str, Any]:
     """
     async with async_db_session() as session:
         timeline = await event_services.get_event_timeline(session, period)
-        
-        formatted_timeline = {
-            "period": timeline["period"],
-            "current_period": timeline["current_period"],
-            "previous_events": [event.model_dump() for event in timeline["previous_events"]],
-            "current_events": [event.model_dump() for event in timeline["current_events"]],
-            "upcoming_events": [event.model_dump() for event in timeline["upcoming_events"]]
-        }
-        
-        return formatted_timeline
+        return timeline.model_dump()
 
 
 @mcp.tool()
@@ -289,13 +263,7 @@ async def get_event_summary(event_id: int) -> Optional[Dict[str, Any]]:
     """
     async with async_db_session() as session:
         summary = await event_services.get_event_summary(session, int(event_id))
-        if summary:
-            formatted_summary = {
-                "event": summary["event"].model_dump(),
-                "stats": summary["stats"]
-            }
-            return formatted_summary
-        return None
+        return summary.model_dump() if summary else None
 
 
 @mcp.tool()
