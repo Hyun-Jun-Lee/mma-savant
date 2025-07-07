@@ -6,7 +6,11 @@ from datetime import date, datetime
 import database
 
 from fighter.models import FighterSchema, RankingSchema
-from fighter.dto import FighterWithRankingsDTO, WeightClassRankingsDTO, RankedFighterDTO
+from fighter.dto import (
+    FighterWithRankingsDTO, WeightClassRankingsDTO, RankedFighterDTO,
+    FightersByStanceDTO, UndefeatedFightersDTO, FightersByPhysicalAttributesDTO,
+    FightersPerformanceAnalysisDTO, WeightClassDepthAnalysisDTO
+)
 from fighter import services as fighter_services
 from fighter import exceptions as fighter_exc
 

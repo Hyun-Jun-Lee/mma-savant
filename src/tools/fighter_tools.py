@@ -237,7 +237,7 @@ async def get_fighters_by_stance_analysis(stance: str) -> Dict[str, Any]:
     """
     async with async_db_session() as session:
         analysis = await fighter_services.get_fighters_by_stance_analysis(session, stance)
-        return analysis
+        return analysis.model_dump()
 
 
 @mcp.tool()
@@ -279,7 +279,7 @@ async def get_undefeated_fighters_analysis(min_wins: int = 5) -> Dict[str, Any]:
     """
     async with async_db_session() as session:
         analysis = await fighter_services.get_undefeated_fighters_analysis(session, min_wins)
-        return analysis
+        return analysis.model_dump()
 
 
 @mcp.tool()
@@ -324,7 +324,7 @@ async def get_fighters_by_physical_attributes(
         analysis = await fighter_services.get_fighters_by_physical_attributes(
             session, min_height, max_height, min_weight, max_weight, min_reach, limit
         )
-        return analysis
+        return analysis.model_dump()
 
 
 @mcp.tool()
@@ -357,7 +357,7 @@ async def get_fighters_performance_analysis() -> Dict[str, Any]:
     """
     async with async_db_session() as session:
         analysis = await fighter_services.get_fighters_performance_analysis(session)
-        return analysis
+        return analysis.model_dump()
 
 
 @mcp.tool()
@@ -396,4 +396,4 @@ async def get_weight_class_depth_analysis(weight_class_name: str) -> Dict[str, A
     """
     async with async_db_session() as session:
         analysis = await fighter_services.get_weight_class_depth_analysis(session, weight_class_name)
-        return analysis
+        return analysis.model_dump()
