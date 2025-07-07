@@ -18,7 +18,7 @@ async def get_event_matches(session: AsyncSession, event_name: str) -> Optional[
     matches = await match_repo.get_matches_by_event_id(session, event.id)
     final_result = {
         "event_name" : event.name,
-        "event_date" : event.date,
+        "event_date" : event.event_date,
         "matches" : []
     }
     # match.order로 정렬
