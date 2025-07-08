@@ -12,9 +12,17 @@ from composition.repositories import (
     get_top_performers_in_event,
     get_finish_rate_by_method
 )
+from composition.dto import (
+    FOTNCandidatesDTO, FOTNCandidateDTO, FOTNAnalysisDTO, MatchFighterResultDTO,
+    CardQualityAnalysisDTO, CardAnalysisDTO, QualityIndicatorsDTO,
+    ExcitingMatchDTO, ExcitingMatchHighlightsDTO,
+    ComebackPerformancesDTO, ComebackPerformanceDTO, ComebackAnalysisDTO,
+    StyleClashAnalysisDTO, StyleContrastDTO,
+    PerformanceOutliersDTO, PerformanceOutlierDTO, OutlierPerformanceDTO, OutlierAnalysisSummaryDTO
+)
 
 
-async def get_fight_of_the_night_candidates(session: AsyncSession, event_id: int) -> Dict[str, Any]:
+async def get_fight_of_the_night_candidates(session: AsyncSession, event_id: int) -> Optional[FOTNCandidatesDTO]:
     """
     특정 이벤트에서 Fight of the Night 후보가 될만한 경기들을 분석합니다.
     통계적 성과와 엔터테인먼트 가치를 기준으로 평가합니다.
@@ -23,7 +31,7 @@ async def get_fight_of_the_night_candidates(session: AsyncSession, event_id: int
     event_summary = await get_event_with_matches_summary(session, event_id)
     
     if not event_summary:
-        return {"error": "Event not found"}
+        return None
     
     fight_candidates = []
     
@@ -70,30 +78,51 @@ async def get_fight_of_the_night_candidates(session: AsyncSession, event_id: int
         elif match.order and match.order >= 4:
             fotn_score += 0.5
         
-        fight_candidates.append({
-            "match": match,
-            "fighters": match_detail["fighters"],
-            "winner": match_detail.get("winner"),
-            "loser": match_detail.get("loser"),
-            "fotn_score": fotn_score,
-            "analysis": {
-                "duration_rounds": round_factor,
-                "finish_method": match.method,
-                "entertainment_value": "high" if fotn_score >= 5 else "medium" if fotn_score >= 3 else "low"
-            }
-        })
+        # fighters를 MatchFighterResultDTO로 변환
+        fighters = [
+            MatchFighterResultDTO(
+                fighter=fighter["fighter"],
+                result=fighter.get("result")
+            ) for fighter in match_detail["fighters"]
+        ]
+        
+        winner = None
+        loser = None
+        if match_detail.get("winner"):
+            winner = MatchFighterResultDTO(
+                fighter=match_detail["winner"]["fighter"],
+                result=match_detail["winner"].get("result")
+            )
+        if match_detail.get("loser"):
+            loser = MatchFighterResultDTO(
+                fighter=match_detail["loser"]["fighter"],
+                result=match_detail["loser"].get("result")
+            )
+        
+        fight_candidates.append(FOTNCandidateDTO(
+            match=match,
+            fighters=fighters,
+            winner=winner,
+            loser=loser,
+            fotn_score=fotn_score,
+            analysis=FOTNAnalysisDTO(
+                duration_rounds=round_factor,
+                finish_method=match.method,
+                entertainment_value="high" if fotn_score >= 5 else "medium" if fotn_score >= 3 else "low"
+            )
+        ))
     
     # 점수순으로 정렬
-    fight_candidates.sort(key=lambda x: x["fotn_score"], reverse=True)
+    fight_candidates.sort(key=lambda x: x.fotn_score, reverse=True)
     
-    return {
-        "event": event_summary["event"],
-        "fotn_candidates": fight_candidates[:5],  # 상위 5개 후보
-        "analysis_criteria": "Duration, finish method, striking activity, card position"
-    }
+    return FOTNCandidatesDTO(
+        event=event_summary["event"],
+        fotn_candidates=fight_candidates[:5],  # 상위 5개 후보
+        analysis_criteria="Duration, finish method, striking activity, card position"
+    )
 
 
-async def analyze_card_quality(session: AsyncSession, event_id: int) -> Dict[str, Any]:
+async def analyze_card_quality(session: AsyncSession, event_id: int) -> Optional[CardQualityAnalysisDTO]:
     """
     이벤트 카드의 전반적인 품질을 분석합니다.
     랭킹된 파이터 수, 타이틀전, 경기 다양성 등을 평가합니다.
@@ -101,13 +130,13 @@ async def analyze_card_quality(session: AsyncSession, event_id: int) -> Dict[str
     # 이벤트 기본 정보 조회
     event = await event_repo.get_event_by_id(session, event_id)
     if not event:
-        return {"error": "Event not found"}
+        return None
     
     # 이벤트의 모든 매치 조회
     event_matches = await match_repo.get_matches_by_event_id(session, event_id)
     
     if not event_matches:
-        return {"error": "No matches found for this event"}
+        return None
     
     # 카드 품질 분석
     card_analysis = {
@@ -198,24 +227,28 @@ async def analyze_card_quality(session: AsyncSession, event_id: int) -> Dict[str
     else:
         card_grade = "Below Average"
     
-    return {
-        "event": event,
-        "card_analysis": {
-            **card_analysis,
-            "weight_classes": list(card_analysis["weight_classes"]),
-            "unique_fighters": len(all_fighters),
-            "ranked_fighter_percentage": round(ranked_fighter_percentage, 2),
-            "finish_rate": round(finish_rate, 2)
-        },
-        "quality_assessment": {
-            "overall_grade": card_grade,
-            "quality_score": quality_score,
-            "max_score": 10
-        }
-    }
+    return CardQualityAnalysisDTO(
+        event=event,
+        card_analysis=CardAnalysisDTO(
+            total_matches=card_analysis["total_matches"],
+            main_events=card_analysis["main_events"],
+            ranked_fighters=card_analysis["ranked_fighters"],
+            champions=card_analysis["champions"],
+            weight_classes=list(card_analysis["weight_classes"]),
+            finish_methods=card_analysis["finish_methods"],
+            unique_fighters=len(all_fighters),
+            ranked_fighter_percentage=round(ranked_fighter_percentage, 2),
+            finish_rate=round(finish_rate, 2)
+        ),
+        quality_assessment=QualityIndicatorsDTO(
+            overall_grade=card_grade,
+            quality_score=quality_score,
+            max_score=10
+        )
+    )
 
 
-async def get_most_exciting_matches_by_period(session: AsyncSession, days: int = 30, limit: int = 10) -> List[Dict[str, Any]]:
+async def get_most_exciting_matches_by_period(session: AsyncSession, days: int = 30, limit: int = 10) -> List[ExcitingMatchDTO]:
     """
     지정된 기간 내에서 가장 흥미진진한 경기들을 분석합니다.
     """
@@ -274,27 +307,42 @@ async def get_most_exciting_matches_by_period(session: AsyncSession, days: int =
             champions = sum(1 for f in match_detail["fighters"] if f["fighter"].get("belt", False))
             excitement_score += champions * 2
             
-            exciting_matches.append({
-                "event": event,
-                "match": match,
-                "fighters": match_detail["fighters"],
-                "winner": match_detail.get("winner"),
-                "excitement_score": excitement_score,
-                "highlights": {
-                    "finish_method": match.method,
-                    "ranked_fighters": ranked_fighters,
-                    "champions_involved": champions,
-                    "main_event": match.is_main_event
-                }
-            })
+            # fighters를 MatchFighterResultDTO로 변환
+            fighters = [
+                MatchFighterResultDTO(
+                    fighter=fighter["fighter"],
+                    result=fighter.get("result")
+                ) for fighter in match_detail["fighters"]
+            ]
+            
+            winner = None
+            if match_detail.get("winner"):
+                winner = MatchFighterResultDTO(
+                    fighter=match_detail["winner"]["fighter"],
+                    result=match_detail["winner"].get("result")
+                )
+            
+            exciting_matches.append(ExcitingMatchDTO(
+                event=event,
+                match=match,
+                fighters=fighters,
+                winner=winner,
+                excitement_score=excitement_score,
+                highlights=ExcitingMatchHighlightsDTO(
+                    finish_method=match.method,
+                    ranked_fighters=ranked_fighters,
+                    champions_involved=champions,
+                    main_event=match.is_main_event
+                )
+            ))
     
     # 흥미도 점수순으로 정렬
-    exciting_matches.sort(key=lambda x: x["excitement_score"], reverse=True)
+    exciting_matches.sort(key=lambda x: x.excitement_score, reverse=True)
     
     return exciting_matches[:limit]
 
 
-async def analyze_comeback_performances(session: AsyncSession, event_id: int) -> Dict[str, Any]:
+async def analyze_comeback_performances(session: AsyncSession, event_id: int) -> ComebackPerformancesDTO:
     """
     특정 이벤트에서 컴백 승리나 역전승을 분석합니다.
     """
@@ -346,40 +394,49 @@ async def analyze_comeback_performances(session: AsyncSession, event_id: int) ->
                     comeback_indicators.append("knockout_comeback")
             
             if comeback_indicators:
-                comeback_performances.append({
-                    "match": match,
-                    "winner": winner,
-                    "loser": loser,
-                    "comeback_type": comeback_indicators,
-                    "analysis": {
-                        "finish_round": match.result_round,
-                        "finish_method": match.method,
-                        "winner_recent_form": winner_trend.get("trend", "unknown"),
-                        "loser_recent_form": loser_trend.get("trend", "unknown"),
-                        "upset_factor": loser_trend.get("win_percentage", 0) - winner_trend.get("win_percentage", 0)
-                    }
-                })
+                winner_dto = MatchFighterResultDTO(
+                    fighter=winner["fighter"],
+                    result=winner.get("result")
+                )
+                loser_dto = MatchFighterResultDTO(
+                    fighter=loser["fighter"],
+                    result=loser.get("result")
+                )
+                
+                comeback_performances.append(ComebackPerformanceDTO(
+                    match=match,
+                    winner=winner_dto,
+                    loser=loser_dto,
+                    comeback_type=comeback_indicators,
+                    analysis=ComebackAnalysisDTO(
+                        finish_round=match.result_round,
+                        finish_method=match.method,
+                        winner_recent_form=winner_trend.get("trend", "unknown"),
+                        loser_recent_form=loser_trend.get("trend", "unknown"),
+                        upset_factor=loser_trend.get("win_percentage", 0) - winner_trend.get("win_percentage", 0)
+                    )
+                ))
     
-    return {
-        "event_id": event_id,
-        "comeback_performances": comeback_performances,
-        "total_comebacks": len(comeback_performances)
-    }
+    return ComebackPerformancesDTO(
+        event_id=event_id,
+        comeback_performances=comeback_performances,
+        total_comebacks=len(comeback_performances)
+    )
 
 
-async def get_style_clash_analysis(session: AsyncSession, match_id: int) -> Dict[str, Any]:
+async def get_style_clash_analysis(session: AsyncSession, match_id: int) -> Optional[StyleClashAnalysisDTO]:
     """
     특정 매치에서 파이터들의 스타일 대조를 분석합니다.
     """
     # 매치 기본 정보 조회
     match = await match_repo.get_match_by_id(session, match_id)
     if not match:
-        return {"error": "Match not found"}
+        return None
     
     # 매치의 파이터들 조회
     match_detail = await match_repo.get_match_with_winner_loser(session, match_id)
     if not match_detail or len(match_detail["fighters"]) != 2:
-        return {"error": "Could not retrieve fighter information"}
+        return None
     
     fighter1 = match_detail["fighters"][0]["fighter"]
     fighter2 = match_detail["fighters"][1]["fighter"]
@@ -389,7 +446,7 @@ async def get_style_clash_analysis(session: AsyncSession, match_id: int) -> Dict
     fighter2_detail = await fighter_repo.get_fighter_by_id(session, fighter2["id"])
     
     if not fighter1_detail or not fighter2_detail:
-        return {"error": "Could not retrieve detailed fighter information"}
+        return None
     
     # 스타일 대조 분석
     style_contrasts = []
@@ -397,12 +454,12 @@ async def get_style_clash_analysis(session: AsyncSession, match_id: int) -> Dict
     # 스탠스 대조
     if fighter1_detail.stance and fighter2_detail.stance:
         if fighter1_detail.stance != fighter2_detail.stance:
-            style_contrasts.append({
-                "aspect": "stance",
-                "fighter1": fighter1_detail.stance,
-                "fighter2": fighter2_detail.stance,
-                "analysis": f"Orthodox vs Southpaw clash" if {fighter1_detail.stance, fighter2_detail.stance} == {"Orthodox", "Southpaw"} else "Different stances"
-            })
+            style_contrasts.append(StyleContrastDTO(
+                aspect="stance",
+                fighter1=fighter1_detail.stance,
+                fighter2=fighter2_detail.stance,
+                analysis=f"Orthodox vs Southpaw clash" if {fighter1_detail.stance, fighter2_detail.stance} == {"Orthodox", "Southpaw"} else "Different stances"
+            ))
     
     # 신체 조건 대조
     if fighter1_detail.height and fighter2_detail.height:
@@ -410,12 +467,12 @@ async def get_style_clash_analysis(session: AsyncSession, match_id: int) -> Dict
         if height_diff >= 10:  # 10cm 이상 차이
             taller = fighter1_detail if fighter1_detail.height > fighter2_detail.height else fighter2_detail
             shorter = fighter2_detail if fighter1_detail.height > fighter2_detail.height else fighter1_detail
-            style_contrasts.append({
-                "aspect": "height",
-                "analysis": f"Significant height advantage: {taller.name} ({taller.height}cm) vs {shorter.name} ({shorter.height}cm)",
-                "advantage": taller.name,
-                "difference": round(height_diff, 1)
-            })
+            style_contrasts.append(StyleContrastDTO(
+                aspect="height",
+                analysis=f"Significant height advantage: {taller.name} ({taller.height}cm) vs {shorter.name} ({shorter.height}cm)",
+                advantage=taller.name,
+                difference=round(height_diff, 1)
+            ))
     
     # 리치 대조
     if fighter1_detail.reach and fighter2_detail.reach:
@@ -423,12 +480,12 @@ async def get_style_clash_analysis(session: AsyncSession, match_id: int) -> Dict
         if reach_diff >= 8:  # 8cm 이상 차이
             longer_reach = fighter1_detail if fighter1_detail.reach > fighter2_detail.reach else fighter2_detail
             shorter_reach = fighter2_detail if fighter1_detail.reach > fighter2_detail.reach else fighter1_detail
-            style_contrasts.append({
-                "aspect": "reach",
-                "analysis": f"Reach advantage: {longer_reach.name} ({longer_reach.reach}cm) vs {shorter_reach.name} ({shorter_reach.reach}cm)",
-                "advantage": longer_reach.name,
-                "difference": round(reach_diff, 1)
-            })
+            style_contrasts.append(StyleContrastDTO(
+                aspect="reach",
+                analysis=f"Reach advantage: {longer_reach.name} ({longer_reach.reach}cm) vs {shorter_reach.name} ({shorter_reach.reach}cm)",
+                advantage=longer_reach.name,
+                difference=round(reach_diff, 1)
+            ))
     
     # 경험 대조
     f1_experience = fighter1_detail.wins + fighter1_detail.losses + fighter1_detail.draws
@@ -438,12 +495,12 @@ async def get_style_clash_analysis(session: AsyncSession, match_id: int) -> Dict
     if experience_diff >= 10:  # 10경기 이상 차이
         veteran = fighter1_detail if f1_experience > f2_experience else fighter2_detail
         newer = fighter2_detail if f1_experience > f2_experience else fighter1_detail
-        style_contrasts.append({
-            "aspect": "experience",
-            "analysis": f"Experience gap: {veteran.name} ({f1_experience if veteran == fighter1_detail else f2_experience} fights) vs {newer.name} ({f2_experience if veteran == fighter1_detail else f1_experience} fights)",
-            "advantage": veteran.name,
-            "difference": experience_diff
-        })
+        style_contrasts.append(StyleContrastDTO(
+            aspect="experience",
+            analysis=f"Experience gap: {veteran.name} ({f1_experience if veteran == fighter1_detail else f2_experience} fights) vs {newer.name} ({f2_experience if veteran == fighter1_detail else f1_experience} fights)",
+            advantage=veteran.name,
+            difference=experience_diff
+        ))
     
     # 매치 결과와 스타일 대조의 상관관계 분석
     match_outcome_analysis = ""
@@ -451,24 +508,24 @@ async def get_style_clash_analysis(session: AsyncSession, match_id: int) -> Dict
         winner_name = match_detail["winner"]["fighter"]["name"]
         
         # 어떤 스타일적 우위가 승리로 이어졌는지 분석
-        winner_advantages = [contrast for contrast in style_contrasts if contrast.get("advantage") == winner_name]
+        winner_advantages = [contrast for contrast in style_contrasts if contrast.advantage == winner_name]
         
         if winner_advantages:
-            match_outcome_analysis = f"{winner_name} capitalized on advantages in: {', '.join([adv['aspect'] for adv in winner_advantages])}"
+            match_outcome_analysis = f"{winner_name} capitalized on advantages in: {', '.join([adv.aspect for adv in winner_advantages])}"
         else:
             match_outcome_analysis = f"{winner_name} overcame physical/experience disadvantages"
     
-    return {
-        "match": match,
-        "fighters": [fighter1_detail, fighter2_detail],
-        "style_contrasts": style_contrasts,
-        "match_result": match_detail,
-        "outcome_analysis": match_outcome_analysis,
-        "contrast_summary": f"Found {len(style_contrasts)} significant style contrasts"
-    }
+    return StyleClashAnalysisDTO(
+        match=match,
+        fighters=[fighter1_detail, fighter2_detail],
+        style_contrasts=style_contrasts,
+        match_result=match_detail,
+        outcome_analysis=match_outcome_analysis,
+        contrast_summary=f"Found {len(style_contrasts)} significant style contrasts"
+    )
 
 
-async def get_performance_outliers_in_event(session: AsyncSession, event_id: int) -> Dict[str, Any]:
+async def get_performance_outliers_in_event(session: AsyncSession, event_id: int) -> PerformanceOutliersDTO:
     """
     특정 이벤트에서 예상을 뛰어넘는 성과를 보인 파이터들을 분석합니다.
     """
@@ -489,26 +546,27 @@ async def get_performance_outliers_in_event(session: AsyncSession, event_id: int
         for leader in leaders:
             if leader["stat_value"] >= threshold:
                 # 해당 파이터의 평균 성과와 비교
-                fighter_id = leader["fighter"]["id"]
+                fighter = leader["fighter"]
+                fighter_id = fighter.id if hasattr(fighter, 'id') else fighter["id"]
                 
                 # 최근 경기들에서의 평균 성과 조회 (간단한 분석을 위해 현재 성과와 비교)
-                outlier_performances.append({
-                    "fighter": leader["fighter"],
-                    "category": category,
-                    "performance": {
-                        "stat_name": leader["stat_name"],
-                        "value": leader["stat_value"],
-                        "threshold": threshold
-                    },
-                    "outlier_rating": "exceptional" if leader["stat_value"] >= threshold * 2 else "notable"
-                })
+                outlier_performances.append(PerformanceOutlierDTO(
+                    fighter=leader["fighter"],
+                    category=category,
+                    performance=OutlierPerformanceDTO(
+                        stat_name=leader["stat_name"],
+                        value=leader["stat_value"],
+                        threshold=threshold
+                    ),
+                    outlier_rating="exceptional" if leader["stat_value"] >= threshold * 2 else "notable"
+                ))
     
-    return {
-        "event_id": event_id,
-        "outlier_performances": outlier_performances,
-        "analysis_summary": {
-            "total_outliers": len(outlier_performances),
-            "exceptional_performances": len([p for p in outlier_performances if p["outlier_rating"] == "exceptional"]),
-            "categories_analyzed": ["striking", "grappling", "control"]
-        }
-    }
+    return PerformanceOutliersDTO(
+        event_id=event_id,
+        outlier_performances=outlier_performances,
+        analysis_summary=OutlierAnalysisSummaryDTO(
+            total_outliers=len(outlier_performances),
+            exceptional_performances=len([p for p in outlier_performances if p.outlier_rating == "exceptional"]),
+            categories_analyzed=["striking", "grappling", "control"]
+        )
+    )
