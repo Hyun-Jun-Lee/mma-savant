@@ -190,6 +190,49 @@ async def get_event_rankings_impact(event_id: int) -> Dict:
 # Match Composer Tools
 
 @mcp.tool()
+async def get_event_matches(event_name: str) -> Optional[Dict]:
+    """
+    특정 이벤트에 속한 모든 경기와 참가 파이터 정보를 조회합니다.
+    
+    이 도구는 사용자가 특정 UFC 이벤트의 전체 카드를 보고 싶어할 때 사용합니다.
+    이벤트의 모든 매치, 승패 결과, 참여 파이터들을 카드 순서대로 제공합니다.
+    
+    Args:
+        event_name (str): 조회할 이벤트 이름 (예: "UFC 300", "UFC Fight Night")
+    
+    Returns:
+        Optional[Dict]: 이벤트 정보와 전체 매치 목록
+        {
+            "event_name": str,
+            "event_date": str,
+            "matches": [
+                {
+                    "match": Dict,
+                    "winner_fighter": Dict,
+                    "loser_fighter": Dict,
+                    "draw_fighters": List[Dict] (무승부인 경우)
+                }
+            ]
+        }
+    
+    사용 시점:
+    - 사용자가 특정 이벤트의 전체 카드를 확인하고 싶을 때
+    - 이벤트 결과와 매치업을 한눈에 보고 싶을 때
+    - 메인 카드부터 프렐림까지 전체 결과를 알고 싶을 때
+    
+    사용자 질문 예시:
+    - "UFC 300의 전체 카드와 결과를 보여줘"
+    - "UFC Fight Night London의 모든 경기 결과가 궁금해"
+    - "이번 UFC 이벤트 매치업이 어떻게 됐어?"
+    - "UFC 285에서 누가 누구와 싸웠고 누가 이겼어?"
+    - "어제 UFC 경기 결과를 모두 알려줘"
+    """
+    async with async_db_session() as session:
+        result = await match_composer.get_event_matches(session, event_name)
+        return result.model_dump() if result else None
+
+
+@mcp.tool()
 async def get_fight_of_the_night_candidates(event_id: int) -> Optional[Dict]:
     """
     특정 이벤트에서 Fight of the Night 후보가 될만한 경기들을 분석합니다.

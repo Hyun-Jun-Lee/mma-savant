@@ -18,8 +18,78 @@ from composition.dto import (
     ExcitingMatchDTO, ExcitingMatchHighlightsDTO,
     ComebackPerformancesDTO, ComebackPerformanceDTO, ComebackAnalysisDTO,
     StyleClashAnalysisDTO, StyleContrastDTO,
-    PerformanceOutliersDTO, PerformanceOutlierDTO, OutlierPerformanceDTO, OutlierAnalysisSummaryDTO
+    PerformanceOutliersDTO, PerformanceOutlierDTO, OutlierPerformanceDTO, OutlierAnalysisSummaryDTO,
+    EventMatchesDTO, MatchWithFightersDTO, FighterBasicInfoDTO
 )
+
+
+async def get_event_matches(session: AsyncSession, event_name: str) -> EventMatchesDTO:
+    """
+    특정 이벤트에 속한 모든 경기와 참가 파이터 정보를 조회합니다.
+    """
+    # 입력 검증
+    if not event_name or not event_name.strip():
+        raise MatchValidationError("event_name", event_name, "Event name cannot be empty")
+    
+    try:
+        event = await event_repo.get_event_by_name(session, event_name)
+        if not event:
+            raise MatchNotFoundError(event_name, "event_name")
+
+        matches = await match_repo.get_matches_by_event_id(session, event.id)
+        matches_list = []
+        # match.order로 정렬
+        sorted_matches = sorted(matches, key=lambda m: m.order if m.order is not None else 999)
+        
+        for match in sorted_matches:
+            fighter_matches = await match_repo.get_fighter_match_by_match_id(session, match.id)
+            winner_fighter = None
+            loser_fighter = None        
+            draw_fighters = []
+            
+            for fighter_match in fighter_matches:
+                fighter = await fighter_repo.get_fighter_by_id(session, fighter_match.fighter_id)
+                if not fighter:
+                    # 파이터를 찾을 수 없는 경우 경고만 하고 계속 진행
+                    continue
+                
+                if fighter_match.result == "win":
+                    winner_fighter = FighterBasicInfoDTO(
+                        id=fighter.id,
+                        name=fighter.name
+                    )
+                elif fighter_match.result == "loss":
+                    loser_fighter = FighterBasicInfoDTO(
+                        id=fighter.id,
+                        name=fighter.name
+                    )
+                elif fighter_match.result == "draw":
+                    draw_fighters.append(FighterBasicInfoDTO(
+                        id=fighter.id,
+                        name=fighter.name
+                    ))
+            
+            match_info = MatchWithFightersDTO(
+                match=match,
+                winner_fighter=winner_fighter,
+                loser_fighter=loser_fighter,
+                draw_fighters=draw_fighters if draw_fighters else None
+            )
+                
+            matches_list.append(match_info)
+
+        return EventMatchesDTO(
+            event_name=event.name,
+            event_date=event.event_date,
+            matches=matches_list
+        )
+    
+    except MatchNotFoundError:
+        raise
+    except MatchValidationError:
+        raise
+    except Exception as e:
+        raise MatchQueryError("get_event_matches", {"event_name": event_name}, str(e))
 
 
 async def get_fight_of_the_night_candidates(session: AsyncSession, event_id: int) -> Optional[FOTNCandidatesDTO]:

@@ -12,6 +12,10 @@ from event.dto import (
     MonthlyCalendarDTO, YearlyCalendarDTO, MonthlyBreakdownDTO, LocationStatisticsDTO,
     EventRecommendationsDTO, NextAndLastEventsDTO, EventTrendsDTO
 )
+from event.exceptions import (
+    EventNotFoundError, EventValidationError, EventDateError, EventLocationError,
+    EventQueryError
+)
 
 
 class TestEventServicesWithTestDB:
@@ -50,8 +54,8 @@ class TestEventServicesWithTestDB:
     @pytest.mark.asyncio
     async def test_get_event_timeline_invalid_period(self, clean_test_session):
         """잘못된 기간으로 타임라인 조회 테스트"""
-        # When & Then: 잘못된 기간으로 조회시 ValueError 발생
-        with pytest.raises(ValueError, match="period must be 'month' or 'year'"):
+        # When & Then: 잘못된 기간으로 조회시 EventValidationError 발생
+        with pytest.raises(EventValidationError, match="period must be 'month' or 'year'"):
             await event_service.get_event_timeline(clean_test_session, period="invalid")
     
     @pytest.mark.asyncio
@@ -77,11 +81,9 @@ class TestEventServicesWithTestDB:
     @pytest.mark.asyncio
     async def test_get_event_summary_nonexistent_event(self, clean_test_session):
         """존재하지 않는 이벤트의 요약 정보 조회 테스트"""
-        # When: 존재하지 않는 이벤트로 조회
-        result = await event_service.get_event_summary(clean_test_session, 99999)
-        
-        # Then: None 반환
-        assert result is None
+        # When & Then: 존재하지 않는 이벤트로 조회시 EventNotFoundError 발생
+        with pytest.raises(EventNotFoundError, match="Event not found with id: 99999"):
+            await event_service.get_event_summary(clean_test_session, 99999)
     
     @pytest.mark.asyncio
     async def test_search_events_by_name(self, multiple_events_different_names, clean_test_session):
@@ -251,8 +253,8 @@ class TestEventServicesWithTestDB:
     @pytest.mark.asyncio
     async def test_get_event_recommendations_invalid_type(self, clean_test_session):
         """잘못된 추천 타입 테스트"""
-        # When & Then: 잘못된 추천 타입으로 조회시 ValueError 발생
-        with pytest.raises(ValueError, match="recommendation_type must be"):
+        # When & Then: 잘못된 추천 타입으로 조회시 EventValidationError 발생
+        with pytest.raises(EventValidationError, match="recommendation_type must be"):
             await event_service.get_event_recommendations(
                 clean_test_session, recommendation_type="invalid"
             )
@@ -498,34 +500,78 @@ class TestEventServicesErrorHandling:
     """Event Services 에러 처리 테스트"""
     
     @pytest.mark.asyncio
+    async def test_get_event_summary_invalid_event_id(self, clean_test_session):
+        """잘못된 이벤트 ID 처리 테스트"""
+        # When & Then: 잘못된 이벤트 ID로 조회시 EventValidationError 발생
+        with pytest.raises(EventValidationError, match="event_id must be a positive integer"):
+            await event_service.get_event_summary(clean_test_session, -1)
+        
+        with pytest.raises(EventValidationError, match="event_id must be a positive integer"):
+            await event_service.get_event_summary(clean_test_session, 0)
+    
+    @pytest.mark.asyncio
     async def test_get_event_summary_repository_error_handling(self, clean_test_session):
         """Repository 에러 시 처리 테스트"""
         # Given: event_repo에서 예외 발생하도록 설정
         with patch('event.services.event_repo.get_event_by_id', side_effect=Exception("Database error")):
             
-            # When & Then: 예외가 전파됨
-            with pytest.raises(Exception, match="Database error"):
+            # When & Then: EventQueryError로 래핑되어 발생
+            with pytest.raises(EventQueryError, match="Event query 'get_event_summary' failed"):
                 await event_service.get_event_summary(clean_test_session, 1)
     
     @pytest.mark.asyncio
     async def test_search_events_empty_query_handling(self, clean_test_session):
         """빈 검색어 처리 테스트"""
-        # Given: 빈 검색어
-        with patch('event.services.event_repo.search_events_by_name', return_value=[]), \
-             patch('event.services.event_repo.get_events_by_location', return_value=[]):
-            
-            # When: 빈 검색어로 검색
-            result = await event_service.search_events(clean_test_session, query="", search_type="all")
+        # When & Then: 빈 검색어로 조회시 EventValidationError 발생
+        with pytest.raises(EventValidationError, match="Search query cannot be empty"):
+            await event_service.search_events(clean_test_session, query="", search_type="all")
         
-        # Then: 빈 결과 반환
-        assert isinstance(result, EventSearchDTO)
-        assert len(result.results) == 0
+        with pytest.raises(EventValidationError, match="Search query cannot be empty"):
+            await event_service.search_events(clean_test_session, query="   ", search_type="all")
+    
+    @pytest.mark.asyncio
+    async def test_search_events_invalid_search_type(self, clean_test_session):
+        """잘못된 검색 타입 처리 테스트"""
+        # When & Then: 잘못된 검색 타입으로 조회시 EventValidationError 발생
+        with pytest.raises(EventValidationError, match="search_type must be"):
+            await event_service.search_events(clean_test_session, query="UFC", search_type="invalid")
+    
+    @pytest.mark.asyncio
+    async def test_search_events_invalid_limit(self, clean_test_session):
+        """잘못된 limit 값 처리 테스트"""
+        # When & Then: 잘못된 limit 값으로 조회시 EventValidationError 발생
+        with pytest.raises(EventValidationError, match="limit must be a positive integer"):
+            await event_service.search_events(clean_test_session, query="UFC", search_type="name", limit=0)
+        
+        with pytest.raises(EventValidationError, match="limit must be a positive integer"):
+            await event_service.search_events(clean_test_session, query="UFC", search_type="name", limit=-1)
+    
+    @pytest.mark.asyncio
+    async def test_get_events_calendar_invalid_year(self, clean_test_session):
+        """잘못된 연도로 캘린더 조회 테스트"""
+        # When & Then: 잘못된 연도로 조회시 EventDateError 발생
+        with pytest.raises(EventDateError, match="Year must be between 1993"):
+            await event_service.get_events_calendar(clean_test_session, year=1990, month=1)
+        
+        current_year = date.today().year
+        with pytest.raises(EventDateError, match="Year must be between 1993"):
+            await event_service.get_events_calendar(clean_test_session, year=current_year + 20, month=1)
+    
+    @pytest.mark.asyncio
+    async def test_get_events_calendar_invalid_month(self, clean_test_session):
+        """잘못된 월로 캘린더 조회 테스트"""
+        # When & Then: 잘못된 월로 조회시 EventDateError 발생
+        with pytest.raises(EventDateError, match="Month must be between 1 and 12"):
+            await event_service.get_events_calendar(clean_test_session, year=2024, month=0)
+        
+        with pytest.raises(EventDateError, match="Month must be between 1 and 12"):
+            await event_service.get_events_calendar(clean_test_session, year=2024, month=13)
     
     @pytest.mark.asyncio
     async def test_get_events_calendar_future_date_handling(self, clean_test_session):
         """미래 날짜로 캘린더 조회 테스트"""
-        # Given: 미래 날짜로 설정
-        future_year = date.today().year + 10
+        # Given: 미래 날짜로 설정 (하지만 유효한 범위 내)
+        future_year = date.today().year + 5
         
         with patch('event.services.event_repo.get_events_by_month', return_value=[]):
             # When: 미래 날짜로 캘린더 조회
@@ -538,6 +584,46 @@ class TestEventServicesErrorHandling:
         assert result.year == future_year
         assert result.total_events == 0
         assert result.calendar == {}
+    
+    @pytest.mark.asyncio
+    async def test_get_event_timeline_repository_error(self, clean_test_session):
+        """Timeline 조회 중 Repository 에러 처리 테스트"""
+        # Given: event_repo에서 예외 발생하도록 설정
+        with patch('event.services.event_repo.get_events_by_month', side_effect=Exception("Database connection error")):
+            
+            # When & Then: EventQueryError로 래핑되어 발생
+            with pytest.raises(EventQueryError, match="Event query 'get_event_timeline' failed"):
+                await event_service.get_event_timeline(clean_test_session, period="month")
+    
+    @pytest.mark.asyncio
+    async def test_search_events_repository_error(self, clean_test_session):
+        """Search 중 Repository 에러 처리 테스트"""
+        # Given: event_repo에서 예외 발생하도록 설정
+        with patch('event.services.event_repo.search_events_by_name', side_effect=Exception("Search index error")):
+            
+            # When & Then: EventQueryError로 래핑되어 발생
+            with pytest.raises(EventQueryError, match="Event query 'search_events' failed"):
+                await event_service.search_events(clean_test_session, query="UFC", search_type="name")
+    
+    @pytest.mark.asyncio
+    async def test_get_events_calendar_repository_error(self, clean_test_session):
+        """Calendar 조회 중 Repository 에러 처리 테스트"""
+        # Given: event_repo에서 예외 발생하도록 설정
+        with patch('event.services.event_repo.get_events_by_month', side_effect=Exception("Calendar query error")):
+            
+            # When & Then: EventQueryError로 래핑되어 발생
+            with pytest.raises(EventQueryError, match="Event query 'get_events_calendar' failed"):
+                await event_service.get_events_calendar(clean_test_session, year=2024, month=8)
+    
+    @pytest.mark.asyncio
+    async def test_get_event_recommendations_repository_error(self, clean_test_session):
+        """Recommendations 조회 중 Repository 에러 처리 테스트"""
+        # Given: event_repo에서 예외 발생하도록 설정
+        with patch('event.services.event_repo.get_upcoming_events', side_effect=Exception("Recommendation error")):
+            
+            # When & Then: EventQueryError로 래핑되어 발생
+            with pytest.raises(EventQueryError, match="Event query 'get_event_recommendations' failed"):
+                await event_service.get_event_recommendations(clean_test_session, recommendation_type="upcoming")
 
 
 if __name__ == "__main__":
