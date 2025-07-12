@@ -121,10 +121,17 @@ async def get_fighter_by_name(session: AsyncSession, name: str) -> Optional[Figh
 ```
 
 ### Service Layer Rules
-- **Coordination**: Orchestrate multiple repository calls
+- **Single Domain Focus**: Service functions should only use repositories from their own domain
+- **No Cross-Domain Repository Calls**: Never import or call repositories from other domains
+- **Domain Isolation**: Each service layer operates independently within its domain boundaries
 - **Exception Handling**: Convert repository errors to domain exceptions
-- **Business Logic**: Apply domain rules and validations
-- **DTO Construction**: Build complex DTOs from multiple data sources
+- **Business Logic**: Apply domain rules and validations within the domain scope
+- **DTO Construction**: Build DTOs using only own domain's data sources
+
+### Cross-Domain Operations
+- **Composition Layer**: Use `@src/composition/` for operations requiring multiple domains
+- **Service Orchestration**: Composition functions coordinate between different domain services
+- **Clear Boundaries**: Maintain strict separation between domain services and cross-domain compositions
 
 ## DTO Pattern
 
@@ -310,6 +317,9 @@ async def test_get_fighter_by_name_not_found():
 - **Real Sessions**: Use actual database sessions for integration tests
 - **Exception Testing**: Test both success and failure scenarios
 - **Schema Validation**: Assert return types are correct schemas
+- **Test Coverage Requirements**: Every service, repository function must have corresponding tests
+- **Mandatory Test Creation**: When adding/modifying service, repository functions, corresponding tests must be created/updated in the same commit
+- **Test Structure**: Follow the same organization as service, repository modules (separate test classes for different test types)
 
 ## Configuration Management
 
