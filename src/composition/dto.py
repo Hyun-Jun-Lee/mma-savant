@@ -73,6 +73,17 @@ class EventComparisonDTO(BaseModel):
     event2: EventComparisonItemDTO = Field(description="두 번째 이벤트")
     comparison: EventComparisonStatsDTO = Field(description="비교 결과")
 
+class EventStatsDTO(BaseModel):
+    """이벤트 통계 정보"""
+    total_matches: int = Field(description="총 매치 수")
+    main_events: int = Field(description="메인 이벤트 수")
+    finish_methods: Dict[str, int] = Field(description="결승 방식별 횟수")
+
+
+class EventSummaryDTO(BaseModel):
+    """이벤트 요약 정보"""
+    event: EventSchema = Field(description="이벤트 기본 정보")
+    stats: EventStatsDTO = Field(description="이벤트 통계")
 
 class RankingInfoDTO(BaseModel):
     """랭킹 정보"""

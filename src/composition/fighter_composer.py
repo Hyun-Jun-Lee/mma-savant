@@ -23,6 +23,10 @@ from match.repositories import (
     get_fighter_basic_stats_aggregate, 
     get_fighter_sig_str_stats_aggregate,
 )
+from composition.exceptions import (
+    CompositionValidationError, CompositionNotFoundError, CompositionQueryError,
+    CompositionDomainError
+)
 from composition.dto import (
     FighterMatchRecordDTO, MatchInfoDTO, FighterVsRecordDTO, FighterVsRecordItemDTO,
     FighterTotalStatsDTO, FighterStatsComparisonDTO, FighterComparisonItemDTO,
@@ -37,28 +41,38 @@ async def get_fighter_all_matches(session: AsyncSession, fighter_id: int) -> Lis
     """
     특정 선수의 모든 경기 기록을 조회합니다.
     """
-    results = []
+    # 입력 검증
+    if not isinstance(fighter_id, int) or fighter_id <= 0:
+        raise CompositionValidationError("fighter_id", fighter_id, "fighter_id must be a positive integer")
+    
+    try:
+        results = []
 
-    fighter_matches = await get_fighters_matches(session, fighter_id, limit=None)
+        fighter_matches = await get_fighters_matches(session, fighter_id, limit=None)
 
-    for fm in fighter_matches:
-        match = await get_match_by_id(session, fm.match_id)
-        if not match:
-            continue
-        weight_class = WeightClassSchema.get_name_by_id(match.weight_class_id)
-        event = await get_event_by_id(session, match.event_id)
-        participants = await get_fighter_match_by_match_id(session, fm.match_id)
-        opponent = next((p for p in participants if p.fighter_id != fighter_id), None)
+        for fm in fighter_matches:
+            match = await get_match_by_id(session, fm.match_id)
+            if not match:
+                continue
+            weight_class = WeightClassSchema.get_name_by_id(match.weight_class_id)
+            event = await get_event_by_id(session, match.event_id)
+            participants = await get_fighter_match_by_match_id(session, fm.match_id)
+            opponent = next((p for p in participants if p.fighter_id != fighter_id), None)
 
-        results.append(FighterMatchRecordDTO(
-            event=event,
-            opponent=opponent.__dict__ if opponent else None,
-            match=match,
-            result=fm.result,
-            weight_class=weight_class
-        ))
+            results.append(FighterMatchRecordDTO(
+                event=event,
+                opponent=opponent.__dict__ if opponent else None,
+                match=match,
+                result=fm.result,
+                weight_class=weight_class
+            ))
 
-    return results
+        return results
+    
+    except CompositionValidationError:
+        raise
+    except Exception as e:
+        raise CompositionQueryError("get_fighter_all_matches", {"fighter_id": fighter_id}, str(e))
 
 async def get_fighter_vs_record(
     session: AsyncSession, 
@@ -68,77 +82,93 @@ async def get_fighter_vs_record(
     """
     두 파이터간 과거 대전 기록을 조회합니다.
     """
-    # 두 파이터 기본 정보 조회
-    fighter1 = await get_fighter_by_id(session, fighter_id1)
-    fighter2 = await get_fighter_by_id(session, fighter_id2)
+    # 입력 검증
+    if not isinstance(fighter_id1, int) or fighter_id1 <= 0:
+        raise CompositionValidationError("fighter_id1", fighter_id1, "fighter_id1 must be a positive integer")
+    if not isinstance(fighter_id2, int) or fighter_id2 <= 0:
+        raise CompositionValidationError("fighter_id2", fighter_id2, "fighter_id2 must be a positive integer")
     
-    if not fighter1 or not fighter2:
-        raise ValueError("One or both fighters not found")
+    try:
+        # 두 파이터 기본 정보 조회
+        fighter1 = await get_fighter_by_id(session, fighter_id1)
+        fighter2 = await get_fighter_by_id(session, fighter_id2)
+        
+        if not fighter1:
+            raise CompositionNotFoundError("Fighter", fighter_id1, "get_fighter_vs_record")
+        if not fighter2:
+            raise CompositionNotFoundError("Fighter", fighter_id2, "get_fighter_vs_record")
     
-    # 두 파이터간 경기 기록 조회 (이 함수는 추후 구현 필요)
-    # matches = await get_matches_between_fighters(session, fighter_id1, fighter_id2)
-    matches = []  # 임시 처리
-    
-    if not matches:
-        return []
-    
-    results = []
-    
-    for match in matches:
-        # 각 경기에서의 파이터 매치 정보 조회
-        fighter_matches = await get_fighter_match_by_match_id(session, match.id)
+        # 두 파이터간 경기 기록 조회 (이 함수는 추후 구현 필요)
+        # matches = await get_matches_between_fighters(session, fighter_id1, fighter_id2)
+        matches = []  # 임시 처리
         
-        # 각 파이터의 결과 찾기
-        fighter1_match = next((fm for fm in fighter_matches if fm.fighter_id == fighter_id1), None)
-        fighter2_match = next((fm for fm in fighter_matches if fm.fighter_id == fighter_id2), None)
+        if not matches:
+            return []
         
-        # 이벤트 정보 조회 (만약 EventModel이 있다면)
-        event = await get_event_by_id(session, match.event_id) if match.event_id else None
+        results = []
         
-        # 각 파이터의 경기 통계 조회 (임시 처리)
-        fighter1_basic_stats = {}
-        fighter1_sig_str_stats = {}
-        
-        fighter2_basic_stats = {}
-        fighter2_sig_str_stats = {}
-        
-        # 체급 정보 (WeightClassSchema가 있다면)
-        weight_class = None
-        if hasattr(match, 'weight_class_id') and match.weight_class_id:
-            weight_class = WeightClassSchema.get_name_by_id(match.weight_class_id)
-        
-        match_result = FighterVsRecordDTO(
-            match_info=MatchInfoDTO(
-                event_name=event.name if event else None,
-                event_date=event.event_date if event else None,
-                is_main_event=match.is_main_event,
-                order=match.order,
-                match_id=match.id,
-                method=match.method,
-                result_round=match.result_round,
-                time=match.time,
-                weight_class=weight_class
-            ),
-            fighter1=FighterVsRecordItemDTO(
-                info=fighter1,
-                result=fighter1_match.result if fighter1_match else None,
-                basic_stats=fighter1_basic_stats,
-                sig_str_stats=fighter1_sig_str_stats
-            ),
-            fighter2=FighterVsRecordItemDTO(
-                info=fighter2,
-                result=fighter2_match.result if fighter2_match else None,
-                basic_stats=fighter2_basic_stats,
-                sig_str_stats=fighter2_sig_str_stats
+        for match in matches:
+            # 각 경기에서의 파이터 매치 정보 조회
+            fighter_matches = await get_fighter_match_by_match_id(session, match.id)
+            
+            # 각 파이터의 결과 찾기
+            fighter1_match = next((fm for fm in fighter_matches if fm.fighter_id == fighter_id1), None)
+            fighter2_match = next((fm for fm in fighter_matches if fm.fighter_id == fighter_id2), None)
+            
+            # 이벤트 정보 조회 (만약 EventModel이 있다면)
+            event = await get_event_by_id(session, match.event_id) if match.event_id else None
+            
+            # 각 파이터의 경기 통계 조회 (임시 처리)
+            fighter1_basic_stats = {}
+            fighter1_sig_str_stats = {}
+            
+            fighter2_basic_stats = {}
+            fighter2_sig_str_stats = {}
+            
+            # 체급 정보 (WeightClassSchema가 있다면)
+            weight_class = None
+            if hasattr(match, 'weight_class_id') and match.weight_class_id:
+                weight_class = WeightClassSchema.get_name_by_id(match.weight_class_id)
+            
+            match_result = FighterVsRecordDTO(
+                match_info=MatchInfoDTO(
+                    event_name=event.name if event else None,
+                    event_date=event.event_date if event else None,
+                    is_main_event=match.is_main_event,
+                    order=match.order,
+                    match_id=match.id,
+                    method=match.method,
+                    result_round=match.result_round,
+                    time=match.time,
+                    weight_class=weight_class
+                ),
+                fighter1=FighterVsRecordItemDTO(
+                    info=fighter1,
+                    result=fighter1_match.result if fighter1_match else None,
+                    basic_stats=fighter1_basic_stats,
+                    sig_str_stats=fighter1_sig_str_stats
+                ),
+                fighter2=FighterVsRecordItemDTO(
+                    info=fighter2,
+                    result=fighter2_match.result if fighter2_match else None,
+                    basic_stats=fighter2_basic_stats,
+                    sig_str_stats=fighter2_sig_str_stats
+                )
             )
-        )
+            
+            results.append(match_result)
         
-        results.append(match_result)
-    
-    # 최신 경기순으로 정렬 (match.id 기준)
-    results.sort(key=lambda x: x.match_info.match_id, reverse=True)
-    
-    return results
+            # 최신 경기순으로 정렬 (match.id 기준)
+            results.sort(key=lambda x: x.match_info.match_id, reverse=True)
+            
+            return results
+        
+    except CompositionValidationError:
+        raise
+    except CompositionNotFoundError:
+        raise
+    except Exception as e:
+        raise CompositionQueryError("get_fighter_vs_record", {"fighter_id1": fighter_id1, "fighter_id2": fighter_id2}, str(e))
 
 async def get_fighter_total_stat(session: AsyncSession, fighter_id: int) -> Optional[FighterTotalStatsDTO]:
     """
