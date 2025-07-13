@@ -10,8 +10,9 @@ from composition import event_composer
 from composition.dto import (
     EventWithAllMatchesDTO, EventWithMainMatchDTO, UpcomingEventWithFeaturedMatchesDTO,
     EventComparisonDTO, EventRankingImpactDTO, MatchDetailDTO, MatchFighterResultDTO,
-    EventSummaryStatsDTO, FeaturedMatchDTO
+    EventSummaryStatsDTO, FeaturedMatchDTO, EventSummaryDTO, EventStatsDTO
 )
+from composition.exceptions import CompositionNotFoundError, CompositionValidationError, CompositionQueryError
 from event.models import EventSchema
 from match.models import MatchSchema
 from fighter.models import FighterSchema
@@ -40,11 +41,13 @@ class TestEventComposerWithTestDB:
     @pytest.mark.asyncio
     async def test_get_event_with_all_matches_nonexistent(self, clean_test_session):
         """존재하지 않는 이벤트 조회 테스트"""
-        # When: 존재하지 않는 이벤트 조회
-        result = await event_composer.get_event_with_all_matches(clean_test_session, "Nonexistent Event")
+        from composition.exceptions import CompositionNotFoundError
         
-        # Then: None 반환
-        assert result is None
+        # When & Then: 존재하지 않는 이벤트 조회 시 CompositionNotFoundError 발생
+        with pytest.raises(CompositionNotFoundError) as exc_info:
+            await event_composer.get_event_with_all_matches(clean_test_session, "Nonexistent Event")
+        
+        assert "Event not found: Nonexistent Event" in str(exc_info.value)
     
     @pytest.mark.asyncio
     async def test_get_recent_events_with_main_match(self, multiple_events_different_dates, clean_test_session):
@@ -333,24 +336,42 @@ class TestEventComposerErrorHandling:
     @pytest.mark.asyncio
     async def test_compare_events_missing_event1(self, clean_test_session):
         """첫 번째 이벤트가 없는 경우 테스트"""
-        # Given: 첫 번째 이벤트 없음
-        with patch('composition.repositories.get_event_with_matches_summary', side_effect=[None, {}]):
-            # When: 비교 함수 호출
-            result = await event_composer.compare_events_by_performance(clean_test_session, 999, 1)
+        from composition.exceptions import CompositionNotFoundError
         
-        # Then: None 반환
-        assert result is None
+        # Given: 첫 번째 이벤트 없음
+        with patch('composition.event_composer.get_event_with_matches_summary', side_effect=[None, {}]):
+            # When & Then: CompositionNotFoundError 발생 확인
+            with pytest.raises(CompositionNotFoundError) as exc_info:
+                await event_composer.compare_events_by_performance(clean_test_session, 999, 1)
+            
+            assert "Event not found: 999" in str(exc_info.value)
     
     @pytest.mark.asyncio
     async def test_compare_events_missing_event2(self, clean_test_session):
         """두 번째 이벤트가 없는 경우 테스트"""
-        # Given: 두 번째 이벤트 없음
-        with patch('composition.repositories.get_event_with_matches_summary', side_effect=[{}, None]):
-            # When: 비교 함수 호출
-            result = await event_composer.compare_events_by_performance(clean_test_session, 1, 999)
+        from composition.exceptions import CompositionNotFoundError
+        from datetime import datetime
         
-        # Then: None 반환
-        assert result is None
+        # Given: 첫 번째 이벤트는 존재하고 두 번째 이벤트는 없음
+        mock_event1_summary = {
+            "event": EventSchema(
+                id=1, name="UFC Event 1", location="Vegas", event_date=date(2024, 1, 1),
+                created_at=datetime.now(), updated_at=datetime.now()
+            ),
+            "matches": [],
+            "summary": {
+                "total_matches": 1,
+                "main_events_count": 1,
+                "finish_methods": {"Decision": 1}
+            }
+        }
+        
+        with patch('composition.event_composer.get_event_with_matches_summary', side_effect=[mock_event1_summary, None]):
+            # When & Then: CompositionNotFoundError 발생 확인
+            with pytest.raises(CompositionNotFoundError) as exc_info:
+                await event_composer.compare_events_by_performance(clean_test_session, 1, 999)
+            
+            assert "Event not found: 999" in str(exc_info.value)
     
     @pytest.mark.asyncio
     async def test_get_event_rankings_impact_no_winner_loser(self, clean_test_session):
@@ -412,6 +433,97 @@ class TestEventComposerErrorHandling:
         # Then: 매치 결과 없이도 정상 처리
         assert isinstance(result, EventWithAllMatchesDTO)
         assert len(result.matches) == 0  # 매치 결과가 없으므로 빈 리스트
+
+
+class TestEventSummaryComposer:
+    """Event Summary Composer 테스트 (event_services.py에서 이동됨)"""
+    
+    @pytest.mark.asyncio
+    async def test_get_event_summary_existing_event(self, sample_event, clean_test_session):
+        """존재하는 이벤트의 요약 정보 조회 테스트"""
+        # When: 이벤트 요약 정보 조회
+        result = await event_composer.get_event_summary(clean_test_session, sample_event.id)
+        
+        # Then: 이벤트 요약 정보 반환
+        assert result is not None
+        assert isinstance(result, EventSummaryDTO)
+        
+        # 이벤트 정보 확인
+        assert result.event.id == sample_event.id
+        assert result.event.name == sample_event.name
+        
+        # 통계 정보 확인
+        assert isinstance(result.stats, EventStatsDTO)
+        assert isinstance(result.stats.total_matches, int)
+        assert isinstance(result.stats.main_events, int)
+        assert isinstance(result.stats.finish_methods, dict)
+    
+    @pytest.mark.asyncio
+    async def test_get_event_summary_nonexistent_event(self, clean_test_session):
+        """존재하지 않는 이벤트의 요약 정보 조회 테스트"""
+        # When & Then: 존재하지 않는 이벤트로 조회시 CompositionNotFoundError 발생
+        with pytest.raises(CompositionNotFoundError) as exc_info:
+            await event_composer.get_event_summary(clean_test_session, 99999)
+        
+        assert "Event not found: 99999" in str(exc_info.value)
+    
+    @pytest.mark.asyncio
+    async def test_get_event_summary_with_matches(self, clean_test_session):
+        """매치가 있는 이벤트 요약 테스트 (Mock 사용)"""
+        # Given: Mock 데이터 설정
+        from datetime import datetime
+        mock_event = EventSchema(
+            id=1,
+            name="UFC Test Event",
+            location="Las Vegas, NV",
+            event_date=date(2024, 8, 1),
+            url="http://example.com",
+            created_at=datetime.now(),
+            updated_at=datetime.now()
+        )
+        
+        mock_matches = [
+            MatchSchema(id=1, event_id=1, method="KO/TKO", is_main_event=True, created_at=datetime.now(), updated_at=datetime.now()),
+            MatchSchema(id=2, event_id=1, method="Decision - Unanimous", is_main_event=False, created_at=datetime.now(), updated_at=datetime.now()),
+            MatchSchema(id=3, event_id=1, method="Submission", is_main_event=False, created_at=datetime.now(), updated_at=datetime.now())
+        ]
+        
+        # When: Mock을 사용하여 composer 함수 호출
+        with patch('composition.event_composer.event_repo.get_event_by_id', return_value=mock_event), \
+             patch('composition.event_composer.match_repo.get_matches_by_event_id', return_value=mock_matches):
+            
+            result = await event_composer.get_event_summary(clean_test_session, 1)
+        
+        # Then: 매치 통계가 올바르게 계산됨
+        assert result is not None
+        assert result.stats.total_matches == 3
+        assert result.stats.main_events == 1
+        
+        # 결승 방식 통계 확인
+        finish_methods = result.stats.finish_methods
+        assert finish_methods["KO/TKO"] == 1
+        assert finish_methods["Decision - Unanimous"] == 1
+        assert finish_methods["Submission"] == 1
+    
+    @pytest.mark.asyncio
+    async def test_get_event_summary_invalid_event_id(self, clean_test_session):
+        """잘못된 이벤트 ID 처리 테스트"""
+        # When & Then: 잘못된 이벤트 ID로 조회시 CompositionValidationError 발생
+        with pytest.raises(CompositionValidationError, match="event_id must be a positive integer"):
+            await event_composer.get_event_summary(clean_test_session, -1)
+        
+        with pytest.raises(CompositionValidationError, match="event_id must be a positive integer"):
+            await event_composer.get_event_summary(clean_test_session, 0)
+    
+    @pytest.mark.asyncio
+    async def test_get_event_summary_repository_error_handling(self, clean_test_session):
+        """Repository 에러 시 처리 테스트"""
+        # Given: event_repo에서 예외 발생하도록 설정
+        with patch('composition.event_composer.event_repo.get_event_by_id', side_effect=Exception("Database error")):
+            
+            # When & Then: CompositionQueryError로 래핑되어 발생
+            with pytest.raises(CompositionQueryError, match="Composition query 'get_event_summary' failed"):
+                await event_composer.get_event_summary(clean_test_session, 1)
 
 
 if __name__ == "__main__":

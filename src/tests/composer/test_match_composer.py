@@ -40,11 +40,13 @@ class TestMatchComposerWithTestDB:
     @pytest.mark.asyncio
     async def test_get_fight_of_the_night_candidates_nonexistent_event(self, clean_test_session):
         """존재하지 않는 이벤트의 FOTN 후보 조회 테스트"""
-        # When: 존재하지 않는 이벤트 조회
-        result = await match_composer.get_fight_of_the_night_candidates(clean_test_session, 999)
+        from composition.exceptions import CompositionNotFoundError
         
-        # Then: None 반환
-        assert result is None
+        # When & Then: 존재하지 않는 이벤트 조회 시 CompositionNotFoundError 발생
+        with pytest.raises(CompositionNotFoundError) as exc_info:
+            await match_composer.get_fight_of_the_night_candidates(clean_test_session, 999)
+        
+        assert "Event not found: 999" in str(exc_info.value)
     
     @pytest.mark.asyncio
     async def test_analyze_card_quality_success(self, sample_event, clean_test_session):
@@ -53,12 +55,11 @@ class TestMatchComposerWithTestDB:
         result = await match_composer.analyze_card_quality(clean_test_session, sample_event.id)
         
         # Then: CardQualityAnalysisDTO 반환
-        if result:  # 매치가 있는 경우만 검증
-            assert isinstance(result, CardQualityAnalysisDTO)
-            assert result.event.id == sample_event.id
-            assert result.card_analysis.total_matches >= 0
-            assert result.quality_assessment.overall_grade in ["Premium", "High Quality", "Good", "Average", "Below Average"]
-            assert 0 <= result.quality_assessment.quality_score <= result.quality_assessment.max_score
+        assert isinstance(result, CardQualityAnalysisDTO)
+        assert result.event.id == sample_event.id
+        assert result.card_analysis.total_matches >= 0
+        assert result.quality_assessment.overall_grade in ["Premium", "High Quality", "Good", "Average", "Below Average", "No Matches"]
+        assert 0 <= result.quality_assessment.quality_score <= result.quality_assessment.max_score
     
     @pytest.mark.asyncio
     async def test_get_most_exciting_matches_by_period(self, multiple_events_different_dates, clean_test_session):
@@ -270,24 +271,28 @@ class TestMatchComposerErrorHandling:
     @pytest.mark.asyncio
     async def test_get_fight_of_the_night_candidates_no_event_summary(self, clean_test_session):
         """이벤트 요약이 없는 경우 테스트"""
+        from composition.exceptions import CompositionNotFoundError
+        
         # Given: 이벤트 요약이 None
         with patch('composition.match_composer.get_event_with_matches_summary', return_value=None):
-            # When: FOTN 후보 조회
-            result = await match_composer.get_fight_of_the_night_candidates(clean_test_session, 1)
+            # When & Then: CompositionNotFoundError 발생
+            with pytest.raises(CompositionNotFoundError) as exc_info:
+                await match_composer.get_fight_of_the_night_candidates(clean_test_session, 1)
         
-        # Then: None 반환
-        assert result is None
+            assert "Event not found: 1" in str(exc_info.value)
     
     @pytest.mark.asyncio
     async def test_analyze_card_quality_no_event(self, clean_test_session):
         """존재하지 않는 이벤트의 카드 품질 분석 테스트"""
+        from composition.exceptions import CompositionNotFoundError
+        
         # Given: 이벤트가 None
         with patch('composition.match_composer.event_repo.get_event_by_id', return_value=None):
-            # When: 카드 품질 분석
-            result = await match_composer.analyze_card_quality(clean_test_session, 999)
+            # When & Then: CompositionNotFoundError 발생
+            with pytest.raises(CompositionNotFoundError) as exc_info:
+                await match_composer.analyze_card_quality(clean_test_session, 999)
         
-        # Then: None 반환
-        assert result is None
+            assert "Event not found: 999" in str(exc_info.value)
     
     @pytest.mark.asyncio
     async def test_analyze_card_quality_no_matches(self, clean_test_session):
@@ -305,24 +310,28 @@ class TestMatchComposerErrorHandling:
             # When: 카드 품질 분석
             result = await match_composer.analyze_card_quality(clean_test_session, 1)
         
-        # Then: None 반환
-        assert result is None
+        # Then: 빈 카드 분석 반환
+        assert isinstance(result, CardQualityAnalysisDTO)
+        assert result.card_analysis.total_matches == 0
+        assert result.quality_assessment.overall_grade == "No Matches"
     
     @pytest.mark.asyncio
     async def test_get_style_clash_analysis_no_match(self, clean_test_session):
         """존재하지 않는 매치의 스타일 충돌 분석 테스트"""
+        from composition.exceptions import CompositionNotFoundError
+        
         # Given: 매치가 None
         with patch('composition.match_composer.match_repo.get_match_by_id', return_value=None):
-            # When: 스타일 충돌 분석
-            result = await match_composer.get_style_clash_analysis(clean_test_session, 999)
+            # When & Then: CompositionNotFoundError 발생
+            with pytest.raises(CompositionNotFoundError) as exc_info:
+                await match_composer.get_style_clash_analysis(clean_test_session, 999)
         
-        # Then: None 반환
-        assert result is None
+            assert "Match not found: 999" in str(exc_info.value)
     
     @pytest.mark.asyncio
     async def test_get_style_clash_analysis_insufficient_fighters(self, clean_test_session):
         """파이터 정보가 부족한 매치의 스타일 충돌 분석 테스트"""
-        # Given: 매치는 있지만 파이터가 한 명만 있음
+        from composition.exceptions import CompositionNotFoundError
         from datetime import datetime
         mock_match = MatchSchema(
             id=1, event_id=1, method="No Contest",
@@ -336,11 +345,11 @@ class TestMatchComposerErrorHandling:
         with patch('composition.match_composer.match_repo.get_match_by_id', return_value=mock_match), \
              patch('composition.match_composer.match_repo.get_match_with_winner_loser', return_value=mock_match_detail):
             
-            # When: 스타일 충돌 분석
-            result = await match_composer.get_style_clash_analysis(clean_test_session, 1)
+            # When & Then: CompositionNotFoundError 발생
+            with pytest.raises(CompositionNotFoundError) as exc_info:
+                await match_composer.get_style_clash_analysis(clean_test_session, 1)
         
-        # Then: None 반환
-        assert result is None
+            assert "Match fighters not found: 1" in str(exc_info.value)
     
     @pytest.mark.asyncio
     async def test_get_most_exciting_matches_empty_period(self, clean_test_session):

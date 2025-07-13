@@ -12,7 +12,10 @@ from fighter.dto import (
     FightersPerformanceAnalysisDTO, WeightClassDepthAnalysisDTO
 )
 from fighter import services as fighter_services
-from fighter import exceptions as fighter_exc
+from fighter.exceptions import (
+    FighterNotFoundError, FighterValidationError, FighterQueryError, 
+    FighterWeightClassError, FighterSearchError, FighterPerformanceError
+)
 
 
 class TestGetFighterById:
@@ -64,11 +67,11 @@ class TestGetFighterById:
         
         with patch('fighter.repositories.get_fighter_by_id', return_value=None):
             # When & Then: FighterNotFoundError 예외 발생 확인
-            with pytest.raises(fighter_exc.FighterNotFoundError) as exc_info:
+            with pytest.raises(FighterNotFoundError) as exc_info:
                 await fighter_services.get_fighter_by_id(mock_session, 999)
             
-            assert "Fighter not found: 999" in str(exc_info.value)
-            assert exc_info.value.fighter_identifier == "999"
+            assert "Fighter not found with id: 999" in str(exc_info.value)
+            assert exc_info.value.details["fighter_identifier"] == 999
     
     @pytest.mark.asyncio
     async def test_get_fighter_by_id_no_rankings(self):
@@ -133,10 +136,10 @@ class TestGetFighterByName:
         
         with patch('fighter.repositories.get_fighter_by_name', return_value=None):
             # When & Then: 예외 발생 확인
-            with pytest.raises(fighter_exc.FighterNotFoundError) as exc_info:
+            with pytest.raises(FighterNotFoundError) as exc_info:
                 await fighter_services.get_fighter_by_name(mock_session, "Nonexistent Fighter")
             
-            assert "Fighter not found: Nonexistent Fighter" in str(exc_info.value)
+            assert "Fighter not found with name: Nonexistent Fighter" in str(exc_info.value)
 
 
 class TestGetFighterByNickname:
@@ -174,10 +177,10 @@ class TestGetFighterByNickname:
         
         with patch('fighter.repositories.get_fighter_by_nickname', return_value=None):
             # When & Then: 예외 발생 확인
-            with pytest.raises(fighter_exc.FighterNotFoundError) as exc_info:
+            with pytest.raises(FighterNotFoundError) as exc_info:
                 await fighter_services.get_fighter_by_nickname(mock_session, "Unknown Nickname")
             
-            assert "Fighter not found: Unknown Nickname" in str(exc_info.value)
+            assert "Fighter not found with nickname: Unknown Nickname" in str(exc_info.value)
 
 
 class TestGetFighterRankingByWeightClass:
@@ -221,11 +224,11 @@ class TestGetFighterRankingByWeightClass:
         
         with patch('common.models.WeightClassSchema.get_id_by_name', return_value=None):
             # When & Then: InvalidWeightClassError 예외 발생 확인
-            with pytest.raises(fighter_exc.InvalidWeightClassError) as exc_info:
+            with pytest.raises(FighterWeightClassError) as exc_info:
                 await fighter_services.get_fighter_ranking_by_weight_class(mock_session, "Invalid Weight Class")
             
-            assert "Invalid weight class: Invalid Weight Class" in str(exc_info.value)
-            assert exc_info.value.weight_class_name == "Invalid Weight Class"
+            assert "Invalid weight class Invalid Weight Class:" in str(exc_info.value)
+            assert exc_info.value.details["weight_class_id"] == "Invalid Weight Class"
     
     @pytest.mark.asyncio
     async def test_get_fighter_ranking_by_weight_class_empty_result(self):
@@ -446,6 +449,139 @@ class TestReturnTypeBug:
             assert isinstance(result, WeightClassRankingsDTO)
             assert result.weight_class_name is None  # weight_class_id가 None인 경우
             assert len(result.rankings) == 1
+
+
+class TestFighterServicesErrorHandling:
+    """Fighter Services 예외 처리 테스트"""
+    
+    @pytest.mark.asyncio
+    async def test_get_fighter_by_id_invalid_id(self):
+        """잘못된 fighter ID 처리 테스트"""
+        mock_session = AsyncMock()
+        
+        # When & Then: 잘못된 fighter ID로 조회시 FighterValidationError 발생
+        with pytest.raises(FighterValidationError, match="fighter_id must be a positive integer"):
+            await fighter_services.get_fighter_by_id(mock_session, -1)
+        
+        with pytest.raises(FighterValidationError, match="fighter_id must be a positive integer"):
+            await fighter_services.get_fighter_by_id(mock_session, 0)
+        
+        with pytest.raises(FighterValidationError, match="fighter_id must be a positive integer"):
+            await fighter_services.get_fighter_by_id(mock_session, "invalid")
+    
+    @pytest.mark.asyncio
+    async def test_get_fighter_by_name_empty_name(self):
+        """빈 fighter 이름 처리 테스트"""
+        mock_session = AsyncMock()
+        
+        # When & Then: 빈 이름으로 조회시 FighterValidationError 발생
+        with pytest.raises(FighterValidationError, match="Fighter name cannot be empty"):
+            await fighter_services.get_fighter_by_name(mock_session, "")
+        
+        with pytest.raises(FighterValidationError, match="Fighter name cannot be empty"):
+            await fighter_services.get_fighter_by_name(mock_session, "   ")
+    
+    @pytest.mark.asyncio
+    async def test_get_fighter_by_nickname_empty_nickname(self):
+        """빈 fighter 닉네임 처리 테스트"""
+        mock_session = AsyncMock()
+        
+        # When & Then: 빈 닉네임으로 조회시 FighterValidationError 발생
+        with pytest.raises(FighterValidationError, match="Fighter nickname cannot be empty"):
+            await fighter_services.get_fighter_by_nickname(mock_session, "")
+        
+        with pytest.raises(FighterValidationError, match="Fighter nickname cannot be empty"):
+            await fighter_services.get_fighter_by_nickname(mock_session, "   ")
+    
+    @pytest.mark.asyncio
+    async def test_get_fighter_ranking_by_weight_class_empty_name(self):
+        """빈 체급 이름 처리 테스트"""
+        mock_session = AsyncMock()
+        
+        # When & Then: 빈 체급 이름으로 조회시 FighterValidationError 발생
+        with pytest.raises(FighterValidationError, match="Weight class name cannot be empty"):
+            await fighter_services.get_fighter_ranking_by_weight_class(mock_session, "")
+        
+        with pytest.raises(FighterValidationError, match="Weight class name cannot be empty"):
+            await fighter_services.get_fighter_ranking_by_weight_class(mock_session, "   ")
+    
+    @pytest.mark.asyncio
+    async def test_get_top_fighters_by_record_invalid_record(self):
+        """잘못된 record 값 처리 테스트"""
+        mock_session = AsyncMock()
+        
+        # When & Then: 잘못된 record 값으로 조회시 FighterValidationError 발생
+        with pytest.raises(FighterValidationError, match="record must be 'win', 'loss', or 'draw'"):
+            await fighter_services.get_top_fighters_by_record(mock_session, "invalid")
+    
+    @pytest.mark.asyncio
+    async def test_get_top_fighters_by_record_invalid_limit(self):
+        """잘못된 limit 값 처리 테스트"""
+        mock_session = AsyncMock()
+        
+        # When & Then: 잘못된 limit 값으로 조회시 FighterValidationError 발생
+        with pytest.raises(FighterValidationError, match="limit must be a positive integer"):
+            await fighter_services.get_top_fighters_by_record(mock_session, "win", limit=0)
+        
+        with pytest.raises(FighterValidationError, match="limit must be a positive integer"):
+            await fighter_services.get_top_fighters_by_record(mock_session, "win", limit=-1)
+    
+    @pytest.mark.asyncio
+    async def test_search_fighters_empty_search_term(self):
+        """빈 검색어 처리 테스트"""
+        mock_session = AsyncMock()
+        
+        # When & Then: 빈 검색어로 조회시 FighterValidationError 발생
+        with pytest.raises(FighterValidationError, match="Search term cannot be empty"):
+            await fighter_services.search_fighters(mock_session, "")
+        
+        with pytest.raises(FighterValidationError, match="Search term cannot be empty"):
+            await fighter_services.search_fighters(mock_session, "   ")
+    
+    @pytest.mark.asyncio
+    async def test_get_fighters_by_stance_analysis_empty_stance(self):
+        """빈 스탠스 처리 테스트"""
+        mock_session = AsyncMock()
+        
+        # When & Then: 빈 스탠스로 조회시 FighterValidationError 발생
+        with pytest.raises(FighterValidationError, match="Stance cannot be empty"):
+            await fighter_services.get_fighters_by_stance_analysis(mock_session, "")
+        
+        with pytest.raises(FighterValidationError, match="Stance cannot be empty"):
+            await fighter_services.get_fighters_by_stance_analysis(mock_session, "   ")
+    
+    @pytest.mark.asyncio
+    async def test_get_fighters_by_stance_analysis_invalid_stance(self):
+        """잘못된 스탠스 처리 테스트"""
+        mock_session = AsyncMock()
+        
+        # When & Then: 잘못된 스탠스로 조회시 FighterValidationError 발생
+        with pytest.raises(FighterValidationError, match="stance must be one of"):
+            await fighter_services.get_fighters_by_stance_analysis(mock_session, "Invalid Stance")
+    
+    @pytest.mark.asyncio
+    async def test_get_undefeated_fighters_analysis_invalid_min_wins(self):
+        """잘못된 min_wins 값 처리 테스트"""
+        mock_session = AsyncMock()
+        
+        # When & Then: 잘못된 min_wins 값으로 조회시 FighterValidationError 발생
+        with pytest.raises(FighterValidationError, match="min_wins must be a non-negative integer"):
+            await fighter_services.get_undefeated_fighters_analysis(mock_session, -1)
+        
+        with pytest.raises(FighterValidationError, match="min_wins must be a non-negative integer"):
+            await fighter_services.get_undefeated_fighters_analysis(mock_session, "invalid")
+    
+    @pytest.mark.asyncio
+    async def test_repository_error_handling(self):
+        """Repository 에러 처리 테스트"""
+        mock_session = AsyncMock()
+        
+        # Given: repository에서 예외 발생하도록 설정
+        with patch('fighter.services.fighter_repo.get_fighter_by_id', side_effect=Exception("Database error")):
+            
+            # When & Then: FighterQueryError로 래핑되어 발생
+            with pytest.raises(FighterQueryError, match="Fighter query 'get_fighter_by_id' failed"):
+                await fighter_services.get_fighter_by_id(mock_session, 1)
 
 
 if __name__ == "__main__":
