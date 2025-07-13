@@ -14,19 +14,6 @@ class EventTimelineDTO(BaseModel):
     upcoming_events: List[EventSchema] = Field(description="다음 기간 이벤트들")
 
 
-class EventStatsDTO(BaseModel):
-    """이벤트 통계 정보"""
-    total_matches: int = Field(description="총 매치 수")
-    main_events: int = Field(description="메인 이벤트 수")
-    finish_methods: Dict[str, int] = Field(description="결승 방식별 횟수")
-
-
-class EventSummaryDTO(BaseModel):
-    """이벤트 요약 정보"""
-    event: EventSchema = Field(description="이벤트 기본 정보")
-    stats: EventStatsDTO = Field(description="이벤트 통계")
-
-
 class EventSearchResultDTO(BaseModel):
     """이벤트 검색 결과 항목"""
     event: EventSchema = Field(description="이벤트 정보")

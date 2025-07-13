@@ -8,7 +8,7 @@ from datetime import date, timedelta
 
 from event import services as event_service
 from event.dto import (
-    EventTimelineDTO, EventSummaryDTO, EventStatsDTO, EventSearchDTO, EventSearchResultDTO,
+    EventTimelineDTO, EventSearchDTO, EventSearchResultDTO,
     MonthlyCalendarDTO, YearlyCalendarDTO, MonthlyBreakdownDTO, LocationStatisticsDTO,
     EventRecommendationsDTO, NextAndLastEventsDTO, EventTrendsDTO
 )
@@ -58,32 +58,6 @@ class TestEventServicesWithTestDB:
         with pytest.raises(EventValidationError, match="period must be 'month' or 'year'"):
             await event_service.get_event_timeline(clean_test_session, period="invalid")
     
-    @pytest.mark.asyncio
-    async def test_get_event_summary_existing_event(self, sample_event, clean_test_session):
-        """존재하는 이벤트의 요약 정보 조회 테스트"""
-        # When: 이벤트 요약 정보 조회
-        result = await event_service.get_event_summary(clean_test_session, sample_event.id)
-        
-        # Then: 이벤트 요약 정보 반환
-        assert result is not None
-        assert isinstance(result, EventSummaryDTO)
-        
-        # 이벤트 정보 확인
-        assert result.event.id == sample_event.id
-        assert result.event.name == sample_event.name
-        
-        # 통계 정보 확인
-        assert isinstance(result.stats, EventStatsDTO)
-        assert isinstance(result.stats.total_matches, int)
-        assert isinstance(result.stats.main_events, int)
-        assert isinstance(result.stats.finish_methods, dict)
-    
-    @pytest.mark.asyncio
-    async def test_get_event_summary_nonexistent_event(self, clean_test_session):
-        """존재하지 않는 이벤트의 요약 정보 조회 테스트"""
-        # When & Then: 존재하지 않는 이벤트로 조회시 EventNotFoundError 발생
-        with pytest.raises(EventNotFoundError, match="Event not found with id: 99999"):
-            await event_service.get_event_summary(clean_test_session, 99999)
     
     @pytest.mark.asyncio
     async def test_search_events_by_name(self, multiple_events_different_names, clean_test_session):
@@ -238,19 +212,6 @@ class TestEventServicesWithTestDB:
         assert isinstance(result.events, list)
     
     @pytest.mark.asyncio
-    async def test_get_event_recommendations_popular(self, events_past_and_future, clean_test_session):
-        """인기 이벤트 추천 테스트"""
-        # When: 인기 이벤트 추천 조회
-        result = await event_service.get_event_recommendations(
-            clean_test_session, recommendation_type="popular"
-        )
-        
-        # Then: 추천 데이터 반환
-        assert result is not None
-        assert result.type == "popular"
-        assert isinstance(result.events, list)
-    
-    @pytest.mark.asyncio
     async def test_get_event_recommendations_invalid_type(self, clean_test_session):
         """잘못된 추천 타입 테스트"""
         # When & Then: 잘못된 추천 타입으로 조회시 EventValidationError 발생
@@ -319,39 +280,6 @@ class TestEventServicesWithTestDB:
 class TestEventServicesWithMocks:
     """Mock을 사용한 Event Services 단위 테스트"""
     
-    @pytest.mark.asyncio
-    async def test_get_event_summary_with_matches(self, clean_test_session):
-        """매치가 있는 이벤트 요약 테스트 (Mock 사용)"""
-        # Given: Mock 데이터 설정
-        mock_event = AsyncMock()
-        mock_event.id = 1
-        mock_event.name = "UFC Test Event"
-        mock_event.location = "Las Vegas, NV"
-        mock_event.url = "http://example.com"
-        mock_event.event_date = date(2024, 8, 1)
-        
-        mock_matches = [
-            AsyncMock(method="KO/TKO", is_main_event=True),
-            AsyncMock(method="Decision - Unanimous", is_main_event=False),
-            AsyncMock(method="Submission", is_main_event=False)
-        ]
-        
-        # When: Mock을 사용하여 service 함수 호출
-        with patch('event.services.event_repo.get_event_by_id', return_value=mock_event), \
-             patch('match.repositories.get_matches_by_event_id', return_value=mock_matches):
-            
-            result = await event_service.get_event_summary(clean_test_session, 1)
-        
-        # Then: 매치 통계가 올바르게 계산됨
-        assert result is not None
-        assert result.stats.total_matches == 3
-        assert result.stats.main_events == 1
-        
-        # 결승 방식 통계 확인
-        finish_methods = result.stats.finish_methods
-        assert finish_methods["KO/TKO"] == 1
-        assert finish_methods["Decision - Unanimous"] == 1
-        assert finish_methods["Submission"] == 1
     
     @pytest.mark.asyncio
     async def test_search_events_relevance_sorting(self, clean_test_session):
@@ -499,25 +427,6 @@ class TestEventServicesWithMocks:
 class TestEventServicesErrorHandling:
     """Event Services 에러 처리 테스트"""
     
-    @pytest.mark.asyncio
-    async def test_get_event_summary_invalid_event_id(self, clean_test_session):
-        """잘못된 이벤트 ID 처리 테스트"""
-        # When & Then: 잘못된 이벤트 ID로 조회시 EventValidationError 발생
-        with pytest.raises(EventValidationError, match="event_id must be a positive integer"):
-            await event_service.get_event_summary(clean_test_session, -1)
-        
-        with pytest.raises(EventValidationError, match="event_id must be a positive integer"):
-            await event_service.get_event_summary(clean_test_session, 0)
-    
-    @pytest.mark.asyncio
-    async def test_get_event_summary_repository_error_handling(self, clean_test_session):
-        """Repository 에러 시 처리 테스트"""
-        # Given: event_repo에서 예외 발생하도록 설정
-        with patch('event.services.event_repo.get_event_by_id', side_effect=Exception("Database error")):
-            
-            # When & Then: EventQueryError로 래핑되어 발생
-            with pytest.raises(EventQueryError, match="Event query 'get_event_summary' failed"):
-                await event_service.get_event_summary(clean_test_session, 1)
     
     @pytest.mark.asyncio
     async def test_search_events_empty_query_handling(self, clean_test_session):
