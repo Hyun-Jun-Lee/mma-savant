@@ -118,17 +118,19 @@ mma-savant/
 - [x] ESLint, Prettier 설정
 - [x] 기본 레이아웃 컴포넌트 구현 (MMA Savant 홈페이지)
 
-### Phase 2: 인증 시스템 구현 (2-3일)
-- [ ] NextAuth.js 설정
-  - [ ] Google OAuth 설정
-  - [ ] JWT 토큰 관리
-  - [ ] 세션 관리
-- [ ] 인증 관련 컴포넌트
-  - [ ] LoginForm 컴포넌트
-  - [ ] GoogleLoginButton 컴포넌트
-  - [ ] AuthGuard 컴포넌트 (보호된 라우트)
-- [ ] 인증 상태 관리 (Zustand)
-- [ ] 로그인/로그아웃 플로우 구현
+### Phase 2: 인증 시스템 구현 (2-3일) ✅ 완료
+- [x] NextAuth.js 설정
+  - [x] Google OAuth 설정
+  - [x] JWT 토큰 관리
+  - [x] 세션 관리
+- [x] 인증 관련 컴포넌트
+  - [x] 로그인 페이지 구현
+  - [x] GoogleLoginButton 컴포넌트
+  - [x] LogoutButton 컴포넌트
+  - [x] UserProfile 컴포넌트
+  - [x] AuthGuard 컴포넌트 (보호된 라우트)
+- [x] 인증 상태 관리 (Zustand)
+- [x] 로그인/로그아웃 플로우 구현
 
 ### Phase 3: 채팅 UI 구현 (3-4일)
 - [ ] 채팅 기본 컴포넌트
