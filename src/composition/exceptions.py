@@ -117,6 +117,17 @@ class CompositionPermissionError(CompositionException):
         super().__init__(message, {"operation": operation, "required_permission": required_permission, "context": context})
 
 
+class FighterComparisonError(CompositionException):
+    """Exception raised when fighter comparison operations fail."""
+    
+    def __init__(self, fighter1_id: int, fighter2_id: int, reason: str):
+        self.fighter1_id = fighter1_id
+        self.fighter2_id = fighter2_id
+        self.reason = reason
+        message = f"Fighter comparison failed between {fighter1_id} and {fighter2_id}: {reason}"
+        super().__init__(message, {"fighter1_id": fighter1_id, "fighter2_id": fighter2_id, "reason": reason})
+
+
 # Backward compatibility aliases if any existing code uses these
 ComposerException = CompositionException
 ComposerValidationError = CompositionValidationError

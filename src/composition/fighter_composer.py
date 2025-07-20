@@ -369,19 +369,8 @@ async def analyze_fighter_vs_style(session: AsyncSession, fighter_id: int, oppon
     # 파이터 기본 정보 조회
     fighter = await get_fighter_by_id(session, fighter_id)
     if not fighter:
-        from fighter.models import FighterSchema
-        dummy_fighter = FighterSchema(id=0, name="Not Found", wins=0, losses=0, draws=0)
-        return FighterVsStanceAnalysisDTO(
-            fighter=dummy_fighter,
-            opponent_stance=opponent_stance,
-            analysis=StanceAnalysisStatsDTO(
-                total_fights_vs_stance=0,
-                wins=0,
-                losses=0,
-                win_percentage=0.0,
-                detailed_results=[]
-            )
-        )
+        from fighter.exceptions import FighterNotFoundError
+        raise FighterNotFoundError(f"Fighter with ID {fighter_id} not found")
     
     # 모든 상대 조회
     all_opponents = await get_all_opponents(session, fighter_id)
@@ -539,26 +528,8 @@ async def predict_fight_outcome(session: AsyncSession, fighter_id1: int, fighter
     comparison = await compare_fighters_stats(session, fighter_id1, fighter_id2)
     
     if not comparison:
-        # Return dummy prediction for failed comparison
-        from fighter.models import FighterSchema
-        dummy_fighter = FighterSchema(id=0, name="Unknown", wins=0, losses=0, draws=0)
-        return FightOutcomePredictionDTO(
-            matchup=MatchupInfoDTO(fighter1=dummy_fighter, fighter2=dummy_fighter),
-            prediction=FightPredictionDTO(
-                fighter1_win_probability=50.0,
-                fighter2_win_probability=50.0,
-                predicted_winner=dummy_fighter,
-                confidence="low"
-            ),
-            analysis_factors=AnalysisFactorsDTO(
-                head_to_head_fights=0,
-                common_opponents=0,
-                statistical_comparison=FighterComparisonStatsDTO(
-                    stats={}, accuracy={}
-                ),
-                scoring_breakdown=ScoringBreakdownDTO(fighter1_score=0, fighter2_score=0)
-            )
-        )
+        from composition.exceptions import FighterComparisonError
+        raise FighterComparisonError(fighter_id1, fighter_id2, "Unable to retrieve comparison data")
     
     # 과거 대전 기록 조회
     head_to_head = await get_fighter_vs_record(session, fighter_id1, fighter_id2)
