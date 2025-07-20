@@ -1,10 +1,10 @@
 from typing import List, Optional
 from datetime import datetime, date
 
-from sqlalchemy import select, update, func
+from sqlalchemy import select, update, func, or_
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from user.models import UserModel, UserSchema
+from user.models import UserModel, UserSchema, UserProfileUpdate
 
 async def get_user_by_id(session: AsyncSession, user_id: int) -> Optional[UserSchema]:
     """
@@ -25,6 +25,28 @@ async def get_user_by_username(session: AsyncSession, username: str) -> Optional
     )
     user = result.scalar_one_or_none()
     return user.to_schema() if user else None
+
+
+async def get_user_by_email(session: AsyncSession, email: str) -> Optional[UserSchema]:
+    """
+    email로 사용자 조회 (OAuth 사용자).
+    """
+    result = await session.execute(
+        select(UserModel).where(UserModel.email == email)
+    )
+    user = result.scalar_one_or_none()
+    return user.to_schema() if user else None
+
+
+async def get_user_by_provider_id(session: AsyncSession, provider_id: str) -> Optional[UserSchema]:
+    """
+    OAuth provider ID로 사용자 조회.
+    """
+    result = await session.execute(
+        select(UserModel).where(UserModel.provider_id == provider_id)
+    )
+    user = result.scalar_one_or_none()
+    return user.to_schema() if user else None
     
 async def create_user(session: AsyncSession, user: UserSchema) -> UserSchema:
     """
@@ -34,6 +56,63 @@ async def create_user(session: AsyncSession, user: UserSchema) -> UserSchema:
     session.add(db_user)
     await session.flush()
     return db_user.to_schema()
+
+
+async def create_oauth_user(
+    session: AsyncSession,
+    email: str,
+    name: Optional[str] = None,
+    picture: Optional[str] = None,
+    provider_id: Optional[str] = None,
+    provider: str = "google"
+) -> UserSchema:
+    """
+    OAuth 사용자 생성 (NextAuth.js 연동).
+    """
+    user_data = UserSchema(
+        email=email,
+        name=name,
+        picture=picture,
+        provider_id=provider_id,
+        provider=provider,
+        is_active=True,
+        total_requests=0,
+        daily_requests=0
+    )
+    
+    db_user = UserModel.from_schema(user_data)
+    session.add(db_user)
+    await session.flush()
+    return db_user.to_schema()
+
+
+async def update_user_profile(
+    session: AsyncSession,
+    user_id: int,
+    profile_update: UserProfileUpdate
+) -> Optional[UserSchema]:
+    """
+    사용자 프로필 업데이트.
+    """
+    update_data = {}
+    if profile_update.name is not None:
+        update_data["name"] = profile_update.name
+    if profile_update.picture is not None:
+        update_data["picture"] = profile_update.picture
+    
+    if not update_data:
+        return await get_user_by_id(session, user_id)
+    
+    update_data["updated_at"] = datetime.now()
+    
+    await session.execute(
+        update(UserModel)
+        .where(UserModel.id == user_id)
+        .values(**update_data)
+    )
+    await session.flush()
+    
+    return await get_user_by_id(session, user_id)
 
 
 async def update_user_usage(session: AsyncSession, user_id: int, increment: int = 1) -> Optional[UserSchema]:

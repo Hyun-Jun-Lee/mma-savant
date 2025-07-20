@@ -12,7 +12,7 @@ from user.dto import (
     UserCreateDTO, UserLoginDTO, UserProfileDTO, UserUsageDTO, 
     UserAuthResponseDTO, UserUsageUpdateDTO, UserStatsDTO
 )
-from user.models import UserSchema
+from user.models import UserSchema, UserProfileUpdate, UserProfileResponse
 from user.exceptions import (
     UserNotFoundError, UserValidationError, UserAuthenticationError,
     UserDuplicateError, UserPasswordError, UserUsageLimitError, UserQueryError
@@ -345,3 +345,150 @@ async def activate_user(session: AsyncSession, user_id: int) -> bool:
         raise
     except Exception as e:
         raise UserQueryError("activate_user", {"user_id": user_id}, str(e))
+
+
+# OAuth 사용자 지원 함수들 (NextAuth.js 연동)
+
+async def get_or_create_oauth_user(
+    session: AsyncSession,
+    email: str,
+    name: Optional[str] = None,
+    picture: Optional[str] = None,
+    provider_id: Optional[str] = None,
+    provider: str = "google"
+) -> UserProfileResponse:
+    """
+    OAuth 사용자 조회 또는 생성 (NextAuth.js 연동).
+    존재하면 조회, 없으면 자동 생성.
+    """
+    try:
+        # 이메일로 기존 사용자 조회
+        existing_user = await user_repo.get_user_by_email(session, email)
+        
+        if existing_user:
+            # 기존 사용자 정보 업데이트 (이름, 프로필 이미지 등)
+            update_needed = False
+            if name and existing_user.name != name:
+                update_needed = True
+            if picture and existing_user.picture != picture:
+                update_needed = True
+            
+            if update_needed:
+                profile_update = UserProfileUpdate(name=name, picture=picture)
+                updated_user = await user_repo.update_user_profile(
+                    session, existing_user.id, profile_update
+                )
+                return UserProfileResponse(
+                    id=updated_user.id,
+                    email=updated_user.email,
+                    name=updated_user.name,
+                    picture=updated_user.picture,
+                    username=updated_user.username,
+                    total_requests=updated_user.total_requests,
+                    is_active=updated_user.is_active,
+                    created_at=updated_user.created_at
+                )
+            else:
+                return UserProfileResponse(
+                    id=existing_user.id,
+                    email=existing_user.email,
+                    name=existing_user.name,
+                    picture=existing_user.picture,
+                    username=existing_user.username,
+                    total_requests=existing_user.total_requests,
+                    is_active=existing_user.is_active,
+                    created_at=existing_user.created_at
+                )
+        
+        else:
+            # 새 OAuth 사용자 생성
+            new_user = await user_repo.create_oauth_user(
+                session=session,
+                email=email,
+                name=name,
+                picture=picture,
+                provider_id=provider_id,
+                provider=provider
+            )
+            
+            return UserProfileResponse(
+                id=new_user.id,
+                email=new_user.email,
+                name=new_user.name,
+                picture=new_user.picture,
+                username=new_user.username,
+                total_requests=new_user.total_requests,
+                is_active=new_user.is_active,
+                created_at=new_user.created_at
+            )
+    
+    except Exception as e:
+        raise UserQueryError("get_or_create_oauth_user", {"email": email}, str(e))
+
+
+async def update_oauth_user_profile(
+    session: AsyncSession,
+    user_id: int,
+    profile_update: UserProfileUpdate
+) -> UserProfileResponse:
+    """
+    OAuth 사용자 프로필 업데이트.
+    """
+    try:
+        if not isinstance(user_id, int) or user_id <= 0:
+            raise UserValidationError("user_id", user_id, "user_id must be a positive integer")
+        
+        # 사용자 존재 확인
+        user = await user_repo.get_user_by_id(session, user_id)
+        if not user:
+            raise UserNotFoundError(user_id, "id")
+        
+        # 프로필 업데이트
+        updated_user = await user_repo.update_user_profile(session, user_id, profile_update)
+        if not updated_user:
+            raise UserNotFoundError(user_id, "id")
+        
+        return UserProfileResponse(
+            id=updated_user.id,
+            email=updated_user.email,
+            name=updated_user.name,
+            picture=updated_user.picture,
+            username=updated_user.username,
+            total_requests=updated_user.total_requests,
+            is_active=updated_user.is_active,
+            created_at=updated_user.created_at
+        )
+        
+    except (UserValidationError, UserNotFoundError):
+        raise
+    except Exception as e:
+        raise UserQueryError("update_oauth_user_profile", {"user_id": user_id}, str(e))
+
+
+async def get_oauth_user_profile(session: AsyncSession, user_id: int) -> UserProfileResponse:
+    """
+    OAuth 사용자 프로필 조회 (API 응답용).
+    """
+    try:
+        if not isinstance(user_id, int) or user_id <= 0:
+            raise UserValidationError("user_id", user_id, "user_id must be a positive integer")
+        
+        user = await user_repo.get_user_by_id(session, user_id)
+        if not user:
+            raise UserNotFoundError(user_id, "id")
+        
+        return UserProfileResponse(
+            id=user.id,
+            email=user.email,
+            name=user.name,
+            picture=user.picture,
+            username=user.username,
+            total_requests=user.total_requests,
+            is_active=user.is_active,
+            created_at=user.created_at
+        )
+        
+    except (UserValidationError, UserNotFoundError):
+        raise
+    except Exception as e:
+        raise UserQueryError("get_oauth_user_profile", {"user_id": user_id}, str(e))
