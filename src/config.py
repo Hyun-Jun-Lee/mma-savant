@@ -17,7 +17,11 @@ class Config:
     REDIS_PORT: int = int(os.getenv("REDIS_PORT", "6379"))
     REDIS_PASSWORD: str = os.getenv("REDIS_PASSWORD")
 
-    LLM_API_KEY: str = os.getenv("LLM_API_KEY")
+    OPENAI_API_KEY: str = os.getenv("OPENAI_API_KEY")
+    OPENAI_MODEL_NAME: str = os.getenv("OPENAI_MODEL_NAME")
+    
+    ANTHROPIC_API_KEY: str = os.getenv("ANTHROPIC_API_KEY")
+    ANTHROPIC_MODEL_NAME: str = os.getenv("ANTHROPIC_MODEL_NAME")
 
 def get_database_url(is_test : bool = False) -> str:
     if is_test:
