@@ -132,23 +132,23 @@ mma-savant/
 - [x] 인증 상태 관리 (Zustand)
 - [x] 로그인/로그아웃 플로우 구현
 
-### Phase 3: 채팅 UI 구현 (3-4일)
-- [ ] 채팅 기본 컴포넌트
-  - [ ] ChatContainer (메인 채팅 컨테이너)
-  - [ ] MessageList (메시지 목록)
-  - [ ] MessageBubble (개별 메시지)
-  - [ ] MessageInput (메시지 입력)
-  - [ ] TypingIndicator (타이핑 표시)
-- [ ] 채팅 상태 관리 (Zustand + React Query)
-- [ ] 메시지 스크롤 관리
-- [ ] 반응형 디자인 적용
+### Phase 3: 채팅 UI 구현 (3-4일) ✅ 완료
+- [x] 채팅 기본 컴포넌트
+  - [x] ChatContainer (메인 채팅 컨테이너)
+  - [x] MessageList (메시지 목록)
+  - [x] MessageBubble (개별 메시지)
+  - [x] MessageInput (메시지 입력)
+  - [x] 빈 상태 UI 및 예시 질문
+- [x] 채팅 상태 관리 (Zustand)
+- [x] 메시지 스크롤 관리
+- [x] 반응형 디자인 적용
 
-### Phase 4: 실시간 통신 구현 (2-3일)
-- [ ] Socket.io 클라이언트 설정
-- [ ] 실시간 메시지 송수신
-- [ ] 스트리밍 응답 처리 (Server-Sent Events)
-- [ ] 연결 상태 관리 및 재연결 로직
-- [ ] 타이핑 상태 실시간 동기화
+### Phase 4: 실시간 통신 구현 (2-3일) ✅ 완료
+- [x] Socket.io 클라이언트 설정 (Mock WebSocket 구현)
+- [x] 실시간 메시지 송수신
+- [x] 스트리밍 응답 처리 (단어별 스트리밍 시뮬레이션)
+- [x] 연결 상태 관리 및 재연결 로직
+- [x] 타이핑 상태 실시간 동기화
 
 ### Phase 5: FastAPI 연동 (2일)
 - [ ] API 클라이언트 구성
@@ -411,13 +411,13 @@ NEXT_PUBLIC_API_URL=http://localhost:8000  # FastAPI 백엔드 URL
 
 ## 🎯 마일스톤
 
-### Week 1
+### Week 1 ✅ 완료
 - [x] 프로젝트 설정 및 기본 구조
-- [ ] 인증 시스템 구현
-- [ ] 기본 채팅 UI 구현
+- [x] 인증 시스템 구현
+- [x] 기본 채팅 UI 구현
+- [x] 실시간 통신 구현 (Mock 기반)
 
 ### Week 2
-- [ ] 실시간 통신 구현
 - [ ] FastAPI 연동
 - [ ] 고급 기능 구현
 
