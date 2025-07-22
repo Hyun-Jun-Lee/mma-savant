@@ -3,10 +3,12 @@ JWT 토큰 처리 및 NextAuth.js 연동
 """
 import jwt
 import os
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Optional, Dict, Any
 from fastapi import HTTPException, status
 from pydantic import BaseModel
+
+from config import Config
 
 
 class TokenData(BaseModel):
@@ -24,12 +26,13 @@ class JWTHandler:
     
     def __init__(self):
         # NextAuth.js와 동일한 SECRET 사용
-        self.secret_key = os.getenv("NEXTAUTH_SECRET")
+        self.secret_key = Config.NEXTAUTH_SECRET
         if not self.secret_key:
             raise ValueError("NEXTAUTH_SECRET environment variable not set")
         
-        self.algorithm = "HS256"
-        self.access_token_expire_minutes = 60 * 24  # 24시간
+        
+        self.algorithm = Config.TOKEN_ALGORITHM
+        self.access_token_expire_minutes = Config.ACCESS_TOKEN_EXPIRE_MINUTES
     
     def decode_token(self, token: str) -> TokenData:
         """
@@ -49,7 +52,7 @@ class JWTHandler:
             )
             
             # NextAuth.js 토큰 구조에 맞춰 데이터 추출
-            return TokenData(
+            token_data = TokenData(
                 sub=payload.get("sub"),
                 email=payload.get("email"),
                 name=payload.get("name"), 
@@ -58,13 +61,18 @@ class JWTHandler:
                 exp=payload.get("exp")
             )
             
-        except jwt.ExpiredSignatureError:
+            return token_data
+            
+        except jwt.ExpiredSignatureError as e:
+            print(f"❌ Token expired: {e}")
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Token has expired",
                 headers={"WWW-Authenticate": "Bearer"},
             )
-        except jwt.JWTError as e:
+        except jwt.PyJWTError as e:
+            print(f"❌ JWT validation error: {e}")
+            print(f"❌ Token that failed: {token[:50]}...")
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail=f"Could not validate credentials: {str(e)}",
@@ -77,7 +85,7 @@ class JWTHandler:
         NextAuth.js가 주로 토큰을 생성하므로 백업용
         """
         to_encode = data.copy()
-        expire = datetime.utcnow() + timedelta(minutes=self.access_token_expire_minutes)
+        expire = datetime.now(timezone.utc) + timedelta(minutes=self.access_token_expire_minutes)
         to_encode.update({"exp": expire})
         
         encoded_jwt = jwt.encode(to_encode, self.secret_key, algorithm=self.algorithm)
@@ -88,7 +96,7 @@ class JWTHandler:
         if not token_data.exp:
             return False
         
-        current_time = datetime.utcnow().timestamp()
+        current_time = datetime.now(timezone.utc).timestamp()
         return current_time < token_data.exp
 
 

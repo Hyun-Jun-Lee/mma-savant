@@ -53,6 +53,7 @@ async def get_current_user(
     NextAuth.js OAuth 사용자를 자동으로 DB에 저장
     """
     try:
+        
         # 이메일로 사용자 조회 (OAuth 사용자는 이메일이 주요 식별자)
         if token_data.email:
             user_schema = await user_repo.get_user_by_email(db, token_data.email)
@@ -95,6 +96,9 @@ async def get_current_user(
     except HTTPException:
         raise
     except Exception as e:
+        print(f"❌ Authentication error: {str(e)}")
+        import traceback
+        traceback.print_exc()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Authentication error: {str(e)}"
