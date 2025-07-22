@@ -81,7 +81,7 @@ class UserModel(BaseModel):
 
     @classmethod
     def from_schema(cls, user: UserSchema):
-        return cls(
+        model = cls(
             username=user.username,
             password_hash=user.password_hash,
             email=user.email,
@@ -94,6 +94,11 @@ class UserModel(BaseModel):
             last_request_date=user.last_request_date,
             is_active=user.is_active
         )
+        # 스키마에 id가 있으면 설정 (DB에서 조회한 경우)
+        if hasattr(user, 'id') and user.id:
+            model.id = user.id
+        # datetime 필드는 DB에서 자동 관리하므로 설정하지 않음
+        return model
 
     def to_schema(self) -> UserSchema:
         """SQLAlchemy 모델을 Pydantic 스키마로 변환"""

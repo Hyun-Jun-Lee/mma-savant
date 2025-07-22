@@ -4,6 +4,7 @@ WebSocket API 라우터
 """
 import json
 from typing import Optional
+from datetime import datetime
 
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -97,6 +98,7 @@ async def websocket_chat_endpoint(
     try:
         # 토큰 검증
         if not token:
+            await websocket.accept()
             await websocket.close(code=4001, reason="Token required")
             return
         
@@ -104,31 +106,70 @@ async def websocket_chat_endpoint(
         try:
             user = await get_user_from_token(token, db)
         except HTTPException as e:
+            await websocket.accept()
             await websocket.close(code=4001, reason=f"Authentication failed: {e.detail}")
             return
         
-        # WebSocket 연결 수락 및 등록
+        # 명시적으로 WebSocket 연결 수락
+        await websocket.accept()
+        
+        # WebSocket 연결 등록
         connection_id = await connection_manager.connect(
             websocket=websocket,
             user=user,
             session_id=session_id
         )
         
+        # 잠깐 대기하여 WebSocket 완전히 준비되도록 함
+        import asyncio
+        await asyncio.sleep(0.1)
+        
+        # 연결 확인 메시지 전송
+        try:
+            print(f"📩 Sending connection established message to {connection_id}")
+            await connection_manager.send_to_connection(connection_id, {
+                "type": "connection_established", 
+                "connection_id": connection_id,
+                "user_id": user.id,
+                "session_id": session_id,
+                "timestamp": datetime.now().isoformat(),
+                "message": "연결이 성공적으로 설정되었습니다."
+            })
+        except ConnectionError as e:
+            print(f"❌ Connection lost during message send: {e}")
+            return  # 연결 실패 시 즉시 종료
+        except Exception as e:
+            print(f"❌ Failed to send connection established message to {connection_id}: {e}")
+            return  # 기타 에러도 연결 종료
+        
         # 환영 메시지 전송
         if not session_id:
-            # 새 세션인 경우 환영 메시지
-            welcome_message = connection_manager.llm_service.get_conversation_starter()
-            await connection_manager.send_to_connection(connection_id, {
-                "type": "welcome",
-                "content": welcome_message,
-                "timestamp": "2024-01-01T00:00:00.000Z"
-            })
+            try:
+                # 새 세션인 경우 환영 메시지
+                welcome_message = connection_manager.llm_service.get_conversation_starter()
+                await connection_manager.send_to_connection(connection_id, {
+                    "type": "welcome",
+                    "content": welcome_message,
+                    "timestamp": datetime.now().isoformat()
+                })
+            except ConnectionError as e:
+                print(f"❌ Connection lost during welcome message: {e}")
+                return  # 연결 실패 시 즉시 종료
+            except Exception as e:
+                print(f"❌ Failed to send welcome message to {connection_id}: {e}")
+                return  # 기타 에러도 연결 종료
         
         # 메시지 수신 루프
         while True:
             try:
+                # WebSocket 연결 상태 확인
+                if websocket.client_state.name != "CONNECTED":
+                    print(f"🔌 WebSocket no longer connected: {websocket.client_state.name}")
+                    break
+                
                 # 클라이언트로부터 메시지 수신
                 data = await websocket.receive_text()
+                print(f"📥 Received message from {connection_id}: {data}")
                 message_data = json.loads(data)
                 
                 # 메시지 타입별 처리
@@ -173,13 +214,41 @@ async def websocket_chat_endpoint(
                     "timestamp": "2024-01-01T00:00:00.000Z"
                 })
             
+            except WebSocketDisconnect:
+                print(f"🔌 WebSocket disconnected during message processing: {connection_id}")
+                break
+                
             except Exception as e:
-                print(f"❌ Error processing message: {e}")
-                await connection_manager.send_to_connection(connection_id, {
-                    "type": "error",
-                    "error": f"Failed to process message: {str(e)}",
-                    "timestamp": "2024-01-01T00:00:00.000Z"
-                })
+                error_msg = str(e)
+                print(f"❌ Error processing message: {error_msg}")
+                
+                # WebSocket 연결 관련 에러는 즉시 루프 종료
+                if any(keyword in error_msg.lower() for keyword in [
+                    "disconnect", "receive", "send", "websocket is not connected", 
+                    "need to call", "accept", "closed", "connection", "not connected"
+                ]):
+                    print(f"🔌 Breaking loop due to connection error: {connection_id}")
+                    break
+                
+                # 연결 상태 재확인
+                if websocket.client_state.name != "CONNECTED":
+                    print(f"🔌 WebSocket no longer connected during error handling: {websocket.client_state.name}")
+                    break
+                
+                try:
+                    await connection_manager.send_to_connection(connection_id, {
+                        "type": "error",
+                        "error": f"Failed to process message: {error_msg}",
+                        "timestamp": "2024-01-01T00:00:00.000Z"
+                    })
+                except ConnectionError:
+                    # ConnectionError는 이미 연결이 정리되었으므로 즉시 루프 종료
+                    print(f"🔌 Connection lost during error response, breaking loop: {connection_id}")
+                    break
+                except Exception:
+                    # 에러 메시지 전송도 실패하면 연결 문제이므로 루프 종료
+                    print(f"🔌 Failed to send error message, breaking loop: {connection_id}")
+                    break
     
     except WebSocketDisconnect:
         print(f"🔌 WebSocket disconnected: {connection_id}")

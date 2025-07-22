@@ -4,11 +4,15 @@ MMA Savant FastAPI 애플리케이션
 """
 import os
 from contextlib import asynccontextmanager
+from dotenv import load_dotenv
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from api.main import api_router
+
+# 환경변수 로딩
+load_dotenv()
 
 
 @asynccontextmanager

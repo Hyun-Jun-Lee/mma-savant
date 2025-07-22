@@ -39,19 +39,25 @@ class ChatSessionService:
         """
         사용자의 채팅 세션 목록 조회
         """
-        sessions = await conv_repo.get_user_chat_sessions(
-            session=db,
-            user_id=user_id,
-            limit=limit,
-            offset=offset
-        )
-        
-        total_count = await conv_repo.get_user_chat_sessions_count(db, user_id)
-        
-        return ChatSessionListResponse(
-            sessions=sessions,
-            total_sessions=total_count
-        )
+        try:
+            sessions = await conv_repo.get_user_chat_sessions(
+                session=db,
+                user_id=user_id,
+                limit=limit,
+                offset=offset
+            )
+            
+            total_count = await conv_repo.get_user_chat_sessions_count(db, user_id)
+            
+            return ChatSessionListResponse(
+                sessions=sessions,
+                total_sessions=total_count
+            )
+        except Exception as e:
+            print(f"❌ ChatSessionService error: {str(e)}")
+            import traceback
+            traceback.print_exc()
+            raise
     
     @staticmethod
     async def get_session_by_id(

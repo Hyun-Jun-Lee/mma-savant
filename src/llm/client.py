@@ -43,6 +43,7 @@ class LLMClient:
         if self.config.anthropic_api_key:
             self.anthropic = AsyncAnthropic(api_key=self.config.anthropic_api_key)
         else:
+            print("❌ Claude API key not configured")
             self.anthropic = None
             
         # 사용량 추적
@@ -121,6 +122,8 @@ class LLMClient:
         temperature = temperature or self.config.temperature
         
         try:
+            print(f"🔄 Calling Claude API: model={model}, messages={len(messages)}, tools={len(tools) if tools else 0}")
+            
             # Claude 스트리밍 API 호출
             async with self.anthropic.messages.stream(
                 model=model,
@@ -132,6 +135,7 @@ class LLMClient:
             ) as stream:
                 
                 async for chunk in stream:
+                    # 실제 텍스트 내용
                     if chunk.type == "content_block_delta":
                         if chunk.delta.type == "text_delta":
                             yield {
@@ -141,14 +145,18 @@ class LLMClient:
                                 "timestamp": datetime.now().isoformat()
                             }
                     
+                    # 메시지 시작 신호
                     elif chunk.type == "message_start":
+                        print(f"🚀 Claude response started")
                         yield {
                             "type": "start",
                             "model": model,
                             "timestamp": datetime.now().isoformat()
                         }
                     
+                    # 메시지 완료 신호
                     elif chunk.type == "message_stop":
+                        print(f"✅ Claude response completed")
                         # 사용량 추적
                         self.usage_stats["total_requests"] += 1
                         yield {
@@ -158,6 +166,7 @@ class LLMClient:
                         }
                         
         except Exception as e:
+            print(f"❌ Claude API error: {e}")
             yield {
                 "type": "error",
                 "error": str(e),

@@ -53,15 +53,20 @@ async def get_user_chat_sessions(
     사용자의 채팅 세션 목록 조회
     """
     try:
+        print(f"🔍 Getting sessions for user: {current_user.id}")
         sessions_response = await ChatSessionService.get_user_sessions(
             db=db,
             user_id=current_user.id,
             limit=limit,
             offset=offset
         )
+        print(f"✅ Sessions retrieved successfully: {len(sessions_response.sessions) if sessions_response else 0}")
         return sessions_response
         
     except Exception as e:
+        print(f"❌ Error getting sessions: {str(e)}")
+        import traceback
+        traceback.print_exc()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to get sessions: {str(e)}"

@@ -4,6 +4,7 @@ WebSocket 연결 관리자
 """
 import json
 import uuid
+import asyncio
 from typing import Dict, List, Optional, Set
 from datetime import datetime
 
@@ -12,7 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from user.models import UserModel
 from conversation.services import ChatSessionService
-from llm.services import get_llm_service, LLMService
+from llm.langchain_service import get_langchain_service, LangChainLLMService
 
 
 class ConnectionManager:
@@ -31,8 +32,27 @@ class ConnectionManager:
         # 세션별 연결: {session_id: Set[connection_id]}
         self.session_connections: Dict[str, Set[str]] = {}
         
-        # LLM 서비스
-        self.llm_service: LLMService = get_llm_service()
+        # LLM 서비스 (LangChain 사용)
+        self.llm_service: LangChainLLMService = None
+        self._initializing = False
+    
+    async def _ensure_llm_service(self):
+        """LLM 서비스 초기화 보장"""
+        if self.llm_service is not None:
+            return
+        
+        if self._initializing:
+            # 다른 요청이 이미 초기화 중인 경우 대기
+            while self._initializing:
+                await asyncio.sleep(0.1)
+            return
+        
+        self._initializing = True
+        try:
+            self.llm_service = await get_langchain_service()
+            print("✅ LangChain LLM service initialized")
+        finally:
+            self._initializing = False
     
     async def connect(
         self, 
@@ -43,38 +63,42 @@ class ConnectionManager:
         """
         새 WebSocket 연결 수락 및 등록
         """
-        await websocket.accept()
-        
-        # 고유 연결 ID 생성
-        connection_id = str(uuid.uuid4())
-        
-        # 연결 등록
-        self.active_connections[connection_id] = websocket
-        self.connection_users[connection_id] = user
-        
-        # 사용자별 연결 관리
-        if user.id not in self.user_connections:
-            self.user_connections[user.id] = set()
-        self.user_connections[user.id].add(connection_id)
-        
-        # 세션별 연결 관리 (세션 ID가 있는 경우)
-        if session_id:
-            if session_id not in self.session_connections:
-                self.session_connections[session_id] = set()
-            self.session_connections[session_id].add(connection_id)
-        
-        # 연결 성공 메시지 전송
-        await self.send_to_connection(connection_id, {
-            "type": "connection_established",
-            "connection_id": connection_id,
-            "user_id": user.id,
-            "session_id": session_id,
-            "timestamp": datetime.now().isoformat(),
-            "message": "연결이 성공적으로 설정되었습니다."
-        })
-        
-        print(f"🔌 User {user.id} connected with connection {connection_id}")
-        return connection_id
+        try:
+            # WebSocket 연결 수락은 routes.py에서 이미 처리됨
+            # 여기서는 상태만 확인
+            
+            # WebSocket 상태 확인
+            if websocket.client_state.name != "CONNECTED":
+                print(f"❌ WebSocket not properly connected: {websocket.client_state.name}")
+                raise ConnectionError("WebSocket connection failed")
+            
+            # 고유 연결 ID 생성
+            connection_id = str(uuid.uuid4())
+            
+            # 연결 등록
+            self.active_connections[connection_id] = websocket
+            self.connection_users[connection_id] = user
+            
+            # 사용자별 연결 관리
+            if user.id not in self.user_connections:
+                self.user_connections[user.id] = set()
+            self.user_connections[user.id].add(connection_id)
+            
+            # 세션별 연결 관리 (세션 ID가 있는 경우)
+            if session_id:
+                if session_id not in self.session_connections:
+                    self.session_connections[session_id] = set()
+                self.session_connections[session_id].add(connection_id)
+            
+            print(f"🔌 User {user.id} connected with connection {connection_id}")
+            
+            # 연결 등록만 수행, 메시지 전송은 routes.py에서 처리
+            
+            return connection_id
+            
+        except Exception as e:
+            print(f"❌ Failed to establish WebSocket connection: {e}")
+            raise
     
     async def disconnect(self, connection_id: str):
         """
@@ -108,13 +132,46 @@ class ConnectionManager:
         """
         특정 연결에 메시지 전송
         """
-        if connection_id in self.active_connections:
-            try:
-                websocket = self.active_connections[connection_id]
-                await websocket.send_text(json.dumps(message, ensure_ascii=False))
-            except Exception as e:
-                print(f"❌ Failed to send message to {connection_id}: {e}")
+        if connection_id not in self.active_connections:
+            print(f"⚠️ Connection {connection_id} not found in active connections")
+            return
+            
+        websocket = self.active_connections[connection_id]
+        
+        try:
+            
+            # WebSocket이 CONNECTED 상태가 아닌 경우 즉시 제거
+            if websocket.client_state.name != "CONNECTED":
+                print(f"🔌 WebSocket {connection_id} not in CONNECTED state ({websocket.client_state.name}), removing")
                 await self.disconnect(connection_id)
+                return
+            
+            # 추가 안전 검사: WebSocket 객체가 유효한지 확인
+            if not hasattr(websocket, 'send_text'):
+                print(f"❌ WebSocket {connection_id} missing send_text method")
+                await self.disconnect(connection_id)
+                return
+                
+            
+            # 메시지 전송
+            await websocket.send_text(json.dumps(message, ensure_ascii=False))
+            
+        except Exception as e:
+            error_msg = str(e).lower()
+            print(f"❌ Failed to send message to {connection_id}: {e}")
+            print(f"🔍 Error type: {type(e).__name__}")
+            print(f"🔍 WebSocket state during error: {websocket.client_state.name if hasattr(websocket, 'client_state') else 'unknown'}")
+            
+            # 모든 전송 관련 에러는 연결 정리 (더 포괄적으로)
+            if any(keyword in error_msg for keyword in [
+                "disconnect", "closed", "close", "send", "connection", 
+                "websocket is not connected", "need to call", "accept",
+                "not connected", "receive"
+            ]):
+                print(f"🔌 Removing connection {connection_id} due to send error")
+                await self.disconnect(connection_id)
+                # 에러를 re-raise하여 상위에서 처리하도록 함
+                raise ConnectionError(f"WebSocket connection lost for {connection_id}")
     
     async def send_to_user(self, user_id: int, message: dict):
         """
@@ -163,6 +220,7 @@ class ConnectionManager:
             session_id = message_data.get("session_id")
             
             if not content:
+                print(f"❌ Empty message content from {connection_id}")
                 await self.send_to_connection(connection_id, {
                     "type": "error",
                     "error": "Message content is required",
@@ -180,20 +238,26 @@ class ConnectionManager:
                 )
                 
                 if not session_valid:
-                    await self.send_to_connection(connection_id, {
-                        "type": "error",
-                        "error": "Invalid session or access denied",
-                        "timestamp": datetime.now().isoformat()
-                    })
-                    return
+                    # 검증 실패 시 에러 대신 새 세션 생성
+                    from conversation.services import get_or_create_session
+                    session_response = await get_or_create_session(
+                        db=db,
+                        user_id=user.id
+                    )
+                    session_id = session_response.session_id
+                    print(f"✅ New session created: session_id={session_id}")
+                else:
+                    print(f"✅ Session validation successful: session_id={session_id}")
             else:
                 # 새 세션 생성
+                print(f"🆕 Creating new session for user {user.id}")
                 from conversation.services import get_or_create_session
                 session_response = await get_or_create_session(
                     db=db,
                     user_id=user.id
                 )
                 session_id = session_response.session_id
+                print(f"✅ New session created: session_id={session_id}")
             
             # 사용자 메시지를 데이터베이스에 저장
             from conversation.models import ChatMessageCreate
@@ -244,6 +308,9 @@ class ConnectionManager:
                     for msg in history_response.messages
                 ]
             
+            # LLM 서비스 초기화 확인
+            await self._ensure_llm_service()
+            
             # LLM 스트리밍 응답 생성
             assistant_content = ""
             assistant_message_id = str(uuid.uuid4())
@@ -264,13 +331,17 @@ class ConnectionManager:
                 
                 elif chunk["type"] == "content":
                     assistant_content += chunk["content"]
-                    await self.send_to_connection(connection_id, {
+                    chunk_data = {
                         "type": "response_chunk",
                         "content": chunk["content"],
                         "message_id": assistant_message_id,
                         "session_id": session_id,
                         "timestamp": chunk["timestamp"]
-                    })
+                    }
+                    try:
+                        await self.send_to_connection(connection_id, chunk_data)
+                    except Exception as e:
+                        raise
                 
                 elif chunk["type"] == "end":
                     # 타이핑 상태 종료

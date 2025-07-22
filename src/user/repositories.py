@@ -83,6 +83,7 @@ async def create_oauth_user(
     db_user = UserModel.from_schema(user_data)
     session.add(db_user)
     await session.flush()
+    await session.commit()
     return db_user.to_schema()
 
 

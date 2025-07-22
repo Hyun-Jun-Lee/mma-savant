@@ -27,22 +27,31 @@ def load_tools_from_module(module_path: str, tool_names: List[str] = None):
         else:
             # 새로운 방식: @mcp.tool() 데코레이터가 붙은 모든 함수 자동 로드
             loaded_count = 0
+            loaded_tools = set()  # 중복 방지를 위한 툴 이름 추적
+            
             for name, obj in inspect.getmembers(module):
                 if (inspect.isfunction(obj) and 
                     hasattr(obj, '__wrapped__') and 
-                    hasattr(obj, '_mcp_tool')):
-                    mcp.add_tool(obj)
-                    print(f"✅ {name} 자동 로드됨")
-                    loaded_count += 1
+                    hasattr(obj, '_mcp_tool') and 
+                    name not in loaded_tools):
+                    try:
+                        mcp.add_tool(obj)
+                        loaded_tools.add(name)
+                        print(f"✅ {name} 자동 로드됨")
+                        loaded_count += 1
+                    except Exception as e:
+                        print(f"⚠️ {name} 로드 실패: {e}")
             
             if loaded_count == 0:
                 # fallback: 함수명이 'get_'로 시작하는 async 함수들을 찾기
                 for name, obj in inspect.getmembers(module):
                     if (inspect.iscoroutinefunction(obj) and 
                         name.startswith('get_') and 
-                        not name.startswith('_')):
+                        not name.startswith('_') and
+                        name not in loaded_tools):
                         try:
                             mcp.add_tool(obj)
+                            loaded_tools.add(name)
                             print(f"✅ {name} 자동 로드됨 (fallback)")
                             loaded_count += 1
                         except Exception as e:

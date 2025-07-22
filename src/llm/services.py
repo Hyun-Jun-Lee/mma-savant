@@ -245,16 +245,7 @@ class LLMService:
                             tool_schema = self._create_tool_schema(name, obj)
                             if tool_schema:
                                 tools.append(tool_schema)
-                        
-                        # fallback: @mcp.tool() 정보가 없는 경우 함수명으로 추론
-                        elif (inspect.iscoroutinefunction(obj) and 
-                              name.startswith('get_') and 
-                              not name.startswith('_')):
-                            
-                            tool_schema = self._create_tool_schema(name, obj)
-                            if tool_schema:
-                                tools.append(tool_schema)
-                                
+
                 except ImportError as e:
                     print(f"Warning: Could not import {module_name}: {e}")
                     continue
@@ -267,6 +258,7 @@ class LLMService:
             raise ValueError("Failed to load MCP tools")
         
         self._tools_cache = tools
+        print(f"✅ MCP tools loaded: {len(tools)} tools")
         return tools
     
     def _create_tool_schema(self, func_name: str, func: Any) -> Optional[Dict[str, Any]]:

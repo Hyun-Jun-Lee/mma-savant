@@ -22,6 +22,10 @@ class Config:
     
     ANTHROPIC_API_KEY: str = os.getenv("ANTHROPIC_API_KEY")
     ANTHROPIC_MODEL_NAME: str = os.getenv("ANTHROPIC_MODEL_NAME")
+    
+    NEXTAUTH_SECRET: str = os.getenv("NEXTAUTH_SECRET")
+    ACCESS_TOKEN_EXPIRE_MINUTES: int = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", 60 * 24))
+    TOKEN_ALGORITHM: str = os.getenv("TOKEN_ALGORITHM", "HS256")
 
 def get_database_url(is_test : bool = False) -> str:
     if is_test:
