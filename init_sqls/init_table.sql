@@ -139,6 +139,40 @@ CREATE TABLE IF NOT EXISTS match_statistics (
         FOREIGN KEY (fighter_match_id) REFERENCES fighter_match(id) ON DELETE CASCADE
 );
 
+-- user 테이블 (사용자 관리)
+CREATE TABLE IF NOT EXISTS "user" (
+    id SERIAL PRIMARY KEY,
+    username VARCHAR UNIQUE,
+    password_hash VARCHAR,
+    email VARCHAR UNIQUE,
+    name VARCHAR,
+    picture TEXT,
+    provider_id VARCHAR,
+    provider VARCHAR,
+    total_requests INTEGER DEFAULT 0 NOT NULL,
+    daily_requests INTEGER DEFAULT 0 NOT NULL,
+    last_request_date TIMESTAMP,
+    is_active BOOLEAN DEFAULT TRUE NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- conversation 테이블 (채팅 세션 관리)
+CREATE TABLE IF NOT EXISTS conversation (
+    id SERIAL PRIMARY KEY,
+    user_id INTEGER NOT NULL,
+    session_id VARCHAR NOT NULL,
+    messages JSONB NOT NULL,
+    tool_results JSONB,
+    title TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    
+    -- 외래키 제약조건
+    CONSTRAINT fk_conversation_user 
+        FOREIGN KEY (user_id) REFERENCES "user"(id) ON DELETE CASCADE
+);
+
 -- 성능을 위한 인덱스 생성
 CREATE INDEX IF NOT EXISTS idx_fighter_name ON fighter(name);
 CREATE INDEX IF NOT EXISTS idx_match_event_id ON match(event_id);
@@ -148,3 +182,9 @@ CREATE INDEX IF NOT EXISTS idx_fighter_match_match_id ON fighter_match(match_id)
 CREATE INDEX IF NOT EXISTS idx_ranking_fighter_id ON ranking(fighter_id);
 CREATE INDEX IF NOT EXISTS idx_strike_detail_fighter_match_id ON strike_detail(fighter_match_id);
 CREATE INDEX IF NOT EXISTS idx_match_statistics_fighter_match_id ON match_statistics(fighter_match_id);
+
+-- 새로 추가된 테이블의 인덱스
+CREATE INDEX IF NOT EXISTS idx_user_email ON "user"(email);
+CREATE INDEX IF NOT EXISTS idx_user_provider_id ON "user"(provider_id);
+CREATE INDEX IF NOT EXISTS idx_conversation_user_id ON conversation(user_id);
+CREATE INDEX IF NOT EXISTS idx_conversation_session_id ON conversation(session_id);
