@@ -5,6 +5,8 @@ declare module "next-auth" {
     user: {
       id: string
     } & DefaultSession["user"]
+    accessToken?: string
+    googleAccessToken?: string
   }
 
   interface User {

@@ -31,8 +31,8 @@ export interface ChatState {
 }
 
 export interface ChatStore extends ChatState {
-  addMessage: (message: Omit<Message, "id" | "timestamp">) => void
-  updateMessage: (id: string, content: string) => void
+  addMessage: (message: Omit<Message, "id" | "timestamp">) => Message
+  updateMessage: (id: string, content: string, isStreaming?: boolean) => void
   setCurrentMessage: (message: string) => void
   setLoading: (loading: boolean) => void
   setConnected: (connected: boolean) => void

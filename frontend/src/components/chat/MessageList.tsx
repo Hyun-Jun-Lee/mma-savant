@@ -13,6 +13,15 @@ export function MessageList() {
   const bottomRef = useRef<HTMLDivElement>(null)
   const scrollAreaRef = useRef<HTMLDivElement>(null)
 
+  // 메시지 변경사항 로그
+  useEffect(() => {
+    console.log('🧩 MessageList: messages updated', {
+      count: messages.length,
+      messages: messages.map(m => ({ id: m.id, role: m.role, isStreaming: m.isStreaming, contentLength: m.content.length })),
+      isTyping
+    })
+  }, [messages, isTyping])
+
   // 새 메시지가 추가되거나 타이핑 상태가 변경될 때마다 스크롤을 맨 아래로
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" })

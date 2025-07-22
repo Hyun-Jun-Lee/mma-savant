@@ -4,6 +4,7 @@
 "use client"
 
 import { useCallback } from 'react'
+import { useRouter } from 'next/navigation'
 import { useChatStore } from '@/store/chatStore'
 import { ChatApiService } from '@/services/chatApi'
 import { handleApiError } from '@/lib/api'
@@ -11,6 +12,7 @@ import { ChatSession, Message } from '@/types/chat'
 import { ChatSessionResponse, ChatHistoryResponse } from '@/types/api'
 
 export function useChatSession() {
+  const router = useRouter()
   const {
     currentSession,
     sessions,
@@ -55,9 +57,10 @@ export function useChatSession() {
     } catch (error) {
       console.error('Failed to create session:', error)
       alert(`세션 생성 실패: ${handleApiError(error)}`)
+      router.push('/')
       return null
     }
-  }, [addSession, setCurrentSession, clearChat, convertApiResponseToSession])
+  }, [addSession, setCurrentSession, clearChat, convertApiResponseToSession, router])
 
   /**
    * 세션 목록 불러오기
@@ -71,10 +74,11 @@ export function useChatSession() {
     } catch (error) {
       console.error('Failed to load sessions:', error)
       alert(`세션 목록 로드 실패: ${handleApiError(error)}`)
+      router.push('/')
     } finally {
       setSessionsLoading(false)
     }
-  }, [setSessions, setSessionsLoading, convertApiResponseToSession])
+  }, [setSessions, setSessionsLoading, convertApiResponseToSession, router])
 
   /**
    * 특정 세션으로 전환
@@ -91,9 +95,10 @@ export function useChatSession() {
     } catch (error) {
       console.error('Failed to switch session:', error)
       alert(`세션 전환 실패: ${handleApiError(error)}`)
+      router.push('/')
       return false
     }
-  }, [setCurrentSession, convertApiResponseToSession])
+  }, [setCurrentSession, convertApiResponseToSession, router])
 
   /**
    * 채팅 히스토리 불러오기
@@ -112,10 +117,11 @@ export function useChatSession() {
     } catch (error) {
       console.error('Failed to load chat history:', error)
       alert(`채팅 히스토리 로드 실패: ${handleApiError(error)}`)
+      router.push('/')
     } finally {
       setHistoryLoading(false)
     }
-  }, [setHistoryLoading, loadMessagesFromHistory])
+  }, [setHistoryLoading, loadMessagesFromHistory, router])
 
   /**
    * 세션 삭제
@@ -133,9 +139,10 @@ export function useChatSession() {
     } catch (error) {
       console.error('Failed to delete session:', error)
       alert(`세션 삭제 실패: ${handleApiError(error)}`)
+      router.push('/')
       return false
     }
-  }, [removeSession, currentSession, createSession])
+  }, [removeSession, currentSession, createSession, router])
 
   /**
    * 세션 제목 업데이트
@@ -150,9 +157,10 @@ export function useChatSession() {
     } catch (error) {
       console.error('Failed to update session title:', error)
       alert(`제목 수정 실패: ${handleApiError(error)}`)
+      router.push('/')
       return false
     }
-  }, [updateSession, convertApiResponseToSession])
+  }, [updateSession, convertApiResponseToSession, router])
 
   /**
    * 세션 접근 권한 확인

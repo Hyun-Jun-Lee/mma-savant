@@ -20,17 +20,32 @@ export const useChatStore = create<ChatStore>((set, get) => ({
       timestamp: new Date(),
     }
     
+    console.log('🏪 Adding message to store:', newMessage.id, 'role:', newMessage.role, 'isStreaming:', newMessage.isStreaming)
+    
     set((state) => ({
       messages: [...state.messages, newMessage],
     }))
+    
+    return newMessage
   },
 
-  updateMessage: (id, content) => {
-    set((state) => ({
-      messages: state.messages.map((msg) =>
-        msg.id === id ? { ...msg, content, isStreaming: false } : msg
-      ),
-    }))
+  updateMessage: (id, content, isStreaming) => {
+    console.log('🏪 Updating message in store:', id, 'content length:', content.length, 'isStreaming:', isStreaming)
+    
+    set((state) => {
+      const messageFound = state.messages.find(msg => msg.id === id)
+      if (!messageFound) {
+        console.log('❌ Message not found in store:', id)
+      } else {
+        console.log('✅ Message found in store, updating:', id)
+      }
+      
+      return {
+        messages: state.messages.map((msg) =>
+          msg.id === id ? { ...msg, content, isStreaming: isStreaming ?? false } : msg
+        ),
+      }
+    })
   },
 
   setCurrentMessage: (currentMessage) => set({ currentMessage }),
