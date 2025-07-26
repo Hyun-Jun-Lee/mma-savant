@@ -15,7 +15,7 @@ from data_collector.workflows.tasks import (
 
 LOGGER = logging.getLogger(__name__)
 
-
+# TODO : session 분리해서 하위 프로세스에서 별도의 session을 사용하도록 수정
 async def run_ufc_stats_flow():
     LOGGER.info("UFC 통계 크롤링 시작")
     start_time = time.time()
@@ -26,18 +26,18 @@ async def run_ufc_stats_flow():
     #     await scrap_all_fighter_task(session, crawl_with_httpx)
     #     LOGGER.info("Fighters scraping completed")
 
-    # 이벤트 크롤링
-    async with async_db_session() as session:
-        LOGGER.info("Events scraping started")
-        await scrap_all_events_task(session, crawl_with_httpx)
-        LOGGER.info("Events scraping completed")
+    # # 이벤트 크롤링
+    # async with async_db_session() as session:
+    #     LOGGER.info("Events scraping started")
+    #     await scrap_all_events_task(session, crawl_with_httpx)
+    #     LOGGER.info("Events scraping completed")
 
 
-    # 이벤트 세부 정보 크롤링
-    async with async_db_session() as session:
-        LOGGER.info("Event details scraping started")
-        await scrap_event_detail_task(session, crawl_with_httpx)
-        LOGGER.info("Event details scraping completed")
+    # # 이벤트 세부 정보 크롤링
+    # async with async_db_session() as session:
+    #     LOGGER.info("Event details scraping started")
+    #     await scrap_event_detail_task(session, crawl_with_httpx)
+    #     LOGGER.info("Event details scraping completed")
 
     # 매치 세부 정보 크롤링
     async with async_db_session() as session:

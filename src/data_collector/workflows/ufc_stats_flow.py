@@ -9,6 +9,7 @@ logger = get_run_logger()
 
 @flow(log_prints=True)
 async def run_ufc_stats_flow():
+    # TODO : session 분리해서 하위 프로세스에서 별도의 session을 사용하도록 수정
     logger.info("======================")
     logger.info("Start UFC stats scraping")
     logger.info("======================")
