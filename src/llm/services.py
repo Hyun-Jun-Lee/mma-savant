@@ -12,7 +12,7 @@ from typing import List, Dict, Any, Optional, AsyncGenerator
 from datetime import datetime
 
 from llm.client import LLMClient, get_llm_client, LLMError
-from llm.prompts import get_system_prompt_with_tools, get_conversation_starter
+from llm.prompts.en_ver import get_en_system_prompt_with_tools, get_en_conversation_starter
 
 # FastMCP 도구 로딩을 위한 경로 설정
 current_dir = os.path.dirname(os.path.abspath(__file__))
@@ -50,7 +50,7 @@ class LLMService:
     
     def __init__(self, llm_client: Optional[LLMClient] = None):
         self.llm_client = llm_client or get_llm_client()
-        self.system_prompt = get_system_prompt_with_tools()
+        self.system_prompt = get_en_system_prompt_with_tools()
         self._tools_cache = None
         self._tool_functions_cache = None
     
