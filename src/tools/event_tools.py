@@ -130,26 +130,11 @@ async def get_upcoming_events(limit: int = 5) -> List[Dict]:
     """
     다가오는 UFC/MMA 이벤트들을 날짜순으로 조회합니다.
     
-    사용자가 미래의 이벤트, 예정된 경기, 다음에 볼 수 있는 이벤트에 대해 물어볼 때 사용합니다.
-    가장 가까운 이벤트부터 시간순으로 정렬되어 반환됩니다.
-    
     Args:
         limit (int, optional): 반환할 최대 이벤트 수. 기본값은 5
     
     Returns:
-        List[Dict]: 다가오는 이벤트 목록 (날짜 오름차순)
-    
-    사용 시점:
-    - 사용자가 다가오는 이벤트에 대해 관심을 보일 때
-    - 미래의 경기 일정을 확인하고 싶을 때
-    - 다음에 볼 수 있는 UFC 이벤트를 알고 싶을 때
-    
-    사용자 질문 예시:
-    - "다음에 있을 UFC 이벤트가 언제야?"
-    - "이번 달에 어떤 UFC 경기가 있어?"
-    - "앞으로 예정된 이벤트들을 보여줘"
-    - "다가오는 UFC 일정을 알려줘"
-    - "언제 다음 경기를 볼 수 있어?"
+        List[Dict]: 다가오는 이벤트 목록
     """
     async with async_db_session() as session:
         events = await event_repo.get_upcoming_events(session, limit)
@@ -161,26 +146,11 @@ async def get_recent_events(limit: int = 5) -> List[Dict]:
     """
     최근에 개최된 UFC/MMA 이벤트들을 최신순으로 조회합니다.
     
-    사용자가 지난 이벤트들, 놓친 경기, 최근 결과에 대해 궁금해할 때 사용합니다.
-    가장 최근 이벤트부터 역시간순으로 정렬되어 반환됩니다.
-    
     Args:
         limit (int, optional): 반환할 최대 이벤트 수. 기본값은 5
     
     Returns:
-        List[Dict]: 최근 이벤트 목록 (날짜 내림차순)
-    
-    사용 시점:
-    - 사용자가 최근 열린 이벤트에 대해 관심을 보일 때
-    - 놓친 경기나 지난 이벤트를 확인하고 싶을 때
-    - 최근 UFC 결과나 이벤트를 알고 싶을 때
-    
-    사용자 질문 예시:
-    - "최근에 어떤 UFC 이벤트가 있었어?"
-    - "지난주에 UFC 경기가 있었나?"
-    - "내가 놓친 최근 이벤트들을 보여줘"
-    - "최근 UFC 결과가 궁금해"
-    - "어제 UFC 있었어?"
+        List[Dict]: 최근 이벤트 목록
     """
     async with async_db_session() as session:
         events = await event_repo.get_recent_events(session, limit)
@@ -192,30 +162,8 @@ async def get_next_and_last_events() -> Dict[str, Any]:
     """
     가장 가까운 다음 이벤트와 가장 최근 이벤트 정보를 날짜 계산과 함께 제공합니다.
     
-    사용자가 UFC 일정의 전체적인 상황을 파악하고 싶거나, 다음 이벤트까지 얼마나 남았는지,
-    마지막 이벤트가 언제였는지 등 시간적 맥락이 중요한 질문을 할 때 사용합니다.
-    
     Returns:
         Dict[str, Any]: 다음/최근 이벤트 정보와 날짜 계산 결과
-        {
-            "next_event": Dict | None,
-            "last_event": Dict | None, 
-            "days_until_next": int,
-            "days_since_last": int
-        }
-    
-    사용 시점:
-    - 사용자가 UFC 일정의 전반적인 상황을 알고 싶을 때
-    - 다음 이벤트까지의 대기 시간을 궁금해할 때
-    - 최근 이벤트로부터 얼마나 시간이 지났는지 궁금할 때
-    - UFC 팬이 다음 경기를 기다리는 맥락에서 질문할 때
-    
-    사용자 질문 예시:
-    - "다음 UFC까지 얼마나 남았어?"
-    - "마지막 UFC가 언제였고 다음은 언제야?"
-    - "UFC 일정이 어떻게 돼?"
-    - "얼마나 기다려야 다음 경기를 볼 수 있어?"
-    - "UFC 휴식기가 얼마나 길어?"
     """
     async with async_db_session() as session:
         result = await event_services.get_next_and_last_events(session)
@@ -243,27 +191,6 @@ async def get_event_timeline(period: str = "month") -> Dict[str, Any]:
     async with async_db_session() as session:
         timeline = await event_services.get_event_timeline(session, period)
         return timeline.model_dump()
-
-
-@mcp.tool()
-async def get_event_summary(event_id: int) -> Optional[Dict[str, Any]]:
-    """
-    특정 이벤트의 요약 정보를 조회합니다.
-    이벤트 기본 정보와 통계 정보를 포함합니다.
-    
-    Args:
-        event_id (int): 조회할 이벤트의 ID
-    
-    Returns:
-        Optional[Dict[str, Any]]: 이벤트 요약 정보를 담은 딕셔너리 또는 None
-        {
-            "event": Dict,
-            "stats": Dict
-        }
-    """
-    async with async_db_session() as session:
-        summary = await event_services.get_event_summary(session, int(event_id))
-        return summary.model_dump() if summary else None
 
 
 @mcp.tool()
@@ -334,29 +261,13 @@ async def get_events_by_month(year: int, month: int) -> List[Dict]:
 async def get_events_calendar(year: int, month: Optional[int] = None) -> Dict[str, Any]:
     """
     특정 연도 또는 연도와 월에 대한 이벤트 캘린더를 조회합니다.
-    월이 지정되면 일별 이벤트 목록을, 월이 지정되지 않으면 월별 이벤트 요약을 반환합니다.
     
     Args:
         year (int): 조회할 연도
-        month (Optional[int], optional): 조회할 월(1-12). None이면 연간 캘린더를 반환
+        month (Optional[int], optional): 조회할 월(1-12)
     
     Returns:
         Dict[str, Any]: 캘린더 정보를 담은 딕셔너리
-        월간 캘린더일 경우:
-        {
-            "type": "monthly",
-            "year": int,
-            "month": int,
-            "total_events": int,
-            "calendar": {일자: [이벤트 목록]}
-        }
-        연간 캘린더일 경우:
-        {
-            "type": "yearly",
-            "year": int,
-            "total_events": int,
-            "monthly_breakdown": {월: {"count": int, "events": [이벤트 목록]}}
-        }
     """
     async with async_db_session() as session:
         calendar_data = await event_services.get_events_calendar(session, year, month)
@@ -394,7 +305,6 @@ async def get_events_calendar(year: int, month: Optional[int] = None) -> Dict[st
 async def get_location_statistics() -> Dict[str, Any]:
     """
     이벤트 개최 장소에 관한 통계 정보를 조회합니다.
-    가장 많은 이벤트가 열린 장소, 국가별 이벤트 수 등의 정보를 제공합니다.
     
     Returns:
         Dict[str, Any]: 장소 통계 정보를 담은 딕셔너리
@@ -410,36 +320,11 @@ async def get_event_recommendations(recommendation_type: str = "upcoming") -> Di
     """
     사용자에게 맞춤형 이벤트 추천을 제공합니다.
     
-    사용자가 어떤 이벤트를 봐야 할지 모르거나, 추천을 요청하거나, 
-    인기 있는 이벤트에 관심을 보일 때 사용합니다.
-    
     Args:
-        recommendation_type (str, optional): 추천 유형
-            - "upcoming": 다가오는 추천 이벤트
-            - "recent": 최근 개최된 인기 이벤트  
-            - "popular": 인기 있는 이벤트
-            기본값은 "upcoming"
+        recommendation_type (str, optional): 추천 유형. 기본값은 "upcoming"
     
     Returns:
         Dict[str, Any]: 추천 정보와 설명을 포함한 딕셔너리
-        {
-            "type": str,
-            "title": str,
-            "description": str,
-            "events": List[Dict]
-        }
-    
-    사용 시점:
-    - 사용자가 어떤 이벤트를 봐야 할지 추천을 요청할 때
-    - UFC 입문자가 어떤 이벤트부터 봐야 할지 물어볼 때
-    - 인기 있는 이벤트나 놓치면 안 되는 이벤트를 궁금해할 때
-    
-    사용자 질문 예시:
-    - "어떤 UFC 이벤트를 추천해줄 수 있어?"
-    - "봐야 할 인기 있는 UFC 이벤트가 있어?"
-    - "UFC 초보자에게 추천할만한 이벤트는?"
-    - "놓치면 안 되는 다가오는 이벤트가 있어?"
-    - "가장 기대되는 UFC 이벤트는 뭐야?"
     """
     async with async_db_session() as session:
         recommendations = await event_services.get_event_recommendations(session, recommendation_type)
@@ -459,10 +344,9 @@ async def get_event_recommendations(recommendation_type: str = "upcoming") -> Di
 async def get_event_trends(period: str = "yearly") -> Dict[str, Any]:
     """
     지정된 기간에 대한 이벤트 트렌드 정보를 조회합니다.
-    기간별 이벤트 개최 횟수, 인기 장소 등의 트렌드 정보를 제공합니다.
     
     Args:
-        period (str, optional): 트렌드 분석 기간 ("yearly", "monthly" 등). 기본값은 "yearly"
+        period (str, optional): 트렌드 분석 기간. 기본값은 "yearly"
     
     Returns:
         Dict[str, Any]: 트렌드 정보를 담은 딕셔너리
