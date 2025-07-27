@@ -22,34 +22,6 @@ class TestEventComposerWithTestDB:
     """Test DB를 사용한 Event Composer 테스트"""
     
     @pytest.mark.asyncio
-    async def test_get_event_with_all_matches_success(self, sample_event, clean_test_session):
-        """이벤트와 모든 매치 정보 조회 성공 테스트"""
-        # When: 이벤트 이름으로 모든 매치 조회
-        result = await event_composer.get_event_with_all_matches(clean_test_session, sample_event.name)
-        
-        # Then: EventWithAllMatchesDTO 반환
-        assert result is not None
-        assert isinstance(result, EventWithAllMatchesDTO)
-        assert result.event.id == sample_event.id
-        assert result.event.name == sample_event.name
-        assert isinstance(result.matches, list)
-        assert isinstance(result.summary, EventSummaryStatsDTO)
-        assert isinstance(result.summary.total_matches, int)
-        assert isinstance(result.summary.main_events_count, int)
-        assert isinstance(result.summary.finish_methods, dict)
-    
-    @pytest.mark.asyncio
-    async def test_get_event_with_all_matches_nonexistent(self, clean_test_session):
-        """존재하지 않는 이벤트 조회 테스트"""
-        from composition.exceptions import CompositionNotFoundError
-        
-        # When & Then: 존재하지 않는 이벤트 조회 시 CompositionNotFoundError 발생
-        with pytest.raises(CompositionNotFoundError) as exc_info:
-            await event_composer.get_event_with_all_matches(clean_test_session, "Nonexistent Event")
-        
-        assert "Event not found: Nonexistent Event" in str(exc_info.value)
-    
-    @pytest.mark.asyncio
     async def test_get_recent_events_with_main_match(self, multiple_events_different_dates, clean_test_session):
         """최근 이벤트와 메인 매치 조회 테스트"""
         # When: 최근 이벤트들과 메인 매치 조회
@@ -90,88 +62,6 @@ class TestEventComposerWithTestDB:
 
 class TestEventComposerWithMocks:
     """Mock을 사용한 Event Composer 단위 테스트"""
-    
-    @pytest.mark.asyncio
-    async def test_get_event_with_all_matches_with_mock_data(self, clean_test_session):
-        """Mock 데이터로 이벤트 모든 매치 조회 테스트"""
-        # Given: Mock 데이터 설정
-        from datetime import datetime
-        mock_event = EventSchema(
-            id=1,
-            name="UFC Test Event",
-            location="Las Vegas, NV",
-            event_date=date(2024, 8, 1),
-            url="http://example.com",
-            created_at=datetime.now(),
-            updated_at=datetime.now()
-        )
-        
-        mock_event_summary = {
-            "event": mock_event,
-            "matches": [
-                MatchSchema(
-                    id=1,
-                    event_id=1,
-                    method="KO/TKO",
-                    is_main_event=True,
-                    order=1,
-                    created_at=datetime.now(),
-                    updated_at=datetime.now()
-                )
-            ],
-            "summary": {
-                "total_matches": 1,
-                "main_events_count": 1,
-                "finish_methods": {"KO/TKO": 1}
-            }
-        }
-        
-        mock_match_result = {
-            "fighters": [
-                {
-                    "fighter": FighterSchema(
-                        id=1, name="Fighter 1", created_at=datetime.now(), updated_at=datetime.now()
-                    ),
-                    "result": "Win"
-                },
-                {
-                    "fighter": FighterSchema(
-                        id=2, name="Fighter 2", created_at=datetime.now(), updated_at=datetime.now()
-                    ),
-                    "result": "Loss"
-                }
-            ],
-            "winner": {
-                "fighter": FighterSchema(
-                    id=1, name="Fighter 1", created_at=datetime.now(), updated_at=datetime.now()
-                ),
-                "result": "Win"
-            },
-            "loser": {
-                "fighter": FighterSchema(
-                    id=2, name="Fighter 2", created_at=datetime.now(), updated_at=datetime.now()
-                ),
-                "result": "Loss"
-            }
-        }
-        
-        # When: Mock을 사용하여 함수 호출
-        with patch('composition.event_composer.event_repo.get_event_by_name', return_value=mock_event), \
-             patch('composition.event_composer.get_event_with_matches_summary', return_value=mock_event_summary), \
-             patch('composition.event_composer.match_repo.get_match_with_winner_loser', return_value=mock_match_result):
-            
-            result = await event_composer.get_event_with_all_matches(clean_test_session, "UFC Test Event")
-        
-        # Then: 올바른 DTO 구조 반환
-        assert isinstance(result, EventWithAllMatchesDTO)
-        assert result.event.name == "UFC Test Event"
-        assert len(result.matches) == 1
-        assert result.matches[0].match_info.method == "KO/TKO"
-        assert len(result.matches[0].fighters) == 2
-        assert result.matches[0].winner.fighter.name == "Fighter 1"
-        assert result.matches[0].loser.fighter.name == "Fighter 2"
-        assert result.summary.total_matches == 1
-        assert result.summary.main_events_count == 1
     
     @pytest.mark.asyncio
     async def test_compare_events_by_performance_with_mocks(self, clean_test_session):
@@ -398,42 +288,6 @@ class TestEventComposerErrorHandling:
         assert len(result.ranking_impacts) == 0
         assert result.summary.matches_with_ranked_fighters == 0
         assert result.summary.title_implication_matches == 0
-    
-    @pytest.mark.asyncio
-    async def test_get_event_with_all_matches_no_match_results(self, clean_test_session):
-        """매치 결과가 없는 경우 테스트"""
-        # Given: Mock 데이터 설정
-        from datetime import datetime
-        mock_event = EventSchema(
-            id=1, name="UFC Test Event", location="Vegas", event_date=date(2024, 1, 1),
-            created_at=datetime.now(), updated_at=datetime.now()
-        )
-        mock_event_summary = {
-            "event": mock_event,
-            "matches": [
-                MatchSchema(
-                    id=1, event_id=1, method="TBD", is_main_event=True,
-                    created_at=datetime.now(), updated_at=datetime.now()
-                )
-            ],
-            "summary": {
-                "total_matches": 1,
-                "main_events_count": 1,
-                "finish_methods": {}
-            }
-        }
-        
-        # When: 매치 결과가 None인 경우
-        with patch('composition.event_composer.event_repo.get_event_by_name', return_value=mock_event), \
-             patch('composition.event_composer.get_event_with_matches_summary', return_value=mock_event_summary), \
-             patch('composition.event_composer.match_repo.get_match_with_winner_loser', return_value=None):
-            
-            result = await event_composer.get_event_with_all_matches(clean_test_session, "UFC Test Event")
-        
-        # Then: 매치 결과 없이도 정상 처리
-        assert isinstance(result, EventWithAllMatchesDTO)
-        assert len(result.matches) == 0  # 매치 결과가 없으므로 빈 리스트
-
 
 class TestEventSummaryComposer:
     """Event Summary Composer 테스트 (event_services.py에서 이동됨)"""

@@ -28,20 +28,20 @@ from composition.dto import (
 )
 
 
-async def get_event_matches(session: AsyncSession, event_name: str) -> EventMatchesDTO:
+async def get_event_matches(session: AsyncSession, event_id: int) -> EventMatchesDTO:
     """
     특정 이벤트에 속한 모든 경기와 참가 파이터 정보를 조회합니다.
     """
     # 입력 검증
-    if not event_name or not event_name.strip():
-        raise MatchValidationError("event_name", event_name, "Event name cannot be empty")
+    if not event_id:
+        raise MatchValidationError("event_id", event_id, "Event ID cannot be empty")
     
     try:
-        event = await event_repo.get_event_by_name(session, event_name)
+        event = await event_repo.get_event_by_id(session, event_id)
         if not event:
-            raise MatchNotFoundError(event_name, "event_name")
+            raise MatchNotFoundError(event_id, "event_id")
 
-        matches = await match_repo.get_matches_by_event_id(session, event.id)
+        matches = await match_repo.get_matches_by_event_id(session, event_id)
         matches_list = []
         # match.order로 정렬
         sorted_matches = sorted(matches, key=lambda m: m.order if m.order is not None else 999)
@@ -90,11 +90,11 @@ async def get_event_matches(session: AsyncSession, event_name: str) -> EventMatc
         )
     
     except MatchNotFoundError:
-        raise CompositionNotFoundError("Event", event_name, "get_event_matches")
+        raise CompositionNotFoundError("Event", event_id, "get_event_matches")
     except MatchValidationError as e:
-        raise CompositionValidationError("event_name", event_name, str(e))
+        raise CompositionValidationError("event_id", event_id, str(e))
     except Exception as e:
-        raise CompositionQueryError("get_event_matches", {"event_name": event_name}, str(e))
+        raise CompositionQueryError("get_event_matches", {"event_id": event_id}, str(e))
 
 
 async def get_fight_of_the_night_candidates(session: AsyncSession, event_id: int) -> FOTNCandidatesDTO:

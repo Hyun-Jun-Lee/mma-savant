@@ -24,22 +24,6 @@ async def get_event_summary(event_id: int) -> Optional[Dict[str, Any]]:
         return summary.model_dump() if summary else None
 
 @mcp.tool()
-async def get_event_with_all_matches(event_name: str) -> Optional[Dict]:
-    """
-    특정 이벤트에 속한 모든 경기와 승패결과를 조회합니다.
-    
-    Args:
-        event_name (str): 조회할 이벤트 이름
-    
-    Returns:
-        Optional[Dict]: 이벤트와 모든 매치 정보
-    """
-    async with async_db_session() as session:
-        result = await event_composer.get_event_with_all_matches(session, event_name)
-        return result.model_dump() if result else None
-
-
-@mcp.tool()
 async def get_recent_events_with_main_match(limit: int = 10) -> List[Dict]:
     """
     최근 이벤트들과 각각의 메인 이벤트 경기만을 조회합니다.
@@ -107,18 +91,18 @@ async def get_event_rankings_impact(event_id: int) -> Dict:
 # Match Composer Tools
 
 @mcp.tool()
-async def get_event_matches(event_name: str) -> Optional[Dict]:
+async def get_event_matches(event_id: int) -> Optional[Dict]:
     """
     특정 이벤트에 속한 모든 경기와 참가 파이터 정보를 조회합니다.
     
     Args:
-        event_name (str): 조회할 이벤트 이름
+        event_id (int): 조회할 이벤트 ID
     
     Returns:
         Optional[Dict]: 이벤트 정보와 전체 매치 목록
     """
     async with async_db_session() as session:
-        result = await match_composer.get_event_matches(session, event_name)
+        result = await match_composer.get_event_matches(session, event_id)
         return result.model_dump() if result else None
 
 
