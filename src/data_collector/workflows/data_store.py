@@ -113,7 +113,11 @@ async def save_fighter_match(session, fighter_id: int, match_id: int, result: st
 async def save_basic_match_stat(session, basic_match_stat_list: List[BasicMatchStatSchema]):
     for basic_match_stat in basic_match_stat_list:
         existing_stats = await session.execute(
-            select(BasicMatchStatModel).where(BasicMatchStatModel.fighter_match_id == basic_match_stat.fighter_match_id)
+            select(BasicMatchStatModel)
+            .where(
+                BasicMatchStatModel.fighter_match_id == basic_match_stat.fighter_match_id,
+                BasicMatchStatModel.round == basic_match_stat.round
+            )
         )
         existing_stats = existing_stats.scalar_one_or_none()
         
@@ -131,7 +135,11 @@ async def save_basic_match_stat(session, basic_match_stat_list: List[BasicMatchS
 async def save_sig_str_match_stat(session, sig_str_match_stat_list: List[SigStrMatchStatSchema]):
     for sig_str_match_stat in sig_str_match_stat_list:
         existing_stats = await session.execute(
-            select(SigStrMatchStatModel).where(SigStrMatchStatModel.fighter_match_id == sig_str_match_stat.fighter_match_id)
+            select(SigStrMatchStatModel)
+            .where(
+                SigStrMatchStatModel.fighter_match_id == sig_str_match_stat.fighter_match_id,
+                SigStrMatchStatModel.round == sig_str_match_stat.round
+            )
         )
         existing_stats = existing_stats.scalar_one_or_none()
         
