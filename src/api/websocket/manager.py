@@ -15,7 +15,6 @@ from user.models import UserModel
 from conversation.services import ChatSessionService
 from llm.langchain_service import get_langchain_service, LangChainLLMService
 
-
 class ConnectionManager:
     """WebSocket 연결 관리자"""
     
@@ -294,7 +293,7 @@ class ConnectionManager:
                 db=db,
                 session_id=session_id,
                 user_id=user.id,
-                limit=10  # 최근 10개 메시지만
+                limit=10  # 최근 10개 메시지 (tool 결과 보존을 위해 증가)
             )
             
             conversation_history = []
@@ -307,6 +306,13 @@ class ConnectionManager:
                     }
                     for msg in history_response.messages
                 ]
+                print(f"📚 Retrieved {len(conversation_history)} messages from history")
+                for i, msg in enumerate(conversation_history):
+                    content_preview = msg["content"][:100] + "..." if len(msg["content"]) > 100 else msg["content"]
+                    has_tools = "<!-- TOOL_RESULTS:" in msg["content"]
+                    print(f"   {i+1}. {msg['role']}: {content_preview} {'🔧' if has_tools else ''}")
+            else:
+                print("📚 No conversation history found")
             
             # LLM 서비스 초기화 확인
             await self._ensure_llm_service()
@@ -314,6 +320,7 @@ class ConnectionManager:
             # LLM 스트리밍 응답 생성
             assistant_content = ""
             assistant_message_id = str(uuid.uuid4())
+            tool_results = []  # tool 결과 저장용
             
             async for chunk in self.llm_service.generate_streaming_chat_response(
                 user_message=content,
@@ -343,6 +350,51 @@ class ConnectionManager:
                     except Exception as e:
                         raise
                 
+                elif chunk["type"] == "final_result":
+                    # tool 결과 저장
+                    if "intermediate_steps" in chunk:
+                        print("intermediate_steps exists")
+                        tool_results = chunk["intermediate_steps"]
+                        print(f"🔧 Tool results captured: {len(tool_results)} steps")
+                        for i, step in enumerate(tool_results):
+                            if len(step) >= 2:
+                                action, result = step
+                                print(f"   Step {i+1}: {getattr(action, 'tool', 'unknown')}")
+                    
+                    # final_result에서 메시지 저장 (tool 결과 포함)
+                    enhanced_content = assistant_content
+                    print(f"🔍 Checking tool_results in final_result: {len(tool_results) if tool_results else 'None/Empty'}")
+                    
+                    if tool_results:
+                        print("tool result exists")
+                        # tool 결과를 JSON으로 추가 (사용자에게는 보이지 않도록)
+                        tool_info = []
+                        for step in tool_results:
+                            if len(step) >= 2:
+                                action, result = step
+                                tool_info.append({
+                                    "tool": getattr(action, 'tool', 'unknown'),
+                                    "input": getattr(action, 'tool_input', {}),
+                                    "result": str(result)[:500] + "..." if len(str(result)) > 500 else str(result)
+                                })
+                        
+                        enhanced_content += f"\n\n<!-- TOOL_RESULTS: {json.dumps(tool_info, ensure_ascii=False)} -->"
+                    
+                    # 어시스턴트 메시지를 데이터베이스에 저장
+                    assistant_message = ChatMessageCreate(
+                        content=enhanced_content,  # tool 정보 포함
+                        role="assistant",
+                        session_id=session_id
+                    )
+                    print(f"📝 Saving message content length: {len(enhanced_content)}")
+                    
+                    await ChatSessionService.add_message(
+                        db=db,
+                        session_id=session_id,
+                        user_id=user.id,
+                        message_data=assistant_message
+                    )
+                
                 elif chunk["type"] == "end":
                     # 타이핑 상태 종료
                     await self.send_to_connection(connection_id, {
@@ -351,20 +403,7 @@ class ConnectionManager:
                         "timestamp": datetime.now().isoformat()
                     })
                     
-                    # 어시스턴트 메시지를 데이터베이스에 저장
-                    assistant_message = ChatMessageCreate(
-                        content=assistant_content,
-                        role="assistant",
-                        session_id=session_id
-                    )
-                    
-                    await ChatSessionService.add_message(
-                        db=db,
-                        session_id=session_id,
-                        user_id=user.id,
-                        message_data=assistant_message
-                    )
-                    
+                    # 응답 종료 알림만 전송 (메시지 저장은 final_result에서 처리)
                     await self.send_to_connection(connection_id, {
                         "type": "response_end",
                         "message_id": assistant_message_id,
