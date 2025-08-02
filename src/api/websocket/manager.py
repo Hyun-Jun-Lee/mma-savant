@@ -12,7 +12,8 @@ from fastapi import WebSocket, WebSocketDisconnect
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from user.models import UserModel
-from conversation.services import ChatSessionService
+from conversation.services import ChatSessionService, get_or_create_session
+from conversation.models import ChatMessageCreate
 from llm.langchain_service import get_langchain_service, LangChainLLMService
 
 class ConnectionManager:
@@ -215,7 +216,7 @@ class ConnectionManager:
                 return
             
             # 메시지 데이터 검증
-            content = message_data.get("content", "").strip()
+            content = message_data.get("content").strip()
             session_id = message_data.get("session_id")
             
             if not content:
@@ -235,10 +236,14 @@ class ConnectionManager:
                     session_id=session_id,
                     user_id=user.id
                 )
+
+                print("-" * 50)
+                print(f"Session validation result: {session_valid}")
+                print("-" * 50)
                 
                 if not session_valid:
+                    print("Failed to validate session, creating new session")
                     # 검증 실패 시 에러 대신 새 세션 생성
-                    from conversation.services import get_or_create_session
                     session_response = await get_or_create_session(
                         db=db,
                         user_id=user.id
@@ -250,7 +255,6 @@ class ConnectionManager:
             else:
                 # 새 세션 생성
                 print(f"🆕 Creating new session for user {user.id}")
-                from conversation.services import get_or_create_session
                 session_response = await get_or_create_session(
                     db=db,
                     user_id=user.id
@@ -259,7 +263,6 @@ class ConnectionManager:
                 print(f"✅ New session created: session_id={session_id}")
             
             # 사용자 메시지를 데이터베이스에 저장
-            from conversation.models import ChatMessageCreate
             user_message = ChatMessageCreate(
                 content=content,
                 role="user",
@@ -352,41 +355,34 @@ class ConnectionManager:
                 
                 elif chunk["type"] == "final_result":
                     # tool 결과 저장
+                    tool_info = None
                     if "intermediate_steps" in chunk:
                         print("intermediate_steps exists")
                         tool_results = chunk["intermediate_steps"]
                         print(f"🔧 Tool results captured: {len(tool_results)} steps")
-                        for i, step in enumerate(tool_results):
-                            if len(step) >= 2:
-                                action, result = step
-                                print(f"   Step {i+1}: {getattr(action, 'tool', 'unknown')}")
-                    
-                    # final_result에서 메시지 저장 (tool 결과 포함)
-                    enhanced_content = assistant_content
-                    print(f"🔍 Checking tool_results in final_result: {len(tool_results) if tool_results else 'None/Empty'}")
-                    
-                    if tool_results:
-                        print("tool result exists")
-                        # tool 결과를 JSON으로 추가 (사용자에게는 보이지 않도록)
-                        tool_info = []
-                        for step in tool_results:
-                            if len(step) >= 2:
-                                action, result = step
-                                tool_info.append({
-                                    "tool": getattr(action, 'tool', 'unknown'),
-                                    "input": getattr(action, 'tool_input', {}),
-                                    "result": str(result)[:500] + "..." if len(str(result)) > 500 else str(result)
-                                })
                         
-                        enhanced_content += f"\n\n<!-- TOOL_RESULTS: {json.dumps(tool_info, ensure_ascii=False)} -->"
+                        if tool_results:
+                            print("tool result exists")
+                            # tool 결과를 별도 필드로 저장
+                            tool_info = []
+                            for i, step in enumerate(tool_results):
+                                if len(step) >= 2:
+                                    action, result = step
+                                    print(f"   Step {i+1}: {getattr(action, 'tool', 'unknown')}")
+                                    tool_info.append({
+                                        "tool": getattr(action, 'tool', 'unknown'),
+                                        "input": getattr(action, 'tool_input', {}),
+                                        "result": str(result)[:500] + "..." if len(str(result)) > 500 else str(result)
+                                    })
                     
                     # 어시스턴트 메시지를 데이터베이스에 저장
                     assistant_message = ChatMessageCreate(
-                        content=enhanced_content,  # tool 정보 포함
+                        content=assistant_content,  # 순수한 콘텐츠만 저장
                         role="assistant",
-                        session_id=session_id
+                        session_id=session_id,
+                        tool_results=tool_info  # tool 결과는 별도 필드에 저장
                     )
-                    print(f"📝 Saving message content length: {len(enhanced_content)}")
+                    print(f"📝 Saving message - content length: {len(assistant_content)}, tool_results: {len(tool_info) if tool_info else 0} items")
                     
                     await ChatSessionService.add_message(
                         db=db,

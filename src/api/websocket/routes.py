@@ -142,23 +142,6 @@ async def websocket_chat_endpoint(
             print(f"❌ Failed to send connection established message to {connection_id}: {e}")
             return  # 기타 에러도 연결 종료
         
-        # 환영 메시지 전송
-        if not session_id:
-            try:
-                # 새 세션인 경우 환영 메시지
-                welcome_message = connection_manager.llm_service.get_conversation_starter()
-                await connection_manager.send_to_connection(connection_id, {
-                    "type": "welcome",
-                    "content": welcome_message,
-                    "timestamp": datetime.now().isoformat()
-                })
-            except ConnectionError as e:
-                print(f"❌ Connection lost during welcome message: {e}")
-                return  # 연결 실패 시 즉시 종료
-            except Exception as e:
-                print(f"❌ Failed to send welcome message to {connection_id}: {e}")
-                return  # 기타 에러도 연결 종료
-        
         # 메시지 수신 루프
         while True:
             try:
@@ -169,7 +152,7 @@ async def websocket_chat_endpoint(
                 
                 # 클라이언트로부터 메시지 수신
                 data = await websocket.receive_text()
-                print(f"📥 Received message from {connection_id}: {data}")
+                print(f"📥 Received message from {connection_id}")
                 message_data = json.loads(data)
                 
                 # 메시지 타입별 처리
@@ -187,16 +170,16 @@ async def websocket_chat_endpoint(
                     # 핑-퐁 처리 (연결 상태 확인)
                     await connection_manager.send_to_connection(connection_id, {
                         "type": "pong",
-                        "timestamp": "2024-01-01T00:00:00.000Z"
+                        "timestamp": datetime.now().isoformat()
                     })
                 
                 elif message_type == "typing":
-                    # 타이핑 상태 브로드캐스트 (필요시)
+                    # NOTE : 현재는 사용자가 typing 상태 일 때 따로 준비하는 작업이 없음.
                     is_typing = message_data.get("is_typing", False)
                     await connection_manager.send_to_connection(connection_id, {
                         "type": "typing_echo",
                         "is_typing": is_typing,
-                        "timestamp": "2024-01-01T00:00:00.000Z"
+                        "timestamp": datetime.now().isoformat()
                     })
                 
                 else:
@@ -204,14 +187,14 @@ async def websocket_chat_endpoint(
                     await connection_manager.send_to_connection(connection_id, {
                         "type": "error",
                         "error": f"Unknown message type: {message_type}",
-                        "timestamp": "2024-01-01T00:00:00.000Z"
+                        "timestamp": datetime.now().isoformat()
                     })
                     
             except json.JSONDecodeError:
                 await connection_manager.send_to_connection(connection_id, {
                     "type": "error",
                     "error": "Invalid JSON format",
-                    "timestamp": "2024-01-01T00:00:00.000Z"
+                    "timestamp": datetime.now().isoformat()
                 })
             
             except WebSocketDisconnect:
@@ -239,7 +222,7 @@ async def websocket_chat_endpoint(
                     await connection_manager.send_to_connection(connection_id, {
                         "type": "error",
                         "error": f"Failed to process message: {error_msg}",
-                        "timestamp": "2024-01-01T00:00:00.000Z"
+                        "timestamp": datetime.now().isoformat()
                     })
                 except ConnectionError:
                     # ConnectionError는 이미 연결이 정리되었으므로 즉시 루프 종료
@@ -280,5 +263,5 @@ async def websocket_health_check():
         "status": "healthy",
         "service": "websocket",
         "stats": stats,
-        "timestamp": "2024-01-01T00:00:00.000Z"
+        "timestamp": datetime.now().isoformat()
     }
