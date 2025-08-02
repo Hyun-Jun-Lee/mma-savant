@@ -236,10 +236,6 @@ class ConnectionManager:
                     session_id=session_id,
                     user_id=user.id
                 )
-
-                print("-" * 50)
-                print(f"Session validation result: {session_valid}")
-                print("-" * 50)
                 
                 if not session_valid:
                     print("Failed to validate session, creating new session")
