@@ -4,6 +4,7 @@
 from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.ext.asyncio import AsyncSession
+from traceback import print_exc
 
 from database.session import get_async_db
 from api.auth.dependencies import get_current_user
@@ -36,6 +37,8 @@ async def create_chat_session(
         return session_response
         
     except Exception as e:
+        print(f"Error creating session: {e}")
+        print_exc()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to create session: {str(e)}"
@@ -65,8 +68,7 @@ async def get_user_chat_sessions(
         
     except Exception as e:
         print(f"❌ Error getting sessions: {str(e)}")
-        import traceback
-        traceback.print_exc()
+        print_exc()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to get sessions: {str(e)}"
@@ -100,6 +102,8 @@ async def get_chat_session(
     except HTTPException:
         raise
     except Exception as e:
+        print(f"❌ Error getting session: {str(e)}")
+        print_exc()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to get session: {str(e)}"
@@ -133,6 +137,8 @@ async def delete_chat_session(
     except HTTPException:
         raise
     except Exception as e:
+        print(f"❌ Error deleting session: {str(e)}")
+        print_exc()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to delete session: {str(e)}"
@@ -175,6 +181,8 @@ async def update_session_title(
     except HTTPException:
         raise
     except Exception as e:
+        print(f"❌ Error updating session title: {str(e)}")
+        print_exc()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to update session title: {str(e)}"
@@ -212,6 +220,8 @@ async def get_chat_history(
     except HTTPException:
         raise
     except Exception as e:
+        print(f"❌ Error getting chat history: {str(e)}")
+        print_exc()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to get chat history: {str(e)}"
@@ -260,6 +270,8 @@ async def save_chat_message(
     except HTTPException:
         raise
     except Exception as e:
+        print(f"❌ Error saving message: {str(e)}")
+        print_exc()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to save message: {str(e)}"
@@ -289,6 +301,8 @@ async def validate_session_access(
         }
         
     except Exception as e:
+        print(f"❌ Error validating session access: {str(e)}")
+        print_exc()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to validate session access: {str(e)}"
