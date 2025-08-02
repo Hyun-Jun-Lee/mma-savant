@@ -1,7 +1,7 @@
 """
 채팅 세션 관리 서비스 로직
 """
-from typing import List, Optional
+from typing import List, Optional, Dict
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from conversation import repositories as conv_repo
@@ -133,14 +133,15 @@ class ChatSessionService:
         message_data: ChatMessageCreate
     ) -> Optional[ChatMessageResponse]:
         """
-        채팅 세션에 메시지 추가
+        채팅 세션에 메시지 추가 (tool_results 지원)
         """
         return await conv_repo.add_message_to_session(
             session=db,
             session_id=session_id,
             user_id=user_id,
             content=message_data.content,
-            role=message_data.role
+            role=message_data.role,
+            tool_results=message_data.tool_results
         )
     
     @staticmethod
@@ -228,15 +229,17 @@ async def add_assistant_response(
     db: AsyncSession,
     session_id: str,
     user_id: int,
-    response_content: str
+    response_content: str,
+    tool_results: Optional[List[dict]] = None
 ) -> Optional[ChatMessageResponse]:
     """
-    AI 어시스턴트 응답 메시지 추가
+    AI 어시스턴트 응답 메시지 추가 (tool_results 지원)
     """
     message_create = ChatMessageCreate(
         content=response_content,
         role="assistant",
-        session_id=session_id
+        session_id=session_id,
+        tool_results=tool_results
     )
     
     return await ChatSessionService.add_message(

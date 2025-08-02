@@ -6,90 +6,10 @@ from sqlalchemy import select, update, desc, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from conversation.models import (
-    ConversationModel, ConversationSchema, 
+    ConversationModel, ConversationSchema, MessageModel, MessageSchema,
     ChatSessionResponse, ChatMessageResponse, ChatHistoryResponse
 )
 from user.models import UserModel
-
-async def create_conversation(session: AsyncSession, conversation: ConversationSchema) -> ConversationSchema:
-    """
-    새 대화 세션을 생성하고 저장.
-    """
-    result = await session.execute(
-        select(UserModel).where(UserModel.id == conversation.user_id)
-    )
-    if not result.scalar_one_or_none():
-        raise ValueError(f"User {conversation.user_id} does not exist")
-    
-    db_conversation = ConversationModel.from_schema(conversation)
-    session.add(db_conversation)
-    await session.flush()
-    return db_conversation.to_schema()
-
-async def get_conversation_by_session_id(
-    session: AsyncSession, session_id: str
-) -> Optional[ConversationSchema]:
-    """
-    session_id로 대화 조회.
-    """
-    
-    result = await session.execute(
-        select(ConversationModel).where(ConversationModel.session_id == session_id)
-    )
-    db_conversation = result.scalar_one_or_none()
-    if db_conversation:
-        return db_conversation.to_schema()
-    return None
-
-async def append_message(
-    session: AsyncSession, session_id: str, message: dict
-) -> Optional[ConversationSchema]:
-    """
-    기존 대화에 새 메시지 추가.
-    """
-    result = await session.execute(
-        select(ConversationModel).where(ConversationModel.session_id == session_id)
-    )
-    db_conversation = result.scalar_one_or_none()
-    if not db_conversation:
-        return None
-    db_conversation.messages.append(message)
-    session.add(db_conversation)
-    await session.flush()
-    return db_conversation.to_schema()
-
-async def append_tool_result(
-    session: AsyncSession, session_id: str, tool_result: dict
-) -> Optional[ConversationSchema]:
-    """
-    기존 대화에 도구 결과 추가.
-    """
-    result = await session.execute(
-        select(ConversationModel).where(ConversationModel.session_id == session_id)
-    )
-    db_conversation = result.scalar_one_or_none()
-    if not db_conversation:
-        return None
-    if db_conversation.tool_results is None:
-        db_conversation.tool_results = [tool_result]
-    else:
-        db_conversation.tool_results.append(tool_result)
-    session.add(db_conversation)
-    await session.flush()
-    return db_conversation.to_schema()
-
-async def get_conversations_by_user(
-    session: AsyncSession, user_id: int
-) -> List[ConversationSchema]:
-    """
-    사용자의 모든 대화 목록 조회.
-    """
-    result = await session.execute(
-        select(ConversationModel).where(ConversationModel.user_id == user_id)
-    )
-    db_conversations = result.scalars().all()
-    return [conv.to_schema() for conv in db_conversations]
-
 
 # 채팅 세션 관리 함수들
 
@@ -108,21 +28,19 @@ async def create_chat_session(
     if not title:
         title = f"채팅 {datetime.now().strftime('%Y-%m-%d %H:%M')}"
     
-    # 빈 메시지 배열로 대화 생성
-    conversation_data = ConversationSchema(
+    # 새로운 대화 세션 생성 (메시지는 별도 테이블에 저장)
+    db_conversation = ConversationModel(
         user_id=user_id,
         session_id=session_id,
-        messages=[],
-        tool_results=None
+        title=title
     )
-    
-    db_conversation = ConversationModel.from_schema(conversation_data)
-    db_conversation.title = title
     
     session.add(db_conversation)
     await session.flush()
+    session_response = db_conversation.to_session_response()
+    await session.commit()
     
-    return db_conversation.to_session_response()
+    return session_response
 
 
 async def get_user_chat_sessions(
@@ -134,16 +52,26 @@ async def get_user_chat_sessions(
     """
     사용자의 채팅 세션 목록 조회 (최신순).
     """
+    # 세션 목록과 마지막 메시지 시간 조회
     result = await session.execute(
-        select(ConversationModel)
+        select(
+            ConversationModel,
+            func.max(MessageModel.created_at).label('last_message_at')
+        )
+        .outerjoin(MessageModel, ConversationModel.session_id == MessageModel.session_id)
         .where(ConversationModel.user_id == user_id)
+        .group_by(ConversationModel.id)
         .order_by(desc(ConversationModel.updated_at))
         .offset(offset)
         .limit(limit)
     )
     
-    conversations = result.scalars().all()
-    return [conv.to_session_response() for conv in conversations]
+    sessions = []
+    for row in result:
+        conv, last_message_at = row
+        sessions.append(conv.to_session_response(last_message_at=last_message_at))
+    
+    return sessions
 
 
 async def get_chat_session_by_id(
@@ -226,9 +154,10 @@ async def get_chat_history(
     offset: int = 0
 ) -> Optional[ChatHistoryResponse]:
     """
-    채팅 히스토리 조회 (페이지네이션 지원).
+    채팅 히스토리 조회 (페이지네이션 지원, 새로운 Message 테이블 사용).
     """
-    result = await session.execute(
+    # 세션 존재 확인
+    conv_result = await session.execute(
         select(ConversationModel)
         .where(
             ConversationModel.session_id == session_id,
@@ -236,21 +165,34 @@ async def get_chat_history(
         )
     )
     
-    conversation = result.scalar_one_or_none()
+    conversation = conv_result.scalar_one_or_none()
     if not conversation:
         return None
     
-    # 메시지 목록 처리
-    all_messages = conversation.get_messages_as_responses()
-    total_messages = len(all_messages)
+    # 전체 메시지 수 조회
+    total_count_result = await session.execute(
+        select(func.count(MessageModel.id))
+        .where(MessageModel.session_id == session_id)
+    )
+    total_messages = total_count_result.scalar() or 0
     
-    # 페이지네이션 적용
-    paginated_messages = all_messages[offset:offset + limit]
+    # 메시지 목록 조회 (페이지네이션 적용)
+    messages_result = await session.execute(
+        select(MessageModel)
+        .where(MessageModel.session_id == session_id)
+        .order_by(MessageModel.created_at)
+        .offset(offset)
+        .limit(limit)
+    )
+    
+    messages = messages_result.scalars().all()
+    message_responses = [msg.to_response() for msg in messages]
+    
     has_more = offset + limit < total_messages
     
     return ChatHistoryResponse(
         session_id=session_id,
-        messages=paginated_messages,
+        messages=message_responses,
         total_messages=total_messages,
         has_more=has_more
     )
@@ -261,11 +203,13 @@ async def add_message_to_session(
     session_id: str,
     user_id: int,
     content: str,
-    role: str
+    role: str,
+    tool_results: Optional[List[dict]] = None
 ) -> Optional[ChatMessageResponse]:
     """
-    채팅 세션에 새 메시지 추가.
+    채팅 세션에 새 메시지 추가 (새로운 Message 테이블 사용).
     """
+    # 세션 존재 확인
     result = await session.execute(
         select(ConversationModel)
         .where(
@@ -280,30 +224,23 @@ async def add_message_to_session(
     
     # 새 메시지 생성
     message_id = str(uuid.uuid4())
-    new_message = {
-        "id": message_id,
-        "content": content,
-        "role": role,
-        "timestamp": datetime.now().isoformat()
-    }
-    
-    # 메시지 배열에 추가
-    if conversation.messages is None:
-        conversation.messages = []
-    
-    conversation.messages = conversation.messages + [new_message]
-    conversation.updated_at = datetime.now()
-    
-    session.add(conversation)
-    await session.flush()
-    
-    return ChatMessageResponse(
-        id=message_id,
+    new_message = MessageModel(
+        message_id=message_id,
+        session_id=session_id,
         content=content,
         role=role,
-        timestamp=datetime.now(),
-        session_id=session_id
+        tool_results=tool_results
     )
+    
+    session.add(new_message)
+    
+    # 대화 세션의 updated_at 갱신
+    conversation.updated_at = datetime.now()
+    session.add(conversation)
+    
+    await session.flush()
+    
+    return new_message.to_response()
 
 
 async def get_user_chat_sessions_count(session: AsyncSession, user_id: int) -> int:
