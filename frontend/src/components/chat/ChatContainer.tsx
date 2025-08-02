@@ -25,27 +25,22 @@ export function ChatContainer() {
   const [error, setError] = useState<string | null>(null)
   const [showSessionSidebar, setShowSessionSidebar] = useState(false)
 
-  // 컴포넌트 마운트 시 세션 및 사용자 데이터 로드
+  // 컴포넌트 마운트 시 세션 목록만 로드 (자동 세션 생성 제거)
   useEffect(() => {
     const initializeData = async () => {
       try {
-        // 기존 세션 목록 로드
+        // 기존 세션 목록만 로드
         await loadSessions()
-        
-        // 현재 세션이 없으면 새 세션 생성
-        if (!currentSession) {
-          await createSession()
-        }
       } catch (error) {
-        console.error('Failed to initialize chat data:', error)
-        setError('초기화 중 오류가 발생했습니다.')
+        console.error('Failed to load sessions:', error)
+        setError('세션 목록 로드 중 오류가 발생했습니다.')
       }
     }
 
     if (user) {
       initializeData()
     }
-  }, [user, currentSession, loadSessions, createSession])
+  }, [user, loadSessions]) // createSession과 currentSession 의존성 제거
 
   const handleSendMessage = async (message: string) => {
     try {
@@ -56,10 +51,15 @@ export function ChatContainer() {
         return
       }
 
-      if (!currentSession) {
-        setError("채팅 세션이 없습니다. 새 세션을 생성하는 중...")
-        await createSession()
-        return
+      // 현재 세션이 없으면 새 세션 생성 (첫 메시지 전송 시에만)
+      let sessionToUse = currentSession
+      if (!sessionToUse) {
+        console.log("첫 메시지 전송 - 새 세션 생성")
+        sessionToUse = await createSession()
+        if (!sessionToUse) {
+          setError("세션 생성에 실패했습니다.")
+          return
+        }
       }
 
       // 사용자 메시지 추가

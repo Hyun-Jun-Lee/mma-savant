@@ -37,7 +37,6 @@ export function useChatSession() {
     user_id: response.user_id,
     session_id: response.session_id,
     title: response.title,
-    message_count: response.message_count,
     last_message_at: response.last_message_at ? new Date(response.last_message_at) : undefined,
     created_at: new Date(response.created_at),
     updated_at: new Date(response.updated_at),
@@ -131,9 +130,10 @@ export function useChatSession() {
       await ChatApiService.deleteSession(sessionId)
       removeSession(sessionId)
       
-      // 현재 세션이 삭제된 경우 새 세션 생성
+      // 현재 세션이 삭제된 경우 세션 클리어 (자동 생성하지 않음)
       if (currentSession?.session_id === sessionId) {
-        await createSession()
+        setCurrentSession(null)
+        clearChat()
       }
       return true
     } catch (error) {
@@ -142,7 +142,7 @@ export function useChatSession() {
       router.push('/')
       return false
     }
-  }, [removeSession, currentSession, createSession, router])
+  }, [removeSession, currentSession, setCurrentSession, clearChat, router])
 
   /**
    * 세션 제목 업데이트
