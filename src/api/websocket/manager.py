@@ -7,6 +7,7 @@ import uuid
 import asyncio
 from typing import Dict, List, Optional, Set
 from datetime import datetime
+from traceback import print_exc
 
 from fastapi import WebSocket, WebSocketDisconnect
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -53,6 +54,53 @@ class ConnectionManager:
             print("✅ LangChain LLM service initialized")
         finally:
             self._initializing = False
+
+    
+    def _process_tool_result(self, result):
+        """
+        Tool 결과를 처리하여 created_at, updated_at 필드를 제거하고 구조화된 형태로 반환
+        """
+        
+        try:
+            # 결과가 문자열인 경우 JSON으로 파싱 시도
+            if isinstance(result, str):
+                try:
+                    parsed_result = json.loads(result)
+                except json.JSONDecodeError:
+                    # JSON이 아닌 경우 원본 문자열 반환 (길이 제한)
+                    return result[:500] + "..." if len(str(result)) > 500 else str(result)
+            else:
+                parsed_result = result
+            
+            # 리스트인 경우 각 항목에서 timestamp 필드들 제거
+            if isinstance(parsed_result, list):
+                cleaned_result = []
+                for item in parsed_result:
+                    if isinstance(item, dict):
+                        # created_at, updated_at 필드 제거
+                        cleaned_item = {k: v for k, v in item.items() 
+                                      if k not in ['created_at', 'updated_at']}
+                        cleaned_result.append(cleaned_item)
+                    else:
+                        cleaned_result.append(item)
+                return cleaned_result
+            
+            # 딕셔너리인 경우 timestamp 필드들 제거
+            elif isinstance(parsed_result, dict):
+                return {k: v for k, v in parsed_result.items() 
+                       if k not in ['created_at', 'updated_at']}
+            
+            # 기타 타입은 원본 반환
+            else:
+                result_str = str(parsed_result)
+                return result_str[:500] + "..." if len(result_str) > 500 else result_str
+                
+        except Exception as e:
+            print(f"⚠️ Error processing tool result: {e}")
+            print_exc()
+            # 에러 발생 시 원본 문자열 반환 (길이 제한)
+            result_str = str(result)
+            return result_str[:500] + "..." if len(result_str) > 500 else result_str
     
     async def connect(
         self, 
@@ -365,10 +413,18 @@ class ConnectionManager:
                                 if len(step) >= 2:
                                     action, result = step
                                     print(f"   Step {i+1}: {getattr(action, 'tool', 'unknown')}")
+                                    print("-" * 50)
+                                    print("check tool result :")
+                                    print(result)
+                                    print("-" * 50)
+                                    
+                                    # 결과를 JSON으로 파싱하여 처리
+                                    processed_result = self._process_tool_result(result)
+                                    
                                     tool_info.append({
                                         "tool": getattr(action, 'tool', 'unknown'),
                                         "input": getattr(action, 'tool_input', {}),
-                                        "result": str(result)[:500] + "..." if len(str(result)) > 500 else str(result)
+                                        "result": processed_result
                                     })
                     
                     # 어시스턴트 메시지를 데이터베이스에 저장
