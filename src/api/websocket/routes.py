@@ -122,7 +122,12 @@ async def websocket_chat_endpoint(
         
         # 잠깐 대기하여 WebSocket 완전히 준비되도록 함
         import asyncio
-        await asyncio.sleep(0.1)
+        await asyncio.sleep(0.2)  # 대기 시간 증가
+        
+        # WebSocket 상태 재확인
+        if websocket.client_state.name != "CONNECTED":
+            print(f"❌ WebSocket not in CONNECTED state after delay: {websocket.client_state.name}")
+            return
         
         # 연결 확인 메시지 전송
         try:
@@ -152,7 +157,6 @@ async def websocket_chat_endpoint(
                 
                 # 클라이언트로부터 메시지 수신
                 data = await websocket.receive_text()
-                print(f"📥 Received message from {connection_id}")
                 message_data = json.loads(data)
                 
                 # 메시지 타입별 처리

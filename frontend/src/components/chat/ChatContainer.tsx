@@ -69,7 +69,7 @@ export function ChatContainer() {
       })
 
       // 실시간 소켓을 통해 메시지 전송
-      sendMessage(message)
+      await sendMessage(message)
 
       // 사용량 증가 (비동기, 실패해도 채팅 기능에 영향 없음)
       incrementUsage()

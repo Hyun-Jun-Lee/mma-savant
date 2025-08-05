@@ -156,9 +156,17 @@ export function useSocket() {
       console.error('Socket error:', error)
     })
 
-    // 연결 시작 - 현재 세션 ID와 함께 (한 번만)
-    console.log('🔌 Attempting to connect socket with session:', currentSession?.session_id)
-    socket.connect(currentSession?.session_id)
+    // 초기 연결만 수행 (세션 ID 없이)
+    console.log('🔌 Setting up socket event listeners')
+    console.log('🔌 Socket current state:', socket.isConnected())
+    
+    // 연결되지 않은 경우에만 연결 시도
+    if (!socket.isConnected()) {
+      console.log('🔌 Initial connection without session')
+      socket.connect() // 세션 ID 없이 초기 연결
+    } else {
+      console.log('🔌 Socket already connected, skipping initial connect call')
+    }
 
     // 클린업
     return () => {
@@ -166,12 +174,41 @@ export function useSocket() {
       // 소켓 연결 해제
       socket.disconnect()
     }
-  }, [currentSession?.session_id, addMessage, updateMessage, setConnected, setTyping]) // 필요한 의존성 추가
+  }, [addMessage, updateMessage, setConnected, setTyping]) // currentSession 의존성 제거하여 재연결 방지
 
-  const sendMessage = (message: string) => {
-    if (isConnected) {
-      socketRef.current.sendMessage(message)
+  const sendMessage = async (message: string) => {
+    console.log('🚀 sendMessage called, React isConnected:', isConnected)
+    console.log('🚀 sendMessage called, Socket isConnected:', socketRef.current.isConnected())
+    console.log('🚀 sendMessage called, Socket exists:', !!socketRef.current)
+    
+    // 실제 소켓 상태를 기준으로 판단
+    const actuallyConnected = socketRef.current && socketRef.current.isConnected()
+    
+    // 연결되지 않은 경우 잠시 대기 후 재시도
+    if (!actuallyConnected) {
+      console.log('⏳ Socket not actually connected, waiting for connection...')
+      
+      // 최대 5초 동안 연결을 기다림
+      let attempts = 0
+      const maxAttempts = 50 // 5초 (100ms * 50)
+      
+      while ((!socketRef.current || !socketRef.current.isConnected()) && attempts < maxAttempts) {
+        await new Promise(resolve => setTimeout(resolve, 100))
+        attempts++
+        console.log(`⏳ Waiting for connection... attempt ${attempts}/${maxAttempts}, socket exists: ${!!socketRef.current}, socket connected: ${socketRef.current?.isConnected()}`)
+      }
+      
+      if (!socketRef.current || !socketRef.current.isConnected()) {
+        console.log('❌ Connection timeout after waiting')
+        return
+      }
+      
+      console.log('✅ Connection established, sending message')
     }
+    
+    // 현재 세션 ID로 메시지 전송 (동적으로 세션 ID 설정)
+    console.log('📤 Sending message with session:', currentSession?.session_id)
+    socketRef.current.sendMessage(message, currentSession?.session_id)
   }
 
   return {
