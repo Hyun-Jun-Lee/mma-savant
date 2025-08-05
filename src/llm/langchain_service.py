@@ -2,13 +2,14 @@
 LangChain 기반 LLM 서비스
 단일 MCP 서버용 최적화된 구현
 """
+import os
 import asyncio
 import uuid
 import time
 import json
 from typing import List, Dict, Any, Optional, AsyncGenerator
 from datetime import datetime
-from traceback import format_exc
+from traceback import print_exc
 from contextlib import asynccontextmanager
 
 from langchain.agents import create_tool_calling_agent, AgentExecutor
@@ -203,7 +204,6 @@ class LangChainLLMService:
         )
         
         # 단일 MCP 서버 설정
-        import os
         current_dir = os.path.dirname(os.path.abspath(__file__))
         src_dir = os.path.dirname(current_dir)
         mcp_server_path = os.path.join(src_dir, "tools", "mcp_server.py")
@@ -212,12 +212,17 @@ class LangChainLLMService:
             command="python",
             args=[mcp_server_path],
         )
+        
+        # MCP 도구 캐싱
+        self._cached_tools = None
+        self._tools_loading = False
     
     @asynccontextmanager
     async def _get_mcp_tools(self):
         """
-        단일 MCP 서버에서 도구를 가져오는 최적화된 context manager
+        MCP 도구들을 context manager로 제공 (세션 유지)
         """
+        print("🔄 Loading MCP tools...")
         async with stdio_client(self.server_params) as (read, write):
             async with ClientSession(read, write) as session:
                 # 연결 초기화
@@ -242,15 +247,7 @@ class LangChainLLMService:
         start_time = time.time()
         
         try:
-            # 메시지 히스토리 준비
-            prep_start = time.time()
             messages = self._prepare_messages(user_message, conversation_history)
-            prep_time = time.time() - prep_start
-
-            print("-"*50)
-            print("check message :")
-            print(messages)
-            print("-"*50)
             
             # 단일 MCP 서버에서 도구 로드
             mcp_start = time.time()
@@ -322,9 +319,6 @@ class LangChainLLMService:
                                     tool_name = getattr(action, 'tool', 'unknown')
                                     print(f"   Step {i+1}: Used tool '{tool_name}'")
                         
-                        # 출력 분석
-                        output = result.get("output", "")
-                        
                         # 최종 결과 큐에 추가
                         await callback_handler.stream_queue.put({
                             "type": "final_result",
@@ -337,6 +331,7 @@ class LangChainLLMService:
                         
                     except Exception as e:
                         print(f"❌ Agent execution failed: {e}")
+                        print_exc()
                         
                         # Rate limit 에러 특별 처리
                         error_message = str(e)
@@ -393,6 +388,7 @@ class LangChainLLMService:
                         break
                     except Exception as e:
                         print(f"❌ Error in streaming: {e}")
+                        print_exc()
                         yield {
                             "type": "error",
                             "error": str(e),
@@ -402,16 +398,17 @@ class LangChainLLMService:
                         }
                         break
                 
-                # 에이전트 태스크 완료 대기
                 try:
                     await agent_task
                 except Exception as e:
                     print(f"❌ Agent task error: {e}")
+                    print_exc()
                 
                 total_time = time.time() - start_time
                 print(f"⏱️ Total streaming function took: {total_time:.3f}s")
-            
+                
         except Exception as e:
+            print_exc()
             yield {
                 "type": "error",
                 "error": str(e),
@@ -439,9 +436,18 @@ class LangChainLLMService:
                 elif msg.get("role") == "assistant":
                     content = msg["content"]
                     
-                    # tool 결과가 포함된 경우 파싱
-                    if "<!-- TOOL_RESULTS:" in content:
-                        # 사용자에게 보이는 부분과 tool 정보 분리
+                    # 새로운 방식: tool_results 필드 직접 사용
+                    tool_results_data = msg.get("tool_results")
+                    
+                    if tool_results_data:
+                        # tool 결과를 포함한 확장된 메시지 생성
+                        enhanced_content = content + "\n\n[Previous tool results:\n"
+                        for tool_info in tool_results_data:
+                            enhanced_content += f"- {tool_info['tool']}: {tool_info['input']} → {tool_info['result'][:200]}...\n"
+                        enhanced_content += "]"
+                        messages.append(AIMessage(content=enhanced_content))
+                    elif "<!-- TOOL_RESULTS:" in content:
+                        # 기존 방식: HTML 주석 파싱 (하위 호환성)
                         parts = content.split("<!-- TOOL_RESULTS:")
                         user_visible_content = parts[0].strip()
                         
@@ -450,7 +456,6 @@ class LangChainLLMService:
                                 tool_part = parts[1].split(" -->")[0].strip()
                                 tool_results = json.loads(tool_part)
                                 
-                                # tool 결과를 포함한 확장된 메시지 생성
                                 enhanced_content = user_visible_content + "\n\n[Previous tool results:\n"
                                 for tool_info in tool_results:
                                     enhanced_content += f"- {tool_info['tool']}: {tool_info['input']} → {tool_info['result'][:200]}...\n"
@@ -458,7 +463,6 @@ class LangChainLLMService:
                                 
                                 messages.append(AIMessage(content=enhanced_content))
                             except:
-                                # JSON 파싱 실패 시 원본 사용
                                 messages.append(AIMessage(content=user_visible_content))
                         else:
                             messages.append(AIMessage(content=user_visible_content))
