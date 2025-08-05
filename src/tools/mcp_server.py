@@ -9,7 +9,7 @@ import os
 # 현재 파일이 있는 디렉토리의 상위 디렉토리(src)를 경로에 추가
 sys.path.insert(0, os.path.abspath(os.path.dirname(os.path.dirname(__file__))))
 
-from tools.main import mcp, auto_load_all_tools
+from tools.load_tools import mcp, auto_load_all_tools
 
 if __name__ == "__main__":
     print("🚀 MMA Savant MCP 서버 시작 중...")

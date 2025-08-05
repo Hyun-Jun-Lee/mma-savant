@@ -42,21 +42,6 @@ def load_tools_from_module(module_path: str, tool_names: List[str] = None):
                     except Exception as e:
                         print(f"⚠️ {name} 로드 실패: {e}")
             
-            if loaded_count == 0:
-                # fallback: 함수명이 'get_'로 시작하는 async 함수들을 찾기
-                for name, obj in inspect.getmembers(module):
-                    if (inspect.iscoroutinefunction(obj) and 
-                        name.startswith('get_') and 
-                        not name.startswith('_') and
-                        name not in loaded_tools):
-                        try:
-                            mcp.add_tool(obj)
-                            loaded_tools.add(name)
-                            print(f"✅ {name} 자동 로드됨 (fallback)")
-                            loaded_count += 1
-                        except Exception as e:
-                            print(f"⚠️ {name} 로드 실패: {e}")
-            
             print(f"📊 {module_path}에서 총 {loaded_count}개 도구 로드됨")
             
     except Exception as e:
@@ -66,21 +51,25 @@ def load_tools_from_module(module_path: str, tool_names: List[str] = None):
 def auto_load_all_tools():
     """tools 디렉토리의 모든 *_tools.py 파일에서 도구들을 자동 로드"""
     tools_dir = os.path.dirname(__file__)
+    global_loaded_tools = set()  # 전역 중복 방지
+    total_tools = 0
     
     for filename in os.listdir(tools_dir):
         if filename.endswith('_tools.py') and filename != '__init__.py':
             module_name = filename[:-3]  # .py 제거
             module_path = f"tools.{module_name}"
             print(f"\n🔄 {module_path} 로딩 중...")
+            
+            # 모듈별 로딩 전 도구 개수 확인
+            before_count = len(mcp._tools) if hasattr(mcp, '_tools') else 0
+            
             load_tools_from_module(module_path)
-
-if __name__ == "__main__":
-    print("🚀 MMA Savant MCP 서버 시작 중...")
-    print("🔧 자동 도구 로딩 시작...")
+            
+            # 모듈별 로딩 후 도구 개수 확인
+            after_count = len(mcp._tools) if hasattr(mcp, '_tools') else 0
+            module_tools = after_count - before_count
+            total_tools += module_tools
+            
+            print(f"✅ {module_name}: {module_tools}개 도구 추가됨")
     
-    # 모든 *_tools.py 파일에서 @mcp.tool() 데코레이터가 붙은 함수들을 자동 로드
-    auto_load_all_tools()
-    
-    print("\n✨ 모든 도구 로딩 완료!")
-    print("🎯 MCP 서버 실행 중...")
-    mcp.run()
+    print(f"\n📊 전체 로딩 완료: 총 {total_tools}개 도구")

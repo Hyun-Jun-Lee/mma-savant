@@ -9,7 +9,7 @@ async def test_mcp_server_standalone():
     
     server_params = StdioServerParameters(
         command="python",
-        args=["-m", "tools.main"]
+        args=["-m", "tools.load_tools"]
     )
     
     try:

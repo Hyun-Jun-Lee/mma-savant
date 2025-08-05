@@ -1,7 +1,7 @@
 from typing import List, Dict, Optional, Any
 from datetime import date
 
-from tools.main import mcp
+from tools.load_tools import mcp
 from database import *
 from database.connection.postgres_conn import async_db_session
 from event import services as event_services

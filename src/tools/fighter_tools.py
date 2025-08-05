@@ -1,6 +1,6 @@
 from typing import List, Dict, Optional, Any
 
-from tools.main import mcp
+from tools.load_tools import mcp
 from database import *
 from database.connection.postgres_conn import async_db_session
 from fighter import services as fighter_services

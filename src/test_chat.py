@@ -15,7 +15,7 @@ async def test_ufc_chatbot():
 
     server_params = StdioServerParameters(
         command="python",
-        args=["-m", "tools.main"]
+        args=["-m", "tools.load_tools"]
     )
 
     # 시스템 프롬프트 정의
