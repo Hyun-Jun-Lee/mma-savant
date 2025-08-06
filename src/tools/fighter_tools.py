@@ -2,7 +2,7 @@ from typing import List, Dict, Optional, Any
 
 from tools.load_tools import mcp
 from database import *
-from database.connection.postgres_conn import async_db_session
+from database.connection.postgres_conn import get_async_db_context
 from fighter import services as fighter_services
 
 @mcp.tool()
@@ -17,7 +17,7 @@ async def get_fighter_info_by_id(fighter_id: int) -> Optional[Dict]:
         Optional[Dict]: 파이터 정보와 랭킹을 포함한 딕셔너리
     """
 
-    async with async_db_session() as session:
+    async with get_async_db_context() as session:
         fighter_with_ranking = await fighter_services.get_fighter_by_id(session, int(fighter_id))
     return fighter_with_ranking.model_dump()
 
@@ -33,7 +33,7 @@ async def get_fighter_info_by_name(fighter_name: str) -> Optional[Dict]:
         Optional[Dict]: 파이터 정보와 랭킹을 포함한 딕셔너리
     """
 
-    async with async_db_session() as session:
+    async with get_async_db_context() as session:
         fighter_with_ranking = await fighter_services.get_fighter_by_name(session, fighter_name)
     return fighter_with_ranking.model_dump()
 
@@ -49,7 +49,7 @@ async def get_fighter_info_by_nickname(fighter_nickname: str) -> Optional[Dict]:
         Optional[Dict]: 파이터 정보와 랭킹을 포함한 딕셔너리
     """
 
-    async with async_db_session() as session:
+    async with get_async_db_context() as session:
         fighter_with_ranking = await fighter_services.get_fighter_by_nickname(session, fighter_nickname)
     return fighter_with_ranking.model_dump()
 
@@ -66,7 +66,7 @@ async def search_fighters(search_term: str, limit: int = 10) -> List[Dict]:
     Returns:
         List[Dict]: 검색된 파이터 목록
     """
-    async with async_db_session() as session:
+    async with get_async_db_context() as session:
         fighters = await fighter_services.search_fighters(session, search_term, limit)
         return [fighter.model_dump() for fighter in fighters]
 
@@ -79,7 +79,7 @@ async def get_all_champions() -> List[Dict]:
     Returns:
         List[Dict]: 모든 현재 챔피언들의 정보와 랭킹 목록
     """
-    async with async_db_session() as session:
+    async with get_async_db_context() as session:
         champions = await fighter_services.get_all_champions(session)
         return [champion.model_dump() for champion in champions]
 
@@ -95,7 +95,7 @@ async def get_fighters_by_stance_analysis(stance: str) -> Dict[str, Any]:
     Returns:
         Dict[str, Any]: 해당 스탠스 파이터들의 정보와 분석 데이터
     """
-    async with async_db_session() as session:
+    async with get_async_db_context() as session:
         analysis = await fighter_services.get_fighters_by_stance_analysis(session, stance)
         return analysis.model_dump()
 
@@ -111,7 +111,7 @@ async def get_undefeated_fighters_analysis(min_wins: int = 5) -> Dict[str, Any]:
     Returns:
         Dict[str, Any]: 무패 파이터들의 정보와 분석 데이터
     """
-    async with async_db_session() as session:
+    async with get_async_db_context() as session:
         analysis = await fighter_services.get_undefeated_fighters_analysis(session, min_wins)
         return analysis.model_dump()
 
@@ -139,7 +139,7 @@ async def get_fighters_by_physical_attributes(
     Returns:
         Dict[str, Any]: 조건에 맞는 파이터들과 신체 통계 분석
     """
-    async with async_db_session() as session:
+    async with get_async_db_context() as session:
         analysis = await fighter_services.get_fighters_by_physical_attributes(
             session, min_height, max_height, min_weight, max_weight, min_reach, limit
         )
@@ -154,7 +154,7 @@ async def get_fighters_performance_analysis() -> Dict[str, Any]:
     Returns:
         Dict[str, Any]: 전체 파이터들의 성과 분석 데이터
     """
-    async with async_db_session() as session:
+    async with get_async_db_context() as session:
         analysis = await fighter_services.get_fighters_performance_analysis(session)
         return analysis.model_dump()
 
@@ -170,6 +170,6 @@ async def get_weight_class_depth_analysis(weight_class_name: str) -> Dict[str, A
     Returns:
         Dict[str, Any]: 체급 깊이 분석 정보
     """
-    async with async_db_session() as session:
+    async with get_async_db_context() as session:
         analysis = await fighter_services.get_weight_class_depth_analysis(session, weight_class_name)
         return analysis.model_dump()

@@ -1,8 +1,7 @@
-from contextlib import contextmanager, asynccontextmanager
-
+from typing import AsyncGenerator
+from contextlib import asynccontextmanager
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
 from sqlalchemy.orm import sessionmaker
-from sqlalchemy import create_engine
 
 from config import get_database_url
 
@@ -16,8 +15,25 @@ AsyncSessionLocal = sessionmaker(
     async_engine, class_=AsyncSession, autocommit=False, autoflush=False
 )
 
-@asynccontextmanager
-async def async_db_session():
+async def get_async_db() -> AsyncGenerator[AsyncSession, None]:
+    """
+    Database session dependency for FastAPI routes
+    """
+    session = AsyncSessionLocal()
+    try:
+        yield session
+        await session.commit()
+    except Exception as e:
+        await session.rollback()
+        raise e
+    finally:
+        await session.close()
+
+@asynccontextmanager  
+async def get_async_db_context() -> AsyncGenerator[AsyncSession, None]:
+    """
+    Database session context manager for direct usage in tools
+    """
     session = AsyncSessionLocal()
     try:
         yield session

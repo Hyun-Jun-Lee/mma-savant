@@ -9,7 +9,7 @@ from datetime import datetime
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from database.session import get_async_db
+from database.connection.postgres_conn import get_async_db
 from api.auth.jwt_handler import jwt_handler
 from user import repositories as user_repo
 from user.models import UserModel

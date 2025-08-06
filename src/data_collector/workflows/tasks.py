@@ -173,7 +173,7 @@ async def scrap_match_detail_task(session, crawler_fn : Callable)-> None:
     LOGGER.info("scrap_match_detail_task started")
     all_fighters = await get_all_fighter(session)
     fighter_name_to_id_map = {fighter.name: fighter.id for fighter in all_fighters}
-    fighter_match_dict = await get_match_fighter_mapping(session1)
+    fighter_match_dict = await get_match_fighter_mapping(session)
 
     # 최대 5개의 동시 요청을 허용하는 Semaphore
     semaphore = asyncio.Semaphore(3)

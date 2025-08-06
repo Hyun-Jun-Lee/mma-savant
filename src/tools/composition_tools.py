@@ -2,7 +2,7 @@ from typing import List, Dict, Optional, Any
 
 from tools.load_tools import mcp
 from database import *
-from database.connection.postgres_conn import async_db_session
+from database.connection.postgres_conn import get_async_db_context
 from composition import match_composer, fighter_composer, event_composer
 
 
@@ -19,7 +19,7 @@ async def get_event_summary(event_id: int) -> Optional[Dict[str, Any]]:
     Returns:
         Optional[Dict[str, Any]]: 이벤트 요약 정보
     """
-    async with async_db_session() as session:
+    async with get_async_db_context() as session:
         summary = await event_composer.get_event_summary(session, int(event_id))
         return summary.model_dump() if summary else None
 
@@ -34,7 +34,7 @@ async def get_recent_events_with_main_match(limit: int = 10) -> List[Dict]:
     Returns:
         List[Dict]: 최근 이벤트들의 메인 매치 정보
     """
-    async with async_db_session() as session:
+    async with get_async_db_context() as session:
         results = await event_composer.get_recent_events_with_main_match(session, limit)
         return [result.model_dump() for result in results]
 
@@ -50,7 +50,7 @@ async def get_upcoming_events_with_featured_matches(limit: int = 5) -> List[Dict
     Returns:
         List[Dict]: 다가오는 이벤트들의 주요 매치 정보
     """
-    async with async_db_session() as session:
+    async with get_async_db_context() as session:
         results = await event_composer.get_upcoming_events_with_featured_matches(session, limit)
         return [result.model_dump() for result in results]
 
@@ -67,7 +67,7 @@ async def compare_events_by_performance(event_id1: int, event_id2: int) -> Optio
     Returns:
         Optional[Dict]: 두 이벤트의 비교 분석 결과
     """
-    async with async_db_session() as session:
+    async with get_async_db_context() as session:
         result = await event_composer.compare_events_by_performance(session, event_id1, event_id2)
         return result.model_dump() if result else None
 
@@ -83,7 +83,7 @@ async def get_event_rankings_impact(event_id: int) -> Dict:
     Returns:
         Dict: 이벤트의 랭킹 영향 분석 결과
     """
-    async with async_db_session() as session:
+    async with get_async_db_context() as session:
         result = await event_composer.get_event_rankings_impact(session, event_id)
         return result.model_dump()
 
@@ -101,7 +101,7 @@ async def get_event_matches(event_id: int) -> Optional[Dict]:
     Returns:
         Optional[Dict]: 이벤트 정보와 전체 매치 목록
     """
-    async with async_db_session() as session:
+    async with get_async_db_context() as session:
         result = await match_composer.get_event_matches(session, event_id)
         return result.model_dump() if result else None
 
@@ -117,7 +117,7 @@ async def get_fight_of_the_night_candidates(event_id: int) -> Optional[Dict]:
     Returns:
         Optional[Dict]: FOTN 후보 분석 결과
     """
-    async with async_db_session() as session:
+    async with get_async_db_context() as session:
         result = await match_composer.get_fight_of_the_night_candidates(session, event_id)
         return result.model_dump() if result else None
 
@@ -141,7 +141,7 @@ async def analyze_card_quality(event_id: int) -> Optional[Dict]:
             "quality_assessment": Dict  # 품질 평가 (등급, 점수)
         }
     """
-    async with async_db_session() as session:
+    async with get_async_db_context() as session:
         result = await match_composer.analyze_card_quality(session, event_id)
         return result.model_dump() if result else None
 
@@ -171,7 +171,7 @@ async def get_most_exciting_matches_by_period(days: int = 30, limit: int = 10) -
             }
         ]
     """
-    async with async_db_session() as session:
+    async with get_async_db_context() as session:
         results = await match_composer.get_most_exciting_matches_by_period(session, days, limit)
         return [result.model_dump() for result in results]
 
@@ -195,7 +195,7 @@ async def analyze_comeback_performances(event_id: int) -> Dict:
             "total_comebacks": int  # 총 컴백 수
         }
     """
-    async with async_db_session() as session:
+    async with get_async_db_context() as session:
         result = await match_composer.analyze_comeback_performances(session, event_id)
         return result.model_dump()
 
@@ -222,7 +222,7 @@ async def get_style_clash_analysis(match_id: int) -> Optional[Dict]:
             "contrast_summary": str  # 대조 요약
         }
     """
-    async with async_db_session() as session:
+    async with get_async_db_context() as session:
         result = await match_composer.get_style_clash_analysis(session, match_id)
         return result.model_dump() if result else None
 
@@ -246,7 +246,7 @@ async def get_performance_outliers_in_event(event_id: int) -> Dict:
             "analysis_summary": Dict  # 분석 요약 (총 예외자 수, 카테고리 등)
         }
     """
-    async with async_db_session() as session:
+    async with get_async_db_context() as session:
         result = await match_composer.get_performance_outliers_in_event(session, event_id)
         return result.model_dump()
 
@@ -276,7 +276,7 @@ async def get_fighter_all_matches(fighter_id: int) -> List[Dict]:
             }
         ]
     """
-    async with async_db_session() as session:
+    async with get_async_db_context() as session:
         results = await fighter_composer.get_fighter_all_matches(session, fighter_id)
         return [result.model_dump() for result in results]
 
@@ -304,7 +304,7 @@ async def get_fighter_vs_record(fighter_id1: int, fighter_id2: int) -> List[Dict
         ]
     
     """
-    async with async_db_session() as session:
+    async with get_async_db_context() as session:
         results = await fighter_composer.get_fighter_vs_record(session, fighter_id1, fighter_id2)
         return [result.model_dump() for result in results]
 
@@ -329,7 +329,7 @@ async def get_fighter_total_stat(fighter_id: int) -> Optional[Dict]:
             "accuracy": Dict  # 정확도 통계
         }
     """
-    async with async_db_session() as session:
+    async with get_async_db_context() as session:
         result = await fighter_composer.get_fighter_total_stat(session, fighter_id)
         return result.model_dump() if result else None
 
@@ -354,7 +354,7 @@ async def compare_fighters_stats(fighter_id1: int, fighter_id2: int) -> Optional
             "comparison": Dict  # 항목별 비교 결과 (누가 우위인지)
         }
     """
-    async with async_db_session() as session:
+    async with get_async_db_context() as session:
         result = await fighter_composer.compare_fighters_stats(session, fighter_id1, fighter_id2)
         return result.model_dump() if result else None
 
@@ -383,7 +383,7 @@ async def get_fighter_with_top_stat(stat_name: str, limit: int = 10) -> List[Dic
             }
         ]
     """
-    async with async_db_session() as session:
+    async with get_async_db_context() as session:
         results = await fighter_composer.get_fighter_with_top_stat(session, stat_name, limit)
         return [result.model_dump() for result in results]
 
@@ -407,7 +407,7 @@ async def get_fighter_career_timeline(fighter_id: int) -> Dict:
             "summary": Dict  # 커리어 요약 (총 경기, 연승, 하이라이트 등)
         }
     """
-    async with async_db_session() as session:
+    async with get_async_db_context() as session:
         result = await fighter_composer.get_fighter_career_timeline(session, fighter_id)
         return result.model_dump()
 
@@ -432,7 +432,7 @@ async def analyze_fighter_vs_style(fighter_id: int, opponent_stance: str) -> Dic
             "analysis": Dict  # 분석 결과 (승률, 상세 기록 등)
         }
     """
-    async with async_db_session() as session:
+    async with get_async_db_context() as session:
         result = await fighter_composer.analyze_fighter_vs_style(session, fighter_id, opponent_stance)
         return result.model_dump()
 
@@ -459,7 +459,7 @@ async def get_divisional_elite_comparison(weight_class_id: int, top_n: int = 5) 
             "division_depth": int  # 체급 선수층 깊이
         }
     """
-    async with async_db_session() as session:
+    async with get_async_db_context() as session:
         result = await fighter_composer.get_divisional_elite_comparison(session, weight_class_id, top_n)
         return result.model_dump()
 
@@ -484,6 +484,6 @@ async def predict_fight_outcome(fighter_id1: int, fighter_id2: int) -> Dict:
             "analysis_factors": Dict  # 분석 요소들 (헤드투헤드, 공통상대, 통계비교 등)
         }
     """
-    async with async_db_session() as session:
+    async with get_async_db_context() as session:
         result = await fighter_composer.predict_fight_outcome(session, fighter_id1, fighter_id2)
         return result.model_dump()

@@ -7,7 +7,7 @@ from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from .jwt_handler import jwt_handler, TokenData
-from database.session import get_async_db
+from database.connection.postgres_conn import get_async_db
 from user.models import UserModel
 from user import repositories as user_repo
 from user import services as user_service

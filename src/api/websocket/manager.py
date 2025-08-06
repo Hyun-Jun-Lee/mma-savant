@@ -476,6 +476,7 @@ class ConnectionManager:
         
         except Exception as e:
             print(f"❌ Error handling user message: {e}")
+            print_exc()
             await self.send_to_connection(connection_id, {
                 "type": "error",
                 "error": f"Failed to process message: {str(e)}",

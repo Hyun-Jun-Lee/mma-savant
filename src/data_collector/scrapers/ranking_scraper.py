@@ -135,10 +135,10 @@ async def scrap_rankings(session, crawler_fn: Callable) -> List[RankingSchema]:
 
 async def main():
     from data_collector.crawler import crawl_with_httpx, crawl_with_crawl4ai
-    from database.connection.postgres_conn import async_db_session
+    from database.connection.postgres_conn import get_async_db
     
     try:
-        async with async_db_session() as session:
+        async with get_async_db() as session:
             rankings = await scrap_rankings(session, crawl_with_crawl4ai)
 
         print("total rankings: ", len(rankings))

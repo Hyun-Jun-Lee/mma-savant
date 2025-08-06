@@ -2,7 +2,7 @@ from typing import List, Dict, Optional, Any
 
 from tools.load_tools import mcp
 from database import *
-from database.connection.postgres_conn import async_db_session
+from database.connection.postgres_conn import get_async_db_context
 from match import repositories as match_repo
 
 @mcp.tool()
@@ -16,7 +16,7 @@ async def get_match_with_winner_loser(match_id: int) -> Optional[Dict]:
     Returns:
         Optional[Dict]: 매치 정보와 승자/패자 분류
     """
-    async with async_db_session() as session:
+    async with get_async_db_context() as session:
         result = await match_repo.get_match_with_winner_loser(session, match_id)
         return result
 
@@ -32,7 +32,7 @@ async def get_match_statistics(match_id: int) -> Optional[Dict]:
     Returns:
         Optional[Dict]: 매치의 상세 통계 정보
     """
-    async with async_db_session() as session:
+    async with get_async_db_context() as session:
         result = await match_repo.get_match_statistics(session, match_id)
         return result
 
@@ -49,7 +49,7 @@ async def get_matches_with_high_activity(min_strikes: int = 200, limit: int = 10
     Returns:
         List[Dict]: 높은 활동량 매치 목록
     """
-    async with async_db_session() as session:
+    async with get_async_db_context() as session:
         result = await match_repo.get_matches_with_high_activity(session, min_strikes, limit)
         return result
 
@@ -66,7 +66,7 @@ async def get_matches_by_finish_method(method_pattern: str, limit: int = 20) -> 
     Returns:
         List[Dict]: 해당 피니시 방법의 매치 목록
     """
-    async with async_db_session() as session:
+    async with get_async_db_context() as session:
         result = await match_repo.get_matches_by_finish_method(session, method_pattern, limit)
         return [match.model_dump() for match in result]
 
@@ -84,7 +84,7 @@ async def get_matches_by_duration(min_rounds: Optional[int] = None, max_rounds: 
     Returns:
         List[Dict]: 조건에 맞는 매치 목록
     """
-    async with async_db_session() as session:
+    async with get_async_db_context() as session:
         result = await match_repo.get_matches_by_duration(session, min_rounds, max_rounds, limit)
         return [match.model_dump() for match in result]
 
@@ -101,7 +101,7 @@ async def get_matches_between_fighters(fighter_id_1: int, fighter_id_2: int) -> 
     Returns:
         List[Dict]: 두 파이터 간의 모든 매치 기록
     """
-    async with async_db_session() as session:
+    async with get_async_db_context() as session:
         result = await match_repo.get_matches_between_fighters(session, fighter_id_1, fighter_id_2)
         return [match.model_dump() for match in result]
 
@@ -117,7 +117,7 @@ async def get_match_by_id(match_id: int) -> Optional[Dict]:
     Returns:
         Optional[Dict]: 매치 기본 정보 또는 None
     """
-    async with async_db_session() as session:
+    async with get_async_db_context() as session:
         result = await match_repo.get_match_by_id(session, match_id)
         return result.model_dump() if result else None
 
@@ -133,6 +133,6 @@ async def get_matches_by_event_id(event_id: int) -> List[Dict]:
     Returns:
         List[Dict]: 이벤트의 모든 매치 목록
     """
-    async with async_db_session() as session:
+    async with get_async_db_context() as session:
         result = await match_repo.get_matches_by_event_id(session, event_id)
         return [match.model_dump() for match in result]

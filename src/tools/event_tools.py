@@ -3,7 +3,7 @@ from datetime import date
 
 from tools.load_tools import mcp
 from database import *
-from database.connection.postgres_conn import async_db_session
+from database.connection.postgres_conn import get_async_db_context
 from event import services as event_services
 from event import repositories as event_repo
 
@@ -39,7 +39,7 @@ async def get_event_info_by_id(event_id: int) -> Optional[Dict]:
     - "이벤트 456의 정보를 알려줘"
     - "ID 789번 이벤트는 언제 어디서 열려?"
     """
-    async with async_db_session() as session:
+    async with get_async_db_context() as session:
         event = await event_repo.get_event_by_id(session, int(event_id))
         if event:
             return event.model_dump()
@@ -78,7 +78,7 @@ async def get_event_info_by_name(event_name: str) -> Optional[Dict]:
     - "올해 가장 큰 UFC 이벤트는 뭐야?"
     - "이번 주 UFC 이벤트가 있어?"
     """
-    async with async_db_session() as session:
+    async with get_async_db_context() as session:
         event = await event_repo.get_event_by_name(session, event_name)
         if event:
             return event.model_dump()
@@ -120,7 +120,7 @@ async def search_events(query: str, search_type: str = "name", limit: int = 10) 
     - "런던에서 열린 이벤트들 중 어떤 게 있어?"
     - "올해 가장 큰 이벤트들을 찾아봐"
     """
-    async with async_db_session() as session:
+    async with get_async_db_context() as session:
         results = await event_services.search_events(session, query, search_type, limit)
         return results.model_dump()
 
@@ -136,7 +136,7 @@ async def get_upcoming_events(limit: int = 5) -> List[Dict]:
     Returns:
         List[Dict]: 다가오는 이벤트 목록
     """
-    async with async_db_session() as session:
+    async with get_async_db_context() as session:
         events = await event_repo.get_upcoming_events(session, limit)
         return [event.model_dump() for event in events]
 
@@ -152,7 +152,7 @@ async def get_recent_events(limit: int = 5) -> List[Dict]:
     Returns:
         List[Dict]: 최근 이벤트 목록
     """
-    async with async_db_session() as session:
+    async with get_async_db_context() as session:
         events = await event_repo.get_recent_events(session, limit)
         return [event.model_dump() for event in events]
 
@@ -165,7 +165,7 @@ async def get_next_and_last_events() -> Dict[str, Any]:
     Returns:
         Dict[str, Any]: 다음/최근 이벤트 정보와 날짜 계산 결과
     """
-    async with async_db_session() as session:
+    async with get_async_db_context() as session:
         result = await event_services.get_next_and_last_events(session)
         return result.model_dump()
 
@@ -188,7 +188,7 @@ async def get_event_timeline(period: str = "month") -> Dict[str, Any]:
             "upcoming_events": List[Dict]
         }
     """
-    async with async_db_session() as session:
+    async with get_async_db_context() as session:
         timeline = await event_services.get_event_timeline(session, period)
         return timeline.model_dump()
 
@@ -219,7 +219,7 @@ async def get_events_by_location(location: str) -> List[Dict]:
     - "일본에서 열린 UFC 이벤트가 궁금해"
     - "브라질에서 UFC 이벤트 역사를 알려줘"
     """
-    async with async_db_session() as session:
+    async with get_async_db_context() as session:
         events = await event_repo.get_events_by_location(session, location)
         return [event.model_dump() for event in events]
 
@@ -235,7 +235,7 @@ async def get_events_by_year(year: int) -> List[Dict]:
     Returns:
         List[Dict]: 해당 연도의 이벤트 목록
     """
-    async with async_db_session() as session:
+    async with get_async_db_context() as session:
         events = await event_repo.get_events_by_year(session, year)
         return [event.model_dump() for event in events]
 
@@ -252,7 +252,7 @@ async def get_events_by_month(year: int, month: int) -> List[Dict]:
     Returns:
         List[Dict]: 해당 연도와 월의 이벤트 목록
     """
-    async with async_db_session() as session:
+    async with get_async_db_context() as session:
         events = await event_repo.get_events_by_month(session, year, month)
         return [event.model_dump() for event in events]
 
@@ -269,7 +269,7 @@ async def get_events_calendar(year: int, month: Optional[int] = None) -> Dict[st
     Returns:
         Dict[str, Any]: 캘린더 정보를 담은 딕셔너리
     """
-    async with async_db_session() as session:
+    async with get_async_db_context() as session:
         calendar_data = await event_services.get_events_calendar(session, year, month)
         
         if calendar_data["type"] == "monthly":
@@ -310,7 +310,7 @@ async def get_location_statistics() -> Dict[str, Any]:
         Dict[str, Any]: 장소 통계 정보를 담은 딕셔너리
     """
 
-    async with async_db_session() as session:
+    async with get_async_db_context() as session:
         stats = await event_services.get_location_statistics(session)
         return stats
 
@@ -326,7 +326,7 @@ async def get_event_recommendations(recommendation_type: str = "upcoming") -> Di
     Returns:
         Dict[str, Any]: 추천 정보와 설명을 포함한 딕셔너리
     """
-    async with async_db_session() as session:
+    async with get_async_db_context() as session:
         recommendations = await event_services.get_event_recommendations(session, recommendation_type)
         
         # EventSchema ��D dict\ �X
@@ -351,7 +351,7 @@ async def get_event_trends(period: str = "yearly") -> Dict[str, Any]:
     Returns:
         Dict[str, Any]: 트렌드 정보를 담은 딕셔너리
     """
-    async with async_db_session() as session:
+    async with get_async_db_context() as session:
         trends = await event_services.get_event_trends(session, period)
         return trends
 
@@ -373,7 +373,7 @@ async def get_events_by_date_range(start_year: int, start_month: int, start_day:
     Returns:
         List[Dict]: 지정된 날짜 범위 내의 이벤트 목록
     """
-    async with async_db_session() as session:
+    async with get_async_db_context() as session:
         start_date = date(start_year, start_month, start_day)
         end_date = date(end_year, end_month, end_day)
         events = await event_repo.get_events_date_range(session, start_date, end_date)
@@ -391,7 +391,7 @@ async def get_event_count_by_year(year: int) -> int:
     Returns:
         int: 해당 연도의 이벤트 개수
     """
-    async with async_db_session() as session:
+    async with get_async_db_context() as session:
         count = await event_repo.get_event_count_by_year(session, year)
         return count
 
@@ -408,6 +408,6 @@ async def get_event_count_by_location(location: str) -> int:
     Returns:
         int: 해당 장소의 이벤트 개수
     """
-    async with async_db_session() as session:
+    async with get_async_db_context() as session:
         count = await event_repo.get_event_count_by_location(session, location)
         return count

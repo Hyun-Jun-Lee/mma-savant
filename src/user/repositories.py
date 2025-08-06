@@ -55,6 +55,7 @@ async def create_user(session: AsyncSession, user: UserSchema) -> UserSchema:
     db_user = UserModel.from_schema(user)
     session.add(db_user)
     await session.flush()
+    await session.commit()
     return db_user.to_schema()
 
 
@@ -112,6 +113,7 @@ async def update_user_profile(
         .values(**update_data)
     )
     await session.flush()
+    await session.commit()
     
     return await get_user_by_id(session, user_id)
 
@@ -145,6 +147,7 @@ async def update_user_usage(session: AsyncSession, user_id: int, increment: int 
     )
     
     await session.flush()
+    await session.commit()
     
     # 업데이트된 사용자 정보 반환
     return await get_user_by_id(session, user_id)
@@ -218,6 +221,7 @@ async def deactivate_user(session: AsyncSession, user_id: int) -> bool:
         .values(is_active=False)
     )
     await session.flush()
+    await session.commit()
     return result.rowcount > 0
 
 
@@ -231,5 +235,6 @@ async def activate_user(session: AsyncSession, user_id: int) -> bool:
         .values(is_active=True)
     )
     await session.flush()
+    await session.commit()
     return result.rowcount > 0
     

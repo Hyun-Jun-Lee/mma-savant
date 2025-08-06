@@ -6,7 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from traceback import print_exc
 
-from database.session import get_async_db
+from database.connection.postgres_conn import get_async_db
 from api.auth.dependencies import get_current_user
 from user.models import UserModel
 from conversation.models import (
