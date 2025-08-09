@@ -14,7 +14,6 @@ from data_collector.workflows.tasks import (
 
 LOGGER = logging.getLogger(__name__)
 
-# TODO : session 분리해서 하위 프로세스에서 별도의 session을 사용하도록 수정
 async def run_ufc_stats_flow():
     LOGGER.info("UFC 통계 크롤링 시작")
     start_time = time.time()
@@ -39,9 +38,9 @@ async def run_ufc_stats_flow():
     await scrap_match_detail_task(crawl_with_httpx)
     LOGGER.info("Match details scraping completed")
 
-    # LOGGER.info("Rankings scraping started")
-    # await scrap_rankings_task(session, crawl_with_httpx)
-    # LOGGER.info("Rankings scraping completed")
+    LOGGER.info("Rankings scraping started")
+    await scrap_rankings_task(crawl_with_httpx)
+    LOGGER.info("Rankings scraping completed")
     
     LOGGER.info("UFC 통계 크롤링 완료")
     end_time = time.time()
