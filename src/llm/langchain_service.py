@@ -19,14 +19,17 @@ from langchain_core.messages import HumanMessage, AIMessage, SystemMessage
 from langchain_core.tools import BaseTool
 from langchain.callbacks.base import AsyncCallbackHandler
 from langchain.schema import LLMResult
-
-# 단일 MCP 서버용 imports
+from langchain_mcp_adapters.tools import load_mcp_tools
 from mcp import ClientSession, StdioServerParameters
 from mcp.client.stdio import stdio_client
-from langchain_mcp_adapters.tools import load_mcp_tools
 
 from config import Config
 from llm.prompts.en_ver import get_en_system_prompt_with_tools, get_en_conversation_starter
+from conversation.message_manager import ChatHistoryManager
+from database.connection.postgres_conn import get_async_db_context
+from common.logging_config import get_logger
+
+LOGGER = get_logger(__name__)
 
 
 class StreamingCallbackHandler(AsyncCallbackHandler):
@@ -193,7 +196,7 @@ class StreamingCallbackHandler(AsyncCallbackHandler):
 class LangChainLLMService:
     """LangChain 기반 LLM 서비스 - 단일 MCP 서버 최적화"""
     
-    def __init__(self):
+    def __init__(self, max_cache_size: int = 100):
         # Anthropic LLM 초기화
         self.llm = ChatAnthropic(
             api_key=Config.ANTHROPIC_API_KEY,
@@ -201,6 +204,11 @@ class LangChainLLMService:
             temperature=0.7,
             max_tokens=4000,
             streaming=True
+        )
+
+        self.history_manager = ChatHistoryManager(
+            async_db_session_factory=get_async_db_context,
+            max_cache_size=max_cache_size
         )
         
         # 단일 MCP 서버 설정
@@ -238,17 +246,34 @@ class LangChainLLMService:
         self,
         user_message: str,
         conversation_history: List[Dict[str, str]] = None,
-        session_id: Optional[str] = None
+        session_id: Optional[str] = None,
+        user_id: Optional[int] = None,
         ) -> AsyncGenerator[Dict[str, Any], None]:
         """
         사용자 메시지에 대한 실제 스트리밍 채팅 응답 생성
         """
+        if not session_id:
+            LOGGER.error("Session ID is required for streaming chat response")
+            raise ValueError("Session ID is required for streaming chat response")
+
+        if not user_id:
+            LOGGER.error("User ID is required for streaming chat response")
+            raise ValueError("User ID is required for streaming chat response")
+
         message_id = str(uuid.uuid4())
         start_time = time.time()
         
         try:
-            messages = self._prepare_messages(user_message, conversation_history)
-            
+            # Chat history 가져오기
+            history_start = time.time()
+            history = await self.history_manager.get_session_history(session_id, user_id)
+            history_time = time.time() - history_start
+            LOGGER.info(f"⏱️ History loading: {history_time:.3f}s")
+            LOGGER.info(f"📚 Loaded {len(history.messages)} messages from cache")
+
+            # 사용자 메시지 추가
+            history.add_message(HumanMessage(content=user_message))
+
             # 단일 MCP 서버에서 도구 로드
             mcp_start = time.time()
             async with self._get_mcp_tools() as tools:
@@ -285,58 +310,92 @@ class LangChainLLMService:
                     return_intermediate_steps=True,  
                     callbacks=[callback_handler]  
                 )
+
+                # 히스토리와 함께 실행하는 체인 생성
+                def get_session_history_sync(sid: str):
+                    return history  # 이미 로드된 히스토리 반환
+                
+                chain_with_history = RunnableWithMessageHistory(
+                    agent_executor,
+                    get_session_history_sync,
+                    input_messages_key="input",
+                    history_messages_key="chat_history"
+                )
                 
                 print(f"🤖 Agent created with {len(tools)} tools")
                 
-                # 비동기 에이전트 실행을 별도 태스크로 시작
                 async def run_agent():
                     try:
-                        print("🚀 Starting agent execution...")
+                        LOGGER.info("🚀 Starting agent execution...")
                         
                         agent_exec_start = time.time()
-                        
                         invoke_start = time.time()
                         
-                        result = await agent_executor.ainvoke({
-                            "input": user_message,
-                            "chat_history": messages[:-1]
-                        })
+                        # RunnableWithMessageHistory를 사용하여 실행
+                        config = {"configurable": {"session_id": session_id}}
+                        response_content = ""
+                        tool_results = []
+                        
+                        # 스트리밍으로 결과 처리
+                        async for chunk in chain_with_history.astream(
+                            {"input": user_message},
+                            config=config
+                        ):
+                            if isinstance(chunk, dict):
+                                if "output" in chunk:
+                                    content = chunk["output"]
+                                    response_content += content
+                                
+                                if "intermediate_steps" in chunk:
+                                    steps = chunk["intermediate_steps"]
+                                    for step in steps:
+                                        if len(step) >= 2:
+                                            action, observation = step
+                                            tool_results.append({
+                                                "tool": getattr(action, 'tool', 'unknown'),
+                                                "input": str(action.tool_input),
+                                                "result": str(observation)[:500]
+                                            })
                         
                         invoke_time = time.time() - invoke_start
                         agent_exec_time = time.time() - agent_exec_start
                         
-                        print("✅ Agent execution completed")
-                        print(f"⏱️ ainvoke() call took: {invoke_time:.3f}s")
-                        print(f"⏱️ Total agent execution took: {agent_exec_time:.3f}s")
+                        LOGGER.info("✅ Agent execution completed")
+                        LOGGER.info(f"⏱️ Chain execution took: {invoke_time:.3f}s")
+                        LOGGER.info(f"⏱️ Total agent execution took: {agent_exec_time:.3f}s")
                         
-                        # 결과 분석
-                        if "intermediate_steps" in result:
-                            steps = result["intermediate_steps"]
-                            print(f"📊 Agent used {len(steps)} intermediate steps")
-                            for i, step in enumerate(steps):
-                                if hasattr(step, '__len__') and len(step) >= 2:
-                                    action, observation = step
-                                    tool_name = getattr(action, 'tool', 'unknown')
-                                    print(f"   Step {i+1}: Used tool '{tool_name}'")
+                        # AI 응답을 히스토리에 추가 (메모리 즉시 + DB 백그라운드)
+                        if response_content:
+                            ai_message = AIMessage(
+                                content=response_content,
+                                additional_kwargs={"tool_results": tool_results} if tool_results else {}
+                            )
+                            history.add_message(ai_message)
+                        
+                        # 결과 분석 로깅
+                        if tool_results:
+                            LOGGER.info(f"📊 Agent used {len(tool_results)} tools")
+                            for i, tool_result in enumerate(tool_results):
+                                LOGGER.info(f"   Step {i+1}: Used tool '{tool_result['tool']}'")
                         
                         # 최종 결과 큐에 추가
                         await callback_handler.stream_queue.put({
                             "type": "final_result",
-                            "content": result["output"],
-                            "intermediate_steps": result.get("intermediate_steps", []),
+                            "content": response_content,
+                            "tool_results": tool_results,
                             "message_id": message_id,
                             "session_id": session_id,
                             "timestamp": datetime.now().isoformat()
                         })
                         
                     except Exception as e:
-                        print(f"❌ Agent execution failed: {e}")
-                        print_exc()
+                        LOGGER.error(f"❌ Agent execution failed: {e}")
+                        LOGGER.error(format_exc())
                         
                         # Rate limit 에러 특별 처리
                         error_message = str(e)
                         if "rate_limit_error" in error_message or "429" in error_message:
-                            print("🚫 Rate limit exceeded - reducing token usage recommended")
+                            LOGGER.warning("🚫 Rate limit exceeded - reducing token usage recommended")
                             error_message = "API 호출 한도를 초과했습니다. 잠시 후 다시 시도해주세요."
                         
                         await callback_handler.stream_queue.put({
@@ -377,7 +436,7 @@ class LangChainLLMService:
                         yield chunk
                         
                     except asyncio.TimeoutError:
-                        print("⚠️ Streaming timeout - sending error")
+                        LOGGER.warning("⚠️ Streaming timeout - sending error")
                         yield {
                             "type": "error",
                             "error": "Streaming timeout",
@@ -387,8 +446,8 @@ class LangChainLLMService:
                         }
                         break
                     except Exception as e:
-                        print(f"❌ Error in streaming: {e}")
-                        print_exc()
+                        LOGGER.error(f"❌ Error in streaming: {e}")
+                        LOGGER.error(format_exc())
                         yield {
                             "type": "error",
                             "error": str(e),
@@ -401,14 +460,15 @@ class LangChainLLMService:
                 try:
                     await agent_task
                 except Exception as e:
-                    print(f"❌ Agent task error: {e}")
-                    print_exc()
+                    LOGGER.error(f"❌ Agent task error: {e}")
+                    LOGGER.error(format_exc())
                 
                 total_time = time.time() - start_time
-                print(f"⏱️ Total streaming function took: {total_time:.3f}s")
+                LOGGER.info(f"⏱️ Total streaming function took: {total_time:.3f}s")
                 
         except Exception as e:
-            print_exc()
+            LOGGER.error(f"❌ Error in streaming: {e}")
+            LOGGER.error(format_exc())
             yield {
                 "type": "error",
                 "error": str(e),
@@ -416,71 +476,14 @@ class LangChainLLMService:
                 "session_id": session_id,
                 "timestamp": datetime.now().isoformat()
             }
-    
-    def _prepare_messages(
-        self,
-        user_message: str,
-        conversation_history: List[Dict[str, str]] = None
-    ):
-        """LangChain 메시지 형식으로 변환"""
-        messages = []
-        
-        # 시스템 메시지 추가
-        messages.append(SystemMessage(content=get_en_system_prompt_with_tools()))
-        
-        # 대화 히스토리 추가
-        if conversation_history:
-            for msg in conversation_history:
-                if msg.get("role") == "user":
-                    messages.append(HumanMessage(content=msg["content"]))
-                elif msg.get("role") == "assistant":
-                    content = msg["content"]
-                    
-                    # 새로운 방식: tool_results 필드 직접 사용
-                    tool_results_data = msg.get("tool_results")
-                    
-                    if tool_results_data:
-                        # tool 결과를 포함한 확장된 메시지 생성
-                        enhanced_content = content + "\n\n[Previous tool results:\n"
-                        for tool_info in tool_results_data:
-                            enhanced_content += f"- {tool_info['tool']}: {tool_info['input']} → {tool_info['result'][:200]}...\n"
-                        enhanced_content += "]"
-                        messages.append(AIMessage(content=enhanced_content))
-                    elif "<!-- TOOL_RESULTS:" in content:
-                        # 기존 방식: HTML 주석 파싱 (하위 호환성)
-                        parts = content.split("<!-- TOOL_RESULTS:")
-                        user_visible_content = parts[0].strip()
-                        
-                        if len(parts) > 1:
-                            try:
-                                tool_part = parts[1].split(" -->")[0].strip()
-                                tool_results = json.loads(tool_part)
-                                
-                                enhanced_content = user_visible_content + "\n\n[Previous tool results:\n"
-                                for tool_info in tool_results:
-                                    enhanced_content += f"- {tool_info['tool']}: {tool_info['input']} → {tool_info['result'][:200]}...\n"
-                                enhanced_content += "]"
-                                
-                                messages.append(AIMessage(content=enhanced_content))
-                            except:
-                                messages.append(AIMessage(content=user_visible_content))
-                        else:
-                            messages.append(AIMessage(content=user_visible_content))
-                    else:
-                        messages.append(AIMessage(content=content))
-        
-        # 현재 사용자 메시지 추가
-        messages.append(HumanMessage(content=user_message))
-        
-        return messages
-    
+
     def get_conversation_starter(self) -> str:
         """대화 시작 메시지 반환"""
         return get_conversation_starter()
     
     async def cleanup(self):
         """리소스 정리 - MCP context manager가 자동으로 처리"""
-        print("✅ LLM service cleanup completed")
+        LOGGER.info("✅ LLM service cleanup completed")
 
 
 # 글로벌 서비스 인스턴스 - 간단한 싱글톤
@@ -492,6 +495,6 @@ async def get_langchain_service() -> LangChainLLMService:
     
     if _langchain_service is None:
         _langchain_service = LangChainLLMService()
-        print("✅ Single MCP server LangChain service created")
+        LOGGER.info("✅ Single MCP server LangChain service created")
     
     return _langchain_service
