@@ -9,7 +9,7 @@ import time
 import json
 from typing import List, Dict, Any, Optional, AsyncGenerator
 from datetime import datetime
-from traceback import print_exc
+from traceback import format_exc
 from contextlib import asynccontextmanager
 
 from langchain.agents import create_tool_calling_agent, AgentExecutor
@@ -17,6 +17,7 @@ from langchain_core.prompts import ChatPromptTemplate
 from langchain_anthropic import ChatAnthropic
 from langchain_core.messages import HumanMessage, AIMessage, SystemMessage
 from langchain_core.tools import BaseTool
+from langchain_core.runnables.history import RunnableWithMessageHistory
 from langchain.callbacks.base import AsyncCallbackHandler
 from langchain.schema import LLMResult
 from langchain_mcp_adapters.tools import load_mcp_tools

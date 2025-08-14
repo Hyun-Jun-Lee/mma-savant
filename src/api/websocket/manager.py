@@ -372,7 +372,8 @@ class ConnectionManager:
             async for chunk in self.llm_service.generate_streaming_chat_response(
                 user_message=content,
                 conversation_history=conversation_history,
-                session_id=session_id
+                session_id=session_id,
+                user_id=user.id
             ):
                 
                 if chunk["type"] == "start":
