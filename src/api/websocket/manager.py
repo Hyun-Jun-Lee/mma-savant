@@ -300,7 +300,6 @@ class ConnectionManager:
                     LOGGER.info(f"✅ Session validation successful: session_id={session_id}")
             else:
                 # 새 세션 생성
-                LOGGER.info(f"🆕 Creating new session for user {user.id}")
                 session_response = await get_or_create_session(
                     db=db,
                     user_id=user.id

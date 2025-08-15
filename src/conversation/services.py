@@ -160,43 +160,6 @@ class ChatSessionService:
         )
         return session_data is not None
 
-
-# 편의 함수들
-
-async def create_session_with_first_message(
-    db: AsyncSession,
-    user_id: int,
-    first_message: str,
-    title: Optional[str] = None
-) -> tuple[ChatSessionResponse, ChatMessageResponse]:
-    """
-    첫 메시지와 함께 새 세션 생성
-    """
-    # 세션 생성
-    session_create = ChatSessionCreate(title=title)
-    session_response = await ChatSessionService.create_new_session(
-        db=db,
-        user_id=user_id,
-        session_data=session_create
-    )
-    
-    # 첫 메시지 추가
-    message_create = ChatMessageCreate(
-        content=first_message,
-        role="user",
-        session_id=session_response.session_id
-    )
-    
-    message_response = await ChatSessionService.add_message(
-        db=db,
-        session_id=session_response.session_id,
-        user_id=user_id,
-        message_data=message_create
-    )
-    
-    return session_response, message_response
-
-
 async def get_or_create_session(
     db: AsyncSession,
     user_id: int,
