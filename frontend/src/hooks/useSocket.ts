@@ -8,7 +8,7 @@ export function useSocket() {
   const [isConnected, setIsConnected] = useState(false)
   const [isTyping, setIsTyping] = useState(false)
   const socketRef = useRef(getRealSocket())
-  const { addMessage, updateMessage, setConnected, setTyping, currentSession } = useChatStore()
+  const { addMessage, updateMessage, setConnected, setTyping, currentSession, setCurrentSession } = useChatStore()
   const currentStreamingMessage = useRef<{ id: string; content: string; storeId?: string } | null>(null)
 
   // Zustand 스토어 함수들은 이미 안정적이므로 직접 사용
@@ -151,6 +151,36 @@ export function useSocket() {
       setTyping(data.isTyping)
     })
 
+    // 메시지 수신 확인 처리 (새 세션 생성 시 세션 정보 업데이트)
+    socket.on('message_received', (data: { 
+      type: string;
+      message_id: string;
+      session_id: string;
+      timestamp: string;
+    }) => {
+      console.log('📩 Message received confirmation:', data)
+      
+      // 현재 세션이 없거나 다른 세션이면 업데이트
+      if (!currentSession || currentSession.session_id !== data.session_id) {
+        console.log('🔄 Updating current session from WebSocket:', data.session_id)
+        
+        // 새 세션 정보 생성 (기본 정보만)
+        const newSession = {
+          id: Date.now(), // 임시 ID
+          session_id: data.session_id,
+          user_id: 0, // 임시 user_id
+          title: `채팅 ${new Date().toLocaleString()}`,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+          last_message_at: data.timestamp
+        }
+        
+        // ChatStore의 현재 세션 업데이트
+        setCurrentSession(newSession)
+        console.log('✅ Current session updated:', newSession)
+      }
+    })
+
     // 에러 처리
     socket.on('error', (error: string) => {
       console.error('Socket error:', error)
@@ -174,7 +204,7 @@ export function useSocket() {
       // 소켓 연결 해제
       socket.disconnect()
     }
-  }, [addMessage, updateMessage, setConnected, setTyping]) // currentSession 의존성 제거하여 재연결 방지
+  }, [addMessage, updateMessage, setConnected, setTyping, setCurrentSession]) // currentSession 의존성 제거하여 재연결 방지
 
   const sendMessage = async (message: string) => {
     console.log('🚀 sendMessage called, React isConnected:', isConnected)
