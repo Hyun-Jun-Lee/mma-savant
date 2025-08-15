@@ -7,15 +7,17 @@ import uuid
 import asyncio
 from typing import Dict, List, Optional, Set
 from datetime import datetime
-from traceback import print_exc
+from traceback import print_exc, format_exc
 
 from fastapi import WebSocket, WebSocketDisconnect
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from user.models import UserModel
 from conversation.services import ChatSessionService, get_or_create_session
-from conversation.models import ChatMessageCreate
 from llm.langchain_service import get_langchain_service, LangChainLLMService
+from common.logging_config import get_logger
+
+LOGGER = get_logger(__name__)
 
 class ConnectionManager:
     """WebSocket 연결 관리자"""
@@ -51,7 +53,7 @@ class ConnectionManager:
         self._initializing = True
         try:
             self.llm_service = await get_langchain_service()
-            print("✅ LangChain LLM service initialized")
+            LOGGER.info("✅ LangChain LLM service initialized")
         finally:
             self._initializing = False
 
@@ -96,8 +98,8 @@ class ConnectionManager:
                 return result_str[:500] + "..." if len(result_str) > 500 else result_str
                 
         except Exception as e:
-            print(f"⚠️ Error processing tool result: {e}")
-            print_exc()
+            LOGGER.warning(f"⚠️ Error processing tool result: {e}")
+            LOGGER.error(format_exc())
             # 에러 발생 시 원본 문자열 반환 (길이 제한)
             result_str = str(result)
             return result_str[:500] + "..." if len(result_str) > 500 else result_str
@@ -117,7 +119,7 @@ class ConnectionManager:
             
             # WebSocket 상태 확인
             if websocket.client_state.name != "CONNECTED":
-                print(f"❌ WebSocket not properly connected: {websocket.client_state.name}")
+                LOGGER.error(f"❌ WebSocket not properly connected: {websocket.client_state.name}")
                 raise ConnectionError("WebSocket connection failed")
             
             # 고유 연결 ID 생성
@@ -138,14 +140,14 @@ class ConnectionManager:
                     self.session_connections[session_id] = set()
                 self.session_connections[session_id].add(connection_id)
             
-            print(f"🔌 User {user.id} connected with connection {connection_id}")
+            LOGGER.info(f"🔌 User {user.id} connected with connection {connection_id}")
             
             # 연결 등록만 수행, 메시지 전송은 routes.py에서 처리
             
             return connection_id
             
         except Exception as e:
-            print(f"❌ Failed to establish WebSocket connection: {e}")
+            LOGGER.error(f"❌ Failed to establish WebSocket connection: {e}")
             raise
     
     async def disconnect(self, connection_id: str):
@@ -174,14 +176,14 @@ class ConnectionManager:
             if not self.session_connections[session_id]:
                 del self.session_connections[session_id]
         
-        print(f"🔌 Connection {connection_id} disconnected")
+        LOGGER.info(f"🔌 Connection {connection_id} disconnected")
     
     async def send_to_connection(self, connection_id: str, message: dict):
         """
         특정 연결에 메시지 전송
         """
         if connection_id not in self.active_connections:
-            print(f"⚠️ Connection {connection_id} not found in active connections")
+            LOGGER.warning(f"⚠️ Connection {connection_id} not found in active connections")
             return
             
         websocket = self.active_connections[connection_id]
@@ -190,13 +192,13 @@ class ConnectionManager:
             
             # WebSocket이 CONNECTED 상태가 아닌 경우 즉시 제거
             if websocket.client_state.name != "CONNECTED":
-                print(f"🔌 WebSocket {connection_id} not in CONNECTED state ({websocket.client_state.name}), removing")
+                LOGGER.warning(f"🔌 WebSocket {connection_id} not in CONNECTED state ({websocket.client_state.name}), removing")
                 await self.disconnect(connection_id)
                 return
             
             # 추가 안전 검사: WebSocket 객체가 유효한지 확인
             if not hasattr(websocket, 'send_text'):
-                print(f"❌ WebSocket {connection_id} missing send_text method")
+                LOGGER.error(f"❌ WebSocket {connection_id} missing send_text method")
                 await self.disconnect(connection_id)
                 return
                 
@@ -206,9 +208,9 @@ class ConnectionManager:
             
         except Exception as e:
             error_msg = str(e).lower()
-            print(f"❌ Failed to send message to {connection_id}: {e}")
-            print(f"🔍 Error type: {type(e).__name__}")
-            print(f"🔍 WebSocket state during error: {websocket.client_state.name if hasattr(websocket, 'client_state') else 'unknown'}")
+            LOGGER.error(f"❌ Failed to send message to {connection_id}: {e}")
+            LOGGER.debug(f"🔍 Error type: {type(e).__name__}")
+            LOGGER.debug(f"🔍 WebSocket state during error: {websocket.client_state.name if hasattr(websocket, 'client_state') else 'unknown'}")
             
             # 모든 전송 관련 에러는 연결 정리 (더 포괄적으로)
             if any(keyword in error_msg for keyword in [
@@ -216,7 +218,7 @@ class ConnectionManager:
                 "websocket is not connected", "need to call", "accept",
                 "not connected", "receive"
             ]):
-                print(f"🔌 Removing connection {connection_id} due to send error")
+                LOGGER.warning(f"🔌 Removing connection {connection_id} due to send error")
                 await self.disconnect(connection_id)
                 # 에러를 re-raise하여 상위에서 처리하도록 함
                 raise ConnectionError(f"WebSocket connection lost for {connection_id}")
@@ -268,7 +270,7 @@ class ConnectionManager:
             session_id = message_data.get("session_id")
             
             if not content:
-                print(f"❌ Empty message content from {connection_id}")
+                LOGGER.warning(f"❌ Empty message content from {connection_id}")
                 await self.send_to_connection(connection_id, {
                     "type": "error",
                     "error": "Message content is required",
@@ -286,44 +288,32 @@ class ConnectionManager:
                 )
                 
                 if not session_valid:
-                    print("Failed to validate session, creating new session")
-                    # 검증 실패 시 에러 대신 새 세션 생성
-                    session_response = await get_or_create_session(
-                        db=db,
-                        user_id=user.id
-                    )
-                    session_id = session_response.session_id
-                    print(f"✅ New session created: session_id={session_id}")
+                    LOGGER.warning(f"❌ Session validation failed for session_id={session_id}")
+                    # 검증 실패 시 에러 반환
+                    await self.send_to_connection(connection_id, {
+                        "type": "error",
+                        "error": "Invalid session ID or access denied",
+                        "timestamp": datetime.now().isoformat()
+                    })
+                    return
                 else:
-                    print(f"✅ Session validation successful: session_id={session_id}")
+                    LOGGER.info(f"✅ Session validation successful: session_id={session_id}")
             else:
                 # 새 세션 생성
-                print(f"🆕 Creating new session for user {user.id}")
+                LOGGER.info(f"🆕 Creating new session for user {user.id}")
                 session_response = await get_or_create_session(
                     db=db,
                     user_id=user.id
                 )
                 session_id = session_response.session_id
-                print(f"✅ New session created: session_id={session_id}")
+                LOGGER.info(f"✅ New session created: session_id={session_id}")
             
-            # 사용자 메시지를 데이터베이스에 저장
-            user_message = ChatMessageCreate(
-                content=content,
-                role="user",
-                session_id=session_id
-            )
-            
-            saved_message = await ChatSessionService.add_message(
-                db=db,
-                session_id=session_id,
-                user_id=user.id,
-                message_data=user_message
-            )
+            # 사용자 메시지는 LangChain Message Manager에서 처리하므로 여기서는 저장하지 않음
             
             # 사용자 메시지 확인 응답
             await self.send_to_connection(connection_id, {
                 "type": "message_received",
-                "message_id": saved_message.id if saved_message else str(uuid.uuid4()),
+                "message_id": str(uuid.uuid4()),
                 "session_id": session_id,
                 "timestamp": datetime.now().isoformat()
             })
@@ -335,31 +325,7 @@ class ConnectionManager:
                 "timestamp": datetime.now().isoformat()
             })
             
-            # 대화 히스토리 조회
-            history_response = await ChatSessionService.get_session_history(
-                db=db,
-                session_id=session_id,
-                user_id=user.id,
-                limit=10  # 최근 10개 메시지 (tool 결과 보존을 위해 증가)
-            )
-            
-            conversation_history = []
-            if history_response:
-                conversation_history = [
-                    {
-                        "role": msg.role,
-                        "content": msg.content,
-                        "timestamp": msg.timestamp.isoformat()
-                    }
-                    for msg in history_response.messages
-                ]
-                print(f"📚 Retrieved {len(conversation_history)} messages from history")
-                for i, msg in enumerate(conversation_history):
-                    content_preview = msg["content"][:100] + "..." if len(msg["content"]) > 100 else msg["content"]
-                    has_tools = "<!-- TOOL_RESULTS:" in msg["content"]
-                    print(f"   {i+1}. {msg['role']}: {content_preview} {'🔧' if has_tools else ''}")
-            else:
-                print("📚 No conversation history found")
+            # 대화 히스토리는 LangChain Message Manager에서 처리하므로 여기서는 조회하지 않음
             
             # LLM 서비스 초기화 확인
             await self._ensure_llm_service()
@@ -371,7 +337,7 @@ class ConnectionManager:
             
             async for chunk in self.llm_service.generate_streaming_chat_response(
                 user_message=content,
-                conversation_history=conversation_history,
+                conversation_history=None,  # LangChain Message Manager에서 히스토리 관리
                 session_id=session_id,
                 user_id=user.id
             ):
@@ -402,22 +368,22 @@ class ConnectionManager:
                     # tool 결과 저장
                     tool_info = None
                     if "intermediate_steps" in chunk:
-                        print("intermediate_steps exists")
+                        LOGGER.debug("intermediate_steps exists")
                         tool_results = chunk["intermediate_steps"]
-                        print(f"🔧 Tool results captured: {len(tool_results)} steps")
+                        LOGGER.info(f"🔧 Tool results captured: {len(tool_results)} steps")
                         
                         if tool_results:
-                            print("tool result exists")
+                            LOGGER.debug("tool result exists")
                             # tool 결과를 별도 필드로 저장
                             tool_info = []
                             for i, step in enumerate(tool_results):
                                 if len(step) >= 2:
                                     action, result = step
-                                    print(f"   Step {i+1}: {getattr(action, 'tool', 'unknown')}")
-                                    print("-" * 50)
-                                    print("check tool result :")
-                                    print(result)
-                                    print("-" * 50)
+                                    LOGGER.debug(f"   Step {i+1}: {getattr(action, 'tool', 'unknown')}")
+                                    LOGGER.debug("-" * 50)
+                                    LOGGER.debug("check tool result :")
+                                    LOGGER.debug(result)
+                                    LOGGER.debug("-" * 50)
                                     
                                     # 결과를 JSON으로 파싱하여 처리
                                     processed_result = self._process_tool_result(result)
@@ -428,21 +394,8 @@ class ConnectionManager:
                                         "result": processed_result
                                     })
                     
-                    # 어시스턴트 메시지를 데이터베이스에 저장
-                    assistant_message = ChatMessageCreate(
-                        content=assistant_content,  # 순수한 콘텐츠만 저장
-                        role="assistant",
-                        session_id=session_id,
-                        tool_results=tool_info  # tool 결과는 별도 필드에 저장
-                    )
-                    print(f"📝 Saving message - content length: {len(assistant_content)}, tool_results: {len(tool_info) if tool_info else 0} items")
-                    
-                    await ChatSessionService.add_message(
-                        db=db,
-                        session_id=session_id,
-                        user_id=user.id,
-                        message_data=assistant_message
-                    )
+                    # AI 응답 메시지도 LangChain Message Manager에서 처리하므로 여기서는 저장하지 않음
+                    LOGGER.info(f"📝 AI response completed - content length: {len(assistant_content)}, tool_results: {len(tool_info) if tool_info else 0} items")
                 
                 elif chunk["type"] == "end":
                     # 타이핑 상태 종료
@@ -476,8 +429,8 @@ class ConnectionManager:
                     })
         
         except Exception as e:
-            print(f"❌ Error handling user message: {e}")
-            print_exc()
+            LOGGER.error(f"❌ Error handling user message: {e}")
+            LOGGER.error(format_exc())
             await self.send_to_connection(connection_id, {
                 "type": "error",
                 "error": f"Failed to process message: {str(e)}",

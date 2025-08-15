@@ -25,7 +25,7 @@ from mcp import ClientSession, StdioServerParameters
 from mcp.client.stdio import stdio_client
 
 from config import Config
-from llm.prompts.en_ver import get_en_system_prompt_with_tools, get_en_conversation_starter
+from llm.prompts.en_ver import get_en_system_prompt_with_tools
 from conversation.message_manager import ChatHistoryManager
 from database.connection.postgres_conn import get_async_db_context
 from common.logging_config import get_logger
@@ -345,7 +345,15 @@ class LangChainLLMService:
                             if isinstance(chunk, dict):
                                 if "output" in chunk:
                                     content = chunk["output"]
-                                    response_content += content
+                                    # 타입 안전성 확보
+                                    if isinstance(content, str):
+                                        response_content += content
+                                    elif isinstance(content, list):
+                                        # 리스트인 경우 문자열로 변환
+                                        response_content += " ".join(str(item) for item in content)
+                                    else:
+                                        # 기타 타입은 문자열로 변환
+                                        response_content += str(content)
                                 
                                 if "intermediate_steps" in chunk:
                                     steps = chunk["intermediate_steps"]
