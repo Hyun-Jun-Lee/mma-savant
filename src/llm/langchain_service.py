@@ -14,18 +14,15 @@ from contextlib import asynccontextmanager
 
 from langchain.agents import create_tool_calling_agent, AgentExecutor
 from langchain_core.prompts import ChatPromptTemplate
-from langchain_anthropic import ChatAnthropic
 from langchain_core.messages import AIMessage
-from langchain_core.tools import BaseTool
 from langchain_core.runnables.history import RunnableWithMessageHistory
-from langchain.callbacks.base import AsyncCallbackHandler
-from langchain.schema import LLMResult
 from langchain_mcp_adapters.tools import load_mcp_tools
 from mcp import ClientSession, StdioServerParameters
 from mcp.client.stdio import stdio_client
 
-from config import Config
 from llm.prompts.en_ver import get_en_system_prompt_with_tools
+from llm.providers import get_anthropic_llm
+from llm.callbacks import get_anthropic_callback_handler
 from conversation.message_manager import ChatHistoryManager
 from database.connection.postgres_conn import get_async_db_context
 from common.logging_config import get_logger
@@ -33,180 +30,12 @@ from common.logging_config import get_logger
 LOGGER = get_logger(__name__)
 
 
-class StreamingCallbackHandler(AsyncCallbackHandler):
-    """실제 스트리밍을 위한 콜백 핸들러"""
-    
-    def __init__(self, message_id: str, session_id: str):
-        self.tokens = []
-        self.message_id = message_id
-        self.session_id = session_id
-        self.current_content = ""
-        self.stream_queue = asyncio.Queue()
-        self.is_streaming = False
-        self.tool_calls = []
-    
-    async def on_llm_new_token(self, token: str, **kwargs) -> None:
-        """새 토큰이 생성될 때 호출 - 실제 스트리밍"""
-        try:
-            token_str = ""
-            
-            # Anthropic의 토큰 형식 처리 및 툴 호출 토큰 필터링
-            if isinstance(token, dict):
-                # 툴 호출 관련 토큰들 필터링
-                tool_types = ['tool_use', 'input_json_delta', 'tool_call', 'function_call']
-                if token.get('type') in tool_types:
-                    return  # 툴 관련 토큰은 스트리밍하지 않음
-                
-                # 툴 호출 ID나 이름이 포함된 토큰 필터링
-                if 'id' in token and token.get('id', '').startswith('toolu_'):
-                    return
-                
-                # {'text': 'content', 'type': 'text', 'index': 0} 형식
-                if 'text' in token:
-                    token_str = token['text']
-                else:
-                    return  # text가 없는 토큰은 스트리밍하지 않음
-                    
-            elif isinstance(token, list):
-                # 리스트인 경우 각 요소에서 text 추출
-                texts = []
-                for item in token:
-                    if isinstance(item, dict):
-                        # 툴 관련 토큰 필터링
-                        tool_types = ['tool_use', 'input_json_delta', 'tool_call', 'function_call']
-                        if item.get('type') in tool_types:
-                            continue
-                        # 툴 ID 토큰 필터링
-                        if 'id' in item and item.get('id', '').startswith('toolu_'):
-                            continue
-                        if 'text' in item:
-                            texts.append(item['text'])
-                    else:
-                        texts.append(str(item))
-                token_str = ''.join(texts)
-                if not token_str:
-                    return  # 빈 문자열인 경우 스트리밍하지 않음
-            else:
-                token_str = str(token)
-            
-            if token_str:  # 빈 문자열이 아닌 경우만 처리
-                self.tokens.append(token_str)
-                self.current_content += token_str
-                
-                # 스트리밍 큐에 토큰 추가
-                await self.stream_queue.put({
-                    "type": "content",
-                    "content": token_str,
-                    "message_id": self.message_id,
-                    "session_id": self.session_id,
-                    "timestamp": datetime.now().isoformat()
-                })
-                
-        except Exception as e:
-            print(f"❌ Error in on_llm_new_token: {e}")
-            print(f"🔍 Token type: {type(token)}, value: {token}")
-    
-    async def on_llm_start(self, serialized: Dict[str, Any], prompts: List[str], **kwargs) -> None:
-        """LLM 시작 시 호출"""
-        self.tokens = []
-        self.current_content = ""
-        self.is_streaming = True
-        
-        # 스트리밍 시작 신호
-        await self.stream_queue.put({
-            "type": "start",
-            "message_id": self.message_id,
-            "session_id": self.session_id,
-            "timestamp": datetime.now().isoformat()
-        })
-    
-    async def on_llm_end(self, response: LLMResult, **kwargs) -> None:
-        """LLM 종료 시 호출"""
-        self.is_streaming = False
-        
-        # 스트리밍 종료 신호
-        await self.stream_queue.put({
-            "type": "end",
-            "message_id": self.message_id,
-            "session_id": self.session_id,
-            "timestamp": datetime.now().isoformat(),
-            "final_content": self.current_content
-        })
-    
-    async def on_tool_start(self, serialized: Dict[str, Any], input_str: str, **kwargs) -> None:
-        """툴 시작 시 호출"""
-        tool_name = serialized.get("name", "unknown")
-        tool_start_time = time.time()
-        self.tool_calls.append({
-            "tool": tool_name,
-            "input": input_str,
-            "status": "started",
-            "start_time": tool_start_time
-        })
-        
-        print(f"🔧 Tool '{tool_name}' started at {tool_start_time}")
-        
-        # 툴 사용 알림
-        await self.stream_queue.put({
-            "type": "tool_start",
-            "tool_name": tool_name,
-            "tool_input": input_str,
-            "message_id": self.message_id,
-            "session_id": self.session_id,
-            "timestamp": datetime.now().isoformat()
-        })
-    
-    async def on_tool_end(self, output: str, **kwargs) -> None:
-        """툴 종료 시 호출"""
-        tool_end_time = time.time()
-        
-        if self.tool_calls:
-            tool_call = self.tool_calls[-1]
-            tool_call["status"] = "completed"
-            tool_call["result"] = output[:200] + "..." if len(output) > 200 else output
-            tool_call["end_time"] = tool_end_time
-            
-            # 툴 실행 시간 계산
-            if "start_time" in tool_call:
-                tool_duration = tool_end_time - tool_call["start_time"]
-                tool_call["duration"] = tool_duration
-                print(f"🔧 Tool '{tool_call['tool']}' completed in {tool_duration:.3f}s")
-            else:
-                print(f"🔧 Tool completed at {tool_end_time}")
-        
-        # 툴 완료 알림
-        await self.stream_queue.put({
-            "type": "tool_end",
-            "tool_result": output[:200] + "..." if len(output) > 200 else output,
-            "message_id": self.message_id,
-            "session_id": self.session_id,
-            "timestamp": datetime.now().isoformat()
-        })
-    
-    async def on_agent_action(self, action, **kwargs) -> None:
-        """에이전트 액션 시 호출"""
-        await self.stream_queue.put({
-            "type": "thinking",
-            "thought": f"Using tool: {action.tool}",
-            "message_id": self.message_id,
-            "session_id": self.session_id,
-            "timestamp": datetime.now().isoformat()
-        })
 
 
 class LangChainLLMService:
     """LangChain 기반 LLM 서비스 - 단일 MCP 서버 최적화"""
     
     def __init__(self, max_cache_size: int = 100):
-        # Anthropic LLM 초기화
-        self.llm = ChatAnthropic(
-            api_key=Config.ANTHROPIC_API_KEY,
-            model=Config.ANTHROPIC_MODEL_NAME,
-            temperature=0.7,
-            max_tokens=4000,
-            streaming=True
-        )
-
         self.history_manager = ChatHistoryManager(
             async_db_session_factory=get_async_db_context,
             max_cache_size=max_cache_size
@@ -293,9 +122,6 @@ class LangChainLLMService:
                 
                 # 에이전트 설정 및 생성
                 try:
-                    # 스트리밍 콜백 핸들러 생성
-                    callback_handler = StreamingCallbackHandler(message_id, session_id)
-                    
                     # 프롬프트 템플릿 생성
                     prompt = ChatPromptTemplate.from_messages([
                         ("system", get_en_system_prompt_with_tools()),
@@ -303,16 +129,15 @@ class LangChainLLMService:
                         ("placeholder", "{agent_scratchpad}"),
                     ])
                     
-                    # 스트리밍을 지원하는 LLM 생성
-                    streaming_llm = ChatAnthropic(
-                        api_key=Config.ANTHROPIC_API_KEY,
-                        model=Config.ANTHROPIC_MODEL_NAME,
-                        temperature=0.7,
-                        max_tokens=4000,
-                        streaming=True,
-                        callbacks=[callback_handler]  
-                    )
                     
+                    # 콜백 핸들러 가져오기 (스트리밍 이벤트 처리용)
+                    callback_handler = get_anthropic_callback_handler(message_id, session_id)
+                    
+                    # LLM Provider를 통한 LLM 생성
+                    streaming_llm = get_anthropic_llm(
+                        callback_handler=callback_handler
+                    )
+
                     # 에이전트 생성 (스트리밍 LLM 사용)
                     agent = create_tool_calling_agent(streaming_llm, tools, prompt)
 
