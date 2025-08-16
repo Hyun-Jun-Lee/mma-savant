@@ -269,6 +269,10 @@ class LangChainLLMService:
             history_start = time.time()
             history = await self.history_manager.get_session_history(session_id, user_id)
             history_time = time.time() - history_start
+            print('-'*50)
+            print("Check history content :")
+            print(history.messages)
+            print('-'*50)
             LOGGER.info(f"⏱️ History loading: {history_time:.3f}s")
             LOGGER.info(f"📚 Loaded {len(history.messages)} messages from cache")
         except Exception as e:
@@ -282,8 +286,6 @@ class LangChainLLMService:
                 "timestamp": datetime.now().isoformat()
             }
             return
-
-        # 사용자 메시지는 RunnableWithMessageHistory가 자동으로 추가하므로 여기서는 추가하지 않음
 
         # 단일 MCP 서버에서 도구 로드
         try:
@@ -415,15 +417,9 @@ class LangChainLLMService:
                         
                         # AI 응답을 히스토리에 추가 (메모리 즉시 + DB 백그라운드)
                         if response_content:
-                            # tool_results를 content에 포함하여 LLM이 참고할 수 있도록 함
-                            enhanced_content = response_content
-                            if tool_results:
-                                # tool_results를 summary 형태로 content에 추가
-                                tool_summary = f"\n\n[도구 사용 기록: {len(tool_results)}개 도구 사용됨]"
-                                enhanced_content = response_content + tool_summary
                             
                             ai_message = AIMessage(
-                                content=enhanced_content,
+                                content=response_content,
                                 additional_kwargs={"tool_results": tool_results} if tool_results else {}
                             )
                             history.add_message(ai_message)
