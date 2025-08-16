@@ -15,7 +15,7 @@ from contextlib import asynccontextmanager
 from langchain.agents import create_tool_calling_agent, AgentExecutor
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_anthropic import ChatAnthropic
-from langchain_core.messages import AIMessage, SystemMessage
+from langchain_core.messages import AIMessage
 from langchain_core.tools import BaseTool
 from langchain_core.runnables.history import RunnableWithMessageHistory
 from langchain.callbacks.base import AsyncCallbackHandler
@@ -264,65 +264,93 @@ class LangChainLLMService:
         message_id = str(uuid.uuid4())
         start_time = time.time()
         
+        # Chat history 가져오기
         try:
-            # Chat history 가져오기
             history_start = time.time()
             history = await self.history_manager.get_session_history(session_id, user_id)
             history_time = time.time() - history_start
             LOGGER.info(f"⏱️ History loading: {history_time:.3f}s")
             LOGGER.info(f"📚 Loaded {len(history.messages)} messages from cache")
+        except Exception as e:
+            LOGGER.error(f"❌ Error loading chat history: {e}")
+            LOGGER.error(format_exc())
+            yield {
+                "type": "error",
+                "error": f"Failed to load chat history: {str(e)}",
+                "message_id": message_id,
+                "session_id": session_id,
+                "timestamp": datetime.now().isoformat()
+            }
+            return
 
-            # 사용자 메시지는 RunnableWithMessageHistory가 자동으로 추가하므로 여기서는 추가하지 않음
+        # 사용자 메시지는 RunnableWithMessageHistory가 자동으로 추가하므로 여기서는 추가하지 않음
 
-            # 단일 MCP 서버에서 도구 로드
+        # 단일 MCP 서버에서 도구 로드
+        try:
             mcp_start = time.time()
             async with self._get_mcp_tools() as tools:
                 mcp_time = time.time() - mcp_start
-                print(f"⏱️ MCP tools loading took: {mcp_time:.3f}s")
+                LOGGER.info(f"⏱️ MCP tools loading took: {mcp_time:.3f}s")
+                LOGGER.info(f"🔧 Loaded {len(tools)} MCP tools")
                 
-                # 스트리밍 콜백 핸들러 생성
-                callback_handler = StreamingCallbackHandler(message_id, session_id)
-                
-                # 프롬프트 템플릿 생성
-                prompt = ChatPromptTemplate.from_messages([
-                    ("system", get_en_system_prompt_with_tools()),
-                    ("human", "{input}"),
-                    ("placeholder", "{agent_scratchpad}"),
-                ])
-                
-                # 스트리밍을 지원하는 LLM 생성
-                streaming_llm = ChatAnthropic(
-                    api_key=Config.ANTHROPIC_API_KEY,
-                    model=Config.ANTHROPIC_MODEL_NAME,
-                    temperature=0.7,
-                    max_tokens=4000,
-                    streaming=True,
-                    callbacks=[callback_handler]  
-                )
-                
-                # 에이전트 생성 (스트리밍 LLM 사용)
-                agent = create_tool_calling_agent(streaming_llm, tools, prompt)
+                # 에이전트 설정 및 생성
+                try:
+                    # 스트리밍 콜백 핸들러 생성
+                    callback_handler = StreamingCallbackHandler(message_id, session_id)
+                    
+                    # 프롬프트 템플릿 생성
+                    prompt = ChatPromptTemplate.from_messages([
+                        ("system", get_en_system_prompt_with_tools()),
+                        ("human", "{input}"),
+                        ("placeholder", "{agent_scratchpad}"),
+                    ])
+                    
+                    # 스트리밍을 지원하는 LLM 생성
+                    streaming_llm = ChatAnthropic(
+                        api_key=Config.ANTHROPIC_API_KEY,
+                        model=Config.ANTHROPIC_MODEL_NAME,
+                        temperature=0.7,
+                        max_tokens=4000,
+                        streaming=True,
+                        callbacks=[callback_handler]  
+                    )
+                    
+                    # 에이전트 생성 (스트리밍 LLM 사용)
+                    agent = create_tool_calling_agent(streaming_llm, tools, prompt)
 
-                agent_executor = AgentExecutor(
-                    agent=agent, 
-                    tools=tools, 
-                    verbose=True,
-                    return_intermediate_steps=True,  
-                    callbacks=[callback_handler]  
-                )
+                    agent_executor = AgentExecutor(
+                        agent=agent, 
+                        tools=tools, 
+                        verbose=True,
+                        return_intermediate_steps=True,  
+                        callbacks=[callback_handler]  
+                    )
 
-                # 히스토리와 함께 실행하는 체인 생성
-                def get_session_history_sync(sid: str):
-                    return history  # 이미 로드된 히스토리 반환
-                
-                chain_with_history = RunnableWithMessageHistory(
-                    agent_executor,
-                    get_session_history_sync,
-                    input_messages_key="input",
-                    history_messages_key="chat_history"
-                )
-                
-                print(f"🤖 Agent created with {len(tools)} tools")
+                    # 히스토리와 함께 실행하는 체인 생성
+                    def get_session_history_sync(sid: str):
+                        LOGGER.debug(f"get_session_history_sync called with sid: {sid}")
+                        return history  # 이미 로드된 히스토리 반환
+                    
+                    chain_with_history = RunnableWithMessageHistory(
+                        agent_executor,
+                        get_session_history_sync,
+                        input_messages_key="input",
+                        history_messages_key="chat_history"
+                    )
+                    
+                    LOGGER.info(f"🤖 Agent created with {len(tools)} tools")
+                    
+                except Exception as e:
+                    LOGGER.error(f"❌ Error creating agent: {e}")
+                    LOGGER.error(format_exc())
+                    yield {
+                        "type": "error",
+                        "error": f"Failed to create agent: {str(e)}",
+                        "message_id": message_id,
+                        "session_id": session_id,
+                        "timestamp": datetime.now().isoformat()
+                    }
+                    return
                 
                 async def run_agent():
                     try:
@@ -348,22 +376,35 @@ class LangChainLLMService:
                                     if isinstance(content, str):
                                         response_content += content
                                     elif isinstance(content, list):
-                                        # 리스트인 경우 문자열로 변환
-                                        response_content += " ".join(str(item) for item in content)
+                                        # 리스트인 경우 각 항목 처리
+                                        for item in content:
+                                            if isinstance(item, dict) and 'text' in item:
+                                                response_content += item['text']
+                                            else:
+                                                response_content += str(item)
+                                    elif isinstance(content, dict):
+                                        # 딕셔너리인 경우 text 필드 추출
+                                        if 'text' in content:
+                                            response_content += content['text']
+                                        else:
+                                            response_content += str(content)
                                     else:
                                         # 기타 타입은 문자열로 변환
                                         response_content += str(content)
                                 
                                 if "intermediate_steps" in chunk:
                                     steps = chunk["intermediate_steps"]
+                                    LOGGER.info(f"🔧 Found intermediate_steps: {len(steps)} steps")
                                     for step in steps:
                                         if len(step) >= 2:
                                             action, observation = step
-                                            tool_results.append({
+                                            tool_result = {
                                                 "tool": getattr(action, 'tool', 'unknown'),
                                                 "input": str(action.tool_input),
                                                 "result": str(observation)[:500]
-                                            })
+                                            }
+                                            tool_results.append(tool_result)
+                                            LOGGER.debug(f"Added tool result: {tool_result['tool']}")
                         
                         invoke_time = time.time() - invoke_start
                         agent_exec_time = time.time() - agent_exec_start
@@ -374,8 +415,15 @@ class LangChainLLMService:
                         
                         # AI 응답을 히스토리에 추가 (메모리 즉시 + DB 백그라운드)
                         if response_content:
+                            # tool_results를 content에 포함하여 LLM이 참고할 수 있도록 함
+                            enhanced_content = response_content
+                            if tool_results:
+                                # tool_results를 summary 형태로 content에 추가
+                                tool_summary = f"\n\n[도구 사용 기록: {len(tool_results)}개 도구 사용됨]"
+                                enhanced_content = response_content + tool_summary
+                            
                             ai_message = AIMessage(
-                                content=response_content,
+                                content=enhanced_content,
                                 additional_kwargs={"tool_results": tool_results} if tool_results else {}
                             )
                             history.add_message(ai_message)
@@ -475,11 +523,11 @@ class LangChainLLMService:
                 LOGGER.info(f"⏱️ Total streaming function took: {total_time:.3f}s")
                 
         except Exception as e:
-            LOGGER.error(f"❌ Error in streaming: {e}")
+            LOGGER.error(f"❌ Error loading MCP tools: {e}")
             LOGGER.error(format_exc())
             yield {
                 "type": "error",
-                "error": str(e),
+                "error": f"Failed to load MCP tools: {str(e)}",
                 "message_id": message_id,
                 "session_id": session_id,
                 "timestamp": datetime.now().isoformat()
