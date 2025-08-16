@@ -15,7 +15,7 @@ from contextlib import asynccontextmanager
 from langchain.agents import create_tool_calling_agent, AgentExecutor
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_anthropic import ChatAnthropic
-from langchain_core.messages import HumanMessage, AIMessage, SystemMessage
+from langchain_core.messages import AIMessage, SystemMessage
 from langchain_core.tools import BaseTool
 from langchain_core.runnables.history import RunnableWithMessageHistory
 from langchain.callbacks.base import AsyncCallbackHandler
@@ -272,8 +272,7 @@ class LangChainLLMService:
             LOGGER.info(f"⏱️ History loading: {history_time:.3f}s")
             LOGGER.info(f"📚 Loaded {len(history.messages)} messages from cache")
 
-            # 사용자 메시지 추가
-            history.add_message(HumanMessage(content=user_message))
+            # 사용자 메시지는 RunnableWithMessageHistory가 자동으로 추가하므로 여기서는 추가하지 않음
 
             # 단일 MCP 서버에서 도구 로드
             mcp_start = time.time()
