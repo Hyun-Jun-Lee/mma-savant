@@ -269,10 +269,6 @@ class LangChainLLMService:
             history_start = time.time()
             history = await self.history_manager.get_session_history(session_id, user_id)
             history_time = time.time() - history_start
-            print('-'*50)
-            print("Check history content :")
-            print(history.messages)
-            print('-'*50)
             LOGGER.info(f"⏱️ History loading: {history_time:.3f}s")
             LOGGER.info(f"📚 Loaded {len(history.messages)} messages from cache")
         except Exception as e:
