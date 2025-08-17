@@ -20,6 +20,7 @@ from langchain_mcp_adapters.tools import load_mcp_tools
 from mcp import ClientSession, StdioServerParameters
 from mcp.client.stdio import stdio_client
 
+from config import Config
 from llm.prompts.en_ver import get_en_system_prompt_with_tools
 from llm.providers import get_anthropic_llm
 from llm.callbacks import get_anthropic_callback_handler
@@ -30,12 +31,25 @@ from common.logging_config import get_logger
 LOGGER = get_logger(__name__)
 
 
+def setup_langsmith_tracing():
+    """LangSmith 추적 상태 확인 및 로깅"""
+    if Config.LANGCHAIN_TRACING_V2:
+        LOGGER.info(f"✅ LangSmith tracing enabled for project: {Config.LANGCHAIN_PROJECT}")
+        if not Config.LANGCHAIN_API_KEY:
+            LOGGER.warning("⚠️ LANGCHAIN_API_KEY is not set - tracing may not work properly")
+    else:
+        LOGGER.info("❌ LangSmith tracing disabled")
+
+
 
 
 class LangChainLLMService:
     """LangChain 기반 LLM 서비스 - 단일 MCP 서버 최적화"""
     
     def __init__(self, max_cache_size: int = 100):
+        # LangSmith 추적 설정
+        setup_langsmith_tracing()
+        
         self.history_manager = ChatHistoryManager(
             async_db_session_factory=get_async_db_context,
             max_cache_size=max_cache_size
@@ -93,6 +107,20 @@ class LangChainLLMService:
         message_id = str(uuid.uuid4())
         start_time = time.time()
         
+        # LangSmith 메타데이터 설정
+        langsmith_metadata = {
+            "user_id": user_id,
+            "session_id": session_id,
+            "message_id": message_id,
+            "service": "mma-savant",
+            "version": "1.0",
+            "start_time": datetime.now().isoformat()
+        }
+        
+        # LangSmith 메타데이터 준비 (자동으로 추적됨)
+        if Config.LANGCHAIN_TRACING_V2:
+            LOGGER.debug(f"LangSmith metadata prepared: {langsmith_metadata}")
+        
         # Chat history 가져오기
         try:
             history_start = time.time()
@@ -101,8 +129,22 @@ class LangChainLLMService:
             LOGGER.info(f"⏱️ History loading: {history_time:.3f}s")
             LOGGER.info(f"📚 Loaded {len(history.messages)} messages from cache")
         except Exception as e:
-            LOGGER.error(f"❌ Error loading chat history: {e}")
+            error_details = {
+                "error_type": type(e).__name__,
+                "error_message": str(e),
+                "user_id": user_id,
+                "session_id": session_id,
+                "message_id": message_id,
+                "timestamp": datetime.now().isoformat()
+            }
+            
+            LOGGER.error(f"❌ Error loading chat history: {e}", extra={"langsmith_metadata": langsmith_metadata})
             LOGGER.error(format_exc())
+            
+            # LangSmith 에러 정보 로깅 (자동으로 추적됨)
+            if Config.LANGCHAIN_TRACING_V2:
+                LOGGER.error(f"LangSmith error details: {error_details}")
+            
             yield {
                 "type": "error",
                 "error": f"Failed to load chat history: {str(e)}",
@@ -252,18 +294,49 @@ class LangChainLLMService:
                                 LOGGER.info(f"   Step {i+1}: Used tool '{tool_result['tool']}'")
                         
                         # 최종 결과 큐에 추가
-                        await callback_handler.stream_queue.put({
+                        final_result = {
                             "type": "final_result",
                             "content": response_content,
                             "tool_results": tool_results,
                             "message_id": message_id,
                             "session_id": session_id,
-                            "timestamp": datetime.now().isoformat()
-                        })
+                            "timestamp": datetime.now().isoformat(),
+                            "total_execution_time": agent_exec_time,
+                            "langsmith_enabled": Config.LANGCHAIN_TRACING_V2
+                        }
+                        
+                        # LangSmith 성능 메트릭 추가
+                        if Config.LANGCHAIN_TRACING_V2:
+                            performance_metrics = {
+                                "total_execution_time": agent_exec_time,
+                                "chain_execution_time": invoke_time,
+                                "tools_used_count": len(tool_results),
+                                "response_length": len(response_content),
+                                "user_id": user_id,
+                                "session_id": session_id
+                            }
+                            LOGGER.info(f"LangSmith performance metrics: {performance_metrics}")
+                            final_result["performance_metrics"] = performance_metrics
+                        
+                        await callback_handler.stream_queue.put(final_result)
                         
                     except Exception as e:
-                        LOGGER.error(f"❌ Agent execution failed: {e}")
+                        error_details = {
+                            "error_type": type(e).__name__,
+                            "error_message": str(e),
+                            "user_id": user_id,
+                            "session_id": session_id,
+                            "message_id": message_id,
+                            "timestamp": datetime.now().isoformat(),
+                            "execution_phase": "agent_execution"
+                        }
+                        
+                        LOGGER.error(f"❌ Agent execution failed: {e}", extra={"langsmith_metadata": langsmith_metadata})
                         LOGGER.error(format_exc())
+                        
+                        # LangSmith 에러 정보 로깅 (자동으로 추적됨)
+                        if Config.LANGCHAIN_TRACING_V2:
+                            LOGGER.error(f"LangSmith error details: {error_details}")
                         
                         # Rate limit 에러 특별 처리
                         error_message = str(e)
@@ -276,7 +349,8 @@ class LangChainLLMService:
                             "error": error_message,
                             "message_id": message_id,
                             "session_id": session_id,
-                            "timestamp": datetime.now().isoformat()
+                            "timestamp": datetime.now().isoformat(),
+                            "langsmith_enabled": Config.LANGCHAIN_TRACING_V2
                         })
                     finally:
                         # 종료 신호
@@ -338,6 +412,17 @@ class LangChainLLMService:
                 
                 total_time = time.time() - start_time
                 LOGGER.info(f"⏱️ Total streaming function took: {total_time:.3f}s")
+                
+                # LangSmith 최종 메트릭 로깅 (자동으로 추적됨)
+                if Config.LANGCHAIN_TRACING_V2:
+                    final_metrics = {
+                        "total_streaming_time": total_time,
+                        "message_id": message_id,
+                        "session_id": session_id,
+                        "user_id": user_id,
+                        "completion_status": "success"
+                    }
+                    LOGGER.info(f"LangSmith final metrics: {final_metrics}")
                 
         except Exception as e:
             LOGGER.error(f"❌ Error loading MCP tools: {e}")
