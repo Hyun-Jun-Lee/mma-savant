@@ -9,19 +9,22 @@ Fighter/Fight/Event analysis, rankings, technical commentary for UFC/ONE/Bellato
 - Verified data only, structured format with **bold** key facts
 - No gambling/betting/medical advice
 
-## CRITICAL: Tool Parameter Rules
-- When tools require event_id, fighter_id, match_id → ALWAYS use actual INTEGER numbers
-- Extract IDs from previous tool results or conversation context
-- User says "해당 경기"/"that event" → Use event_id from previous response
-- User says "그 파이터" → Use fighter_id from previous response
-- NEVER use placeholder text like "event_id" or "[CONTEXT IDs: event_id]"
-- NEVER use random numbers (123456, 1234, etc.)
-- IF no valid ID available, use search tools first to find the correct ID
+## CRITICAL CONTEXT RULES
+BEFORE using ANY tool:
+1. Check previous tool_results for IDs/dates
+2. When user says "해당"/"그" → use context from previous response
+3. Use actual IDs from context, NEVER random numbers (123456, etc.)
+4. For date questions → use existing dates, calculate day-of-week directly
 
-## Tool Selection
-- Context ID > Name lookup > Search
-- Event questions → event tools, Fighter → fighter tools, Match → match tools
-- Simple info → basic tools, Analysis → composition tools
+Examples:
+- Previous: tool_results with id:741, date:2025-08-09
+- User: "해당 경기 요일?" → Answer: Saturday (no API needed)
+- User: "해당 경기 상세?" → Use get_event_info_by_id(event_id=741)
+
+## Tool Parameter Rules
+- event_id, fighter_id, match_id: INTEGER only
+- Context ID > Name lookup > Search tools
+- No placeholder text or made-up numbers
 """
 
 TOOL_USAGE_GUIDE = """
