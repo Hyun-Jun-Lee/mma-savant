@@ -4,7 +4,7 @@ from traceback import format_exc
 
 from common.logging_config import get_logger
 from langchain_core.chat_history import BaseChatMessageHistory
-from langchain_core.messages import BaseMessage, HumanMessage, AIMessage
+from langchain_core.messages import BaseMessage, HumanMessage, AIMessage, ToolMessage, SystemMessage
 from conversation.repositories import add_message_to_session, get_chat_history
 
 
@@ -87,10 +87,30 @@ class ChatHistory(BaseChatMessageHistory):
         """동기적으로 메시지 반환 (LangChain 인터페이스 요구사항)"""
         return self._messages_cache
     
-    def add_message(self, message: BaseMessage) -> None:
-        """메시지 추가 (메모리 즉시 + DB 백그라운드)"""
+    def add_message(self, message) -> None:
+        """메시지 추가 (메모리 즉시 + DB 백그라운드) - 타입 안전"""
+        
+        print("=" * 50)
+        print(f"🔍 ADD_MESSAGE Type: {type(message)}")
+        
+        # 타입 검증 및 변환
+        if isinstance(message, BaseMessage):
+            final_message = message
+        elif isinstance(message, dict):
+            print("⚠️ Dict detected - converting to BaseMessage")
+            final_message = self._convert_dict_to_message(message)
+            if final_message is None:
+                print("❌ Conversion failed - skipping")
+                return
+        else:
+            print(f"❌ Invalid type {type(message)} - skipping")
+            return
+        
+        print(f"✅ Final message type: {type(final_message).__name__}")
+        print("=" * 50)
+        
         # 1. 메모리 캐시에 즉시 추가
-        self._messages_cache.append(message)
+        self._messages_cache.append(final_message)
         
         # 2. 캐시 크기 제한 (LRU: 가장 오래된 메시지 제거)
         if len(self._messages_cache) > self.max_cache_size:
@@ -99,16 +119,21 @@ class ChatHistory(BaseChatMessageHistory):
             LOGGER.debug(f"Cache size exceeded, removed {removed_count} oldest messages")
         
         # 3. DB 저장을 백그라운드 큐에 추가
-        role = "user" if isinstance(message, HumanMessage) else "assistant"
+        role = "user" if isinstance(final_message, HumanMessage) else "assistant"
         tool_results = None
         
-        if isinstance(message, AIMessage) and hasattr(message, 'additional_kwargs'):
-            tool_results = message.additional_kwargs.get("tool_results")
+        # ToolMessage는 DB에 저장하지 않음 (중간 과정이므로)
+        if isinstance(final_message, ToolMessage):
+            print("📋 ToolMessage detected - adding to cache but not saving to DB")
+            return
+        
+        if isinstance(final_message, AIMessage) and hasattr(final_message, 'additional_kwargs'):
+            tool_results = final_message.additional_kwargs.get("tool_results")
         
         save_item = {
             "action": "add",
             "message": {
-                "content": message.content,
+                "content": final_message.content,
                 "role": role,
                 "tool_results": tool_results
             }
@@ -116,9 +141,32 @@ class ChatHistory(BaseChatMessageHistory):
         
         try:
             self._save_queue.put_nowait(save_item)
+            print(f"✅ Queued for DB save: {role}")
         except asyncio.QueueFull:
             LOGGER.warning("⚠️ Save queue is full, skipping DB save")
-    
+
+    def _convert_dict_to_message(self, message_dict: dict):
+        """딕셔너리를 BaseMessage로 변환"""
+        try:
+            if "role" in message_dict and "content" in message_dict:
+                role = message_dict["role"]
+                content = message_dict["content"]
+                if role == "user":
+                    return HumanMessage(content=content)
+                else:
+                    return AIMessage(content=content)
+            elif "text" in message_dict:
+                return AIMessage(content=message_dict["text"])
+            elif "output" in message_dict:
+                return AIMessage(content=str(message_dict["output"]))
+            elif "content" in message_dict:
+                return AIMessage(content=message_dict["content"])
+            else:
+                print(f"❌ Cannot convert dict: {message_dict}")
+                return None
+        except Exception as e:
+            print(f"❌ Error converting dict: {e}")
+            return None
     
     async def _load_from_db(self) -> List[BaseMessage]:
         """Repository를 통한 DB 로드"""

@@ -15,7 +15,7 @@ from contextlib import asynccontextmanager
 from langchain.agents import create_tool_calling_agent, AgentExecutor
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.messages import AIMessage
-from langchain_core.runnables.history import RunnableWithMessageHistory
+from langchain_core.messages import HumanMessage
 from langchain_mcp_adapters.tools import load_mcp_tools
 from mcp import ClientSession, StdioServerParameters
 from mcp.client.stdio import stdio_client
@@ -85,6 +85,57 @@ class LangChainLLMService:
                 print(f"✅ MCP Tools loaded: {len(tools)} tools")
                 
                 yield tools
+
+    def _extract_safe_text_content(self, content) -> str:
+        """
+        LangChain Agent 출력에서 안전하게 텍스트 추출
+        Anthropic 토큰 형태와 기타 구조화된 데이터를 필터링
+        """
+        if isinstance(content, str):
+            return content
+        
+        elif isinstance(content, dict):
+            # Anthropic 토큰 형태 필터링
+            if content.get('type') in ['tool_use', 'input_json_delta', 'tool_call', 'function_call']:
+                LOGGER.debug(f"🔧 Filtered tool-related token: {content.get('type')}")
+                return ""
+            
+            # 툴 ID 토큰 필터링
+            if 'id' in content and str(content.get('id', '')).startswith('toolu_'):
+                LOGGER.debug(f"🔧 Filtered tool ID token: {content.get('id')}")
+                return ""
+            
+            # 표준 텍스트 필드들 확인 (우선순위 순)
+            for text_field in ['content', 'text', 'message']:
+                if text_field in content:
+                    text_value = content[text_field]
+                    if isinstance(text_value, str):
+                        return text_value
+                    else:
+                        # 재귀적으로 처리
+                        return self._extract_safe_text_content(text_value)
+            
+            # 알려진 구조화된 형태들 로깅
+            if 'type' in content and 'index' in content:
+                LOGGER.debug(f"🔍 Skipped structured token: {content}")
+                return ""
+            
+            # 기타 딕셔너리는 문자열로 변환 (마지막 수단)
+            LOGGER.debug(f"⚠️ Unknown dict structure converted to string: {content}")
+            return str(content)
+        
+        elif isinstance(content, list):
+            # 리스트인 경우 각 항목에서 텍스트 추출하여 합침
+            texts = []
+            for item in content:
+                extracted = self._extract_safe_text_content(item)
+                if extracted:
+                    texts.append(extracted)
+            return ''.join(texts)
+        
+        else:
+            # 기타 타입은 문자열로 변환
+            return str(content) if content is not None else ""
 
     async def generate_streaming_chat_response(
         self,
@@ -164,9 +215,10 @@ class LangChainLLMService:
                 
                 # 에이전트 설정 및 생성
                 try:
-                    # 프롬프트 템플릿 생성
+                    # 프롬프트 템플릿 생성 (chat_history 포함)
                     prompt = ChatPromptTemplate.from_messages([
                         ("system", get_en_system_prompt_with_tools()),
+                        ("placeholder", "{chat_history}"),
                         ("human", "{input}"),
                         ("placeholder", "{agent_scratchpad}"),
                     ])
@@ -191,17 +243,16 @@ class LangChainLLMService:
                         callbacks=[callback_handler]  
                     )
 
-                    # 히스토리와 함께 실행하는 체인 생성
-                    def get_session_history_sync(sid: str):
-                        LOGGER.debug(f"get_session_history_sync called with sid: {sid}")
-                        return history  # 이미 로드된 히스토리 반환
+                    # 히스토리 직접 관리 - RunnableWithMessageHistory 제거
+                    # 유효한 메시지들만 필터링 (dict 타입 제외)
+                    valid_chat_history = []
+                    for msg in history.messages:
+                        if hasattr(msg, 'content') and hasattr(msg, 'type'):
+                            valid_chat_history.append(msg)
+                        else:
+                            LOGGER.debug(f"Skipped invalid message: {type(msg)} - {msg}")
                     
-                    chain_with_history = RunnableWithMessageHistory(
-                        agent_executor,
-                        get_session_history_sync,
-                        input_messages_key="input",
-                        history_messages_key="chat_history"
-                    )
+                    LOGGER.info(f"📚 Using {len(valid_chat_history)} valid messages for context")
                     
                     LOGGER.info(f"🤖 Agent created with {len(tools)} tools")
                     
@@ -224,38 +275,28 @@ class LangChainLLMService:
                         agent_exec_start = time.time()
                         invoke_start = time.time()
                         
-                        # RunnableWithMessageHistory를 사용하여 실행
-                        config = {"configurable": {"session_id": session_id}}
+                        # 사용자 메시지를 히스토리에 추가
+                        user_msg = HumanMessage(content=user_message)
+                        history.add_message(user_msg)
+                        
                         response_content = ""
                         tool_results = []
                         
-                        # 스트리밍으로 결과 처리
-                        async for chunk in chain_with_history.astream(
-                            {"input": user_message},
-                            config=config
+                        # 직접 agent_executor 호출 (히스토리 포함)
+                        # AgentExecutor에 이미 콜백이 설정되어 있으므로 중복 전달 방지
+                        async for chunk in agent_executor.astream(
+                            {
+                                "input": user_message,
+                                "chat_history": valid_chat_history
+                            }
                         ):
+                            
                             if isinstance(chunk, dict):
                                 if "output" in chunk:
                                     content = chunk["output"]
-                                    # 타입 안전성 확보
-                                    if isinstance(content, str):
-                                        response_content += content
-                                    elif isinstance(content, list):
-                                        # 리스트인 경우 각 항목 처리
-                                        for item in content:
-                                            if isinstance(item, dict) and 'text' in item:
-                                                response_content += item['text']
-                                            else:
-                                                response_content += str(item)
-                                    elif isinstance(content, dict):
-                                        # 딕셔너리인 경우 text 필드 추출
-                                        if 'text' in content:
-                                            response_content += content['text']
-                                        else:
-                                            response_content += str(content)
-                                    else:
-                                        # 기타 타입은 문자열로 변환
-                                        response_content += str(content)
+                                    extracted_text = self._extract_safe_text_content(content)
+                                    if extracted_text:
+                                        response_content += extracted_text
                                 
                                 if "intermediate_steps" in chunk:
                                     steps = chunk["intermediate_steps"]
@@ -269,7 +310,6 @@ class LangChainLLMService:
                                                 "result": str(observation)[:500]
                                             }
                                             tool_results.append(tool_result)
-                                            LOGGER.debug(f"Added tool result: {tool_result['tool']}")
                         
                         invoke_time = time.time() - invoke_start
                         agent_exec_time = time.time() - agent_exec_start
@@ -280,12 +320,22 @@ class LangChainLLMService:
                         
                         # AI 응답을 히스토리에 추가 (메모리 즉시 + DB 백그라운드)
                         if response_content:
+                            # response_content가 문자열인지 확인 및 정리
+                            if isinstance(response_content, str):
+                                clean_content = response_content.strip()
+                            else:
+                                LOGGER.warning(f"⚠️ Non-string response_content: {type(response_content)} - {response_content}")
+                                clean_content = self._extract_safe_text_content(response_content)
                             
-                            ai_message = AIMessage(
-                                content=response_content,
-                                additional_kwargs={"tool_results": tool_results} if tool_results else {}
-                            )
-                            history.add_message(ai_message)
+                            if clean_content:
+                                ai_message = AIMessage(
+                                    content=clean_content,
+                                    additional_kwargs={"tool_results": tool_results} if tool_results else {}
+                                )
+                                history.add_message(ai_message)
+                                LOGGER.info(f"✅ AI message added to history: {len(clean_content)} chars")
+                            else:
+                                LOGGER.warning("⚠️ Empty or invalid response content after cleaning - not adding to history")
                         
                         # 결과 분석 로깅
                         if tool_results:
