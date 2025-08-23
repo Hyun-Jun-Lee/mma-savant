@@ -27,6 +27,7 @@ from llm.callbacks import get_anthropic_callback_handler
 from conversation.message_manager import ChatHistoryManager
 from database.connection.postgres_conn import get_async_db_context
 from common.logging_config import get_logger
+from common.utils import remove_timestamps_from_tool_result
 
 LOGGER = get_logger(__name__)
 
@@ -307,7 +308,7 @@ class LangChainLLMService:
                                             tool_result = {
                                                 "tool": getattr(action, 'tool', 'unknown'),
                                                 "input": str(action.tool_input),
-                                                "result": str(observation)[:500]
+                                                "result": str(remove_timestamps_from_tool_result(observation))
                                             }
                                             tool_results.append(tool_result)
                         
@@ -330,7 +331,7 @@ class LangChainLLMService:
                             if clean_content:
                                 ai_message = AIMessage(
                                     content=clean_content,
-                                    additional_kwargs={"tool_results": tool_results} if tool_results else {}
+                                    additional_kwargs={"tool_results": tool_results if tool_results else []}
                                 )
                                 history.add_message(ai_message)
                                 LOGGER.info(f"✅ AI message added to history: {len(clean_content)} chars")

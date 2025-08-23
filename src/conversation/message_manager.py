@@ -89,10 +89,6 @@ class ChatHistory(BaseChatMessageHistory):
     
     def add_message(self, message) -> None:
         """메시지 추가 (메모리 즉시 + DB 백그라운드) - 타입 안전"""
-        
-        print("=" * 50)
-        print(f"🔍 ADD_MESSAGE Type: {type(message)}")
-        
         # 타입 검증 및 변환
         if isinstance(message, BaseMessage):
             final_message = message

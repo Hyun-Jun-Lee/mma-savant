@@ -1,4 +1,5 @@
 import re
+import json
 import logging
 from typing import Callable, Dict
 from functools import wraps
@@ -93,3 +94,49 @@ def convert_reach(reach_str: str) -> tuple[float, float]:
 
 def normalize_name(name: str) -> str:
     return unidecode(name).lower()
+
+def remove_timestamps_from_tool_result(tool_result):
+    """Tool 결과에서 created_at, updated_at 타임스탬프 필드를 제거한 정리된 데이터 반환
+    
+    Args:
+        tool_result: dict, list[dict], 또는 JSON 문자열 - Tool 결과 데이터
+        
+    Returns:
+        dict, list[dict], 또는 정리된 JSON 문자열 - 타임스탬프가 제거된 정리된 데이터
+    """
+    # 문자열인 경우 JSON 파싱 시도
+    if isinstance(tool_result, str):
+        try:
+            parsed_data = json.loads(tool_result)
+            # 파싱된 데이터를 정리 후 다시 JSON 문자열로 변환
+            cleaned_data = remove_timestamps_from_tool_result(parsed_data)
+            return json.dumps(cleaned_data, ensure_ascii=False)
+        except (json.JSONDecodeError, ValueError):
+            # JSON이 아닌 일반 문자열은 그대로 반환
+            return tool_result
+    
+    elif isinstance(tool_result, list):
+        # 리스트인 경우: 각 딕셔너리에서 타임스탬프 제거
+        cleaned_results = []
+        for item in tool_result:
+            if isinstance(item, dict):
+                item_copy = item.copy()
+                item_copy.pop('created_at', None)
+                item_copy.pop('updated_at', None)
+                cleaned_results.append(item_copy)
+            else:
+                cleaned_results.append(item)
+        print("=== cleaned_results ===", cleaned_results)
+        return cleaned_results
+    
+    elif isinstance(tool_result, dict):
+        # 딕셔너리인 경우: 타임스탬프 필드 제거
+        tool_result_copy = tool_result.copy()
+        tool_result_copy.pop('created_at', None)
+        tool_result_copy.pop('updated_at', None)
+        print("=== tool_result_copy ===", tool_result_copy)
+        return tool_result_copy
+    
+    else:
+        # 기타 타입인 경우 그대로 반환
+        return tool_result
