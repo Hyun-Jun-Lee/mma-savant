@@ -32,13 +32,10 @@ class ChatSessionCreate(BaseSchema):
 
 class ChatSessionResponse(BaseSchema):
     """채팅 세션 응답"""
-    id: int
     user_id: int
     session_id: str
     title: Optional[str] = None
     last_message_at: Optional[datetime] = None
-    created_at: datetime
-    updated_at: datetime
 
     model_config = ConfigDict(from_attributes=True)
 

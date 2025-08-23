@@ -9,7 +9,7 @@ from conversation.models import (
     ConversationModel, ConversationSchema, MessageModel, MessageSchema,
     ChatSessionResponse, ChatMessageResponse, ChatHistoryResponse
 )
-from user.models import UserModel
+from common.utils import kr_time_now
 
 # 채팅 세션 관리 함수들
 
@@ -26,7 +26,7 @@ async def create_chat_session(
     
     # 제목이 없으면 기본 제목 생성
     if not title:
-        title = f"채팅 {datetime.now().strftime('%Y-%m-%d %H:%M')}"
+        title = f"채팅 {kr_time_now().strftime('%Y-%m-%d %H:%M')}"
     
     # 새로운 대화 세션 생성 (메시지는 별도 테이블에 저장)
     db_conversation = ConversationModel(
@@ -137,7 +137,7 @@ async def update_chat_session_title(
         )
         .values(
             title=new_title,
-            updated_at=datetime.now()
+            updated_at=kr_time_now()
         )
     )
     
@@ -237,7 +237,7 @@ async def add_message_to_session(
     session.add(new_message)
     
     # 대화 세션의 updated_at 갱신
-    conversation.updated_at = datetime.now()
+    conversation.updated_at = kr_time_now()
     session.add(conversation)
     
     await session.flush()

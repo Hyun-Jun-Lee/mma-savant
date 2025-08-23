@@ -6,6 +6,8 @@ from datetime import datetime
 from langchain.callbacks.base import AsyncCallbackHandler
 from langchain.schema import LLMResult
 
+from common.utils import kr_time_now
+
 
 class HuggingFaceCallbackHandler(AsyncCallbackHandler):
     """
@@ -44,7 +46,7 @@ class HuggingFaceCallbackHandler(AsyncCallbackHandler):
                     "session_id": self.session_id,
                     "model": self.model_name,
                     "token_count": self.token_count,
-                    "timestamp": datetime.now().isoformat()
+                    "timestamp": kr_time_now().isoformat()
                 })
                 
         except Exception as e:
@@ -94,7 +96,7 @@ class HuggingFaceCallbackHandler(AsyncCallbackHandler):
             "message_id": self.message_id,
             "session_id": self.session_id,
             "model": self.model_name,
-            "timestamp": datetime.now().isoformat()
+            "timestamp": kr_time_now().isoformat()
         })
     
     async def on_llm_end(self, response: LLMResult, **kwargs) -> None:
@@ -108,7 +110,7 @@ class HuggingFaceCallbackHandler(AsyncCallbackHandler):
             "message_id": self.message_id,
             "session_id": self.session_id,
             "model": self.model_name,
-            "timestamp": datetime.now().isoformat(),
+            "timestamp": kr_time_now().isoformat(),
             "final_content": self.current_content,
             "duration": duration,
             "token_count": self.token_count,
@@ -124,7 +126,7 @@ class HuggingFaceCallbackHandler(AsyncCallbackHandler):
             "message_id": self.message_id,
             "session_id": self.session_id,
             "model": self.model_name,
-            "timestamp": datetime.now().isoformat(),
+            "timestamp": kr_time_now().isoformat(),
             "error": str(error),
             "error_type": type(error).__name__
         })
@@ -151,7 +153,7 @@ class HuggingFaceCallbackHandler(AsyncCallbackHandler):
             "message_id": self.message_id,
             "session_id": self.session_id,
             "model": self.model_name,
-            "timestamp": datetime.now().isoformat()
+            "timestamp": kr_time_now().isoformat()
         })
     
     async def on_tool_end(self, output: str, **kwargs) -> None:
@@ -175,7 +177,7 @@ class HuggingFaceCallbackHandler(AsyncCallbackHandler):
             "message_id": self.message_id,
             "session_id": self.session_id,
             "model": self.model_name,
-            "timestamp": datetime.now().isoformat()
+            "timestamp": kr_time_now().isoformat()
         })
     
     async def on_agent_action(self, action, **kwargs) -> None:
@@ -186,7 +188,7 @@ class HuggingFaceCallbackHandler(AsyncCallbackHandler):
             "message_id": self.message_id,
             "session_id": self.session_id,
             "model": self.model_name,
-            "timestamp": datetime.now().isoformat()
+            "timestamp": kr_time_now().isoformat()
         })
     
     def get_performance_metrics(self) -> Dict[str, Any]:

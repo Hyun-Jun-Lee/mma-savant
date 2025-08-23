@@ -16,6 +16,7 @@ from user.models import UserModel
 from conversation.services import ChatSessionService, get_or_create_session
 from llm.langchain_service import get_langchain_service, LangChainLLMService
 from common.logging_config import get_logger
+from common.utils import kr_time_now
 
 LOGGER = get_logger(__name__)
 
@@ -261,7 +262,7 @@ class ConnectionManager:
                 await self.send_to_connection(connection_id, {
                     "type": "error",
                     "error": "User not found",
-                    "timestamp": datetime.now().isoformat()
+                    "timestamp": kr_time_now().isoformat()
                 })
                 return
             
@@ -274,7 +275,7 @@ class ConnectionManager:
                 await self.send_to_connection(connection_id, {
                     "type": "error",
                     "error": "Message content is required",
-                    "timestamp": datetime.now().isoformat()
+                    "timestamp": kr_time_now().isoformat()
                 })
                 return
             
@@ -293,7 +294,7 @@ class ConnectionManager:
                     await self.send_to_connection(connection_id, {
                         "type": "error",
                         "error": "Invalid session ID or access denied",
-                        "timestamp": datetime.now().isoformat()
+                        "timestamp": kr_time_now().isoformat()
                     })
                     return
                 else:
@@ -315,14 +316,14 @@ class ConnectionManager:
                 "type": "message_received",
                 "message_id": str(uuid.uuid4()),
                 "session_id": session_id,
-                "timestamp": datetime.now().isoformat()
+                "timestamp": kr_time_now().isoformat()
             })
             
             # 타이핑 상태 시작
             await self.send_to_connection(connection_id, {
                 "type": "typing",
                 "is_typing": True,
-                "timestamp": datetime.now().isoformat()
+                "timestamp": kr_time_now().isoformat()
             })
             
             # 대화 히스토리는 LangChain Message Manager에서 처리하므로 여기서는 조회하지 않음
@@ -402,7 +403,7 @@ class ConnectionManager:
                     await self.send_to_connection(connection_id, {
                         "type": "typing",
                         "is_typing": False,
-                        "timestamp": datetime.now().isoformat()
+                        "timestamp": kr_time_now().isoformat()
                     })
                     
                     # 응답 종료 알림만 전송 (메시지 저장은 final_result에서 처리)
@@ -417,7 +418,7 @@ class ConnectionManager:
                     await self.send_to_connection(connection_id, {
                         "type": "typing",
                         "is_typing": False,
-                        "timestamp": datetime.now().isoformat()
+                        "timestamp": kr_time_now().isoformat()
                     })
                     
                     await self.send_to_connection(connection_id, {
@@ -434,7 +435,7 @@ class ConnectionManager:
             await self.send_to_connection(connection_id, {
                 "type": "error",
                 "error": f"Failed to process message: {str(e)}",
-                "timestamp": datetime.now().isoformat()
+                "timestamp": kr_time_now().isoformat()
             })
     
     def get_connection_count(self) -> int:
@@ -451,7 +452,7 @@ class ConnectionManager:
             "total_connections": len(self.active_connections),
             "total_users": len(self.user_connections),
             "total_sessions": len(self.session_connections),
-            "timestamp": datetime.now().isoformat()
+            "timestamp": kr_time_now().isoformat()
         }
 
 

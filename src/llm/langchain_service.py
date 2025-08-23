@@ -27,7 +27,7 @@ from llm.callbacks import get_anthropic_callback_handler
 from conversation.message_manager import ChatHistoryManager
 from database.connection.postgres_conn import get_async_db_context
 from common.logging_config import get_logger
-from common.utils import remove_timestamps_from_tool_result
+from common.utils import remove_timestamps_from_tool_result, kr_time_now
 
 LOGGER = get_logger(__name__)
 
@@ -166,7 +166,7 @@ class LangChainLLMService:
             "message_id": message_id,
             "service": "mma-savant",
             "version": "1.0",
-            "start_time": datetime.now().isoformat()
+            "start_time": kr_time_now().isoformat()
         }
         
         # LangSmith 메타데이터 준비 (자동으로 추적됨)
@@ -187,7 +187,7 @@ class LangChainLLMService:
                 "user_id": user_id,
                 "session_id": session_id,
                 "message_id": message_id,
-                "timestamp": datetime.now().isoformat()
+                "timestamp": kr_time_now().isoformat()
             }
             
             LOGGER.error(f"❌ Error loading chat history: {e}", extra={"langsmith_metadata": langsmith_metadata})
@@ -202,7 +202,7 @@ class LangChainLLMService:
                 "error": f"Failed to load chat history: {str(e)}",
                 "message_id": message_id,
                 "session_id": session_id,
-                "timestamp": datetime.now().isoformat()
+                "timestamp": kr_time_now().isoformat()
             }
             return
 
@@ -265,7 +265,7 @@ class LangChainLLMService:
                         "error": f"Failed to create agent: {str(e)}",
                         "message_id": message_id,
                         "session_id": session_id,
-                        "timestamp": datetime.now().isoformat()
+                        "timestamp": kr_time_now().isoformat()
                     }
                     return
                 
@@ -351,7 +351,7 @@ class LangChainLLMService:
                             "tool_results": tool_results,
                             "message_id": message_id,
                             "session_id": session_id,
-                            "timestamp": datetime.now().isoformat(),
+                            "timestamp": kr_time_now().isoformat(),
                             "total_execution_time": agent_exec_time,
                             "langsmith_enabled": Config.LANGCHAIN_TRACING_V2
                         }
@@ -378,7 +378,7 @@ class LangChainLLMService:
                             "user_id": user_id,
                             "session_id": session_id,
                             "message_id": message_id,
-                            "timestamp": datetime.now().isoformat(),
+                            "timestamp": kr_time_now().isoformat(),
                             "execution_phase": "agent_execution"
                         }
                         
@@ -400,7 +400,7 @@ class LangChainLLMService:
                             "error": error_message,
                             "message_id": message_id,
                             "session_id": session_id,
-                            "timestamp": datetime.now().isoformat(),
+                            "timestamp": kr_time_now().isoformat(),
                             "langsmith_enabled": Config.LANGCHAIN_TRACING_V2
                         })
                     finally:
@@ -440,7 +440,7 @@ class LangChainLLMService:
                             "error": "Streaming timeout",
                             "message_id": message_id,
                             "session_id": session_id,
-                            "timestamp": datetime.now().isoformat()
+                            "timestamp": kr_time_now().isoformat()
                         }
                         break
                     except Exception as e:
@@ -451,7 +451,7 @@ class LangChainLLMService:
                             "error": str(e),
                             "message_id": message_id,
                             "session_id": session_id,
-                            "timestamp": datetime.now().isoformat()
+                            "timestamp": kr_time_now().isoformat()
                         }
                         break
                 
@@ -483,7 +483,7 @@ class LangChainLLMService:
                 "error": f"Failed to load MCP tools: {str(e)}",
                 "message_id": message_id,
                 "session_id": session_id,
-                "timestamp": datetime.now().isoformat()
+                "timestamp": kr_time_now().isoformat()
             }
 
     def get_conversation_starter(self) -> str:

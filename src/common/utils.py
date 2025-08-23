@@ -4,7 +4,11 @@ import logging
 from typing import Callable, Dict
 from functools import wraps
 from unidecode import unidecode
+from datetime import datetime, timezone, timedelta
 
+def kr_time_now() -> datetime:
+    kst = timezone(timedelta(hours=9))
+    return datetime.now(kst).replace(tzinfo=None)
 
 def _calculate_percentage(numerator: int, denominator: int) -> float:
     """

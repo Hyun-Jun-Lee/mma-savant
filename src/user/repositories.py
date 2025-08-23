@@ -5,6 +5,7 @@ from sqlalchemy import select, update, func, or_
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from user.models import UserModel, UserSchema, UserProfileUpdate
+from common.utils import kr_time_now
 
 async def get_user_by_id(session: AsyncSession, user_id: int) -> Optional[UserSchema]:
     """
@@ -105,7 +106,7 @@ async def update_user_profile(
     if not update_data:
         return await get_user_by_id(session, user_id)
     
-    update_data["updated_at"] = datetime.now()
+    update_data["updated_at"] = kr_time_now()
     
     await session.execute(
         update(UserModel)
@@ -142,7 +143,7 @@ async def update_user_usage(session: AsyncSession, user_id: int, increment: int 
         .values(
             total_requests=UserModel.total_requests + increment,
             daily_requests=daily_requests + increment,
-            last_request_date=datetime.now()
+            last_request_date=kr_time_now()
         )
     )
     
