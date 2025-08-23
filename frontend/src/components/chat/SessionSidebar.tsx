@@ -155,7 +155,7 @@ export function SessionSidebar({ isOpen, onClose }: SessionSidebarProps) {
                 {sessions.map((session) => (
                   <Card
                     key={session.session_id}
-                    className={`p-3 cursor-pointer transition-colors hover:bg-gray-50 ${
+                    className={`group p-3 cursor-pointer transition-colors hover:bg-gray-50 ${
                       currentSession?.session_id === session.session_id
                         ? 'bg-red-50 border-red-200'
                         : 'border-gray-200'
@@ -221,16 +221,18 @@ export function SessionSidebar({ isOpen, onClose }: SessionSidebarProps) {
                           <Button
                             variant="ghost"
                             size="sm"
-                            className="p-1 h-6 w-6 opacity-0 group-hover:opacity-100"
+                            className="p-1 h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity hover:bg-gray-200"
                             onClick={(e) => handleEditTitle(session, e)}
+                            title="제목 수정"
                           >
                             <Edit3 className="w-3 h-3" />
                           </Button>
                           <Button
                             variant="ghost"
                             size="sm"
-                            className="p-1 h-6 w-6 opacity-0 group-hover:opacity-100 text-red-600"
+                            className="p-1 h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity text-red-600 hover:bg-red-100"
                             onClick={(e) => handleDeleteSession(session.session_id, e)}
+                            title="세션 삭제"
                           >
                             <Trash2 className="w-3 h-3" />
                           </Button>

@@ -148,7 +148,7 @@ async def delete_chat_session(
 @router.put("/session/{session_id}/title", response_model=ChatSessionResponse)
 async def update_session_title(
     session_id: str,
-    title_data: dict,  # {"title": "new title"}
+    title : str,
     current_user: UserModel = Depends(get_current_user),
     db: AsyncSession = Depends(get_async_db)
 ):
@@ -156,8 +156,7 @@ async def update_session_title(
     채팅 세션 제목 업데이트
     """
     try:
-        new_title = title_data.get("title")
-        if not new_title:
+        if not title:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Title is required"
@@ -167,7 +166,7 @@ async def update_session_title(
             db=db,
             session_id=session_id,
             user_id=current_user.id,
-            new_title=new_title
+            new_title=title
         )
         
         if not updated_session:
