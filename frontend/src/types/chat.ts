@@ -11,7 +11,6 @@ export interface ChatSession {
   user_id: number
   session_id: string
   title?: string
-  message_count: number
   last_message_at?: Date
   created_at: Date
   updated_at: Date

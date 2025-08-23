@@ -211,8 +211,6 @@ export function SessionSidebar({ isOpen, onClose }: SessionSidebarProps) {
                                   : formatDate(session.updated_at)
                                 }
                               </span>
-                              <span>•</span>
-                              <span>{session.message_count}개 메시지</span>
                             </div>
                           </>
                         )}
