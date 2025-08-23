@@ -108,22 +108,22 @@ export function SessionSidebar({ isOpen, onClose }: SessionSidebarProps) {
     <div className="fixed inset-0 z-50 flex">
       {/* 배경 오버레이 */}
       <div 
-        className="flex-1 bg-black bg-opacity-50"
+        className="flex-1 bg-black/60 backdrop-blur-sm"
         onClick={onClose}
       />
       
       {/* 사이드바 */}
-      <Card className="w-80 h-full rounded-none border-l shadow-lg">
+      <div className="w-80 h-full bg-zinc-900/95 backdrop-blur-sm border-l border-white/10 shadow-2xl">
         <div className="flex flex-col h-full">
           {/* 헤더 */}
-          <div className="p-4 border-b">
-            <div className="flex items-center justify-between">
-              <h2 className="text-lg font-semibold">채팅 히스토리</h2>
+          <div className="p-4 border-b border-white/10">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-lg font-semibold text-white">Chat History</h2>
               <Button
                 variant="ghost"
                 size="sm"
                 onClick={onClose}
-                className="text-gray-500"
+                className="text-zinc-400 hover:text-white hover:bg-white/10"
               >
                 <X className="w-4 h-4" />
               </Button>
@@ -131,34 +131,34 @@ export function SessionSidebar({ isOpen, onClose }: SessionSidebarProps) {
             
             <Button
               onClick={handleCreateSession}
-              className="w-full mt-3 bg-red-600 hover:bg-red-700"
+              className="w-full bg-white text-zinc-900 hover:bg-zinc-100 font-medium"
               size="sm"
             >
               <Plus className="w-4 h-4 mr-2" />
-              새 채팅 시작
+              New Chat
             </Button>
           </div>
 
           {/* 세션 목록 */}
-          <ScrollArea className="flex-1 p-2">
+          <ScrollArea className="flex-1 p-3">
             {sessionsLoading ? (
               <div className="flex items-center justify-center py-8">
-                <div className="text-gray-500">로딩 중...</div>
+                <div className="text-zinc-400">Loading...</div>
               </div>
             ) : sessions.length === 0 ? (
-              <div className="flex flex-col items-center justify-center py-8 text-gray-500">
+              <div className="flex flex-col items-center justify-center py-8 text-zinc-400">
                 <MessageSquare className="w-8 h-8 mb-2 opacity-50" />
-                <p className="text-sm">채팅 히스토리가 없습니다</p>
+                <p className="text-sm">No chat history</p>
               </div>
             ) : (
-              <div className="space-y-1">
+              <div className="space-y-2">
                 {sessions.map((session) => (
-                  <Card
+                  <div
                     key={session.session_id}
-                    className={`group p-3 cursor-pointer transition-colors hover:bg-gray-50 ${
+                    className={`group p-3 rounded-lg cursor-pointer transition-all duration-200 border ${
                       currentSession?.session_id === session.session_id
-                        ? 'bg-red-50 border-red-200'
-                        : 'border-gray-200'
+                        ? 'bg-white/10 border-white/20 shadow-lg'
+                        : 'bg-white/5 border-white/10 hover:bg-white/10 hover:border-white/20'
                     }`}
                     onClick={() => handleSelectSession(session.session_id)}
                   >
@@ -170,7 +170,7 @@ export function SessionSidebar({ isOpen, onClose }: SessionSidebarProps) {
                               type="text"
                               value={editTitle}
                               onChange={(e) => setEditTitle(e.target.value)}
-                              className="flex-1 px-2 py-1 text-sm border border-gray-300 rounded"
+                              className="flex-1 px-3 py-1.5 text-sm bg-white/10 border border-white/20 rounded-md text-white placeholder-zinc-400 focus:outline-none focus:ring-2 focus:ring-white/30 focus:border-white/30"
                               onClick={(e) => e.stopPropagation()}
                               autoFocus
                               onKeyDown={(e) => {
@@ -184,26 +184,26 @@ export function SessionSidebar({ isOpen, onClose }: SessionSidebarProps) {
                             <Button
                               variant="ghost"
                               size="sm"
-                              className="p-1 h-6 w-6"
+                              className="p-1 h-7 w-7 hover:bg-emerald-500/20"
                               onClick={(e) => handleSaveTitle(session.session_id, e)}
                             >
-                              <Check className="w-3 h-3 text-green-600" />
+                              <Check className="w-3 h-3 text-emerald-400" />
                             </Button>
                             <Button
                               variant="ghost"
                               size="sm"
-                              className="p-1 h-6 w-6"
+                              className="p-1 h-7 w-7 hover:bg-red-500/20"
                               onClick={handleCancelEdit}
                             >
-                              <X className="w-3 h-3 text-red-600" />
+                              <X className="w-3 h-3 text-red-400" />
                             </Button>
                           </div>
                         ) : (
                           <>
-                            <h3 className="font-medium text-sm truncate">
-                              {session.title || `채팅 ${session.id}`}
+                            <h3 className="font-medium text-sm truncate text-white">
+                              {session.title || `Chat ${session.id}`}
                             </h3>
-                            <div className="flex items-center gap-2 mt-1 text-xs text-gray-500">
+                            <div className="flex items-center gap-2 mt-1 text-xs text-zinc-400">
                               <Clock className="w-3 h-3" />
                               <span>
                                 {session.last_message_at 
@@ -221,36 +221,38 @@ export function SessionSidebar({ isOpen, onClose }: SessionSidebarProps) {
                           <Button
                             variant="ghost"
                             size="sm"
-                            className="p-1 h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity hover:bg-gray-200"
+                            className="p-1 h-7 w-7 opacity-0 group-hover:opacity-100 transition-opacity hover:bg-white/20 text-zinc-400 hover:text-white"
                             onClick={(e) => handleEditTitle(session, e)}
-                            title="제목 수정"
+                            title="Edit title"
                           >
                             <Edit3 className="w-3 h-3" />
                           </Button>
                           <Button
                             variant="ghost"
                             size="sm"
-                            className="p-1 h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity text-red-600 hover:bg-red-100"
+                            className="p-1 h-7 w-7 opacity-0 group-hover:opacity-100 transition-opacity text-red-400 hover:text-red-300 hover:bg-red-500/20"
                             onClick={(e) => handleDeleteSession(session.session_id, e)}
-                            title="세션 삭제"
+                            title="Delete session"
                           >
                             <Trash2 className="w-3 h-3" />
                           </Button>
                         </div>
                       )}
                     </div>
-                  </Card>
+                  </div>
                 ))}
               </div>
             )}
           </ScrollArea>
 
           {/* 푸터 정보 */}
-          <div className="p-4 border-t text-xs text-gray-500">
-            총 {sessions.length}개의 채팅 세션
+          <div className="p-4 border-t border-white/10">
+            <p className="text-xs text-zinc-400 text-center">
+              {sessions.length} chat sessions
+            </p>
           </div>
         </div>
-      </Card>
+      </div>
     </div>
   )
 }

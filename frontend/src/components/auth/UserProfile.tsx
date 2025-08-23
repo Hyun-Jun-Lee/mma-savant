@@ -20,8 +20,8 @@ export function UserProfile() {
   if (isLoading) {
     return (
       <div className="flex items-center space-x-2">
-        <div className="h-8 w-8 bg-gray-200 rounded-full animate-pulse" />
-        <div className="h-4 w-20 bg-gray-200 rounded animate-pulse" />
+        <div className="h-8 w-8 bg-white/20 rounded-full animate-pulse" />
+        <div className="h-4 w-20 bg-white/20 rounded animate-pulse" />
       </div>
     )
   }

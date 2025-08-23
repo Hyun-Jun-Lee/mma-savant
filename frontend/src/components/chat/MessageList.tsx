@@ -30,34 +30,36 @@ export function MessageList() {
   if (messages.length === 0) {
     return (
       <div className="flex-1 flex items-center justify-center p-8">
-        <Card className="p-8 text-center max-w-md">
-          <div className="mb-4">
-            <Bot className="w-16 h-16 mx-auto text-blue-600" />
+        <div className="p-8 text-center max-w-md">
+          <div className="mb-6">
+            <div className="w-16 h-16 mx-auto bg-white/10 backdrop-blur-sm rounded-full flex items-center justify-center border border-white/20">
+              <Bot className="w-8 h-8 text-white" />
+            </div>
           </div>
-          <h3 className="text-lg font-semibold text-gray-800 mb-2">
-            MMA Savant와 대화를 시작하세요
+          <h3 className="text-xl font-semibold text-white mb-3">
+            Start analyzing with MMA Savant
           </h3>
-          <p className="text-gray-600 text-sm leading-relaxed">
-            파이터, 기술, 이벤트, 역사 등 MMA에 관한 모든 것을 물어보세요. 
-            전문적이고 정확한 답변을 드리겠습니다.
+          <p className="text-zinc-400 text-sm leading-relaxed mb-6">
+            Ask about fighters, techniques, events, history, and everything MMA. 
+            Get professional and accurate insights.
           </p>
           
           {/* 예시 질문들 */}
-          <div className="mt-6 space-y-2">
-            <p className="text-xs text-gray-500 font-medium">예시 질문:</p>
-            <div className="space-y-1 text-xs text-gray-600">
-              <div className="bg-gray-50 rounded p-2">
-                "존 존스의 주요 기술은 무엇인가요?"
+          <div className="space-y-3">
+            <p className="text-xs text-zinc-500 font-medium uppercase tracking-wider">Sample questions:</p>
+            <div className="space-y-2 text-sm">
+              <div className="bg-white/5 backdrop-blur-sm border border-white/10 rounded-lg p-3 text-zinc-300 hover:bg-white/10 transition-colors cursor-pointer">
+                "What are Jon Jones' key techniques?"
               </div>
-              <div className="bg-gray-50 rounded p-2">
-                "UFC 300의 메인 이벤트는 무엇이었나요?"
+              <div className="bg-white/5 backdrop-blur-sm border border-white/10 rounded-lg p-3 text-zinc-300 hover:bg-white/10 transition-colors cursor-pointer">
+                "What was UFC 300's main event?"
               </div>
-              <div className="bg-gray-50 rounded p-2">
-                "브라질리안 주짓수의 기본 기술을 설명해주세요"
+              <div className="bg-white/5 backdrop-blur-sm border border-white/10 rounded-lg p-3 text-zinc-300 hover:bg-white/10 transition-colors cursor-pointer">
+                "Explain Brazilian Jiu-Jitsu basics"
               </div>
             </div>
           </div>
-        </Card>
+        </div>
       </div>
     )
   }

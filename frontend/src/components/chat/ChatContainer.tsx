@@ -87,43 +87,49 @@ export function ChatContainer() {
   }
 
   return (
-    <div className="flex flex-col h-screen bg-gray-50">
+    <div className="flex flex-col h-screen bg-gradient-to-br from-zinc-900 via-gray-900 to-slate-900">
+      {/* 배경 패턴 */}
+      <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-gray-700/20 via-transparent to-transparent pointer-events-none" />
+      <div className="absolute inset-0 bg-grid-white/[0.02] bg-[size:50px_50px] pointer-events-none" />
+      
       {/* 헤더 */}
-      <Card className="border-b rounded-none shadow-sm">
+      <div className="relative z-10 bg-black/20 backdrop-blur-sm border-b border-white/10">
         <div className="flex items-center justify-between p-4">
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-4">
             <Button
               variant="ghost"
               size="sm"
               onClick={() => router.push("/")}
-              className="text-gray-600 hover:text-gray-800"
+              className="text-zinc-400 hover:text-white hover:bg-white/10 border border-white/10 backdrop-blur-sm"
             >
-              <ArrowLeft className="w-4 h-4 mr-1" />
-              홈으로
+              <ArrowLeft className="w-4 h-4 mr-2" />
+              Home
             </Button>
             
-            <div className="flex items-center gap-2">
-              <MessageSquare className="w-5 h-5 text-red-600" />
+            <div className="flex items-center gap-3">
+              <div className="w-8 h-8 bg-white/10 backdrop-blur-sm rounded-lg flex items-center justify-center border border-white/20">
+                <MessageSquare className="w-4 h-4 text-white" />
+              </div>
               <div className="flex flex-col">
-                <h1 className="text-lg font-semibold text-gray-800">
+                <h1 className="text-lg font-semibold text-white">
                   MMA Savant
                 </h1>
                 {currentSession?.title && (
-                  <span className="text-xs text-gray-500 truncate max-w-[200px]">
+                  <span className="text-xs text-zinc-400 truncate max-w-[200px]">
                     {currentSession.title}
                   </span>
                 )}
               </div>
               
               {/* 연결 상태 표시 */}
-              <div className="flex items-center gap-1 ml-2">
+              <div className="flex items-center gap-2 px-3 py-1.5 bg-white/5 backdrop-blur-sm rounded-full border border-white/10">
                 {isConnected ? (
-                  <Wifi className="w-4 h-4 text-green-600" />
+                  <div className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse" />
                 ) : (
-                  <WifiOff className="w-4 h-4 text-red-600" />
+                  <div className="w-2 h-2 bg-red-500 rounded-full" />
                 )}
-                <span className={`text-xs ${isConnected ? 'text-green-600' : 'text-red-600'}`}>
-                  {isConnected ? '연결됨' : '연결 끊김'}
+                <span className={`text-xs font-medium ${isConnected ? 'text-emerald-400' : 'text-red-400'}`}>
+                  {isConnected ? 'Connected' : 'Disconnected'}
                 </span>
               </div>
             </div>
@@ -134,52 +140,63 @@ export function ChatContainer() {
               variant="ghost"
               size="sm"
               onClick={() => setShowSessionSidebar(true)}
-              className="text-gray-600 hover:text-gray-800"
+              className="text-zinc-400 hover:text-white hover:bg-white/10 border border-white/10 backdrop-blur-sm"
             >
-              <History className="w-4 h-4 mr-1" />
-              히스토리
+              <History className="w-4 h-4 mr-2" />
+              History
             </Button>
             
             <Button
               variant="ghost"
               size="sm"
               onClick={handleNewChat}
-              className="text-gray-600 hover:text-gray-800"
+              className="text-zinc-400 hover:text-white hover:bg-white/10 border border-white/10 backdrop-blur-sm"
             >
-              <Plus className="w-4 h-4 mr-1" />
-              새 채팅
+              <Plus className="w-4 h-4 mr-2" />
+              New Chat
             </Button>
             
             <Button
               variant="ghost"
               size="sm"
               onClick={handleClearChat}
-              className="text-gray-600 hover:text-gray-800"
+              className="text-zinc-400 hover:text-white hover:bg-white/10 border border-white/10 backdrop-blur-sm"
             >
-              <Trash2 className="w-4 h-4 mr-1" />
-              대화 초기화
+              <Trash2 className="w-4 h-4 mr-2" />
+              Clear
             </Button>
             
-            <UserProfile />
+            <div className="ml-2">
+              <UserProfile />
+            </div>
           </div>
         </div>
-      </Card>
+      </div>
 
       {/* 에러 표시 */}
       {error && (
-        <Card className="m-4 p-3 bg-red-50 border-red-200">
-          <p className="text-red-600 text-sm">{error}</p>
-        </Card>
+        <div className="relative z-10 mx-4 mt-4">
+          <div className="p-4 bg-red-500/10 backdrop-blur-sm border border-red-500/20 rounded-lg">
+            <p className="text-red-400 text-sm font-medium">{error}</p>
+          </div>
+        </div>
       )}
 
-      {/* 메시지 목록 */}
-      <MessageList />
+      {/* 메인 컨텐츠 영역 */}
+      <div className="relative z-10 flex flex-col flex-1 min-h-0">
+        {/* 메시지 목록 */}
+        <div className="flex-1 overflow-hidden">
+          <MessageList />
+        </div>
 
-      {/* 메시지 입력 */}
-      <MessageInput 
-        onSendMessage={handleSendMessage}
-        disabled={isLoading}
-      />
+        {/* 메시지 입력 */}
+        <div className="border-t border-white/10 bg-black/20 backdrop-blur-sm">
+          <MessageInput 
+            onSendMessage={handleSendMessage}
+            disabled={isLoading}
+          />
+        </div>
+      </div>
 
       {/* 세션 사이드바 */}
       <SessionSidebar 

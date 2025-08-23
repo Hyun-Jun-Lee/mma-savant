@@ -6,6 +6,7 @@ import { Card } from "@/components/ui/card"
 import { useAuth } from "@/hooks/useAuth"
 import { Bot, User } from "lucide-react"
 import { cn } from "@/lib/utils"
+import ReactMarkdown from "react-markdown"
 
 interface MessageBubbleProps {
   message: Message
@@ -30,42 +31,50 @@ export function MessageBubble({ message }: MessageBubbleProps) {
           {isUser ? (
             <>
               <AvatarImage src={user?.image || ""} alt={user?.name || ""} />
-              <AvatarFallback className="bg-red-600 text-white">
+              <AvatarFallback className="bg-zinc-600 text-white">
                 <User className="w-4 h-4" />
               </AvatarFallback>
             </>
           ) : (
-            <AvatarFallback className="bg-blue-600 text-white">
+            <AvatarFallback className="bg-white/10 text-white backdrop-blur-sm border border-white/20">
               <Bot className="w-4 h-4" />
             </AvatarFallback>
           )}
         </Avatar>
 
         {/* Message Content */}
-        <Card className={cn(
-          "p-3 shadow-sm",
-          isUser 
-            ? "bg-red-600 text-white border-red-600" 
-            : "bg-white border-gray-200"
-        )}>
-          <div className="text-sm whitespace-pre-wrap break-words">
-            {message.content}
-            {message.isStreaming && (
-              <span className="inline-block w-2 h-4 ml-1 bg-current animate-pulse rounded" />
-            )}
+        {isUser ? (
+          <Card className="p-3 shadow-sm bg-zinc-700 text-white border-zinc-600">
+            <div className="text-sm break-words prose prose-invert prose-sm max-w-none">
+              <ReactMarkdown>{message.content}</ReactMarkdown>
+            </div>
+            
+            {/* Timestamp */}
+            <div className="text-xs mt-2 opacity-70 text-zinc-300">
+              {message.timestamp.toLocaleTimeString([], { 
+                hour: '2-digit', 
+                minute: '2-digit' 
+              })}
+            </div>
+          </Card>
+        ) : (
+          <div className="max-w-none">
+            <div className="text-sm break-words text-white prose prose-invert prose-sm max-w-none">
+              <ReactMarkdown>{message.content}</ReactMarkdown>
+              {message.isStreaming && (
+                <span className="inline-block w-2 h-4 ml-1 bg-current animate-pulse rounded" />
+              )}
+            </div>
+            
+            {/* Timestamp */}
+            <div className="text-xs mt-2 opacity-70 text-zinc-400">
+              {message.timestamp.toLocaleTimeString([], { 
+                hour: '2-digit', 
+                minute: '2-digit' 
+              })}
+            </div>
           </div>
-          
-          {/* Timestamp */}
-          <div className={cn(
-            "text-xs mt-2 opacity-70",
-            isUser ? "text-red-100" : "text-gray-500"
-          )}>
-            {message.timestamp.toLocaleTimeString([], { 
-              hour: '2-digit', 
-              minute: '2-digit' 
-            })}
-          </div>
-        </Card>
+        )}
       </div>
     </div>
   )
