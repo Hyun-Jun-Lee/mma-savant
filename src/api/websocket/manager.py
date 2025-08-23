@@ -302,7 +302,8 @@ class ConnectionManager:
                 # 새 세션 생성
                 session_response = await get_or_create_session(
                     db=db,
-                    user_id=user.id
+                    user_id=user.id,
+                    content=content
                 )
                 session_id = session_response.session_id
                 LOGGER.info(f"✅ New session created: session_id={session_id}")

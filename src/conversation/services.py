@@ -163,7 +163,8 @@ class ChatSessionService:
 async def get_or_create_session(
     db: AsyncSession,
     user_id: int,
-    session_id: Optional[str] = None
+    session_id: Optional[str] = None,
+    content: Optional[str] = None
 ) -> ChatSessionResponse:
     """
     세션 ID가 있으면 조회, 없으면 새로 생성
@@ -180,7 +181,7 @@ async def get_or_create_session(
             return existing_session
     
     # 새 세션 생성
-    session_create = ChatSessionCreate()
+    session_create = ChatSessionCreate(title=content)
     return await ChatSessionService.create_new_session(
         db=db,
         user_id=user_id,
