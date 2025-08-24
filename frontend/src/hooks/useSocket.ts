@@ -52,8 +52,11 @@ export function useSocket() {
       console.log('📝 Current streaming message:', currentStreamingMessage.current?.id)
       
       if (!currentStreamingMessage.current || currentStreamingMessage.current.id !== data.messageId) {
-        // 새로운 스트리밍 메시지 시작
+        // 새로운 스트리밍 메시지 시작 - 즉시 타이핑 상태 해제
         console.log('🆕 Starting new streaming message:', data.messageId)
+        console.log('⚡ Immediately stopping typing indicator')
+        setIsTyping(false)
+        setTyping(false)
         
         // 새 메시지 추가
         const newMessage = {
@@ -170,9 +173,9 @@ export function useSocket() {
           session_id: data.session_id,
           user_id: 0, // 임시 user_id
           title: `채팅 ${new Date().toLocaleString()}`,
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-          last_message_at: data.timestamp
+          created_at: new Date(),
+          updated_at: new Date(),
+          last_message_at: new Date(data.timestamp)
         }
         
         // ChatStore의 현재 세션 업데이트

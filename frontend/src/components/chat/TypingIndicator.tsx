@@ -1,6 +1,5 @@
 "use client"
 
-import { Card } from "@/components/ui/card"
 import { Bot } from "lucide-react"
 
 interface TypingIndicatorProps {
@@ -8,21 +7,24 @@ interface TypingIndicatorProps {
 }
 
 export function TypingIndicator({ isVisible }: TypingIndicatorProps) {
-  if (!isVisible) return null
-
   return (
-    <div className="flex justify-start mb-4">
-      <Card className="p-3 bg-gray-100 border-gray-200 max-w-xs">
-        <div className="flex items-center gap-2">
-          <Bot className="w-4 h-4 text-blue-600 flex-shrink-0" />
-          <div className="flex gap-1">
-            <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
-            <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
-            <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
-          </div>
-          <span className="text-xs text-gray-500 ml-1">입력 중...</span>
+    <div className={`flex justify-start mb-4 transition-opacity duration-200 ${isVisible ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}>
+      <div className="flex items-center gap-3 max-w-xs">
+        {/* Avatar */}
+        <div className="w-8 h-8 bg-white/10 backdrop-blur-sm rounded-full flex items-center justify-center border border-white/20 flex-shrink-0">
+          <Bot className="w-4 h-4 text-white" />
         </div>
-      </Card>
+        
+        {/* Typing animation */}
+        <div className="flex items-center gap-2">
+          <div className="flex gap-1">
+            <div className="w-2 h-2 bg-zinc-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
+            <div className="w-2 h-2 bg-zinc-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
+            <div className="w-2 h-2 bg-zinc-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+          </div>
+          <span className="text-xs text-zinc-400 ml-1">입력 중...</span>
+        </div>
+      </div>
     </div>
   )
 }
