@@ -338,7 +338,6 @@ class ConnectionManager:
             
             async for chunk in self.llm_service.generate_streaming_chat_response(
                 user_message=content,
-                conversation_history=None,  # LangChain Message Manager에서 히스토리 관리
                 session_id=session_id,
                 user_id=user.id
             ):
@@ -394,9 +393,6 @@ class ConnectionManager:
                                         "input": getattr(action, 'tool_input', {}),
                                         "result": processed_result
                                     })
-                    
-                    # AI 응답 메시지도 LangChain Message Manager에서 처리하므로 여기서는 저장하지 않음
-                    LOGGER.info(f"📝 AI response completed - content length: {len(assistant_content)}, tool_results: {len(tool_info) if tool_info else 0} items")
                 
                 elif chunk["type"] == "end":
                     # 타이핑 상태 종료
