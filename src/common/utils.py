@@ -130,7 +130,6 @@ def remove_timestamps_from_tool_result(tool_result):
                 cleaned_results.append(item_copy)
             else:
                 cleaned_results.append(item)
-        print("=== cleaned_results ===", cleaned_results)
         return cleaned_results
     
     elif isinstance(tool_result, dict):
@@ -138,7 +137,6 @@ def remove_timestamps_from_tool_result(tool_result):
         tool_result_copy = tool_result.copy()
         tool_result_copy.pop('created_at', None)
         tool_result_copy.pop('updated_at', None)
-        print("=== tool_result_copy ===", tool_result_copy)
         return tool_result_copy
     
     else:

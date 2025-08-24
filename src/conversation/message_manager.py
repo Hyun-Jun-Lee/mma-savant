@@ -102,9 +102,6 @@ class ChatHistory(BaseChatMessageHistory):
             print(f"❌ Invalid type {type(message)} - skipping")
             return
         
-        print(f"✅ Final message type: {type(final_message).__name__}")
-        print("=" * 50)
-        
         # 1. 메모리 캐시에 즉시 추가
         self._messages_cache.append(final_message)
         
