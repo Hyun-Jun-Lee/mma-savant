@@ -11,8 +11,8 @@ from common.utils import kr_time_now
 
 class HuggingFaceCallbackHandler(AsyncCallbackHandler):
     """
-    HuggingFace 모델들을 위한 최적화된 콜백 핸들러
-    모든 주요 LLM 제공자의 모델들을 HuggingFace Hub를 통해 지원
+    HuggingFace API를 위한 최적화된 콜백 핸들러
+    HuggingFace Inference API를 통한 스트리밍 응답 처리
     """
     
     def __init__(self, message_id: str, session_id: str, model_name: str = "huggingface"):
@@ -28,12 +28,12 @@ class HuggingFaceCallbackHandler(AsyncCallbackHandler):
         self.token_count = 0
     
     async def on_llm_new_token(self, token: str, **kwargs) -> None:
-        """새 토큰 생성 시 호출 - HuggingFace 모델 최적화"""
+        """새 토큰 생성 시 호출 - HuggingFace API 스트리밍 최적화"""
         try:
-            # HuggingFace 토큰 처리 - 다양한 모델 형식 지원
-            token_str = self._process_huggingface_token(token)
+            # HuggingFace API 토큰 처리
+            token_str = self._process_huggingface_api_token(token)
             
-            if token_str:
+            if token_str and token_str.strip():  # 빈 토큰 필터링
                 self.tokens.append(token_str)
                 self.current_content += token_str
                 self.token_count += 1
@@ -50,33 +50,50 @@ class HuggingFaceCallbackHandler(AsyncCallbackHandler):
                 })
                 
         except Exception as e:
-            print(f"❌ Error in HuggingFace token processing: {e}")
-            print(f"🔍 Token: {type(token)} - {token}")
+            print(f"❌ Error in HuggingFace API token processing: {e}")
+            print(f"🔍 Token: {type(token)} - {repr(token)}")
+            # 에러가 발생해도 처리 계속
     
-    def _process_huggingface_token(self, token: Any) -> str:
+    def _process_huggingface_api_token(self, token: Any) -> str:
         """
-        HuggingFace 모델별 토큰 처리
-        다양한 모델의 출력 형식을 통일
+        HuggingFace API 응답 토큰 처리
+        API에서 받은 스트리밍 토큰을 문자열로 변환
         """
         if isinstance(token, str):
-            # 기본 문자열 토큰
+            # 가장 일반적인 경우: 문자열 토큰
             return token
         
         elif isinstance(token, dict):
-            # 구조화된 토큰 (일부 모델에서 사용)
-            if 'generated_text' in token:
+            # API 응답에서 구조화된 데이터
+            if 'token' in token:
+                # {'token': {'text': '...'}} 형식
+                token_data = token['token']
+                if isinstance(token_data, dict) and 'text' in token_data:
+                    return token_data['text']
+                return str(token_data)
+            
+            elif 'generated_text' in token:
                 return token['generated_text']
             elif 'text' in token:
                 return token['text']
             elif 'content' in token:
                 return token['content']
-            else:
-                return str(token)
+            elif 'choices' in token and len(token['choices']) > 0:
+                # OpenAI 스타일 응답
+                choice = token['choices'][0]
+                if 'delta' in choice and 'content' in choice['delta']:
+                    return choice['delta']['content']
+                elif 'text' in choice:
+                    return choice['text']
+            
+            # 다른 구조의 딕셔너리
+            return str(token)
         
-        elif isinstance(token, list):
-            # 배치 출력 (첫 번째 결과 사용)
-            if token and len(token) > 0:
-                return self._process_huggingface_token(token[0])
+        elif isinstance(token, list) and len(token) > 0:
+            # 배치 응답의 첫 번째 항목 처리
+            return self._process_huggingface_api_token(token[0])
+        
+        elif token is None:
             return ""
         
         else:
@@ -100,10 +117,13 @@ class HuggingFaceCallbackHandler(AsyncCallbackHandler):
         })
     
     async def on_llm_end(self, response: LLMResult, **kwargs) -> None:
-        """LLM 종료"""
+        """LLM 종료 - HuggingFace API 응답 완료 처리"""
         self.is_streaming = False
         end_time = time.time()
         duration = end_time - self.start_time if self.start_time else 0
+        
+        # API 응답에서 추가 정보 추출
+        usage_info = self._extract_usage_info(response) if response else {}
         
         await self.stream_queue.put({
             "type": "end",
@@ -114,8 +134,26 @@ class HuggingFaceCallbackHandler(AsyncCallbackHandler):
             "final_content": self.current_content,
             "duration": duration,
             "token_count": self.token_count,
-            "tokens_per_second": self.token_count / duration if duration > 0 else 0
+            "tokens_per_second": self.token_count / duration if duration > 0 else 0,
+            "usage": usage_info
         })
+    
+    def _extract_usage_info(self, response: LLMResult) -> Dict[str, Any]:
+        """API 응답에서 사용량 정보 추출"""
+        usage_info = {}
+        
+        if hasattr(response, 'llm_output') and response.llm_output:
+            llm_output = response.llm_output
+            
+            # 토큰 사용량 정보
+            if 'token_usage' in llm_output:
+                usage_info['api_token_usage'] = llm_output['token_usage']
+            
+            # 모델 정보
+            if 'model_name' in llm_output:
+                usage_info['api_model'] = llm_output['model_name']
+        
+        return usage_info
     
     async def on_llm_error(self, error: Exception, **kwargs) -> None:
         """LLM 에러"""

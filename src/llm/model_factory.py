@@ -7,7 +7,7 @@ from enum import Enum
 
 from config import Config
 from common.logging_config import get_logger
-from llm.providers import get_anthropic_llm, get_huggingface_llm
+from llm.providers import get_anthropic_llm, get_huggingface_llm, get_chat_model_llm
 from llm.callbacks import get_anthropic_callback_handler, get_huggingface_callback_handler
 
 LOGGER = get_logger(__name__)
@@ -129,7 +129,7 @@ def get_huggingface_model_and_callback(
         **kwargs: 추가 모델 파라미터
         
     Returns:
-        Tuple[HuggingFacePipeline, HuggingFaceCallbackHandler]
+        Tuple[HuggingFaceEndpoint, HuggingFaceCallbackHandler]
     """
     # 모델 이름 결정
     final_model_name = model_name or Config.HUGGINGFACE_MODEL_NAME
@@ -143,25 +143,43 @@ def get_huggingface_model_and_callback(
             model_name=final_model_name
         )
         
-        # 설정에서 기본 파라미터 가져오기
+        # API 토큰 검증
+        if not validate_huggingface_api_config():
+            LOGGER.warning("⚠️ HuggingFace API token not configured, using public models only")
+        
+        # 설정에서 기본 파라미터 가져오기 (API 방식)
         model_params = {
             "callback_handler": callback_handler,
             "model_name": final_model_name,
             "temperature": kwargs.get("temperature", Config.HUGGINGFACE_TEMPERATURE),
             "max_tokens": kwargs.get("max_tokens", Config.HUGGINGFACE_MAX_TOKENS),
-            "device": kwargs.get("device", Config.HUGGINGFACE_DEVICE),
-            **{k: v for k, v in kwargs.items() if k not in ["temperature", "max_tokens", "device"]}
+            "huggingface_api_token": kwargs.get("huggingface_api_token", Config.HUGGINGFACE_API_TOKEN),
+            **{k: v for k, v in kwargs.items() if k not in ["temperature", "max_tokens", "huggingface_api_token"]}
         }
         
-        # LLM 생성
-        llm = get_huggingface_llm(**model_params)
+        # LLM 생성 (Chat 모델 사용)
+        if kwargs.get("use_chat_model", True):
+            # 채팅 최적화 모델 사용
+            model_type = kwargs.get("model_type", "dialogpt")
+            model_size = kwargs.get("model_size", "medium")
+            llm = get_chat_model_llm(
+                callback_handler=callback_handler,
+                model_type=model_type,
+                size=model_size,
+                huggingface_api_token=model_params["huggingface_api_token"],
+                temperature=model_params["temperature"],
+                max_tokens=model_params["max_tokens"]
+            )
+        else:
+            # 직접 모델 지정
+            llm = get_huggingface_llm(**model_params)
         
         LOGGER.info(f"✅ HuggingFace LLM created: {final_model_name}")
         return llm, callback_handler
         
     except ImportError as e:
         LOGGER.error(f"❌ Failed to import HuggingFace modules: {e}")
-        raise ImportError("HuggingFace provider requires 'transformers' and 'langchain-huggingface' packages")
+        raise ImportError("HuggingFace provider requires 'langchain-huggingface' package")
     except Exception as e:
         LOGGER.error(f"❌ Error creating HuggingFace model: {e}")
         raise
@@ -245,11 +263,14 @@ def validate_provider_config(provider: str) -> bool:
         return valid
         
     elif provider == LLMProvider.HUGGINGFACE.value:
-        # HuggingFace는 API 키가 필수가 아님 (public 모델 사용 가능)
-        valid = bool(Config.HUGGINGFACE_MODEL_NAME and Config.HUGGINGFACE_MODEL_NAME.strip())
-        if not valid:
+        # 모델 이름 설정 확인
+        model_configured = bool(Config.HUGGINGFACE_MODEL_NAME and Config.HUGGINGFACE_MODEL_NAME.strip())
+        if not model_configured:
             LOGGER.warning("⚠️ HuggingFace model name not configured")
-        return valid
+            return False
+        
+        # API 토큰은 선택사항 (public 모델 사용 가능)
+        return True
         
     elif provider == LLMProvider.OPENAI.value:
         valid = bool(Config.OPENAI_API_KEY and Config.OPENAI_API_KEY.strip())
@@ -291,9 +312,10 @@ def get_provider_info() -> Dict[str, Dict[str, Any]]:
         elif provider_name == LLMProvider.HUGGINGFACE.value:
             provider_info.update({
                 "model_name": Config.HUGGINGFACE_MODEL_NAME,
-                "device": Config.HUGGINGFACE_DEVICE,
+                "api_token_configured": bool(Config.HUGGINGFACE_API_TOKEN),
                 "max_tokens": Config.HUGGINGFACE_MAX_TOKENS,
-                "temperature": Config.HUGGINGFACE_TEMPERATURE
+                "temperature": Config.HUGGINGFACE_TEMPERATURE,
+                "api_mode": "inference_api"
             })
         elif provider_name == LLMProvider.OPENAI.value:
             provider_info.update({
@@ -306,11 +328,21 @@ def get_provider_info() -> Dict[str, Dict[str, Any]]:
     return info
 
 
+def validate_huggingface_api_config() -> bool:
+    """
+    HuggingFace API 설정 유효성 검사
+    
+    Returns:
+        bool: API 토큰이 설정되어 있는지 여부
+    """
+    return bool(Config.HUGGINGFACE_API_TOKEN and Config.HUGGINGFACE_API_TOKEN.strip())
+
+
 def _get_provider_description(provider: str) -> str:
     """프로바이더 설명 반환"""
     descriptions = {
         LLMProvider.ANTHROPIC.value: "Claude models from Anthropic - high quality reasoning and analysis",
-        LLMProvider.HUGGINGFACE.value: "Open source models from HuggingFace Hub - local and remote execution",
+        LLMProvider.HUGGINGFACE.value: "Open source models from HuggingFace Inference API - cloud-based execution",
         LLMProvider.OPENAI.value: "GPT models from OpenAI - powerful general purpose AI (coming soon)"
     }
     return descriptions.get(provider, "Unknown provider")
@@ -326,7 +358,7 @@ if __name__ == "__main__":
     for provider in available:
         print(f"  ✅ {provider}")
     
-    print(f"\n🎯 Recommended Provider: {get_recommended_provider()}")
+    # print(f"\n🎯 Recommended Provider: {get_recommended_provider()}")  # 함수가 없어서 주석처리
     
     print(f"\n🔧 Current Configuration:")
     print(f"  LLM_PROVIDER: {Config.LLM_PROVIDER}")
