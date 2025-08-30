@@ -7,17 +7,16 @@ from enum import Enum
 
 from config import Config
 from common.logging_config import get_logger
+from common.enums import LLMProvider
 from llm.providers import get_anthropic_llm, get_huggingface_llm, get_chat_model_llm
+from llm.providers.openrouter_provider import get_openrouter_llm
 from llm.callbacks import get_anthropic_callback_handler, get_huggingface_callback_handler
+from llm.callbacks.openrouter_callback import get_openrouter_callback_handler
 
 LOGGER = get_logger(__name__)
 
 
-class LLMProvider(Enum):
-    """지원되는 LLM 프로바이더"""
-    ANTHROPIC = "anthropic"
-    HUGGINGFACE = "huggingface"
-    OPENAI = "openai"  # 향후 확장용
+
 
 
 def create_llm_with_callbacks(
@@ -53,6 +52,9 @@ def create_llm_with_callbacks(
             
         elif selected_provider == LLMProvider.HUGGINGFACE.value:
             return get_huggingface_model_and_callback(message_id, session_id, **model_kwargs)
+            
+        elif selected_provider == LLMProvider.OPENROUTER.value:
+            return get_openrouter_model_and_callback(message_id, session_id, **model_kwargs)
             
         elif selected_provider == LLMProvider.OPENAI.value:
             return get_openai_model_and_callback(message_id, session_id, **model_kwargs)
@@ -142,11 +144,7 @@ def get_huggingface_model_and_callback(
             session_id, 
             model_name=final_model_name
         )
-        
-        # API 토큰 검증
-        if not validate_huggingface_api_config():
-            LOGGER.warning("⚠️ HuggingFace API token not configured, using public models only")
-        
+
         # 설정에서 기본 파라미터 가져오기 (API 방식)
         model_params = {
             "callback_handler": callback_handler,
@@ -182,6 +180,63 @@ def get_huggingface_model_and_callback(
         raise ImportError("HuggingFace provider requires 'langchain-huggingface' package")
     except Exception as e:
         LOGGER.error(f"❌ Error creating HuggingFace model: {e}")
+        raise
+
+
+def get_openrouter_model_and_callback(
+    message_id: str,
+    session_id: str,
+    model_name: Optional[str] = None,
+    **kwargs
+) -> Tuple[Any, Any]:
+    """
+    OpenRouter 모델과 콜백 생성
+    
+    Args:
+        message_id: 메시지 ID
+        session_id: 세션 ID
+        model_name: 모델 이름 (None이면 Config.OPENROUTER_MODEL_NAME 사용)
+        **kwargs: 추가 모델 파라미터
+        
+    Returns:
+        Tuple[ChatOpenAI, OpenRouterCallbackHandler]
+    """
+    # 설정 검증
+    if not validate_provider_config(LLMProvider.OPENROUTER.value):
+        raise ValueError("OpenRouter configuration is invalid. Check OPENROUTER_API_KEY.")
+    
+    # 모델 이름 결정
+    final_model_name = model_name or Config.OPENROUTER_MODEL_NAME
+    
+    try:
+        # 콜백 핸들러 생성
+        callback_handler = get_openrouter_callback_handler(
+            message_id=message_id,
+            session_id=session_id,
+            model_name=final_model_name
+        )
+        
+        # 모델 파라미터 설정
+        model_params = {
+            "callback_handler": callback_handler,
+            "model_name": final_model_name,
+            "api_key": kwargs.get("api_key", Config.OPENROUTER_API_KEY),
+            "temperature": kwargs.get("temperature", 0.7),
+            "max_tokens": kwargs.get("max_tokens", 4000),
+            **{k: v for k, v in kwargs.items() if k not in ["api_key", "temperature", "max_tokens"]}
+        }
+        
+        # LLM 생성
+        llm = get_openrouter_llm(**model_params)
+        
+        LOGGER.info(f"✅ OpenRouter LLM created: {final_model_name}")
+        return llm, callback_handler
+        
+    except ImportError as e:
+        LOGGER.error(f"❌ Failed to import OpenRouter modules: {e}")
+        raise ImportError("OpenRouter provider requires 'langchain-openai' package")
+    except Exception as e:
+        LOGGER.error(f"❌ Error creating OpenRouter model: {e}")
         raise
 
 
@@ -233,6 +288,9 @@ def get_available_providers() -> List[str]:
                 elif provider == LLMProvider.HUGGINGFACE:
                     available.append(provider.value)
                     
+                elif provider == LLMProvider.OPENROUTER:
+                    available.append(provider.value)
+                    
                 elif provider == LLMProvider.OPENAI:
                     # TODO: OpenAI import 테스트
                     pass
@@ -269,8 +327,13 @@ def validate_provider_config(provider: str) -> bool:
             LOGGER.warning("⚠️ HuggingFace model name not configured")
             return False
         
-        # API 토큰은 선택사항 (public 모델 사용 가능)
         return True
+        
+    elif provider == LLMProvider.OPENROUTER.value:
+        valid = bool(Config.OPENROUTER_API_KEY and Config.OPENROUTER_API_KEY.strip())
+        if not valid:
+            LOGGER.warning("⚠️ OpenRouter API key not configured")
+        return valid
         
     elif provider == LLMProvider.OPENAI.value:
         valid = bool(Config.OPENAI_API_KEY and Config.OPENAI_API_KEY.strip())
@@ -281,93 +344,3 @@ def validate_provider_config(provider: str) -> bool:
     else:
         LOGGER.warning(f"⚠️ Unknown provider: {provider}")
         return False
-
-
-def get_provider_info() -> Dict[str, Dict[str, Any]]:
-    """
-    모든 프로바이더의 상세 정보 반환
-    
-    Returns:
-        Dict: 프로바이더별 정보 (설정 상태, 사용 가능 여부 등)
-    """
-    info = {}
-    
-    for provider in LLMProvider:
-        provider_name = provider.value
-        is_available = provider_name in get_available_providers()
-        is_configured = validate_provider_config(provider_name)
-        
-        provider_info = {
-            "available": is_available,
-            "configured": is_configured,
-            "description": _get_provider_description(provider_name)
-        }
-        
-        # 프로바이더별 추가 정보
-        if provider_name == LLMProvider.ANTHROPIC.value:
-            provider_info.update({
-                "model_name": getattr(Config, 'ANTHROPIC_MODEL_NAME', 'Not configured'),
-                "api_key_configured": bool(getattr(Config, 'ANTHROPIC_API_KEY', None))
-            })
-        elif provider_name == LLMProvider.HUGGINGFACE.value:
-            provider_info.update({
-                "model_name": Config.HUGGINGFACE_MODEL_NAME,
-                "api_token_configured": bool(Config.HUGGINGFACE_API_TOKEN),
-                "max_tokens": Config.HUGGINGFACE_MAX_TOKENS,
-                "temperature": Config.HUGGINGFACE_TEMPERATURE,
-                "api_mode": "inference_api"
-            })
-        elif provider_name == LLMProvider.OPENAI.value:
-            provider_info.update({
-                "model_name": getattr(Config, 'OPENAI_MODEL_NAME', 'Not configured'),
-                "api_key_configured": bool(getattr(Config, 'OPENAI_API_KEY', None))
-            })
-            
-        info[provider_name] = provider_info
-    
-    return info
-
-
-def validate_huggingface_api_config() -> bool:
-    """
-    HuggingFace API 설정 유효성 검사
-    
-    Returns:
-        bool: API 토큰이 설정되어 있는지 여부
-    """
-    return bool(Config.HUGGINGFACE_API_TOKEN and Config.HUGGINGFACE_API_TOKEN.strip())
-
-
-def _get_provider_description(provider: str) -> str:
-    """프로바이더 설명 반환"""
-    descriptions = {
-        LLMProvider.ANTHROPIC.value: "Claude models from Anthropic - high quality reasoning and analysis",
-        LLMProvider.HUGGINGFACE.value: "Open source models from HuggingFace Inference API - cloud-based execution",
-        LLMProvider.OPENAI.value: "GPT models from OpenAI - powerful general purpose AI (coming soon)"
-    }
-    return descriptions.get(provider, "Unknown provider")
-
-
-if __name__ == "__main__":
-    """테스트 및 디버깅용"""
-    print("🏭 Model Factory Test")
-    print("=" * 50)
-    
-    print("\n📋 Available Providers:")
-    available = get_available_providers()
-    for provider in available:
-        print(f"  ✅ {provider}")
-    
-    # print(f"\n🎯 Recommended Provider: {get_recommended_provider()}")  # 함수가 없어서 주석처리
-    
-    print(f"\n🔧 Current Configuration:")
-    print(f"  LLM_PROVIDER: {Config.LLM_PROVIDER}")
-    print(f"  ANTHROPIC_API_KEY configured: {bool(getattr(Config, 'ANTHROPIC_API_KEY', None))}")
-    print(f"  HUGGINGFACE_MODEL_NAME: {Config.HUGGINGFACE_MODEL_NAME}")
-    
-    print("\n📊 Provider Details:")
-    info = get_provider_info()
-    for provider, details in info.items():
-        print(f"  {provider}:")
-        for key, value in details.items():
-            print(f"    {key}: {value}")

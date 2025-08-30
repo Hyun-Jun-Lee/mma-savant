@@ -18,3 +18,10 @@ class WeightClassEnum(str, Enum):
     OPEN_WEIGHT = "open weight"
     MENS_POUND_FOR_POUND = "men's pound-for-pound"
     WOMENS_POUND_FOR_POUND = "women's pound-for-pound"
+
+class LLMProvider(str, Enum):
+    """지원되는 LLM 프로바이더"""
+    ANTHROPIC = "anthropic"
+    HUGGINGFACE = "huggingface"
+    OPENROUTER = "openrouter"
+    OPENAI = "openai"

@@ -23,6 +23,20 @@ class Config:
     ANTHROPIC_API_KEY: str = os.getenv("ANTHROPIC_API_KEY")
     ANTHROPIC_MODEL_NAME: str = os.getenv("ANTHROPIC_MODEL_NAME")
     
+    # LLM Provider 선택 (anthropic, huggingface)
+    LLM_PROVIDER: str = os.getenv("LLM_PROVIDER", "anthropic")
+    
+    # Hugging Face API 설정
+    HUGGINGFACE_API_TOKEN: str = os.getenv("HUGGINGFACE_API_TOKEN")
+    HUGGINGFACE_MODEL_NAME: str = os.getenv("HUGGINGFACE_MODEL_NAME", "microsoft/DialoGPT-medium")
+    HUGGINGFACE_MAX_TOKENS: int = int(os.getenv("HUGGINGFACE_MAX_TOKENS", "4000"))
+    HUGGINGFACE_TEMPERATURE: float = float(os.getenv("HUGGINGFACE_TEMPERATURE", "0.7"))
+
+    # OpenRouter API 설정
+    OPENROUTER_API_KEY: str = os.getenv("OPENROUTER_API_KEY")
+    OPENROUTER_MODEL_NAME: str = os.getenv("OPENROUTER_MODEL_NAME", "deepseek/deepseek-chat-v3-0324:free")
+    OPENROUTER_BASE_URL: str = os.getenv("OPENROUTER_BASE_URL", "https://openrouter.ai/api/v1")
+    
     NEXTAUTH_SECRET: str = os.getenv("NEXTAUTH_SECRET")
     ACCESS_TOKEN_EXPIRE_MINUTES: int = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", 60 * 24))
     TOKEN_ALGORITHM: str = os.getenv("TOKEN_ALGORITHM", "HS256")
