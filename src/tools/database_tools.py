@@ -17,8 +17,14 @@ async def execute_raw_sql_query(
     사전 정의된 도구로 답변할 수 없는 복잡한 요청을 위한 직접 SQL 쿼리 실행 도구.
     보안을 위해 SELECT 문만 허용하며, 결과를 제한합니다.
     
+    중요: 모든 테이블명은 단수형을 사용합니다
+    - 'match' (matches X)
+    - 'fighter' (fighters X)
+    - 'event' (events X)
+    - 'ranking' (rankings X)
+    
     Args:
-        query (str): 실행할 SQL 쿼리 (SELECT 문만 허용)
+        query (str): 실행할 SQL 쿼리 (SELECT 문만 허용, 단수형 테이블명 사용)
         description (str, optional): 쿼리 목적 설명
         limit (int): 최대 반환 행 수 (기본값: 100, 최대: 1000)
     
@@ -85,56 +91,5 @@ async def execute_raw_sql_query(
         }
 
 
-@mcp.tool()
-async def get_database_schema_info() -> Dict[str, Any]:
-    """
-    데이터베이스 스키마 정보를 조회하여 사용자가 쿼리 작성에 참고할 수 있도록 합니다.
-    
-    Returns:
-        Dict[str, Any]: 테이블과 컬럼 정보
-    """
-    
-    schema_query = """
-    SELECT 
-        table_name,
-        column_name,
-        data_type,
-        is_nullable,
-        column_default
-    FROM information_schema.columns 
-    WHERE table_schema = 'public'
-    ORDER BY table_name, ordinal_position;
-    """
-    
-    try:
-        async with get_async_db_context() as session:
-            result = await session.execute(text(schema_query))
-            rows = result.fetchall()
-            
-            # 테이블별로 그룹화
-            tables = {}
-            for row in rows:
-                table_name = row.table_name
-                if table_name not in tables:
-                    tables[table_name] = {
-                        "columns": []
-                    }
-                
-                tables[table_name]["columns"].append({
-                    "name": row.column_name,
-                    "type": row.data_type,
-                    "nullable": row.is_nullable == 'YES',
-                    "default": row.column_default
-                })
-            
-            return {
-                "success": True,
-                "tables": tables,
-                "table_count": len(tables)
-            }
-            
-    except Exception as e:
-        return {
-            "error": f"스키마 정보 조회 오류: {str(e)}",
-            "success": False
-        }
+# get_database_schema_info() function removed
+# Schema information is now provided directly in Phase 1 prompts via schema_prompt.json
