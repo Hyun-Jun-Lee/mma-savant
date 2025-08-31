@@ -16,7 +16,8 @@ if __name__ == "__main__":
     print("🔧 자동 도구 로딩 시작...")
     
     # 모든 *_tools.py 파일에서 @mcp.tool() 데코레이터가 붙은 함수들을 자동 로드
-    auto_load_all_tools()
+    # auto_load_all_tools()
+    auto_load_all_tools(only_modules=['database_tools'])
     
     print("\n✨ 모든 도구 로딩 완료!")
     print("🎯 MCP 서버 실행 중...")

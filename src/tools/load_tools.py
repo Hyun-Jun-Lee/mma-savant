@@ -48,14 +48,21 @@ def load_tools_from_module(module_path: str, tool_names: List[str] = None):
         print(f"❌ {module_path} 로드 실패: {e}")
 
 
-def auto_load_all_tools():
-    """tools 디렉토리의 모든 *_tools.py 파일에서 도구들을 자동 로드"""
+def auto_load_all_tools(only_modules: List[str] = None):
+    """tools 디렉토리의 모든 *_tools.py 파일에서 도구들을 자동 로드
+    
+    Args:
+        only_modules: 특정 모듈만 로드하려면 모듈명 리스트 전달 (예: ['database_tools'])
+    """
     tools_dir = os.path.dirname(__file__)
     global_loaded_tools = set()  # 전역 중복 방지
     total_tools = 0
     
     for filename in os.listdir(tools_dir):
         if filename.endswith('_tools.py') and filename != '__init__.py':
+            # only_modules가 지정된 경우 해당 모듈만 로드
+            if only_modules and filename[:-3] not in only_modules:
+                continue
             module_name = filename[:-3]  # .py 제거
             module_path = f"tools.{module_name}"
             print(f"\n🔄 {module_path} 로딩 중...")
@@ -73,3 +80,10 @@ def auto_load_all_tools():
             print(f"✅ {module_name}: {module_tools}개 도구 추가됨")
     
     print(f"\n📊 전체 로딩 완료: 총 {total_tools}개 도구")
+
+
+def load_database_tools_only():
+    """데이터베이스 도구만 로드 (SQL 테스트용)"""
+    print("🗄️ Loading database tools only for SQL testing...")
+    load_tools_from_module("tools.database_tools")
+    print("✅ Database tools loaded for testing")
