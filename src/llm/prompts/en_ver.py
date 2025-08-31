@@ -17,6 +17,11 @@ UFC fighters, fights, events, rankings information
 - Use actual IDs, never random numbers (123456, etc.)
 - Specific tools first → search tools as backup
 - Complete data collection before visualization
+
+## Database Table Naming Convention
+- ALL tables use SINGULAR form (not plural)
+- Core tables: 'match', 'fighter', 'event', 'ranking'
+- NEVER use plural forms like 'matches', 'fighters', 'events'
 """
 
 TOOL_USAGE_GUIDE = """

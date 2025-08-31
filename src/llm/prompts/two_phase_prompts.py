@@ -4,52 +4,36 @@ Phase 1: Intent analysis + tool execution
 Phase 2: Data processing + visualization
 """
 
-# Phase 1: Intent Analysis & Data Collection
+# Phase 1: SQL Query Analysis & Data Collection
 PHASE1_UNDERSTAND_AND_COLLECT_PROMPT = """
-You are MMA Savant Phase 1 - analyze queries and collect data.
+You are MMA Savant Phase 1 - analyze queries and execute SQL queries to collect data.
 
-## Tasks
-1. Analyze user intent
-2. Select appropriate tools
-3. Execute tools systematically
-4. Organize data for Phase 2
+## Primary Task
+Analyze user MMA-related questions and write appropriate SQL queries using `execute_raw_sql_query()` tool.
 
-## Tool Priority
-1. Start with `check_available_tools()`
-2. Use specific tools (by_id, by_name) over search
-3. Try basic info tools before analysis tools
+## Process
+1. **Analyze user intent**: Understand what MMA data the user wants
+2. **Plan SQL strategy**: Determine which tables to query and what joins are needed
+3. **Write SQL query**: Create accurate SQL using the schema information below
+4. **Execute query**: Use `execute_raw_sql_query()` tool
+5. **Organize results**: Structure data for Phase 2 analysis
 
-## Rules
-- Be systematic - gather complete data
-- Use IDs when available
-- Handle errors with alternatives
-- Collect all necessary information
+## SQL Query Guidelines
+- Use SINGULAR table names (match, fighter, event, NOT matches, fighters, events)
+- Always check relationships between tables for proper JOINs
+- Use descriptive column aliases for clarity
+- Include relevant filters based on user query
+- Limit results appropriately (use LIMIT clause)
+- **IMPORTANT**: All text data in database is stored in lowercase
+
+## Database Schema
+{schema_info}
 
 ## Output JSON Format
-```json
-{
-  "user_query_analysis": {
-    "intent": "what user wants",
-    "query_type": "fighter_info|match_analysis|ranking|comparison",
-    "entities": ["entity1", "entity2"],
-    "complexity": "simple|moderate|complex"
-  },
-  "tools_executed": [{
-    "tool_name": "function_name",
-    "purpose": "why used",
-    "success": true,
-    "data_summary": "brief summary"
-  }],
-  "raw_data_collected": {
-    "primary_data": "main info",
-    "supporting_data": "additional context",
-    "quality": "complete|partial|insufficient"
-  }
-}
-```
-
-Examples:
-- "Jon Jones info" → get_fighter_info_by_name("Jon Jones")
+Provide structured JSON response with analysis, tools used, and collected data:
+- user_query_analysis: intent, query_type, entities, complexity
+- tools_executed: list of tools with name, purpose, success, data_summary  
+- raw_data_collected: primary_data, supporting_data, quality
 """
 
 # Phase 2: Data Processing & Visualization
@@ -95,75 +79,34 @@ You are MMA Savant Phase 2 - analyze data and select optimal visualizations.
 3. Structure per chart requirements
 4. Add rendering metadata
 
-## Output JSON Format
-```json
-{{
-  "selected_visualization": "chart_type_id",
-  "visualization_data": {{
-    "title": "Chart title",
-    "data": "Chart-specific structure",
-    "config": "Rendering config"
-  }},
-  "insights": ["finding 1", "finding 2"],
-  "metadata": {{
-    "data_quality": "high|medium|low",
-    "completeness": "complete|partial|limited"
-  }}
-}}
-```
+## Output JSON Format  
+Provide structured JSON response with visualization and analysis:
+- selected_visualization: chart type ID from available options
+- visualization_data: chart title, data structure, rendering config
+- insights: list of key findings from the data
+- metadata: data_quality level, completeness assessment
 
 Provide Korean responses with MMA terminology and specific statistics.
 """
     return base_prompt
 
-# Static fallback prompt
-PHASE2_PROCESS_AND_VISUALIZE_PROMPT = """
-You are MMA Savant Phase 2 - analyze data and select optimal visualizations.
-
-## Tasks
-1. Analyze Phase 1 data structure
-2. Select best visualization from supported charts
-3. Process data into chart format
-4. Generate insights
-
-## Data Processing
-1. Extract relevant fields
-2. Clean and normalize values
-3. Structure per chart requirements
-4. Add rendering metadata
-
-## Output JSON Format
-```json
-{
-  "selected_visualization": "chart_type_id",
-  "visualization_data": {
-    "title": "Chart title",
-    "data": "Chart-specific structure",
-    "config": "Rendering config"
-  },
-  "insights": ["finding 1", "finding 2"],
-  "metadata": {
-    "data_quality": "high|medium|low",
-    "completeness": "complete|partial|limited"
-  }
-}
-```
-
-Provide Korean responses with MMA terminology and specific statistics.
-"""
-
 # Helper functions
 def get_phase1_prompt() -> str:
-    """Return Phase 1 prompt"""
-    return PHASE1_UNDERSTAND_AND_COLLECT_PROMPT
+    """Return Phase 1 prompt with dynamic schema loading"""
+    from common.utils import load_schema_prompt
+    
+    # 스키마 정보 로드 (이미 포맷된 텍스트)
+    schema_text = load_schema_prompt()
+    
+    # 스키마 정보를 프롬프트에 삽입
+    return PHASE1_UNDERSTAND_AND_COLLECT_PROMPT.format(schema_info=schema_text)
 
 def get_phase2_prompt() -> str:
     """Return Phase 2 prompt with dynamic chart information"""
     try:
         return get_phase2_prompt_with_charts()
     except Exception:
-        # Fallback to static prompt if chart loading fails
-        return PHASE2_PROCESS_AND_VISUALIZE_PROMPT
+        raise Exception("Failed to load chart information")
 
 def get_two_phase_system_prompt() -> str:
     """Two-Phase system overview"""

@@ -2,7 +2,6 @@
 Agent prompt template generators for Two-Phase Reasoning System
 """
 
-import json
 from typing import Dict, Any, Optional
 from langchain_core.prompts import ChatPromptTemplate
 
@@ -22,29 +21,15 @@ def create_phase1_prompt_template() -> ChatPromptTemplate:
 
 
 def create_phase2_prompt_template(
-    phase1_data: Dict[str, Any], 
-    supported_charts: Dict[str, Any]
 ) -> ChatPromptTemplate:
     """Create Phase 2 prompt template with chart info"""
-    context = {
-        "phase1_results": phase1_data,
-        "supported_charts": supported_charts
-    }
+    # Use the dynamic chart-aware prompt directly
+    from .two_phase_prompts import get_phase2_prompt_with_charts
     
-    phase2_prompt_text = create_phase_prompt(2, context)
-    
-    # Add chart options
-    charts_description = "\n\n## Available Charts:\n"
-    for chart_id, info in supported_charts.items():
-        charts_description += f"**{chart_id}**: {info['description']}\n"
-        charts_description += f"   - Use: {info['use_cases']}\n"
-        charts_description += f"   - Needs: {info['data_needs']}\n\n"
-    
-    enhanced_prompt = phase2_prompt_text + charts_description
-    enhanced_prompt += "\n\nSelect appropriate visualization and provide structured JSON output."
+    phase2_prompt_text = get_phase2_prompt_with_charts()
     
     return ChatPromptTemplate.from_messages([
-        ("system", enhanced_prompt),
+        ("system", phase2_prompt_text),
         ("human", "{input}"),
         ("placeholder", "{agent_scratchpad}"),
     ])
@@ -53,40 +38,46 @@ def create_phase2_prompt_template(
 def prepare_phase2_input(
     user_query: str,
     phase1_data: Dict[str, Any],
-    data_analysis: Dict[str, Any],
-    supported_charts: Dict[str, Any]
 ) -> str:
-    """Prepare Phase 2 input data"""
+    """Prepare Phase 2 input data - pass raw phase1 data for LLM to analyze"""
+    # collected_data만 추출 (success 등 메타데이터 제외)
+    collected_data = phase1_data.get('collected_data', {})
+    tools_executed = phase1_data.get('tools_executed', [])
+    
+    # 사용된 도구 정보
+    tools_info = ""
+    for tool in tools_executed:
+        tools_info += f"- {tool.get('tool', 'unknown')}\n"
+    
     return f"""
 ## User Query: {user_query}
 
-## Phase 1 Summary
-- Tools: {len(phase1_data.get('tools_executed', []))}
-- Data types: {', '.join(data_analysis.get('data_types', ['unknown']))}
-- Quality: {data_analysis.get('quality', 'unknown')}
+## Phase 1 Results
+### Tools Used ({len(tools_executed)}):
+{tools_info if tools_info else "No tools executed"}
 
-## Collected Data
-{json.dumps(phase1_data.get('collected_data', {}), ensure_ascii=False, indent=2)}
+### Raw Data:
+{str(collected_data)}
 
-## Task
-1. Analyze data structure
-2. Select best visualization
-3. Format data for chart
-4. Generate insights
-5. Return structured JSON
+## Your Task (Phase 2):
+1. Analyze the structure and content of the collected data
+2. Determine what type of information we have (fighter stats, match results, rankings, etc.)
+3. Select the most appropriate visualization from available charts
+4. Format the data for the selected visualization
+5. Generate key insights from the data
 
-Output required JSON with: selected_visualization, visualization_data, insights, metadata.
+Required output: Provide a structured response with your selected visualization type, formatted data, and insights.
 """
 
 
 def create_charts_description(supported_charts: Dict[str, Any]) -> str:
     """Convert charts info to prompt text"""
-    description = "## Available Charts:\n\n"
+    description = ""
     
     for chart_id, info in supported_charts.items():
         description += f"**{chart_id}**: {info.get('description', 'No description')}\n"
-        description += f"- Use: {info.get('use_cases', 'General')}\n"
-        description += f"- Needs: {info.get('data_needs', 'Any data')}\n\n"
+        description += f"- Best for: {info.get('best_for', 'General use')}\n"
+        description += f"- Data requirements: {info.get('data_requirements', 'Any data')}\n\n"
     
     return description
 
