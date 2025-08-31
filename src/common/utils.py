@@ -1,6 +1,7 @@
 import re
 import json
 import logging
+import os
 from typing import Callable, Dict
 from functools import wraps
 from unidecode import unidecode
@@ -142,3 +143,96 @@ def remove_timestamps_from_tool_result(tool_result):
     else:
         # 기타 타입인 경우 그대로 반환
         return tool_result
+
+
+def load_schema_prompt() -> str:
+    """
+    프롬프트용 스키마 정보를 로드합니다. 전체 schema.json을 사용하여 포괄적인 데이터베이스 정보 제공.
+    
+    Returns:
+        str: 프롬프트용 스키마 텍스트, 로드 실패 시 fallback 텍스트
+    """
+    try:
+        # src/schema.json 경로 계산 (현재 파일 기준)
+        current_dir = os.path.dirname(__file__)  # src/common
+        schema_path = os.path.join(current_dir, '..', 'schema.json')  # src/schema.json
+        
+        with open(schema_path, 'r', encoding='utf-8') as f:
+            schema_data = json.load(f)
+            
+        # schema.json을 프롬프트용 텍스트로 변환
+        return format_schema_for_prompt(schema_data)
+        
+    except Exception as e:
+        logging.error(f"Error loading schema prompt: {e}")
+        raise e
+
+
+def format_schema_for_prompt(schema_data: Dict) -> str:
+    """
+    schema.json 데이터를 프롬프트용 텍스트로 변환합니다.
+    
+    Args:
+        schema_data: schema.json의 파싱된 데이터
+    
+    Returns:
+        str: 프롬프트용으로 포맷된 스키마 정보
+    """
+    lines = []
+    
+    # Database info section
+    db_info = schema_data.get('database_info', {})
+    lines.append("## Database Schema Information")
+    lines.append("")
+    lines.append(f"**Database**: {db_info.get('name', 'MMA Database')}")
+    lines.append(f"**Naming Convention**: {db_info.get('naming_convention', 'singular_table_names')}")
+    lines.append("")
+    
+    # Important notes
+    important_notes = db_info.get('important_notes', [])
+    if important_notes:
+        lines.append("**Critical Rules**:")
+        for note in important_notes:
+            lines.append(f"- {note}")
+        lines.append("- **DATA CASE SENSITIVITY**: All text data stored in lowercase")
+        lines.append("")
+    
+    # Tables section
+    tables = schema_data.get('tables', {})
+    lines.append("### Tables and Relationships:")
+    lines.append("")
+    
+    for table_name, table_info in tables.items():
+        lines.append(f"**{table_name}**: {table_info.get('description', 'No description')}")
+        
+        # Relationships
+        relationships = table_info.get('relationships', {})
+        if relationships:
+            lines.append("  - Relationships:")
+            for rel_table, rel_desc in relationships.items():
+                lines.append(f"    - {rel_table}: {rel_desc}")
+        
+        # Key columns
+        columns = table_info.get('columns', [])
+        key_columns = []
+        for col in columns:
+            col_name = col.get('column', '')
+            col_type = col.get('type', '')
+            nullable = col.get('nullable', True)
+            description = col.get('description', '')
+            
+            # Include primary key and important columns
+            if col_name == 'id' or col_name in ['name', 'result', 'method', 'event_id', 'fighter_id', 'match_id', 'weight_class_id']:
+                nullable_text = " (NOT NULL)" if not nullable else ""
+                key_columns.append(f"{col_name} ({col_type}){nullable_text} - {description}")
+        
+        if key_columns:
+            lines.append("  - Key columns:")
+            for col_desc in key_columns[:5]:  # Limit to top 5 key columns
+                lines.append(f"    - {col_desc}")
+        
+        lines.append("")
+    
+    lines.append("**Remember**: Always use SINGULAR table names (match, fighter, event, NOT matches, fighters, events)")
+    
+    return '\n'.join(lines)
