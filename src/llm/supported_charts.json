@@ -1,0 +1,32 @@
+{
+  "table": {
+      "description": "행과 열로 구성된 데이터 테이블",
+      "best_for": "정확한 수치 비교, 상세 정보 나열",
+      "data_requirements": "구조화된 다중 속성 데이터"
+  },
+  "bar_chart": {
+      "description": "카테고리별 수치를 막대로 표현",
+      "best_for": "카테고리 간 수치 비교",
+      "data_requirements": "카테고리와 해당 수치"
+  },
+  "pie_chart": {
+      "description": "전체 대비 각 부분의 비율",
+      "best_for": "비율, 분포, 구성 요소 시각화",
+      "data_requirements": "카테고리별 비율 또는 개수"
+  },
+  "line_chart": {
+      "description": "시간에 따른 데이터 변화 또는 연속된 값의 추이",
+      "best_for": "트렌드, 시간 순서 변화, 연속 데이터",
+      "data_requirements": "순서가 있는 데이터 포인트"
+  },
+  "scatter_plot": {
+      "description": "두 변수 간의 상관관계를 점으로 표현",
+      "best_for": "상관관계 분석, 패턴 발견, 이상치 식별",
+      "data_requirements": "두 개의 연속형 수치 데이터"
+  },
+  "text_summary": {
+      "description": "핵심 정보를 텍스트로 요약",
+      "best_for": "간단한 답변, 인사이트 제공, 복잡한 분석 결과",
+      "data_requirements": "임의의 데이터"
+  }
+}
