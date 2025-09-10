@@ -3270,6 +3270,15 @@ wheels = [
 ]
 
 [[package]]
+name = "setuptools"
+version = "80.9.0"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/18/5d/3bf57dcd21979b887f014ea83c24ae194cfcd12b9e0fda66b957c69d1fca/setuptools-80.9.0.tar.gz", hash = "sha256:f36b47402ecde768dbfafc46e8e4207b4360c654f1f3bb84475f0a28628fb19c", size = 1319958 }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/a3/dc/17031897dae0efacfea57dfd3a82fdd2a2aeb58e0ff71b77b87e44edc772/setuptools-80.9.0-py3-none-any.whl", hash = "sha256:062d34222ad13e0cc312a4c02d73f059e86a4acbfbdea8f8f76b28c99f306922", size = 1201486 },
+]
+
+[[package]]
 name = "shellingham"
 version = "1.5.4"
 source = { registry = "https://pypi.org/simple" }
@@ -3576,6 +3585,7 @@ dependencies = [
     { name = "sqlalchemy" },
     { name = "sse-starlette" },
     { name = "starlette" },
+    { name = "superclaude" },
     { name = "syncer" },
     { name = "tenacity" },
     { name = "text-unidecode" },
@@ -3821,6 +3831,7 @@ requires-dist = [
     { name = "sqlalchemy", specifier = "==2.0.38" },
     { name = "sse-starlette", specifier = "==2.3.6" },
     { name = "starlette", specifier = "==0.46.1" },
+    { name = "superclaude", specifier = ">=4.0.9" },
     { name = "syncer", specifier = "==2.0.3" },
     { name = "tenacity", specifier = "==9.1.2" },
     { name = "text-unidecode", specifier = "==1.3" },
@@ -3875,6 +3886,18 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/04/1b/52b27f2e13ceedc79a908e29eac426a63465a1a01248e5f24aa36a62aeb3/starlette-0.46.1.tar.gz", hash = "sha256:3c88d58ee4bd1bb807c0d1acb381838afc7752f9ddaec81bbe4383611d833230", size = 2580102 }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/a0/4b/528ccf7a982216885a1ff4908e886b8fb5f19862d1962f56a3fce2435a70/starlette-0.46.1-py3-none-any.whl", hash = "sha256:77c74ed9d2720138b25875133f3a2dae6d854af2ec37dceb56aef370c1d8a227", size = 71995 },
+]
+
+[[package]]
+name = "superclaude"
+version = "4.0.9"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "setuptools" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/67/03/dc14994d024d88e1db4177b43c44922fc8516fdee79d5593f3d1ab147663/superclaude-4.0.9.tar.gz", hash = "sha256:a91d5b222b608287c8d67a83410636e7414f1dd70c9e1aa58325b543e528c929", size = 325150 }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/58/de/e9ff8357c41703513364c4233aded62e54e880d820abbb64a26822a8d42e/superclaude-4.0.9-py3-none-any.whl", hash = "sha256:9feec28876a85d8a74630f8b89a529df73220a7906b88ce0d9b6a7fab17f9884", size = 201688 },
 ]
 
 [[package]]

@@ -216,6 +216,7 @@ dependencies = [
     "sqlalchemy==2.0.38",
     "sse-starlette==2.3.6",
     "starlette==0.46.1",
+    "superclaude>=4.0.9",
     "syncer==2.0.3",
     "tenacity==9.1.2",
     "text-unidecode==1.3",
