@@ -38,56 +38,37 @@ Provide structured JSON response with analysis, tools used, and collected data:
 
 # Phase 2: Data Processing & Visualization
 def get_phase2_prompt_with_charts() -> str:
-    """Get Phase 2 prompt with dynamic chart information"""
-    try:
-        # Import based on system-reminder info showing llm.chart_loader path
-        from llm.chart_loader import get_supported_charts
-    except ImportError:
-        try:
-            from llm.config.chart_loader import get_supported_charts
-        except ImportError:
-            from ..config.chart_loader import get_supported_charts
-    
-    supported_charts = get_supported_charts()
-    
-    # Build chart selection logic dynamically
-    chart_logic = []
-    chart_examples = []
-    
-    for chart_id, info in supported_charts.items():
-        chart_logic.append(f"- {info['best_for']} → `{chart_id}`")
-        chart_examples.append(f"**{chart_id}**: {info['description']}")
-    
-    base_prompt = f"""
-You are MMA Savant Phase 2 - analyze data and select optimal visualizations.
+    """Get Phase 2 prompt with static chart information"""
 
-## Tasks
-1. Analyze Phase 1 data structure
-2. Select best visualization from supported charts
-3. Process data into chart format
-4. Generate insights
+    base_prompt = """You are MMA Savant Phase 2. Analyze SQL results and output ONLY valid JSON.
 
-## Chart Selection Logic
-{chr(10).join(chart_logic)}
+## Chart Options
+- table: detailed data comparison
+- bar_chart: category comparison
+- pie_chart: proportions/distribution
+- line_chart: trends over time
+- scatter_plot: correlation analysis
+- text_summary: insights/simple answers
 
-## Available Charts
-{chr(10).join(chart_examples)}
+## Required Output
+Return ONLY a valid JSON object with this exact structure:
+```json
+{
+    "selected_visualization": "chart_type",
+    "visualization_data": {
+        "title": "차트 제목",
+        "data": [...],
+        "x_axis": "field_name",
+        "y_axis": "field_name"
+    },
+    "insights": ["insight1", "insight2", "insight3"]
+}
+```
 
-## Data Processing
-1. Extract relevant fields
-2. Clean and normalize values
-3. Structure per chart requirements
-4. Add rendering metadata
-
-## Output JSON Format  
-Provide structured JSON response with visualization and analysis:
-- selected_visualization: chart type ID from available options
-- visualization_data: chart title, data structure, rendering config
-- insights: list of key findings from the data
-- metadata: data_quality level, completeness assessment
-
-Provide Korean responses with MMA terminology and specific statistics.
-"""
+IMPORTANT:
+- Output ONLY the JSON object, no additional text
+- Use Korean for title and insights
+- Ensure valid JSON format"""
     return base_prompt
 
 # Helper functions

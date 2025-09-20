@@ -212,23 +212,22 @@ def format_schema_for_prompt(schema_data: Dict) -> str:
             for rel_table, rel_desc in relationships.items():
                 lines.append(f"    - {rel_table}: {rel_desc}")
         
-        # Key columns
+        # All columns
         columns = table_info.get('columns', [])
-        key_columns = []
+        all_columns = []
         for col in columns:
             col_name = col.get('column', '')
             col_type = col.get('type', '')
             nullable = col.get('nullable', True)
             description = col.get('description', '')
             
-            # Include primary key and important columns
-            if col_name == 'id' or col_name in ['name', 'result', 'method', 'event_id', 'fighter_id', 'match_id', 'weight_class_id']:
-                nullable_text = " (NOT NULL)" if not nullable else ""
-                key_columns.append(f"{col_name} ({col_type}){nullable_text} - {description}")
+            # Include all columns with complete information
+            nullable_text = " (NOT NULL)" if not nullable else ""
+            all_columns.append(f"{col_name} ({col_type}){nullable_text} - {description}")
         
-        if key_columns:
-            lines.append("  - Key columns:")
-            for col_desc in key_columns[:5]:  # Limit to top 5 key columns
+        if all_columns:
+            lines.append("  - Columns:")
+            for col_desc in all_columns:
                 lines.append(f"    - {col_desc}")
         
         lines.append("")

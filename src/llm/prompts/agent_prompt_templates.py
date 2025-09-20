@@ -39,29 +39,48 @@ def prepare_phase2_input(
     user_query: str,
     phase1_data: Dict[str, Any],
 ) -> str:
-    """Prepare Phase 2 input data - pass raw phase1 data for LLM to analyze"""
-    # collected_data만 추출 (success 등 메타데이터 제외)
-    collected_data = phase1_data.get('collected_data', {})
-    tools_executed = phase1_data.get('tools_executed', [])
-    
-    # 사용된 도구 정보
-    tools_info = ""
-    for tool in tools_executed:
-        tools_info += f"- {tool.get('tool', 'unknown')}\n"
-    
+    """Prepare Phase 2 input data - SQL 결과만 전달"""
+    # SQL 실행 결과 추출
+    sql_query = phase1_data.get('sql_query', '')
+    sql_success = phase1_data.get('sql_success', False)
+    sql_data = phase1_data.get('sql_data', [])
+    sql_columns = phase1_data.get('sql_columns', [])
+    row_count = phase1_data.get('row_count', 0)
+
+    # SQL 실패 시 에러 처리
+    if not sql_success:
+        return f"""
+## User Query: {user_query}
+
+## Phase 1 Results
+### SQL Execution Failed
+Query attempted: {sql_query}
+Error: SQL query execution failed. Please check the query and try again.
+
+## Your Task (Phase 2):
+Unable to provide visualization due to SQL execution failure.
+Please inform the user about the error and suggest corrections if possible.
+"""
+
     return f"""
 ## User Query: {user_query}
 
 ## Phase 1 Results
-### Tools Used ({len(tools_executed)}):
-{tools_info if tools_info else "No tools executed"}
+### SQL Query Executed:
+```sql
+{sql_query}
+```
+
+### Data Retrieved:
+- Rows: {row_count}
+- Columns: {', '.join(sql_columns) if sql_columns else 'No columns'}
 
 ### Raw Data:
-{str(collected_data)}
+{str(sql_data)}
 
 ## Your Task (Phase 2):
-1. Analyze the structure and content of the collected data
-2. Determine what type of information we have (fighter stats, match results, rankings, etc.)
+1. Analyze the structure and content of the SQL query results
+2. Determine what type of MMA information we have (fighter stats, match results, rankings, etc.)
 3. Select the most appropriate visualization from available charts
 4. Format the data for the selected visualization
 5. Generate key insights from the data
