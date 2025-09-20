@@ -1,0 +1,239 @@
+{
+  "database_info": {
+    "name": "MMA Savant Database",
+    "naming_convention": "singular_table_names",
+    "important_notes": [
+      "All table names use SINGULAR form (match, fighter, event, ranking)",
+      "NEVER use plural forms (matches, fighters, events, rankings)",
+      "Primary keys are always 'id' column with integer type"
+    ]
+  },
+  "tables": {
+    "fighter": {
+      "description": "UFC fighter basic information and records",
+      "primary_key": "id",
+      "relationships": {
+        "fighter_match": "1:N - Fighter participates in multiple matches",
+        "ranking": "1:N - Fighter can have rankings in multiple weight classes"
+      },
+      "columns": [
+        {"column": "id", "type": "integer", "nullable": false, "description": "Primary key"},
+        {"column": "name", "type": "character varying", "nullable": false, "description": "Fighter full name"},
+        {"column": "nickname", "type": "character varying", "nullable": true, "description": "Fighter nickname"},
+        {"column": "wins", "type": "integer", "nullable": true, "description": "Total wins"},
+        {"column": "losses", "type": "integer", "nullable": true, "description": "Total losses"},
+        {"column": "draws", "type": "integer", "nullable": true, "description": "Total draws"},
+        {"column": "height", "type": "double precision", "nullable": true, "description": "Height in inches"},
+        {"column": "height_cm", "type": "double precision", "nullable": true, "description": "Height in centimeters"},
+        {"column": "weight", "type": "double precision", "nullable": true, "description": "Weight in pounds"},
+        {"column": "weight_kg", "type": "double precision", "nullable": true, "description": "Weight in kilograms"},
+        {"column": "reach", "type": "double precision", "nullable": true, "description": "Reach in inches"},
+        {"column": "reach_cm", "type": "double precision", "nullable": true, "description": "Reach in centimeters"},
+        {"column": "stance", "type": "character varying", "nullable": true, "description": "Fighting stance"},
+        {"column": "birthdate", "type": "character varying", "nullable": true, "description": "Birth date"},
+        {"column": "belt", "type": "boolean", "nullable": true, "description": "Currently holds a belt"},
+        {"column": "detail_url", "type": "character varying", "nullable": true, "description": "UFC profile URL"},
+        {"column": "created_at", "type": "timestamp without time zone", "nullable": true},
+        {"column": "updated_at", "type": "timestamp without time zone", "nullable": true}
+      ]
+    },
+    "event": {
+      "description": "UFC event information",
+      "primary_key": "id",
+      "relationships": {
+        "match": "1:N - Event contains multiple matches"
+      },
+      "columns": [
+        {"column": "id", "type": "integer", "nullable": false, "description": "Primary key"},
+        {"column": "name", "type": "character varying", "nullable": false, "description": "Event name"},
+        {"column": "event_date", "type": "date", "nullable": true, "description": "Event date"},
+        {"column": "location", "type": "character varying", "nullable": true, "description": "Event location"},
+        {"column": "url", "type": "character varying", "nullable": true, "description": "Event URL"},
+        {"column": "created_at", "type": "timestamp without time zone", "nullable": true},
+        {"column": "updated_at", "type": "timestamp without time zone", "nullable": true}
+      ]
+    },
+    "match": {
+      "description": "Individual fight/match information",
+      "primary_key": "id",
+      "relationships": {
+        "event": "N:1 - Match belongs to one event",
+        "fighter_match": "1:N - Match has multiple fighter participants (usually 2)",
+        "weight_class": "N:1 - Match belongs to one weight class"
+      },
+      "columns": [
+        {"column": "id", "type": "integer", "nullable": false, "description": "Primary key"},
+        {"column": "event_id", "type": "integer", "nullable": true, "description": "Foreign key to event"},
+        {"column": "weight_class_id", "type": "integer", "nullable": true, "description": "Foreign key to weight_class"},
+        {"column": "is_main_event", "type": "boolean", "nullable": true, "description": "Is this the main event"},
+        {"column": "order", "type": "integer", "nullable": true, "description": "Fight order on card"},
+        {"column": "method", "type": "character varying", "nullable": true, "description": "Finish method (KO/TKO, Decision, Submission, etc.)"},
+        {"column": "result_round", "type": "integer", "nullable": true, "description": "Round the fight ended"},
+        {"column": "time", "type": "character varying", "nullable": true, "description": "Time fight ended in round"},
+        {"column": "detail_url", "type": "character varying", "nullable": true, "description": "Fight details URL"},
+        {"column": "created_at", "type": "timestamp without time zone", "nullable": true},
+        {"column": "updated_at", "type": "timestamp without time zone", "nullable": true}
+      ]
+    },
+    "fighter_match": {
+      "description": "Junction table linking fighters to matches with results",
+      "primary_key": "id",
+      "relationships": {
+        "fighter": "N:1 - References one fighter",
+        "match": "N:1 - References one match",
+        "match_statistics": "1:N - Fighter match has detailed statistics"
+      },
+      "columns": [
+        {"column": "id", "type": "integer", "nullable": false, "description": "Primary key"},
+        {"column": "fighter_id", "type": "integer", "nullable": true, "description": "Foreign key to fighter"},
+        {"column": "match_id", "type": "integer", "nullable": true, "description": "Foreign key to match"},
+        {"column": "result", "type": "character varying", "nullable": true, "description": "Fight result (Win/Loss/Draw)"},
+        {"column": "created_at", "type": "timestamp without time zone", "nullable": true},
+        {"column": "updated_at", "type": "timestamp without time zone", "nullable": true}
+      ]
+    },
+    "weight_class": {
+      "description": "UFC weight class divisions",
+      "primary_key": "id",
+      "relationships": {
+        "match": "1:N - Weight class has multiple matches",
+        "ranking": "1:N - Weight class has multiple rankings"
+      },
+      "columns": [
+        {"column": "id", "type": "integer", "nullable": false, "description": "Primary key"},
+        {"column": "name", "type": "character varying", "nullable": false, "description": "Weight class name (e.g., Heavyweight, Light Heavyweight)"},
+        {"column": "created_at", "type": "timestamp without time zone", "nullable": true},
+        {"column": "updated_at", "type": "timestamp without time zone", "nullable": true}
+      ]
+    },
+    "ranking": {
+      "description": "Fighter rankings within weight classes",
+      "primary_key": "id",
+      "relationships": {
+        "fighter": "N:1 - References one fighter",
+        "weight_class": "N:1 - References one weight class"
+      },
+      "columns": [
+        {"column": "id", "type": "integer", "nullable": false, "description": "Primary key"},
+        {"column": "fighter_id", "type": "integer", "nullable": true, "description": "Foreign key to fighter"},
+        {"column": "weight_class_id", "type": "integer", "nullable": true, "description": "Foreign key to weight_class"},
+        {"column": "ranking", "type": "integer", "nullable": true, "description": "Rank position (1 = Champion)"},
+        {"column": "created_at", "type": "timestamp without time zone", "nullable": true},
+        {"column": "updated_at", "type": "timestamp without time zone", "nullable": true}
+      ]
+    },
+    "match_statistics": {
+      "description": "Detailed fight statistics per fighter per round",
+      "primary_key": "id",
+      "relationships": {
+        "fighter_match": "N:1 - Statistics belong to one fighter's match performance"
+      },
+      "columns": [
+        {"column": "id", "type": "integer", "nullable": false, "description": "Primary key"},
+        {"column": "fighter_match_id", "type": "integer", "nullable": true, "description": "Foreign key to fighter_match"},
+        {"column": "round", "type": "integer", "nullable": true, "description": "Round number"},
+        {"column": "knockdowns", "type": "integer", "nullable": true, "description": "Knockdowns scored"},
+        {"column": "sig_str_landed", "type": "integer", "nullable": true, "description": "Significant strikes landed"},
+        {"column": "sig_str_attempted", "type": "integer", "nullable": true, "description": "Significant strikes attempted"},
+        {"column": "total_str_landed", "type": "integer", "nullable": true, "description": "Total strikes landed"},
+        {"column": "total_str_attempted", "type": "integer", "nullable": true, "description": "Total strikes attempted"},
+        {"column": "td_landed", "type": "integer", "nullable": true, "description": "Takedowns landed"},
+        {"column": "td_attempted", "type": "integer", "nullable": true, "description": "Takedowns attempted"},
+        {"column": "submission_attempts", "type": "integer", "nullable": true, "description": "Submission attempts"},
+        {"column": "control_time_seconds", "type": "integer", "nullable": true, "description": "Control time in seconds"},
+        {"column": "created_at", "type": "timestamp without time zone", "nullable": true},
+        {"column": "updated_at", "type": "timestamp without time zone", "nullable": true}
+      ]
+    },
+    "strike_detail": {
+      "description": "Detailed striking statistics breakdown",
+      "primary_key": "id",
+      "relationships": {
+        "fighter_match": "N:1 - Strike details belong to one fighter's match performance"
+      },
+      "columns": [
+        {"column": "id", "type": "integer", "nullable": false, "description": "Primary key"},
+        {"column": "fighter_match_id", "type": "integer", "nullable": true, "description": "Foreign key to fighter_match"},
+        {"column": "round", "type": "integer", "nullable": true, "description": "Round number"},
+        {"column": "head_strikes_landed", "type": "integer", "nullable": true, "description": "Head strikes landed"},
+        {"column": "head_strikes_attempts", "type": "integer", "nullable": true, "description": "Head strikes attempted"},
+        {"column": "body_strikes_landed", "type": "integer", "nullable": true, "description": "Body strikes landed"},
+        {"column": "body_strikes_attempts", "type": "integer", "nullable": true, "description": "Body strikes attempted"},
+        {"column": "leg_strikes_landed", "type": "integer", "nullable": true, "description": "Leg strikes landed"},
+        {"column": "leg_strikes_attempts", "type": "integer", "nullable": true, "description": "Leg strikes attempted"},
+        {"column": "clinch_strikes_landed", "type": "integer", "nullable": true, "description": "Clinch strikes landed"},
+        {"column": "clinch_strikes_attempts", "type": "integer", "nullable": true, "description": "Clinch strikes attempted"},
+        {"column": "ground_strikes_landed", "type": "integer", "nullable": true, "description": "Ground strikes landed"},
+        {"column": "ground_strikes_attempts", "type": "integer", "nullable": true, "description": "Ground strikes attempted"},
+        {"column": "takedowns_landed", "type": "integer", "nullable": true, "description": "Takedowns successful"},
+        {"column": "takedowns_attempts", "type": "integer", "nullable": true, "description": "Takedowns attempted"},
+        {"column": "created_at", "type": "timestamp without time zone", "nullable": true},
+        {"column": "updated_at", "type": "timestamp without time zone", "nullable": true}
+      ]
+    },
+    "user": {
+      "description": "System users (not MMA domain)",
+      "primary_key": "id",
+      "relationships": {
+        "conversation": "1:N - User can have multiple conversations"
+      },
+      "columns": [
+        {"column": "id", "type": "integer", "nullable": false},
+        {"column": "username", "type": "character varying", "nullable": true},
+        {"column": "email", "type": "character varying", "nullable": true},
+        {"column": "name", "type": "character varying", "nullable": true},
+        {"column": "picture", "type": "text", "nullable": true},
+        {"column": "provider", "type": "character varying", "nullable": true},
+        {"column": "provider_id", "type": "character varying", "nullable": true},
+        {"column": "password_hash", "type": "character varying", "nullable": true},
+        {"column": "is_active", "type": "boolean", "nullable": false},
+        {"column": "daily_requests", "type": "integer", "nullable": false},
+        {"column": "total_requests", "type": "integer", "nullable": false},
+        {"column": "last_request_date", "type": "timestamp without time zone", "nullable": true},
+        {"column": "created_at", "type": "timestamp without time zone", "nullable": true},
+        {"column": "updated_at", "type": "timestamp without time zone", "nullable": true}
+      ]
+    },
+    "conversation": {
+      "description": "User conversation sessions (not MMA domain)",
+      "primary_key": "id",
+      "relationships": {
+        "user": "N:1 - Conversation belongs to one user",
+        "message": "1:N - Conversation contains multiple messages"
+      },
+      "columns": [
+        {"column": "id", "type": "integer", "nullable": false},
+        {"column": "session_id", "type": "character varying", "nullable": false},
+        {"column": "user_id", "type": "integer", "nullable": false},
+        {"column": "title", "type": "text", "nullable": true},
+        {"column": "created_at", "type": "timestamp without time zone", "nullable": true},
+        {"column": "updated_at", "type": "timestamp without time zone", "nullable": true}
+      ]
+    },
+    "message": {
+      "description": "Individual messages within conversations (not MMA domain)",
+      "primary_key": "id",
+      "relationships": {
+        "conversation": "N:1 - Message belongs to one conversation"
+      },
+      "columns": [
+        {"column": "id", "type": "integer", "nullable": false},
+        {"column": "message_id", "type": "character varying", "nullable": false},
+        {"column": "session_id", "type": "character varying", "nullable": false},
+        {"column": "role", "type": "character varying", "nullable": false},
+        {"column": "content", "type": "text", "nullable": false},
+        {"column": "tool_results", "type": "jsonb", "nullable": true},
+        {"column": "created_at", "type": "timestamp without time zone", "nullable": true},
+        {"column": "updated_at", "type": "timestamp without time zone", "nullable": true}
+      ]
+    },
+    "alembic_version": {
+      "description": "Database migration version tracking (system table)",
+      "primary_key": "version_num",
+      "relationships": {},
+      "columns": [
+        {"column": "version_num", "type": "character varying", "nullable": false}
+      ]
+    }
+  }
+}
