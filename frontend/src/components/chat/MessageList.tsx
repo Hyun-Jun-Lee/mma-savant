@@ -65,8 +65,8 @@ export function MessageList() {
   }
 
   return (
-    <ScrollArea className="flex-1" ref={scrollAreaRef}>
-      <div className="p-4 max-w-4xl mx-auto">
+    <ScrollArea className="flex-1 bg-transparent" ref={scrollAreaRef}>
+      <div className="p-4 max-w-4xl mx-auto min-h-full">
         {messages.map((message) => (
           <MessageBubble key={message.id} message={message} />
         ))}

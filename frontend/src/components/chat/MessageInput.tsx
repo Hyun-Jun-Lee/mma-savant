@@ -62,7 +62,7 @@ export function MessageInput({
   const canSend = currentMessage.trim().length > 0 && !isDisabled
 
   return (
-    <div className="border-t border-white/10 bg-black/20 backdrop-blur-sm p-4">
+    <div className="p-4">
       <div className="flex gap-3 items-end max-w-4xl mx-auto">
         <div className="flex-1 relative">
           <Textarea
@@ -74,9 +74,9 @@ export function MessageInput({
             disabled={isDisabled}
             className={cn(
               "min-h-[44px] max-h-[120px] resize-none pr-12",
-              "bg-white/5 backdrop-blur-sm border-white/10 text-white placeholder-zinc-400",
+              "!bg-white/5 backdrop-blur-sm border-white/10 text-white placeholder-zinc-400",
               "focus:ring-2 focus:ring-white/30 focus:border-white/30",
-              "hover:bg-white/10 hover:border-white/20 transition-colors",
+              "hover:!bg-white/10 hover:border-white/20 transition-colors",
               isDisabled && "opacity-50 cursor-not-allowed"
             )}
             style={{ height: "auto" }}

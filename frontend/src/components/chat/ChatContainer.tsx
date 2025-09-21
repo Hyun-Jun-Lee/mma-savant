@@ -88,9 +88,9 @@ export function ChatContainer() {
 
   return (
     <div className="flex flex-col h-screen bg-gradient-to-br from-zinc-900 via-gray-900 to-slate-900">
-      {/* 배경 패턴 */}
-      <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-gray-700/20 via-transparent to-transparent pointer-events-none" />
-      <div className="absolute inset-0 bg-grid-white/[0.02] bg-[size:50px_50px] pointer-events-none" />
+      {/* 배경 패턴 - 스크롤 가능한 전체 영역에 적용 */}
+      <div className="fixed inset-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-gray-700/20 via-transparent to-transparent pointer-events-none" />
+      <div className="fixed inset-0 bg-grid-white/[0.02] bg-[size:50px_50px] pointer-events-none" />
       
       {/* 헤더 */}
       <div className="relative z-10 bg-black/20 backdrop-blur-sm border-b border-white/10">
@@ -185,7 +185,7 @@ export function ChatContainer() {
       {/* 메인 컨텐츠 영역 */}
       <div className="relative z-10 flex flex-col flex-1 min-h-0">
         {/* 메시지 목록 */}
-        <div className="flex-1 overflow-hidden">
+        <div className="flex-1">
           <MessageList />
         </div>
 
