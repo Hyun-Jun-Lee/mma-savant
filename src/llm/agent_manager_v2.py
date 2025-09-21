@@ -111,17 +111,16 @@ class AgentManagerV2(AgentManager):
             if phase2_result.get("error"):
                 return self._create_error_response("Phase 2 failed", phase2_result)
 
-            # 최종 결과 구성 (시각화 데이터만 간소화해서 반환)
+            # 최종 결과 구성 (시각화 데이터 + content 필드 포함)
             simplified_result = {
                 "processing_id": processing_id,
+                "content": phase2_result.get("final_response", ""),  # content 필드 추가
                 "visualization_type": phase2_result.get("visualization_type", ""),
                 "visualization_data": phase2_result.get("visualization_data", {}),
                 "insights": phase2_result.get("insights", []),
                 "sql_query": phase1_result.get("sql_query", ""),
                 "row_count": phase1_result.get("row_count", 0)
             }
-
-            LOGGER.info(f"✅ Two-Step processing completed")
             return simplified_result
             
         except Exception as e:
@@ -198,7 +197,6 @@ class AgentManagerV2(AgentManager):
                 }
 
                 LOGGER.info(f"✅ Phase 1 completed: SQL query executed")
-                LOGGER.info(f"📊 Data collected: {phase1_result['row_count']} rows from SQL query")
                 if not phase1_result['sql_success']:
                     LOGGER.warning(f"⚠️ SQL execution failed: {sql_result.get('error', 'Unknown error')}")
                 
@@ -251,7 +249,6 @@ class AgentManagerV2(AgentManager):
             # 전체 프롬프트 구성
             full_prompt = phase2_prompt + "\n\n" + phase2_input
 
-            LOGGER.info("🚀 Phase 2: Direct LLM call for visualization selection...")
 
             # 직접 LLM 호출 (Agent 없이)
             response = await llm.ainvoke(full_prompt)
@@ -533,7 +530,6 @@ class AgentManagerV2(AgentManager):
             # 성공한 SQL 결과 찾기 (마지막 성공한 것 우선)
             for result in reversed(sql_results):
                 if result["success"]:
-                    LOGGER.info(f"✅ Found successful SQL result at step {result['step']} (out of {len(sql_results)} attempts)")
                     del result["step"]  # step 정보는 제거
                     return result
 
