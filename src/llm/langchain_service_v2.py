@@ -139,10 +139,7 @@ class LangChainLLMService:
             
             # 2. MCP 도구 로드 및 LLM 설정
             try:
-                mcp_start = time.time()
                 async with self.agent_manager.get_mcp_tools() as tools:
-                    mcp_time = time.time() - mcp_start
-                    LOGGER.info(f"⏱️ MCP tools loading took: {mcp_time:.3f}s")
                     LOGGER.info(f"🔧 Loaded {len(tools)} MCP tools")
                     
                     # Two-Phase 시스템 설정
@@ -215,8 +212,6 @@ class LangChainLLMService:
         
         finally:
             # 총 실행 시간 로깅
-            total_time = time.time() - start_time
-            LOGGER.info(f"⏱️ Total streaming function took: {total_time:.3f}s")
             
             # LangSmith 최종 메트릭 로깅 (자동으로 추적됨)
             if Config.LANGCHAIN_TRACING_V2:
@@ -291,7 +286,6 @@ class LangChainLLMService:
                     }
                 )
                 history.add_message(ai_message)
-                LOGGER.info(f"✅ AI message added to history: {len(summary_content)} chars")
 
                 # 최종 결과 반환 (간소화된 응답에 최소 메타데이터만 추가)
                 yield {
