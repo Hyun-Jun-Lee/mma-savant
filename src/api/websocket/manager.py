@@ -203,9 +203,11 @@ class ConnectionManager:
                 await self.disconnect(connection_id)
                 return
                 
-            
+
             # 메시지 전송
-            await websocket.send_text(json.dumps(message, ensure_ascii=False))
+            message_json = json.dumps(message, ensure_ascii=False)
+            print(f"📤 SENDING WebSocket message to {connection_id}: {message['type']} - {message_json[:200]}...")
+            await websocket.send_text(message_json)
             
         except Exception as e:
             error_msg = str(e).lower()
@@ -259,16 +261,20 @@ class ConnectionManager:
         try:
             user = self.connection_users.get(connection_id)
             if not user:
+                print(f"❌ User not found for connection {connection_id}")
                 await self.send_to_connection(connection_id, {
                     "type": "error",
                     "error": "User not found",
                     "timestamp": kr_time_now().isoformat()
                 })
                 return
+
             
             # 메시지 데이터 검증
             content = message_data.get("content").strip()
             session_id = message_data.get("session_id")
+            print(f"🔵 Processing message from user {user.id} (connection: {connection_id}): '{content}'")
+            print(f"🔗 Active connections: {len(self.active_connections)}, User connections: {len(self.user_connections.get(user.id, set()))}")
             
             if not content:
                 LOGGER.warning(f"❌ Empty message content from {connection_id}")
@@ -330,17 +336,20 @@ class ConnectionManager:
             
             # LLM 서비스 초기화 확인
             await self._ensure_llm_service()
-            
+
             # LLM 스트리밍 응답 생성
             assistant_content = ""
             assistant_message_id = str(uuid.uuid4())
             tool_results = []  # tool 결과 저장용
-            
+
+            chunk_count = 0
             async for chunk in self.llm_service.generate_streaming_chat_response(
                 user_message=content,
                 session_id=session_id,
                 user_id=user.id
             ):
+                chunk_count += 1
+                print(f"📦 Received chunk #{chunk_count}: type={chunk.get('type', 'unknown')}")
                 
                 if chunk["type"] == "start":
                     await self.send_to_connection(connection_id, {
@@ -359,35 +368,52 @@ class ConnectionManager:
                         "session_id": session_id,
                         "timestamp": chunk["timestamp"]
                     }
+                    print(f"🟦 Sending response_chunk: content_length={len(chunk['content'])}, total_length={len(assistant_content)}")
                     try:
                         await self.send_to_connection(connection_id, chunk_data)
                     except Exception as e:
+                        print(f"❌ Error sending response_chunk: {e}")
                         raise
                 
                 elif chunk["type"] == "final_result":
-                    # tool 결과 저장
+                    # final_result를 프론트엔드로 직접 전송 (스트리밍 우회)
+                    final_content = chunk.get("content", "")
+                    assistant_content += final_content  # 최종 content 누적
+
+                    final_message = {
+                        "type": "final_result",
+                        "content": final_content,
+                        "message_id": assistant_message_id,
+                        "session_id": session_id,
+                        "timestamp": chunk["timestamp"],
+                        # Frontend에서 사용하는 시각화 데이터만 포함
+                        "visualization_type": chunk.get("visualization_type"),
+                        "visualization_data": chunk.get("visualization_data"),
+                        "insights": chunk.get("insights", [])
+                    }
+
+                    print("="*50)
+                    print(final_message)
+                    print("="*50)
+
+                    # 완성된 결과를 프론트엔드로 즉시 전송
+                    await self.send_to_connection(connection_id, final_message)
+
+                    # tool 결과 저장 (기존 로직 유지)
                     tool_info = None
                     if "intermediate_steps" in chunk:
-                        LOGGER.debug("intermediate_steps exists")
                         tool_results = chunk["intermediate_steps"]
-                        LOGGER.info(f"🔧 Tool results captured: {len(tool_results)} steps")
-                        
+
                         if tool_results:
-                            LOGGER.debug("tool result exists")
                             # tool 결과를 별도 필드로 저장
                             tool_info = []
                             for i, step in enumerate(tool_results):
                                 if len(step) >= 2:
                                     action, result = step
-                                    LOGGER.debug(f"   Step {i+1}: {getattr(action, 'tool', 'unknown')}")
-                                    LOGGER.debug("-" * 50)
-                                    LOGGER.debug("check tool result :")
-                                    LOGGER.debug(result)
-                                    LOGGER.debug("-" * 50)
-                                    
+
                                     # 결과를 JSON으로 파싱하여 처리
                                     processed_result = self._process_tool_result(result)
-                                    
+
                                     tool_info.append({
                                         "tool": getattr(action, 'tool', 'unknown'),
                                         "input": getattr(action, 'tool_input', {}),
@@ -403,6 +429,7 @@ class ConnectionManager:
                     })
                     
                     # 응답 종료 알림만 전송 (메시지 저장은 final_result에서 처리)
+                    print(f"🟩 Sending response_end: message_id={assistant_message_id}, total_content_length={len(assistant_content)}")
                     await self.send_to_connection(connection_id, {
                         "type": "response_end",
                         "message_id": assistant_message_id,
@@ -424,7 +451,8 @@ class ConnectionManager:
                         "session_id": session_id,
                         "timestamp": chunk["timestamp"]
                     })
-        
+
+
         except Exception as e:
             LOGGER.error(f"❌ Error handling user message: {e}")
             LOGGER.error(format_exc())
