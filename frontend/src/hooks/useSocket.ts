@@ -3,13 +3,20 @@
 import { useEffect, useRef, useState, useCallback } from 'react'
 import { getRealSocket } from '@/lib/realSocket'
 import { useChatStore } from '@/store/chatStore'
+import { processAssistantResponse } from '@/lib/visualizationParser'
+import { VisualizationData } from '@/types/chat'
 
 export function useSocket() {
   const [isConnected, setIsConnected] = useState(false)
   const [isTyping, setIsTyping] = useState(false)
   const socketRef = useRef(getRealSocket())
   const { addMessage, updateMessage, setConnected, setTyping, currentSession, setCurrentSession } = useChatStore()
-  const currentStreamingMessage = useRef<{ id: string; content: string; storeId?: string } | null>(null)
+  const currentStreamingMessage = useRef<{
+    id: string;
+    content: string;
+    storeId?: string;
+    visualizationData?: VisualizationData | null;
+  } | null>(null)
 
   // Zustand 스토어 함수들은 이미 안정적이므로 직접 사용
 
@@ -40,65 +47,87 @@ export function useSocket() {
       })
     })
 
-    // 스트리밍 메시지 청크 처리
-    socket.on('message_chunk', (data: { 
-      content: string; 
-      fullContent: string;
-      messageId: string;
-      role: 'assistant';
-      timestamp: Date;
+    // 스트리밍 메시지 청크 처리 (백엔드는 response_chunk 이벤트 사용)
+    socket.on('response_chunk', (data: {
+      content: string;
+      message_id: string;
+      session_id: string;
+      timestamp: string;
+      type: string;
     }) => {
-      console.log('📝 Received message_chunk:', data)
+      console.log('📝 Received response_chunk:', data)
       console.log('📝 Current streaming message:', currentStreamingMessage.current?.id)
-      
-      if (!currentStreamingMessage.current || currentStreamingMessage.current.id !== data.messageId) {
+
+      // 스트리밍 메시지의 전체 내용을 누적
+      let fullContent = ""
+
+      if (!currentStreamingMessage.current || currentStreamingMessage.current.id !== data.message_id) {
         // 새로운 스트리밍 메시지 시작 - 즉시 타이핑 상태 해제
-        console.log('🆕 Starting new streaming message:', data.messageId)
+        console.log('🆕 Starting new streaming message:', data.message_id)
         console.log('⚡ Immediately stopping typing indicator')
         setIsTyping(false)
         setTyping(false)
-        
+
+        // 첫 번째 청크의 내용으로 시작
+        fullContent = data.content
+
+        // 시각화 데이터 파싱
+        const { visualizationData, textContent } = processAssistantResponse(fullContent)
+
         // 새 메시지 추가
         const newMessage = {
-          content: data.fullContent, // 첫 청크는 fullContent를 사용
+          content: textContent || fullContent, // 파싱된 텍스트 또는 원본
           role: 'assistant' as const,
-          isStreaming: true
+          isStreaming: true,
+          visualizationData: visualizationData
         }
-        
+
         const addedMessage = addMessage(newMessage)
-        
+
         // 현재 스트리밍 메시지 정보 저장 (store ID 직접 사용)
-        currentStreamingMessage.current = { 
-          id: data.messageId, 
-          content: data.fullContent,
-          storeId: addedMessage.id // addMessage에서 반환된 실제 ID 사용
+        currentStreamingMessage.current = {
+          id: data.message_id,
+          content: fullContent,
+          storeId: addedMessage.id, // addMessage에서 반환된 실제 ID 사용
+          visualizationData: visualizationData
         }
-        
-        console.log('📝 New streaming message stored with store ID:', addedMessage.id)
+
+        console.log('📝 New streaming message stored with store ID:', addedMessage.id, 'hasVisualization:', !!visualizationData)
       } else {
-        // 기존 메시지 업데이트 - fullContent로 전체 내용 업데이트
-        console.log('🔄 Updating streaming message:', data.messageId, 'new length:', data.fullContent.length)
-        currentStreamingMessage.current.content = data.fullContent
-        
+        // 기존 메시지 업데이트 - 새 청크를 기존 내용에 추가
+        currentStreamingMessage.current.content += data.content
+        fullContent = currentStreamingMessage.current.content
+
+        console.log('🔄 Updating streaming message:', data.message_id, 'new length:', fullContent.length)
+
+        // 시각화 데이터 재파싱 (스트리밍 중 JSON이 완성될 수 있음)
+        const { visualizationData, textContent } = processAssistantResponse(fullContent)
+
+        // 시각화 데이터가 새로 감지되었거나 변경되었으면 업데이트
+        if (visualizationData !== currentStreamingMessage.current.visualizationData) {
+          currentStreamingMessage.current.visualizationData = visualizationData
+          console.log('📊 Visualization data updated:', !!visualizationData)
+        }
+
         // store ID를 사용하여 직접 메시지 업데이트
         const storeId = currentStreamingMessage.current.storeId
         if (storeId) {
           console.log('📝 Updating message in store by store ID:', storeId)
-          
+
           // 메시지가 실제로 존재하는지 먼저 확인
           const messages = useChatStore.getState().messages
           const targetMessage = messages.find(msg => msg.id === storeId)
-          
+
           if (targetMessage) {
             console.log('✅ Target message found, updating:', storeId)
-            updateMessage(storeId, data.fullContent, true)
+            updateMessage(storeId, textContent || fullContent, true, visualizationData)
           } else {
             console.log('❌ Target message not found in store:', storeId)
             // fallback으로 마지막 스트리밍 메시지 찾기
             const lastAssistantMessage = [...messages].reverse().find(msg => msg.role === 'assistant' && msg.isStreaming)
             if (lastAssistantMessage) {
               console.log('📝 Using fallback message:', lastAssistantMessage.id)
-              updateMessage(lastAssistantMessage.id, data.fullContent, true)
+              updateMessage(lastAssistantMessage.id, textContent || fullContent, true, visualizationData)
               currentStreamingMessage.current.storeId = lastAssistantMessage.id
             } else {
               console.log('❌ No streaming assistant message found in store at all')
@@ -111,7 +140,7 @@ export function useSocket() {
           const lastAssistantMessage = [...messages].reverse().find(msg => msg.role === 'assistant' && msg.isStreaming)
           if (lastAssistantMessage) {
             console.log('📝 Updating message in store (fallback):', lastAssistantMessage.id)
-            updateMessage(lastAssistantMessage.id, data.fullContent, true)
+            updateMessage(lastAssistantMessage.id, textContent || fullContent, true, visualizationData)
             // store ID 저장
             currentStreamingMessage.current.storeId = lastAssistantMessage.id
           } else {
@@ -121,29 +150,101 @@ export function useSocket() {
       }
     })
 
-    // 스트리밍 완료 처리  
-    socket.on('response_complete', (data: { messageId: string; timestamp: Date }) => {
-      console.log('✅ Response complete:', data.messageId)
+    // final_result 직접 처리 (Two-Phase 시스템의 완성된 결과)
+    socket.on('final_result', (data: {
+      content?: string;
+      message_id: string;
+      session_id: string;
+      timestamp: string;
+      visualization_type?: string;
+      visualization_data?: any;
+      insights?: string[];
+      tool_results?: any[];
+      intermediate_steps?: any[];
+    }) => {
+      console.log('🎯 Received final_result:', data.message_id)
+      console.log('📊 Visualization type:', data.visualization_type)
+      console.log('📊 Has visualization data:', !!data.visualization_data)
+
+      // 즉시 타이핑 상태 해제
+      setIsTyping(false)
+      setTyping(false)
+
+      // 직접 시각화 데이터 구성 (content 파싱 대신)
+      let visualizationData = null
+      if (data.visualization_type && data.visualization_data && data.visualization_type !== 'text_summary') {
+        visualizationData = {
+          selected_visualization: data.visualization_type,
+          visualization_data: {
+            title: data.visualization_data.title || "분석 결과",
+            data: data.visualization_data.data || data.visualization_data,
+            x_axis: data.visualization_data.x_axis,
+            y_axis: data.visualization_data.y_axis
+          },
+          insights: data.insights || []
+        }
+      }
+
+      // 텍스트 content 처리 (insights 포함)
+      let textContent = data.content || ""
+      if (data.insights && data.insights.length > 0) {
+        textContent += "\n\n**주요 인사이트:**\n" + data.insights.map(insight => `• ${insight}`).join('\n')
+      }
+
+      // 완성된 메시지로 즉시 추가 (스트리밍 우회)
+      const finalMessage = {
+        content: textContent,
+        role: 'assistant' as const,
+        isStreaming: false,
+        visualizationData: visualizationData
+      }
+
+      const addedMessage = addMessage(finalMessage)
+      console.log('✅ Final message added immediately:', addedMessage.id, 'hasVisualization:', !!visualizationData)
+
+      // 현재 스트리밍 메시지 정리
+      currentStreamingMessage.current = null
+    })
+
+    // 스트리밍 완료 처리 (백엔드는 response_end 이벤트 사용)
+    socket.on('response_end', (data: { message_id: string; session_id: string; timestamp: string; type: string }) => {
+      console.log('✅ Response complete:', data.message_id)
       // 스트리밍 메시지를 완료 상태로 변경
-      if (currentStreamingMessage.current && currentStreamingMessage.current.id === data.messageId) {
-        console.log('📝 Finalizing streaming message:', data.messageId)
-        
+      if (currentStreamingMessage.current && currentStreamingMessage.current.id === data.message_id) {
+        console.log('📝 Finalizing streaming message:', data.message_id)
+
         const finalContent = currentStreamingMessage.current.content
-        
+        const finalVisualizationData = currentStreamingMessage.current.visualizationData
+
+        // 최종 파싱 (완전한 메시지로 마지막 파싱)
+        const { visualizationData, textContent } = processAssistantResponse(finalContent)
+        const finalParsedVisualizationData = visualizationData || finalVisualizationData
+
         if (currentStreamingMessage.current.storeId) {
           // store ID를 사용하여 직접 완료 처리
           console.log('📝 Setting streaming message as completed by store ID:', currentStreamingMessage.current.storeId)
-          updateMessage(currentStreamingMessage.current.storeId, finalContent, false)
+          updateMessage(
+            currentStreamingMessage.current.storeId,
+            textContent || finalContent,
+            false,
+            finalParsedVisualizationData
+          )
         } else {
           // fallback: 마지막 스트리밍 메시지 찾기
           const messages = useChatStore.getState().messages
           const lastAssistantMessage = [...messages].reverse().find(msg => msg.role === 'assistant' && msg.isStreaming)
           if (lastAssistantMessage) {
             console.log('📝 Setting streaming message as completed (fallback):', lastAssistantMessage.id)
-            updateMessage(lastAssistantMessage.id, finalContent, false)
+            updateMessage(
+              lastAssistantMessage.id,
+              textContent || finalContent,
+              false,
+              finalParsedVisualizationData
+            )
           }
         }
-        
+
+        console.log('🎉 Message finalized with visualization:', !!finalParsedVisualizationData)
         currentStreamingMessage.current = null
       }
     })

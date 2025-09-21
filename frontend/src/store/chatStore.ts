@@ -29,9 +29,9 @@ export const useChatStore = create<ChatStore>((set, get) => ({
     return newMessage
   },
 
-  updateMessage: (id, content, isStreaming) => {
-    console.log('🏪 Updating message in store:', id, 'content length:', content.length, 'isStreaming:', isStreaming)
-    
+  updateMessage: (id, content, isStreaming, visualizationData) => {
+    console.log('🏪 Updating message in store:', id, 'content length:', content.length, 'isStreaming:', isStreaming, 'hasVisualization:', !!visualizationData)
+
     set((state) => {
       const messageFound = state.messages.find(msg => msg.id === id)
       if (!messageFound) {
@@ -39,10 +39,15 @@ export const useChatStore = create<ChatStore>((set, get) => ({
       } else {
         console.log('✅ Message found in store, updating:', id)
       }
-      
+
       return {
         messages: state.messages.map((msg) =>
-          msg.id === id ? { ...msg, content, isStreaming: isStreaming ?? false } : msg
+          msg.id === id ? {
+            ...msg,
+            content,
+            isStreaming: isStreaming ?? false,
+            visualizationData: visualizationData !== undefined ? visualizationData : msg.visualizationData
+          } : msg
         ),
       }
     })
