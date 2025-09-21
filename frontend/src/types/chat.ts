@@ -1,9 +1,23 @@
+// 시각화 데이터 타입 정의
+export interface VisualizationData {
+  selected_visualization: "table" | "bar_chart" | "pie_chart" | "line_chart" | "scatter_plot" | "text_summary"
+  visualization_data: {
+    title: string
+    data: Record<string, string | number>[]
+    x_axis?: string
+    y_axis?: string
+  }
+  insights: string[]
+}
+
 export interface Message {
   id: string
   content: string
   role: "user" | "assistant"
   timestamp: Date
   isStreaming?: boolean
+  // 시각화 데이터 필드 추가
+  visualizationData?: VisualizationData
 }
 
 export interface ChatSession {
@@ -31,7 +45,7 @@ export interface ChatState {
 
 export interface ChatStore extends ChatState {
   addMessage: (message: Omit<Message, "id" | "timestamp">) => Message
-  updateMessage: (id: string, content: string, isStreaming?: boolean) => void
+  updateMessage: (id: string, content: string, isStreaming?: boolean, visualizationData?: VisualizationData | null) => void
   setCurrentMessage: (message: string) => void
   setLoading: (loading: boolean) => void
   setConnected: (connected: boolean) => void
