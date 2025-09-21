@@ -7,6 +7,7 @@ import { useAuth } from "@/hooks/useAuth"
 import { Bot, User } from "lucide-react"
 import { cn } from "@/lib/utils"
 import ReactMarkdown from "react-markdown"
+import { ChartRenderer } from "@/components/visualization/ChartRenderer"
 
 interface MessageBubbleProps {
   message: Message
@@ -59,18 +60,31 @@ export function MessageBubble({ message }: MessageBubbleProps) {
           </Card>
         ) : (
           <div className="max-w-none">
-            <div className="text-sm break-words text-white prose prose-invert prose-sm max-w-none">
-              <ReactMarkdown>{message.content}</ReactMarkdown>
-              {message.isStreaming && (
-                <span className="inline-block w-2 h-4 ml-1 bg-current animate-pulse rounded" />
-              )}
-            </div>
-            
+            {/* 시각화 데이터가 있으면 차트 렌더링, 없으면 텍스트 */}
+            {message.visualizationData ? (
+              <div className="space-y-3">
+                <ChartRenderer data={message.visualizationData} />
+                {/* 스트리밍 인디케이터 */}
+                {message.isStreaming && (
+                  <div className="text-center">
+                    <span className="inline-block w-2 h-4 bg-blue-400 animate-pulse rounded" />
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div className="text-sm break-words text-white prose prose-invert prose-sm max-w-none">
+                <ReactMarkdown>{message.content}</ReactMarkdown>
+                {message.isStreaming && (
+                  <span className="inline-block w-2 h-4 ml-1 bg-current animate-pulse rounded" />
+                )}
+              </div>
+            )}
+
             {/* Timestamp */}
             <div className="text-xs mt-2 opacity-70 text-zinc-400">
-              {message.timestamp.toLocaleTimeString([], { 
-                hour: '2-digit', 
-                minute: '2-digit' 
+              {message.timestamp.toLocaleTimeString([], {
+                hour: '2-digit',
+                minute: '2-digit'
               })}
             </div>
           </div>
