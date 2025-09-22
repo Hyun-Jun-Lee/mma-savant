@@ -162,3 +162,4 @@ cython_debug/
 #.idea/
 *versions/
 *.log.*
+.DS_Store

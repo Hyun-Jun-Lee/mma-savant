@@ -7,14 +7,18 @@ interface TypingIndicatorProps {
 }
 
 export function TypingIndicator({ isVisible }: TypingIndicatorProps) {
+  if (!isVisible) {
+    return null
+  }
+
   return (
-    <div className={`flex justify-start mb-4 transition-opacity duration-200 ${isVisible ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}>
+    <div className="flex justify-start mb-4 animate-in fade-in duration-200">
       <div className="flex items-center gap-3 max-w-xs">
         {/* Avatar */}
         <div className="w-8 h-8 bg-white/10 backdrop-blur-sm rounded-full flex items-center justify-center border border-white/20 flex-shrink-0">
           <Bot className="w-4 h-4 text-white" />
         </div>
-        
+
         {/* Typing animation */}
         <div className="flex items-center gap-2">
           <div className="flex gap-1">

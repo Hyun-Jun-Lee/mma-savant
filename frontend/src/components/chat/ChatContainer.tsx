@@ -183,15 +183,15 @@ export function ChatContainer() {
       )}
 
       {/* 메인 컨텐츠 영역 */}
-      <div className="relative z-10 flex flex-col flex-1 min-h-0">
+      <div className="relative z-10 flex flex-col flex-1 min-h-0 bg-transparent">
         {/* 메시지 목록 */}
-        <div className="flex-1">
+        <div className="flex-1 bg-transparent">
           <MessageList />
         </div>
 
         {/* 메시지 입력 */}
-        <div className="border-t border-white/10 bg-black/20 backdrop-blur-sm">
-          <MessageInput 
+        <div className="border-t border-white/10 bg-gradient-to-br from-zinc-900 via-gray-900 to-slate-900 backdrop-blur-sm">
+          <MessageInput
             onSendMessage={handleSendMessage}
             disabled={isLoading}
           />
