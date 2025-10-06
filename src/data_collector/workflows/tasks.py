@@ -138,7 +138,7 @@ async def process_event_detail(
                         fighter_id = fighter_info["fighter_id"]
                         result = fighter_info["result"]
                         await save_fighter_match(session, fighter_id, match_id, result)
-                    saved_match_count += len(saved_match)
+                    saved_match_count += 1
             except Exception as e:
                 LOGGER.error(f"[{idx+1}/{total_events}] - event_id: {event_id} event detail scraping failed: {str(e)}")
                 LOGGER.error(format_exc())
@@ -239,24 +239,27 @@ async def scrap_match_detail_task(crawler_fn: Callable) -> None:  # session 파�
 
 
 @task(retries=3, cache_policy=NO_CACHE)
-async def scrap_rankings_task(session, crawler_fn : Callable)-> None:
+async def scrap_rankings_task(crawler_fn: Callable) -> None:
     """
     UFC 랭킹을 스크랩하는 태스크
     """
     LOGGER.info("scrap_rankings_task started")
-    try:
-        rankings = await scrap_rankings(session, crawler_fn)
-        LOGGER.info(f"scrap_rankings_task completed : {len(rankings)} rankings collected")
-    except Exception as e:
-        LOGGER.error(f"scrap_rankings_task failed: {str(e)}")
-        LOGGER.error(format_exc())
 
-    try:
-        # ranking은 full clean
-        await delete_all_rankings(session)
-        await save_rankings(session, rankings)
-        LOGGER.info(f"scrap_rankings_task completed : {len(rankings)} rankings saved")
-    except Exception as e:
-        LOGGER.error(f"scrap_rankings_task failed: {str(e)}")
-        LOGGER.error(format_exc())
+    async with get_async_db_context() as session:
+        try:
+            rankings = await scrap_rankings(session, crawler_fn)
+            LOGGER.info(f"scrap_rankings_task completed : {len(rankings)} rankings collected")
+        except Exception as e:
+            LOGGER.error(f"scrap_rankings_task failed: {str(e)}")
+            LOGGER.error(format_exc())
+            return
+
+        try:
+            # ranking은 full clean
+            await delete_all_rankings(session)
+            await save_rankings(session, rankings)
+            LOGGER.info(f"scrap_rankings_task completed : {len(rankings)} rankings saved")
+        except Exception as e:
+            LOGGER.error(f"scrap_rankings_task failed: {str(e)}")
+            LOGGER.error(format_exc())
         
