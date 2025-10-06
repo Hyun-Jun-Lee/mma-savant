@@ -70,8 +70,8 @@ async def save_match(session, match: MatchSchema) -> MatchSchema:
         select(MatchModel).where(MatchModel.detail_url == match.detail_url)
     )
     existing_model = existing_model_query.scalar_one_or_none()
-    
-    if existing_model:            
+
+    if existing_model:
         # 업데이트
         for key, value in match.model_dump(exclude={'id', 'created_at', 'updated_at'}).items():
             setattr(existing_model, key, value)
@@ -81,8 +81,9 @@ async def save_match(session, match: MatchSchema) -> MatchSchema:
         new_match = MatchModel.from_schema(match)
         session.add(new_match)
         return_model = new_match
-    
+
     await session.commit()
+    await session.refresh(return_model)
     return return_model.to_schema()
     
 
@@ -91,11 +92,10 @@ async def save_fighter_match(session, fighter_id: int, match_id: int, result: st
         select(FighterMatchModel).where(FighterMatchModel.fighter_id == fighter_id, FighterMatchModel.match_id == match_id)
     )
     existing_model = existing_model_query.scalar_one_or_none()
-    
-    if existing_model:            
+
+    if existing_model:
         # 업데이트
-        for key, value in match.model_dump(exclude={'id', 'created_at', 'updated_at'}).items():
-            setattr(existing_model, key, value)
+        existing_model.result = result
         return_model = existing_model
     else:
         # 새로 생성
@@ -106,8 +106,9 @@ async def save_fighter_match(session, fighter_id: int, match_id: int, result: st
         )
         session.add(new_match)
         return_model = new_match
-    
+
     await session.commit()
+    await session.refresh(return_model)
     return return_model.to_schema()
 
 async def save_basic_match_stat(session, basic_match_stat_list: List[BasicMatchStatSchema]):
