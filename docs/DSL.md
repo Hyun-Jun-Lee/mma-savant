@@ -28,17 +28,22 @@ system Architecture {
 
 ```dsl
 database Schema {
-    
+
     table users {
         id: INTEGER PRIMARY KEY
         username: TEXT UNIQUE
         email: TEXT UNIQUE
-        profile_image_url: TEXT
+        name: TEXT
+        picture: TEXT
+        provider_id: TEXT  // OAuth provider ID
         is_active: BOOLEAN DEFAULT true
+        total_requests: INTEGER DEFAULT 0
+        daily_requests: INTEGER DEFAULT 0
+        remaining_requests: INTEGER DEFAULT 1000
         created_at: DATETIME
         updated_at: DATETIME
     }
-    
+
     table conversations {
         id: INTEGER PRIMARY KEY
         user_id: INTEGER FOREIGN KEY -> users(id)
@@ -48,7 +53,7 @@ database Schema {
         created_at: DATETIME
         updated_at: DATETIME
     }
-    
+
     table fighters {
         id: INTEGER PRIMARY KEY
         name: TEXT NOT NULL
@@ -60,7 +65,7 @@ database Schema {
         reach: FLOAT
         reach_cm: FLOAT
         stance: TEXT
-        birthdate: TEXT
+        birthdate: TEXT  // String format for flexibility
         belt: BOOLEAN DEFAULT false
         detail_url: TEXT
         wins: INTEGER DEFAULT 0
@@ -69,79 +74,90 @@ database Schema {
         created_at: DATETIME
         updated_at: DATETIME
     }
-    
+
     table rankings {
         id: INTEGER PRIMARY KEY
         fighter_id: INTEGER FOREIGN KEY -> fighters(id)
         ranking: INTEGER
-        weight_class_id: INTEGER
+        weight_class_id: INTEGER FOREIGN KEY -> weight_classes(id)
         created_at: DATETIME
         updated_at: DATETIME
     }
-    
+
+    table weight_classes {
+        id: INTEGER PRIMARY KEY
+        name: TEXT NOT NULL  // "Heavyweight", "Light Heavyweight", etc.
+        weight_limit: FLOAT
+        created_at: DATETIME
+        updated_at: DATETIME
+    }
+
     table events {
         id: INTEGER PRIMARY KEY
         name: TEXT NOT NULL
-        date: DATE
+        event_date: DATE  // renamed from 'date'
         location: TEXT
-        venue: TEXT
+        url: TEXT  // renamed from 'detail_url'
+        created_at: DATETIME
+        updated_at: DATETIME
+    }
+
+    table matches {
+        id: INTEGER PRIMARY KEY
+        event_id: INTEGER FOREIGN KEY -> events(id)
+        weight_class_id: INTEGER FOREIGN KEY -> weight_classes(id)
+        method: TEXT  // "KO/TKO", "Submission", "Decision", etc.
+        result_round: INTEGER
+        time: TEXT  // "4:32", "5:00", etc.
+        order: INTEGER  // Fight order in event
+        is_main_event: BOOLEAN DEFAULT false
         detail_url: TEXT
         created_at: DATETIME
         updated_at: DATETIME
     }
-    
-    table matches {
-        id: INTEGER PRIMARY KEY
-        event_id: INTEGER FOREIGN KEY -> events(id)
-        title: TEXT
-        weight_class: TEXT
-        bonus: TEXT
-        created_at: DATETIME
-        updated_at: DATETIME
-    }
-    
+
     table fighter_matches {
         id: INTEGER PRIMARY KEY
         match_id: INTEGER FOREIGN KEY -> matches(id)
         fighter_id: INTEGER FOREIGN KEY -> fighters(id)
-        result: TEXT  // WIN | LOSS | DRAW | NC
-        method: TEXT
-        round: INTEGER
-        time: TEXT
+        result: TEXT  // "WIN" | "LOSS" | "DRAW" | "NC"
         created_at: DATETIME
         updated_at: DATETIME
     }
-    
-    table sig_str_match_stats {
+
+    table strike_details {
         id: INTEGER PRIMARY KEY
         fighter_match_id: INTEGER FOREIGN KEY -> fighter_matches(id)
-        sig_str_landed: INTEGER
-        sig_str_attempted: INTEGER
-        sig_str_pct: FLOAT
-        total_str_landed: INTEGER
-        total_str_attempted: INTEGER
-        td_landed: INTEGER
-        td_attempted: INTEGER
-        td_pct: FLOAT
-        sub_att: INTEGER
-        rev: INTEGER
-        ctrl: TEXT
+        round: INTEGER DEFAULT 0
+        head_strikes_landed: INTEGER DEFAULT 0
+        head_strikes_attempts: INTEGER DEFAULT 0
+        body_strikes_landed: INTEGER DEFAULT 0
+        body_strikes_attempts: INTEGER DEFAULT 0
+        leg_strikes_landed: INTEGER DEFAULT 0
+        leg_strikes_attempts: INTEGER DEFAULT 0
+        takedowns_landed: INTEGER DEFAULT 0
+        takedowns_attempts: INTEGER DEFAULT 0
+        clinch_strikes_landed: INTEGER DEFAULT 0
+        clinch_strikes_attempts: INTEGER DEFAULT 0
+        ground_strikes_landed: INTEGER DEFAULT 0
+        ground_strikes_attempts: INTEGER DEFAULT 0
         created_at: DATETIME
         updated_at: DATETIME
     }
-    
-    table basic_match_stats {
+
+    table match_statistics {
         id: INTEGER PRIMARY KEY
         fighter_match_id: INTEGER FOREIGN KEY -> fighter_matches(id)
-        kd: INTEGER  // Knockdowns
-        sig_str: TEXT
-        sig_str_pct: TEXT
-        total_str: TEXT
-        td: TEXT
-        td_pct: TEXT
-        sub_att: INTEGER
-        rev: INTEGER
-        ctrl: TEXT
+        round: INTEGER DEFAULT 0
+        knockdowns: INTEGER DEFAULT 0
+        control_time_seconds: INTEGER DEFAULT 0
+        submission_attempts: INTEGER DEFAULT 0
+        sig_str_landed: INTEGER DEFAULT 0
+        sig_str_attempted: INTEGER DEFAULT 0
+        total_str_landed: INTEGER DEFAULT 0
+        total_str_attempted: INTEGER DEFAULT 0
+        td_landed: INTEGER DEFAULT 0
+        td_attempted: INTEGER DEFAULT 0
         created_at: DATETIME
         updated_at: DATETIME
     }
@@ -174,57 +190,78 @@ module User {
         function getAllUsers() -> List<UserModel>
     }
     
-    // API Router
+    // API Router (OAuth User Management)
     router UserRouter {
-        POST   /api/users           -> createUser
-        GET    /api/users/{id}      -> getUser
-        PUT    /api/users/{id}      -> updateUser
-        DELETE /api/users/{id}      -> deleteUser
-        GET    /api/users           -> getAllUsers
+        GET    /api/user/profile              -> getUserProfile
+        PUT    /api/user/profile              -> updateUserProfile
+        GET    /api/user/profile/{user_id}    -> getUserProfileById
+        POST   /api/user/increment-usage      -> incrementUserUsage
+        GET    /api/user/check-auth           -> checkAuthentication
+        GET    /api/user/me                   -> getCurrentUserProfile
     }
     
     // Types
     type UserModel {
         id: int
-        username: String
+        username: String?
         email: String
-        profileImageUrl: String?
+        name: String?
+        picture: String?
+        provider_id: String?  // OAuth provider ID
+        isActive: Boolean
+        total_requests: int
+        daily_requests: int
+        remaining_requests: int
+        createdAt: DateTime
+        updatedAt: DateTime
+    }
+
+    type UserProfileResponse {
+        id: int
+        email: String
+        name: String?
+        picture: String?
+        total_requests: int
+        daily_requests: int
+        remaining_requests: int
         isActive: Boolean
         createdAt: DateTime
         updatedAt: DateTime
     }
-    
-    type UserSchema {
-        username: String
-        email: String
-        profileImageUrl: String?
-        isActive: Boolean?
+
+    type UserProfileUpdate {
+        name: String?
+        picture: String?
+    }
+
+    type UserUsageUpdateDTO {
+        user_id: int
+        increment_requests: int?
+        reset_daily: Boolean?
     }
 }
 
 module Authentication {
-    
+
     // JWT Handler
     service JWTHandler {
         function decodeToken(token: String) -> Result<TokenData, Error>
         function createAccessToken(data: Dict<String, Any>) -> String
         function verifyTokenExpiry(tokenData: TokenData) -> Boolean
     }
-    
-    // API Router
+
+    // API Router (OAuth Integration with NextAuth.js)
     router AuthRouter {
-        POST   /api/auth/login      -> authenticateUser
-        POST   /api/auth/logout     -> logoutUser
-        POST   /api/auth/refresh    -> refreshToken
-        GET    /api/auth/me         -> getCurrentUser
+        POST   /api/auth/google-token  -> exchangeGoogleToken  // Google OAuth token exchange
     }
-    
+
     // Dependencies
     dependency Dependencies {
         function getCurrentUser(token: String) -> Result<UserModel, Error>
+        function getCurrentUserToken(token: String) -> Result<TokenData, Error>
         function verifyToken(token: String) -> Result<TokenData, Error>
     }
-    
+
     // Types
     type TokenData {
         sub: String  // user id or email
@@ -233,6 +270,19 @@ module Authentication {
         picture: String?
         iat: int?
         exp: int?
+    }
+
+    type GoogleTokenRequest {
+        google_token: String
+        email: String
+        name: String
+        picture: String?
+    }
+
+    type JWTTokenResponse {
+        access_token: String
+        token_type: String  // "bearer"
+        expires_in: int     // seconds
     }
 }
 
@@ -259,9 +309,21 @@ module Fighter {
         function getFighterStats(id: int) -> Result<FighterStats, Error>
     }
     
-    // API Router (외부 노출 없음 - 내부 서비스용)
-    service FighterAPI {
-        // 향후 필요시 REST API 추가 예정
+    // Data Transfer Objects
+    type FighterStatsDTO {
+        fighter_id: int
+        total_fights: int
+        recent_performance: List<MatchResult>
+        ranking_history: List<RankingChange>
+        strike_accuracy: Float
+        takedown_accuracy: Float
+    }
+
+    type FighterSearchDTO {
+        query: String
+        weight_class: String?
+        min_fights: int?
+        active_only: Boolean?
     }
     
     // Types
@@ -343,13 +405,44 @@ module Match {
     type MatchModel {
         id: int
         eventId: int
-        title: String?
-        weightClass: String?
-        bonus: String?
+        weightClassId: int?
+        method: String?         // "KO/TKO", "Submission", "Decision"
+        resultRound: int?
+        time: String?          // "4:32", "5:00"
+        order: int?            // Fight order in event
+        isMainEvent: Boolean
+        detailUrl: String?
         createdAt: DateTime
         updatedAt: DateTime
         event: EventModel
+        weightClass: WeightClassModel?
         fighterMatches: List<FighterMatchModel>
+    }
+
+    type WeightClassModel {
+        id: int
+        name: String           // "Heavyweight", "Middleweight"
+        weightLimit: Float?    // Weight limit in pounds
+        createdAt: DateTime
+        updatedAt: DateTime
+    }
+
+    type MatchSchema {
+        eventId: int
+        weightClassId: int?
+        method: String?
+        resultRound: int?
+        time: String?
+        order: int?
+        isMainEvent: Boolean?
+        detailUrl: String?
+    }
+
+    type MatchStatsDTO {
+        match_id: int
+        fighter_stats: List<FighterMatchStats>
+        fight_summary: FightSummary
+        performance_metrics: PerformanceMetrics
     }
     
     type FighterMatchModel {
@@ -371,17 +464,36 @@ module Match {
     type SigStrMatchStatModel {
         id: int
         fighterMatchId: int
+        round: int?
+        headStrikesLanded: int?
+        headStrikesAttempts: int?
+        bodyStrikesLanded: int?
+        bodyStrikesAttempts: int?
+        legStrikesLanded: int?
+        legStrikesAttempts: int?
+        takedownsLanded: int?
+        takedownsAttempts: int?
+        clinchStrikesLanded: int?
+        clinchStrikesAttempts: int?
+        groundStrikesLanded: int?
+        groundStrikesAttempts: int?
+        createdAt: DateTime
+        updatedAt: DateTime
+    }
+
+    type BasicMatchStatModel {
+        id: int
+        fighterMatchId: int
+        round: int?
+        knockdowns: int?
+        controlTimeSeconds: int?
+        submissionAttempts: int?
         sigStrLanded: int?
         sigStrAttempted: int?
-        sigStrPct: Float?
         totalStrLanded: int?
         totalStrAttempted: int?
         tdLanded: int?
         tdAttempted: int?
-        tdPct: Float?
-        subAtt: int?
-        rev: int?
-        ctrl: String?
         createdAt: DateTime
         updatedAt: DateTime
     }
@@ -413,21 +525,32 @@ module Event {
     type EventModel {
         id: int
         name: String
-        date: Date?
+        eventDate: Date?       // renamed from 'date'
         location: String?
-        venue: String?
-        detailUrl: String?
+        url: String?          // renamed from 'detailUrl'
         createdAt: DateTime
         updatedAt: DateTime
         matches: List<MatchModel>
     }
-    
+
     type EventSchema {
         name: String
-        date: Date?
+        eventDate: Date?      // renamed from 'date'
         location: String?
-        venue: String?
-        detailUrl: String?
+        url: String?          // renamed from 'detailUrl'
+    }
+
+    type EventWithMatchesDTO {
+        event: EventModel
+        matches: List<MatchWithFightersDTO>
+        statistics: EventStatistics
+    }
+
+    type EventStatistics {
+        totalFights: int
+        finishRate: Float
+        averageFightTime: String
+        mainEventDetails: MatchModel?
     }
 }
 
@@ -473,7 +596,9 @@ module Conversation {
     
     // WebSocket Router
     router WebSocketRouter {
-        WS     /ws/chat/{sessionId}           -> handleChatWebSocket
+        WS     /ws/chat                      -> handleChatWebSocket  // with query params: ?token=jwt&session_id=uuid
+        GET    /ws/stats                     -> getWebSocketStats
+        GET    /ws/health                    -> webSocketHealthCheck
     }
     
     // Types
@@ -869,7 +994,74 @@ application FastAPIApp {
 }
 ```
 
-## 5. 주요 워크플로우
+## 5. Two-Phase Reasoning System
+
+```dsl
+system TwoPhaseReasoning {
+    description: "AI 응답 생성을 위한 2단계 추론 시스템"
+
+    phase1: UnderstandAndCollect {
+        purpose: "사용자 의도 분석 및 데이터 수집"
+        process: [
+            "1. 사용자 쿼리 분석 (의도, 엔티티, 복잡도 파악)",
+            "2. 적절한 MCP 도구 선택 (SQL 쿼리, 검색, 계산 등)",
+            "3. 도구 실행 및 원시 데이터 수집",
+            "4. 수집된 데이터 구조화 및 품질 검증"
+        ]
+        tools: [
+            "execute_raw_sql_query",
+            "get_fighter_info",
+            "get_event_info",
+            "search_matches",
+            "calculate_statistics"
+        ]
+        output: {
+            user_query_analysis: "분석된 사용자 의도"
+            tools_executed: "실행된 도구 목록 및 결과"
+            raw_data_collected: "수집된 원시 데이터"
+        }
+    }
+
+    phase2: ProcessAndVisualize {
+        purpose: "데이터 처리 및 시각화 준비"
+        process: [
+            "1. Phase 1 결과 데이터 분석",
+            "2. 최적 시각화 방법 선택 (차트, 테이블, 텍스트)",
+            "3. 데이터 변환 및 포맷팅",
+            "4. 인사이트 생성 및 응답 구조화"
+        ]
+        visualizations: [
+            "table: 상세 데이터 비교",
+            "bar_chart: 카테고리별 비교",
+            "pie_chart: 비율 및 분포",
+            "line_chart: 시간 흐름 트렌드",
+            "scatter_plot: 상관관계 분석",
+            "text_summary: 인사이트 및 간단한 답변"
+        ]
+        output: {
+            selected_visualization: "선택된 차트 타입"
+            visualization_data: "시각화용 데이터"
+            insights: "도출된 인사이트 목록"
+        }
+    }
+
+    coordination: {
+        orchestration: "AgentManagerV2가 두 단계 조정"
+        data_flow: "Phase 1 → Phase 2 데이터 전달"
+        error_handling: "각 단계별 오류 처리 및 복구"
+        performance: "비동기 처리로 응답 시간 최적화"
+    }
+
+    benefits: [
+        "명확한 의도 분석으로 정확한 데이터 수집",
+        "적절한 시각화 선택으로 사용자 이해도 향상",
+        "모듈화된 구조로 유지보수성 증대",
+        "단계별 최적화로 성능 개선"
+    ]
+}
+```
+
+## 6. 주요 워크플로우
 
 ```dsl
 workflow UserAuthentication {
@@ -900,10 +1092,25 @@ workflow DataCollection {
 workflow AIConversation {
     1. 사용자가 WebSocket으로 메시지 전송
     2. MessageManager.addMessage() -> 메시지 히스토리 관리
-    3. AgentManager.processQuery() -> MMA 컨텍스트와 함께 쿼리 처리
+    3. AgentManagerV2.processTwoStep() -> Two-Phase 추론 시스템 실행
+       3.1. Phase 1: 의도 분석 및 데이터 수집
+       3.2. Phase 2: 데이터 처리 및 시각화 준비
     4. LLMProvider.streamResponse() -> AI 응답 스트리밍
-    5. WebSocket으로 실시간 응답 전송
+    5. WebSocket으로 실시간 응답 전송 (차트 데이터 포함)
     6. ConversationRepository.updateMessages() -> DB 업데이트
+}
+
+workflow TwoPhaseReasoningExecution {
+    1. AgentManagerV2.processTwoStep() 호출
+    2. Phase 1 실행:
+       2.1. 사용자 쿼리 분석 (의도, 엔티티, 복잡도)
+       2.2. MCP 도구 선택 및 실행 (SQL, 검색, 계산)
+       2.3. 원시 데이터 수집 및 구조화
+    3. Phase 2 실행:
+       3.1. Phase 1 결과 분석
+       3.2. 최적 시각화 방법 선택
+       3.3. 데이터 변환 및 인사이트 생성
+    4. 최종 응답 구조화 및 반환
 }
 
 workflow DataAnalysis {
@@ -915,41 +1122,85 @@ workflow DataAnalysis {
 }
 ```
 
-## 6. 보안 및 성능 고려사항
+## 7. 보안 및 성능 고려사항
 
 ```dsl
 security SecurityMeasures {
-    authentication: JWT with NextAuth.js integration
-    authorization: User-based access control
-    dataProtection: Environment variables for API keys
-    inputValidation: Pydantic schemas for all inputs
-    cors: Configured for specific frontend domains
-    
-    concerns: [
-        "JWT token logging in error handlers",
-        "Database password in connection strings", 
-        "Missing rate limiting",
-        "Broad exception handling"
+    authentication: {
+        method: "JWT with NextAuth.js OAuth integration"
+        providers: ["Google OAuth 2.0"]
+        tokenExpiry: "24 hours"
+        implementation: "✅ Implemented"
+    }
+    authorization: {
+        userBasedAccess: "✅ Implemented"
+        sessionValidation: "✅ Implemented"
+        roleBasedAccess: "❌ Not implemented"
+    }
+    dataProtection: {
+        environmentVariables: "✅ Implemented"
+        sensitiveDataEncryption: "⚠️ Partial"
+        apiKeyManagement: "✅ Implemented"
+    }
+    inputValidation: {
+        pydanticSchemas: "✅ Implemented"
+        sqlInjectionPrevention: "✅ Implemented"
+        xssProtection: "✅ Implemented"
+    }
+    networkSecurity: {
+        corsConfiguration: "✅ Implemented"
+        httpsEnforcement: "⚠️ Production dependent"
+        rateLimiting: "❌ Not implemented"
+    }
+
+    implementationNeeds: [
+        "Rate limiting for API endpoints",
+        "Enhanced logging without sensitive data",
+        "Database connection encryption",
+        "Role-based access control system"
     ]
 }
 
 performance PerformanceOptimizations {
-    database: AsyncPG for PostgreSQL async operations
-    caching: Redis for session and data caching
-    connectionPooling: SQLAlchemy async engine with pool
-    streaming: WebSocket for real-time communication
-    llmOptimization: Multiple provider support for load balancing
-    
-    bottlenecks: [
-        "Fixed database connection pool sizes",
-        "No LLM response caching",
-        "Missing request batching for AI operations",
-        "Synchronous scraping operations"
+    database: {
+        asyncOperations: "✅ AsyncPG for PostgreSQL"
+        connectionPooling: "✅ SQLAlchemy async engine"
+        queryOptimization: "✅ Indexed queries"
+        implementation: "Implemented"
+    }
+    caching: {
+        sessionCaching: "✅ Redis implemented"
+        dataCaching: "⚠️ Limited implementation"
+        llmResponseCaching: "❌ Not implemented"
+    }
+    realTimeCommunication: {
+        webSocketStreaming: "✅ Implemented"
+        connectionManagement: "✅ Implemented"
+        messageQueuing: "✅ Implemented"
+    }
+    aiProcessing: {
+        twoPhaseReasoning: "✅ Implemented"
+        multiProviderSupport: "✅ Implemented"
+        streamingResponses: "✅ Implemented"
+        requestBatching: "❌ Not implemented"
+    }
+    dataCollection: {
+        asyncScraping: "⚠️ Partial implementation"
+        batchProcessing: "⚠️ Limited"
+        errorRecovery: "✅ Implemented"
+    }
+
+    optimizationOpportunities: [
+        "LLM response caching system",
+        "Request batching for AI operations",
+        "Database connection pool tuning",
+        "Async data collection workflows",
+        "CDN integration for static assets"
     ]
 }
 ```
 
-## 7. 개발 및 테스트 전략
+## 8. 개발 및 테스트 전략
 
 ```dsl
 development DevelopmentStrategy {

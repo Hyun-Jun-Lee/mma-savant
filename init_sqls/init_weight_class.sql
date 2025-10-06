@@ -22,8 +22,8 @@ BEGIN
         (11, 'women''s bantamweight', NOW(), NOW()),
         (12, 'women''s featherweight', NOW(), NOW()),
         (13, 'catch weight', NOW(), NOW()),
-        (14, 'open weight', NOW(), NOW());
-        (15, 'men''s pound-for-pound', NOW(), NOW());
+        (14, 'open weight', NOW(), NOW()),
+        (15, 'men''s pound-for-pound', NOW(), NOW()),
         (16, 'women''s pound-for-pound', NOW(), NOW());
         
         -- ID 시퀀스 재설정 (PostgreSQL 전용)
