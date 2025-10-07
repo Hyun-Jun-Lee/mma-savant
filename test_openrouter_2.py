@@ -1,8 +1,3 @@
-#!/usr/bin/env python3
-"""
-OpenRouter API 테스트 스크립트 v2
-실제 데이터베이스 연결을 사용한 순수 LangChain Tool 테스트
-"""
 
 import asyncio
 import json
@@ -20,7 +15,7 @@ from langchain.agents import create_tool_calling_agent, AgentExecutor
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_openai import ChatOpenAI
 
-from database.connection.postgres_conn import get_async_db_context
+from database.connection.postgres_conn import get_readonly_db_context
 from config import Config
 from common.logging_config import get_logger
 from sqlalchemy import text
@@ -37,70 +32,25 @@ TEST_QUERIES = [
     "KO/TKO 승리가 가장 많은 파이터 상위 3명을 차트로 보여줘"
 ]
 
-async def execute_real_sql_query(query: str, limit: int = 100) -> str:
+async def test_readonly_database_connection():
     """
-    실제 데이터베이스에서 SQL 쿼리 실행
-    database_tools.py의 execute_raw_sql_query 함수를 기반으로 구현
+    읽기 전용 데이터베이스 연결 테스트
     """
-    print(f"🔧 [TOOL CALLED] execute_real_sql_query with query: {query[:100]}...")
-    LOGGER.info(f"Tool execute_real_sql_query called with query: {query}")
-
-    # 보안 검증: SELECT 문만 허용
-    query_stripped = query.strip().upper()
-    if not query_stripped.startswith('SELECT'):
-        return json.dumps({
-            "error": "보안상 SELECT 문만 허용됩니다",
-            "allowed_operations": ["SELECT"]
-        })
-
-    # 위험한 키워드 차단
-    dangerous_keywords = ['DELETE', 'DROP', 'INSERT', 'UPDATE', 'ALTER', 'CREATE', 'TRUNCATE']
-    for keyword in dangerous_keywords:
-        if keyword in query_stripped:
-            return json.dumps({
-                "error": f"보안상 '{keyword}' 문은 허용되지 않습니다",
-                "query": query
-            })
-
-    # 결과 제한
-    limit = min(max(1, limit), 1000)
-
-    # LIMIT 절이 없으면 추가
-    if 'LIMIT' not in query_stripped:
-        query = f"{query.rstrip(';')} LIMIT {limit}"
+    print(f"🔍 Testing readonly database connection...")
 
     try:
-        async with get_async_db_context() as session:
-            result = await session.execute(text(query))
-            rows = result.fetchall()
+        # 읽기 전용 계정으로 간단한 테스트 쿼리
+        with get_readonly_db_context() as session:
+            result = session.execute(text("SELECT COUNT(*) as fighter_count FROM fighter"))
+            row = result.fetchone()
 
-            # 결과를 딕셔너리 형태로 변환
-            if rows:
-                columns = result.keys()
-                data = [dict(zip(columns, row)) for row in rows]
-            else:
-                data = []
+            print(f"✅ Readonly database connection successful!")
+            print(f"   📊 Fighter count: {row.fighter_count}")
+            return True
 
-            return json.dumps({
-                "success": True,
-                "query": query,
-                "row_count": len(data),
-                "data": data,
-                "columns": list(result.keys()) if rows else []
-            })
-
-    except SQLAlchemyError as e:
-        return json.dumps({
-            "error": f"SQL 실행 오류: {str(e)}",
-            "query": query,
-            "success": False
-        })
     except Exception as e:
-        return json.dumps({
-            "error": f"예상치 못한 오류: {str(e)}",
-            "query": query,
-            "success": False
-        })
+        print(f"❌ Readonly database connection failed: {e}")
+        return False
 
 def create_real_database_tools():
     """실제 데이터베이스 연결을 사용하는 LangChain 도구 생성"""
@@ -108,9 +58,10 @@ def create_real_database_tools():
 
     def sync_execute_sql_query(query: str) -> str:
         """
-        동기 래퍼 함수 - LangChain Tool이 async 함수를 직접 처리하지 못함
+        읽기 전용 DB 연결을 사용하는 단순화된 SQL 실행
+        DB 레벨에서 권한 제어하므로 복잡한 보안 검증 불필요
         """
-        print(f"🔧 [SYNC WRAPPER] Called with query: {query[:100]}...")
+        print(f"🔧 [READONLY DB] Called with query: {query}")
 
         # JSON 형식으로 잘못 전달된 경우 처리
         if query.startswith("{") and query.endswith("}"):
@@ -118,36 +69,70 @@ def create_real_database_tools():
                 query_data = json.loads(query)
                 if "query" in query_data:
                     query = query_data["query"]
-                    print(f"🔧 [SYNC WRAPPER] Extracted SQL from JSON: {query[:100]}...")
+                    print(f"🔧 [READONLY DB] Extracted SQL from JSON")
             except:
                 pass
 
+        # 간단한 래퍼 제거 (마크다운 코드 블록 형식들)
+        query = query.strip()
+
+        # ```sql ... ``` 형태 제거
+        if query.startswith("```") and query.endswith("```"):
+            import re
+            query = re.sub(r'^```\w*\n?', '', query)
+            query = re.sub(r'\n?```$', '', query)
+            query = query.strip()
+            print(f"🔧 [READONLY DB] Removed markdown wrapper")
+
+        # $ ... $ 형태 제거
+        elif query.startswith("$") and query.endswith("$"):
+            query = query.strip("$").strip()
+            print(f"🔧 [READONLY DB] Removed $ wrapper")
+
+        # 결과 제한 (옵션)
+        limit = 100
+        query_upper = query.upper()
+        if 'LIMIT' not in query_upper:
+            query = f"{query.rstrip(';')} LIMIT {limit}"
+
         try:
-            import nest_asyncio
-            nest_asyncio.apply()
+            # 읽기 전용 데이터베이스 연결 사용
+            # DB 레벨에서 SELECT만 허용하므로 추가 검증 불필요
+            with get_readonly_db_context() as session:
+                print(f"🔧 [READONLY DB] Executing with readonly connection")
+                result = session.execute(text(query))
+                rows = result.fetchall()
 
-            # 현재 이벤트 루프를 사용
-            try:
-                loop = asyncio.get_event_loop()
-                if loop.is_running():
-                    print(f"🔧 [SYNC WRAPPER] Using existing event loop with nest_asyncio")
-                    # nest_asyncio를 사용하여 중첩 실행
-                    result = loop.run_until_complete(execute_real_sql_query(query))
+                # 결과를 딕셔너리 형태로 변환
+                if rows:
+                    columns = result.keys()
+                    data = [dict(zip(columns, row)) for row in rows]
                 else:
-                    print(f"🔧 [SYNC WRAPPER] Creating new event loop")
-                    result = asyncio.run(execute_real_sql_query(query))
-            except RuntimeError:
-                print(f"🔧 [SYNC WRAPPER] Creating new event loop (RuntimeError)")
-                result = asyncio.run(execute_real_sql_query(query))
+                    data = []
 
-            print(f"🔧 [SYNC WRAPPER] Query executed successfully")
-            return result
-        except Exception as e:
-            print(f"🔧 [SYNC WRAPPER] Error: {e}")
-            import traceback
-            traceback.print_exc()
+                print(f"🔧 [READONLY DB] Success: {len(data)} rows returned")
+                return json.dumps({
+                    "success": True,
+                    "query": query,
+                    "row_count": len(data),
+                    "data": data,
+                    "columns": list(result.keys()) if rows else []
+                })
+
+        except SQLAlchemyError as e:
+            # DB 레벨 권한 오류 발생 시 (INSERT, DELETE 시도 등)
+            print(f"🔧 [READONLY DB] SQL Error (권한 또는 구문 오류): {e}")
             return json.dumps({
-                "error": f"동기 래퍼 실행 오류: {str(e)}",
+                "error": f"쿼리 실행 실패: {str(e)}",
+                "query": query,
+                "success": False,
+                "hint": "읽기 전용 계정이므로 SELECT만 가능합니다"
+            })
+        except Exception as e:
+            print(f"🔧 [READONLY DB] Unexpected Error: {e}")
+            return json.dumps({
+                "error": f"예상치 못한 오류: {str(e)}",
+                "query": query,
                 "success": False
             })
 
@@ -155,22 +140,23 @@ def create_real_database_tools():
         Tool(
             name="execute_raw_sql_query",
             func=sync_execute_sql_query,
-            description="""UFC 데이터베이스에서 SQL 쿼리를 실행합니다.
+            description="""UFC 데이터베이스에서 읽기 전용 SQL 쿼리를 실행합니다.
 
             중요한 테이블명 규칙 (단수형 사용):
-            - 'match' (매치 정보)
             - 'fighter' (파이터 정보)
+            - 'match' (매치 정보)
+            - 'fighter_match' (파이터-매치 관계)
             - 'event' (이벤트 정보)
             - 'ranking' (랭킹 정보)
+            - 'weight_class' (체급 정보)
 
-            SELECT 문만 허용되며, 보안상 다른 SQL 명령어는 차단됩니다.
-            KO/TKO 승리 관련 쿼리 예시:
-            SELECT fighter_name, ko_tko_wins FROM fighter ORDER BY ko_tko_wins DESC LIMIT 3;
+            읽기 전용 계정이므로 SELECT만 가능합니다.
+
+            올바른 쿼리 예시:
+            SELECT f.name, COUNT(*) as ko_wins FROM fighter f JOIN fighter_match fm ON f.id = fm.fighter_id JOIN match m ON fm.match_id = m.id WHERE m.method ILIKE '%ko%' GROUP BY f.name ORDER BY ko_wins DESC LIMIT 3;
 
             Args:
-                query (str): 실행할 SQL 쿼리 (SELECT 문만 허용)
-                description (str, optional): 쿼리 목적 설명
-                limit (int): 최대 반환 행 수 (기본값: 100)
+                query (str): 실행할 SQL 쿼리 (읽기 전용)
             """
         )
     ]
@@ -228,42 +214,35 @@ async def test_langchain_with_real_db(model_name: str, query: str):
         if use_react:
             from langchain.agents import create_react_agent
             print(f"🔄 Using ReAct agent for better tool execution")
-            # ReAct 에이전트용 프롬프트 - 필수 변수 포함
-            react_prompt = ChatPromptTemplate.from_template("""You are MMA Savant Phase 1 - analyze queries and execute SQL queries to collect data.
 
-        You have access to the following tools:
-        {tools}
+            # 실제 Phase 1 프롬프트에 ReAct 형식만 추가
+            react_prompt = ChatPromptTemplate.from_template(f"""{phase1_prompt_text}
 
-        The available tool names are: {tool_names}
+## ReAct Tool Usage Format
+You have access to the following tools:
+{{tools}}
 
-        ## Database Schema
-        Use SINGULAR table names (match, fighter, event, ranking)
-        All text data in database is stored in lowercase
+The available tool names are: {{tool_names}}
 
-        ## How to use tools
-        To use a tool, please use the following format:
+📌 SQL 쿼리 작성 규칙:
+- 읽기 전용 계정이므로 SELECT만 가능 (INSERT/UPDATE/DELETE 불가)
+- Action Input에는 SQL 쿼리만 작성 (마크다운 래핑 불필요)
+- 예시: Action Input: SELECT name FROM fighter LIMIT 5
 
-        Thought: I need to analyze the query and execute SQL
-        Action: execute_raw_sql_query
-        Action Input: SELECT query here
-        Observation: the result of the action
-        ... (this Thought/Action/Action Input/Observation can repeat N times)
-        Thought: I now have the data
-        Final Answer: the final answer with the collected data
+Use this exact format:
 
-        ## Examples
-        Question: KO/TKO 승리가 가장 많은 파이터 3명
-        Thought: I need to query fighter data for KO/TKO wins
-        Action: execute_raw_sql_query
-        Action Input: SELECT name, ko_tko_wins FROM fighter ORDER BY ko_tko_wins DESC LIMIT 3
-        Observation: [result will be shown here]
-        Thought: I have the data for top 3 fighters
-        Final Answer: Here are the results...
+Thought: [Your reasoning about what needs to be done]
+Action: execute_raw_sql_query
+Action Input: [PLAIN SQL query without any markdown formatting]
+Observation: [The result will appear here]
+... (this Thought/Action/Action Input/Observation can repeat as needed)
+Thought: [Your final reasoning]
+Final Answer: [Your response with collected data]
 
-        Begin!
+Begin!
 
-        Question: {input}
-        Thought: {agent_scratchpad}""")
+Question: {{input}}
+Thought: {{agent_scratchpad}}""")
 
             agent = create_react_agent(llm, tools, react_prompt)
             agent_type = "react"
@@ -274,8 +253,9 @@ async def test_langchain_with_real_db(model_name: str, query: str):
             agent=agent,
             tools=tools,
             verbose=True,
-            max_iterations=3,
-            return_intermediate_steps=True
+            max_iterations=5,
+            return_intermediate_steps=True,
+            handle_parsing_errors=True
         )
 
         print(f"🚀 Running {agent_type} agent with real database query...")
@@ -298,8 +278,8 @@ async def test_langchain_with_real_db(model_name: str, query: str):
             for i, (action, observation) in enumerate(intermediate_steps, 1):
                 print(f"      Step {i}:")
                 print(f"        Tool: {getattr(action, 'tool', 'unknown')}")
-                print(f"        Input: {str(getattr(action, 'tool_input', 'unknown'))[:100]}...")
-                print(f"        Output: {str(observation)[:200]}...")
+                print(f"        Input: {str(getattr(action, 'tool_input', 'unknown'))}")
+                print(f"        Output: {str(observation)}")
         else:
             print(f"   ⚠️  No intermediate steps found - tools may not have been called!")
             print(f"   🤔 Agent may have answered directly without using tools")
@@ -327,26 +307,6 @@ async def test_langchain_with_real_db(model_name: str, query: str):
             "duration": 0
         }
 
-async def test_database_connection():
-    """데이터베이스 연결 테스트"""
-    print(f"🔍 Testing database connection...")
-
-    try:
-        # 간단한 테스트 쿼리
-        result = await execute_real_sql_query("SELECT COUNT(*) as fighter_count FROM fighter LIMIT 1")
-        result_data = json.loads(result)
-
-        if result_data.get("success"):
-            print(f"✅ Database connection successful!")
-            print(f"   📊 Fighter count: {result_data['data'][0]['fighter_count']}")
-            return True
-        else:
-            print(f"❌ Database query failed: {result_data.get('error')}")
-            return False
-
-    except Exception as e:
-        print(f"❌ Database connection failed: {e}")
-        return False
 
 async def main():
     """메인 테스트 함수"""
@@ -363,18 +323,18 @@ async def main():
         print("❌ OPENROUTER_API_KEY is not set in environment variables")
         return
 
-    # 데이터베이스 연결 테스트
-    print(f"\n🗄️ Database Connection Test:")
-    db_connected = await test_database_connection()
+    # 읽기 전용 데이터베이스 연결 테스트
+    print(f"\n🗄️ Readonly Database Connection Test:")
+    db_connected = await test_readonly_database_connection()
 
     if not db_connected:
-        print("❌ Database connection failed. Cannot proceed with real database test.")
+        print("❌ Readonly database connection failed. Cannot proceed with test.")
         return
 
     # 실제 데이터베이스를 사용한 LangChain 도구 테스트
     try:
         query = TEST_QUERIES[0]
-        print(f"\n🧪 Testing with REAL Database & PURE LangChain Tools")
+        print(f"\n🧪 Testing with Readonly Database & LangChain Tools")
         result = await test_langchain_with_real_db(TEST_MODEL, query)
 
         # 결과 출력
@@ -384,15 +344,14 @@ async def main():
 
         if result["success"]:
             print(f"✅ Success: {TEST_MODEL}")
-            print(f"   ⏱️  Duration: {result['duration']:.2f}s")
             print(f"   🤖 Agent Type: {result['agent_type']}")
             print(f"   📝 Intermediate Steps: {result['intermediate_steps']}")
             print(f"   🗄️  Database Queries: {result['database_queries']}")
-            print(f"   💬 Output: {result['output'][:300]}...")
+            print(f"   💬 Output: {result['output']}")
 
             print(f"\n🎯 테스트 성공!")
-            print(f"   ✅ OpenRouter 모델이 실제 데이터베이스와 연동 가능")
-            print(f"   ✅ 순수 LangChain Tool 사용 가능")
+            print(f"   ✅ OpenRouter 모델이 읽기 전용 DB와 안전하게 연동")
+            print(f"   ✅ LangChain Tool 사용 가능")
             print(f"   ✅ Two-Phase 시스템 호환 가능성 높음")
         else:
             print(f"❌ Failed: {TEST_MODEL}")
