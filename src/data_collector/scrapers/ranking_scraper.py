@@ -113,7 +113,7 @@ async def scrap_rankings(session, crawler_fn: Callable) -> List[RankingSchema]:
     try:
         lang_result = await crawler_fn("https://www.ufc.com/language/switch/en")        
         if not lang_result or not lang_result.success:
-            print(f"언어 설정 실패: {lang_result.error_message}")
+            print(f"언어 설정 실패")
             return None 
         rankings_url = "https://www.ufc.com/rankings"
         
