@@ -25,6 +25,10 @@ Analyze user MMA-related questions and write appropriate SQL queries using `exec
 - Include relevant filters based on user query
 - Limit results appropriately (use LIMIT clause)
 - **IMPORTANT**: All text data in database is stored in lowercase
+- **Method column patterns**: Use ILIKE for flexible matching
+    - KO/TKO victories: `WHERE m.method ILIKE '%ko%'`
+    - Submissions: `WHERE m.method ILIKE '%sub%'`
+    - Decisions: `WHERE m.method ILIKE '%dec%'`
 
 ## Database Schema
 {schema_info}
