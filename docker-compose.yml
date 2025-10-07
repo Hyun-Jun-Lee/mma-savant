@@ -30,6 +30,8 @@ services:
     environment:
       - POSTGRES_PASSWORD=${DB_PASSWORD}
       - POSTGRES_DB=${DB_NAME}
+      - DB_READONLY_USER=${DB_READONLY_USER}
+      - DB_READONLY_PASSWORD=${DB_READONLY_PASSWORD}
     volumes:
       - savant_db:/var/lib/postgresql/data
       - ./init_sqls:/docker-entrypoint-initdb.d
