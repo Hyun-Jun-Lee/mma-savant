@@ -14,7 +14,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from user.models import UserModel
 from conversation.services import ChatSessionService, get_or_create_session
-from llm.langchain_service_v2 import get_langchain_service, LangChainLLMService
+from llm.langchain_service_v3 import get_langchain_service, LangChainLLMService
 from common.logging_config import get_logger
 from common.utils import kr_time_now
 
