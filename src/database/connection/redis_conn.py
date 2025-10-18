@@ -1,9 +1,14 @@
 from typing import Optional
 from contextlib import contextmanager
+from traceback import format_exc
+import logging
 
 import redis
 
 from config import Config
+
+# 로거 설정
+LOGGER = logging.getLogger(__name__)
 
 # Redis 클라이언트 생성
 redis_client = redis.Redis(
@@ -30,7 +35,8 @@ def redis_connection() -> redis.Redis:
         yield redis_client
     except redis.ConnectionError as e:
         # 연결 실패 시 새로운 연결 시도
-        print(f"Redis 연결 실패, 재연결 시도 중: {str(e)}")
+        LOGGER.warning(f"Redis 연결 실패, 재연결 시도 중: {str(e)}")
+        LOGGER.debug(format_exc())
         # Redis 연결 재설정
         new_client = redis.Redis(
             host=Config.REDIS_HOST,
@@ -43,8 +49,9 @@ def redis_connection() -> redis.Redis:
         )
         yield new_client
     except Exception as e:
-        print(f"Redis 오류 발생: {str(e)}")
-        raise e
+        LOGGER.error(f"Redis 오류 발생: {str(e)}")
+        LOGGER.error(format_exc())
+        raise
 
 # Redis 연결 상태 확인 함수
 def check_redis_connection() -> bool:
@@ -57,5 +64,10 @@ def check_redis_connection() -> bool:
     try:
         redis_client.ping()
         return True
-    except:
+    except redis.ConnectionError as e:
+        LOGGER.debug(f"Redis connection check failed: {str(e)}")
+        return False
+    except Exception as e:
+        LOGGER.error(f"Unexpected error checking Redis connection: {str(e)}")
+        LOGGER.debug(format_exc())
         return False

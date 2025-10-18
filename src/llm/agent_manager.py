@@ -521,6 +521,7 @@ class AgentManager:
 
         except Exception as e:
             LOGGER.debug(f"Could not extract JSON from response: {e}")
+            LOGGER.debug(format_exc())
             return None
 
     def _extract_key_insights_from_text(self, text: str) -> List[str]:
@@ -547,6 +548,7 @@ class AgentManager:
 
         except Exception as e:
             LOGGER.warning(f"Error extracting insights from text: {e}")
+            LOGGER.debug(format_exc())  # debug 레벨로 상세 정보 로깅
             return insights
 
     def _create_fallback_visualization(self, phase1_data: Dict[str, Any]) -> Dict[str, Any]:
@@ -673,6 +675,7 @@ class AgentManager:
 
         except Exception as e:
             LOGGER.error(f"❌ Health check error: {e}")
+            LOGGER.error(format_exc())
             return {
                 "agent_manager": "error",
                 "error": str(e),
