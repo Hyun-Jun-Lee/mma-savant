@@ -32,6 +32,10 @@ class Config:
     HUGGINGFACE_MAX_TOKENS: int = int(os.getenv("HUGGINGFACE_MAX_TOKENS", "4000"))
     HUGGINGFACE_TEMPERATURE: float = float(os.getenv("HUGGINGFACE_TEMPERATURE", "0.7"))
 
+    # 읽기 전용 데이터베이스 설정
+    DB_READONLY_USER: str = os.getenv("DB_READONLY_USER", "mma_readonly")
+    DB_READONLY_PASSWORD: str = os.getenv("DB_READONLY_PASSWORD")  # 기본값 없음 - 보안상 필수 설정
+
     # OpenRouter API 설정
     OPENROUTER_API_KEY: str = os.getenv("OPENROUTER_API_KEY")
     OPENROUTER_MODEL_NAME: str = os.getenv("OPENROUTER_MODEL_NAME", "deepseek/deepseek-chat-v3-0324:free")

@@ -5,7 +5,7 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, Session
 import os
 
-from config import get_database_url
+from config import get_database_url, Config
 
 DATABASE_URL = get_database_url()
 
@@ -90,11 +90,24 @@ def get_readonly_database_url():
     읽기 전용 데이터베이스 URL 생성
     Two-Phase System의 Phase 1에서 안전한 쿼리 실행용
     """
-    readonly_user = os.getenv('DB_READONLY_USER', 'mma_readonly')
-    readonly_password = os.getenv('DB_READONLY_PASSWORD', 'readonly_secure_password_2024')
-    host = os.getenv('DB_HOST', 'localhost')
-    port = os.getenv('DB_PORT', '5432')
-    db_name = os.getenv('DB_NAME', 'savant_db')
+    # Config에서 환경변수 가져오기 - 하드코딩 제거
+    readonly_user = Config.DB_READONLY_USER
+    readonly_password = Config.DB_READONLY_PASSWORD
+
+    # DB_READONLY_PASSWORD가 설정되지 않은 경우 경고 후 기본값 사용
+    if not readonly_password:
+        import warnings
+        warnings.warn(
+            "DB_READONLY_PASSWORD is not set in environment variables. "
+            "Please set it for production use. Using temporary default.",
+            UserWarning
+        )
+        # 개발 환경용 임시 값 (프로덕션에서는 반드시 환경변수 설정 필요)
+        readonly_password = "temp_readonly_pass"
+
+    host = Config.DB_HOST
+    port = Config.DB_PORT
+    db_name = Config.DB_NAME
 
     return f"postgresql://{readonly_user}:{readonly_password}@{host}:{port}/{db_name}"
 
