@@ -5,13 +5,13 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, Session
 import os
 
-from config import get_database_url, Config
+from config import get_database_url, Config, Config
 
 DATABASE_URL = get_database_url()
 
 # 비동기 엔진
 async_engine = create_async_engine(
-    DATABASE_URL, pool_size=20, max_overflow=40
+    DATABASE_URL, pool_size=Config.DB_POOL_SIZE, max_overflow=Config.DB_MAX_OVERFLOW
 )
 AsyncSessionLocal = sessionmaker(
     async_engine, class_=AsyncSession, autocommit=False, autoflush=False
@@ -21,7 +21,7 @@ AsyncSessionLocal = sessionmaker(
 # asyncpg URL을 psycopg2 URL로 변환
 sync_database_url = DATABASE_URL.replace('postgresql+asyncpg://', 'postgresql://')
 sync_engine = create_engine(
-    sync_database_url, pool_size=20, max_overflow=40
+    sync_database_url, pool_size=Config.DB_POOL_SIZE, max_overflow=Config.DB_MAX_OVERFLOW
 )
 SyncSessionLocal = sessionmaker(
     sync_engine, class_=Session, autocommit=False, autoflush=False
@@ -114,8 +114,8 @@ def get_readonly_database_url():
 # 읽기 전용 동기 엔진
 readonly_engine = create_engine(
     get_readonly_database_url(),
-    pool_size=10,
-    max_overflow=20,
+    pool_size=Config.DB_READONLY_POOL_SIZE,
+    max_overflow=Config.DB_READONLY_MAX_OVERFLOW,
     pool_pre_ping=True  # 연결 상태 자동 체크
 )
 

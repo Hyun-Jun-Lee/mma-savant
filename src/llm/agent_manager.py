@@ -20,6 +20,7 @@ from llm.prompts.agent_prompt_templates import (
     prepare_phase2_input
 )
 from llm.tools import create_sql_tool
+from config import Config
 from common.logging_config import get_logger
 
 LOGGER = get_logger(__name__)
@@ -203,7 +204,7 @@ class AgentManager:
                 verbose=True,
                 return_intermediate_steps=True,
                 callbacks=[callback_handler],
-                max_iterations=5,  # ReAct는 더 적은 반복으로 충분
+                max_iterations=Config.AGENT_MAX_ITERATIONS,  # ReAct는 더 적은 반복으로 충분
                 handle_parsing_errors=True  # ReAct 파싱 오류 처리
             )
 

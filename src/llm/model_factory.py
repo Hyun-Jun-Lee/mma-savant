@@ -221,8 +221,8 @@ def get_openrouter_model_and_callback(
             "callback_handler": callback_handler,
             "model_name": final_model_name,
             "api_key": kwargs.get("api_key", Config.OPENROUTER_API_KEY),
-            "temperature": kwargs.get("temperature", 0.7),
-            "max_tokens": kwargs.get("max_tokens", 4000),
+            "temperature": kwargs.get("temperature", Config.DEFAULT_TEMPERATURE),
+            "max_tokens": kwargs.get("max_tokens", Config.DEFAULT_MAX_TOKENS),
             **{k: v for k, v in kwargs.items() if k not in ["api_key", "temperature", "max_tokens"]}
         }
         

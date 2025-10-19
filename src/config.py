@@ -1,5 +1,5 @@
 import os
-from typing import Dict, Any
+from typing import Dict, Any, List
 
 from dotenv import load_dotenv
 
@@ -49,6 +49,84 @@ class Config:
     LANGCHAIN_API_KEY = os.getenv("LANGCHAIN_API_KEY")
     LANGCHAIN_PROJECT = os.getenv("LANGCHAIN_PROJECT", "mma-savant")
     LANGCHAIN_ENDPOINT = os.getenv("LANGCHAIN_ENDPOINT", "https://api.smith.langchain.com")
+
+    # =============================================================================
+    # 운영 설정 (Database, Server, Redis)
+    # =============================================================================
+
+    # Database Connection Pool Settings
+    DB_POOL_SIZE: int = int(os.getenv("DB_POOL_SIZE", "20"))
+    DB_MAX_OVERFLOW: int = int(os.getenv("DB_MAX_OVERFLOW", "40"))
+    DB_READONLY_POOL_SIZE: int = int(os.getenv("DB_READONLY_POOL_SIZE", "10"))
+    DB_READONLY_MAX_OVERFLOW: int = int(os.getenv("DB_READONLY_MAX_OVERFLOW", "20"))
+
+    # Redis Connection Settings
+    REDIS_SOCKET_TIMEOUT: int = int(os.getenv("REDIS_SOCKET_TIMEOUT", "5"))
+    REDIS_SOCKET_CONNECT_TIMEOUT: int = int(os.getenv("REDIS_SOCKET_CONNECT_TIMEOUT", "5"))
+    REDIS_RETRY_ON_TIMEOUT: bool = os.getenv("REDIS_RETRY_ON_TIMEOUT", "true").lower() == "true"
+
+    # API Server Settings
+    SERVER_HOST: str = os.getenv("SERVER_HOST", "0.0.0.0")
+    SERVER_PORT: int = int(os.getenv("SERVER_PORT", "8000"))
+    CORS_ORIGINS: List[str] = os.getenv("CORS_ORIGINS", "http://localhost:3000").split(",")
+
+    # =============================================================================
+    # LLM 및 Agent 설정
+    # =============================================================================
+
+    # Default LLM Parameters
+    DEFAULT_TEMPERATURE: float = float(os.getenv("LLM_TEMPERATURE", "0.7"))
+    DEFAULT_MAX_TOKENS: int = int(os.getenv("LLM_MAX_TOKENS", "4000"))
+
+    # Agent Settings
+    AGENT_MAX_ITERATIONS: int = int(os.getenv("AGENT_MAX_ITERATIONS", "5"))
+    SLOW_QUERY_THRESHOLD: float = float(os.getenv("SLOW_QUERY_THRESHOLD", "30.0"))
+
+    # =============================================================================
+    # 캐시 및 세션 설정
+    # =============================================================================
+
+    # Cache Settings
+    MESSAGE_CACHE_SIZE: int = int(os.getenv("MESSAGE_CACHE_SIZE", "100"))
+    MANAGER_CACHE_SIZE: int = int(os.getenv("MANAGER_CACHE_SIZE", "10"))
+    SESSION_CLEANUP_MAX_AGE: int = int(os.getenv("SESSION_CLEANUP_MAX_AGE", "3600"))
+
+    # Query Limits
+    DEFAULT_QUERY_LIMIT: int = int(os.getenv("DEFAULT_QUERY_LIMIT", "20"))
+    CONVERSATION_LIMIT: int = int(os.getenv("CONVERSATION_LIMIT", "50"))
+
+    # =============================================================================
+    # 데이터 수집 설정
+    # =============================================================================
+
+    # HTTP Client Settings
+    HTTP_TIMEOUT: float = float(os.getenv("HTTP_TIMEOUT", "30.0"))
+
+    # Scraper Settings
+    SCRAPER_DELAY_MIN: int = int(os.getenv("SCRAPER_DELAY_MIN", "1"))
+    SCRAPER_DELAY_MAX: int = int(os.getenv("SCRAPER_DELAY_MAX", "5"))
+    SCRAPER_RETRIES: int = int(os.getenv("SCRAPER_RETRIES", "3"))
+
+    # WebSocket Settings
+    WEBSOCKET_DELAY: float = float(os.getenv("WEBSOCKET_DELAY", "0.1"))
+    WEBSOCKET_MANAGER_DELAY: float = float(os.getenv("WEBSOCKET_MANAGER_DELAY", "0.2"))
+
+    # =============================================================================
+    # 로깅 설정
+    # =============================================================================
+
+    # Log File Settings
+    LOG_FILE_MAX_BYTES: int = int(os.getenv("LOG_FILE_MAX_BYTES", "10485760"))  # 10MB
+    LOG_FILE_BACKUP_COUNT: int = int(os.getenv("LOG_FILE_BACKUP_COUNT", "5"))
+
+    # =============================================================================
+    # 외부 서비스 URL
+    # =============================================================================
+
+    # UFC Stats URLs
+    UFC_RANKINGS_URL: str = os.getenv("UFC_RANKINGS_URL", "https://www.ufc.com/rankings")
+    UFC_STATS_EVENTS_URL: str = os.getenv("UFC_STATS_EVENTS_URL", "http://ufcstats.com/statistics/events/completed?page=all")
+    UFC_STATS_FIGHTERS_URL: str = os.getenv("UFC_STATS_FIGHTERS_URL", "http://ufcstats.com/statistics/fighters")
 
 def get_database_url(is_test : bool = False) -> str:
     if is_test:
@@ -122,16 +200,16 @@ def get_logging_config() -> Dict[str, Any]:
             "file": {
                 "class": "logging.handlers.RotatingFileHandler",
                 "filename": f"{log_dir}/app.log",
-                "maxBytes": 10485760,  # 10MB
-                "backupCount": 5,
+                "maxBytes": Config.LOG_FILE_MAX_BYTES,
+                "backupCount": Config.LOG_FILE_BACKUP_COUNT,
                 "formatter": "detailed",
                 "level": log_level
             },
             "error_file": {
                 "class": "logging.handlers.RotatingFileHandler",
                 "filename": f"{log_dir}/error.log",
-                "maxBytes": 10485760,  # 10MB
-                "backupCount": 5,
+                "maxBytes": Config.LOG_FILE_MAX_BYTES,
+                "backupCount": Config.LOG_FILE_BACKUP_COUNT,
                 "formatter": "detailed",
                 "level": "ERROR"
             }

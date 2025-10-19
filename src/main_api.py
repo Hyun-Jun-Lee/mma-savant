@@ -10,6 +10,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from api.main import api_router
+from config import Config
 
 # 환경변수 로딩
 load_dotenv()
@@ -36,10 +37,10 @@ app = FastAPI(
 )
 
 # CORS 설정
-frontend_url = os.getenv("FRONTEND_URL", "http://localhost:3000")
+frontend_url = os.getenv("FRONTEND_URL", Config.CORS_ORIGINS[0])
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[frontend_url, "http://localhost:3000"],
+    allow_origins=[frontend_url] + Config.CORS_ORIGINS,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -76,8 +77,8 @@ if __name__ == "__main__":
     
     uvicorn.run(
         "main_api:app",
-        host="0.0.0.0",
-        port=8000,
+        host=Config.SERVER_HOST,
+        port=Config.SERVER_PORT,
         reload=True,
         log_level="info"
     )

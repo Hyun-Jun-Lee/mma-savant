@@ -16,9 +16,9 @@ redis_client = redis.Redis(
     port=Config.REDIS_PORT,
     password=Config.REDIS_PASSWORD,
     decode_responses=True,  # 문자열 응답을 자동으로 디코딩
-    socket_timeout=5,       # 소켓 타임아웃 (초)
-    socket_connect_timeout=5,  # 연결 타임아웃 (초)
-    retry_on_timeout=True   # 타임아웃 시 재시도
+    socket_timeout=Config.REDIS_SOCKET_TIMEOUT,       # 소켓 타임아웃 (초)
+    socket_connect_timeout=Config.REDIS_SOCKET_CONNECT_TIMEOUT,  # 연결 타임아웃 (초)
+    retry_on_timeout=Config.REDIS_RETRY_ON_TIMEOUT   # 타임아웃 시 재시도
 )
 
 @contextmanager
@@ -43,9 +43,9 @@ def redis_connection() -> redis.Redis:
             port=Config.REDIS_PORT,
             password=Config.REDIS_PASSWORD,
             decode_responses=True,
-            socket_timeout=5,
-            socket_connect_timeout=5,
-            retry_on_timeout=True
+            socket_timeout=Config.REDIS_SOCKET_TIMEOUT,
+            socket_connect_timeout=Config.REDIS_SOCKET_CONNECT_TIMEOUT,
+            retry_on_timeout=Config.REDIS_RETRY_ON_TIMEOUT
         )
         yield new_client
     except Exception as e:
