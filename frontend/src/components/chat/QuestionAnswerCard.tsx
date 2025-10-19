@@ -18,7 +18,6 @@ export function QuestionAnswerCard({ userQuestion, assistantResponse }: Question
   const [isExpanded, setIsExpanded] = useState(false)
   const [contentHeight, setContentHeight] = useState(0)
   const contentRef = useRef<HTMLDivElement>(null)
-  const cardId = `${userQuestion.id.slice(0, 8)}-${assistantResponse.id.slice(0, 8)}`
 
   useEffect(() => {
     if (contentRef.current) {
@@ -28,7 +27,6 @@ export function QuestionAnswerCard({ userQuestion, assistantResponse }: Question
 
   const toggleExpanded = (e: React.MouseEvent) => {
     e.stopPropagation()
-    console.log(`🔄 Toggling card ${cardId}: ${isExpanded} -> ${!isExpanded}`)
     setIsExpanded(!isExpanded)
   }
 
