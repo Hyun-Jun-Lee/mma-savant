@@ -62,53 +62,42 @@ export function MessageInput({
   const canSend = currentMessage.trim().length > 0 && !isDisabled
 
   return (
-    <div className="p-4">
-      <div className="flex gap-3 items-end max-w-4xl mx-auto">
-        <div className="flex-1 relative">
-          <Textarea
-            ref={textareaRef}
-            value={currentMessage}
-            onChange={handleChange}
-            onKeyDown={handleKeyDown}
-            placeholder={placeholder}
-            disabled={isDisabled}
-            className={cn(
-              "min-h-[44px] max-h-[120px] resize-none pr-12",
-              "!bg-white/5 backdrop-blur-sm border-white/10 text-white placeholder-zinc-400",
-              "focus:ring-2 focus:ring-white/30 focus:border-white/30",
-              "hover:!bg-white/10 hover:border-white/20 transition-colors",
-              isDisabled && "opacity-50 cursor-not-allowed"
-            )}
-            style={{ height: "auto" }}
-          />
-          
-          {/* 글자수 표시 */}
-          <div className="absolute bottom-2 right-2 text-xs text-zinc-500">
-            {currentMessage.length}/1000
+    <div className="flex h-12 flex-1 flex-col min-w-40">
+      <div className="flex h-full w-full flex-1 items-stretch rounded-lg">
+        <input
+          ref={textareaRef as any}
+          value={currentMessage}
+          onChange={(e) => setCurrentMessage(e.target.value)}
+          onKeyDown={handleKeyDown}
+          placeholder={placeholder}
+          disabled={isDisabled}
+          className={cn(
+            "h-full min-w-0 flex-1 resize-none overflow-hidden rounded-lg rounded-r-none border-none",
+            "bg-zinc-800 px-4 pr-2 text-base font-normal leading-normal text-white placeholder:text-zinc-400",
+            "focus:border-none focus:outline-0 focus:ring-0",
+            isDisabled && "opacity-50 cursor-not-allowed"
+          )}
+        />
+        <div className="flex items-center justify-center rounded-r-lg border-l-0 bg-zinc-800 !pr-2 pr-4">
+          <div className="flex items-center justify-end gap-4">
+            <div className="flex items-center gap-1">
+              <button
+                onClick={handleSend}
+                disabled={!canSend}
+                className={cn(
+                  "flex items-center justify-center p-1.5 text-zinc-400 hover:text-white transition-colors",
+                  !canSend && "opacity-50 cursor-not-allowed"
+                )}
+              >
+                {isLoading ? (
+                  <Loader2 className="w-5 h-5 animate-spin" />
+                ) : (
+                  <Send className="w-5 h-5" />
+                )}
+              </button>
+            </div>
           </div>
         </div>
-        
-        <Button
-          onClick={handleSend}
-          disabled={!canSend}
-          size="lg"
-          className={cn(
-            "bg-white text-zinc-900 hover:bg-zinc-100 font-medium transition-colors",
-            "border border-white/20 shadow-lg",
-            !canSend && "opacity-50 cursor-not-allowed"
-          )}
-        >
-          {isLoading ? (
-            <Loader2 className="w-4 h-4 animate-spin" />
-          ) : (
-            <Send className="w-4 h-4" />
-          )}
-        </Button>
-      </div>
-      
-      {/* 도움말 텍스트 */}
-      <div className="text-xs text-zinc-400 mt-3 text-center max-w-4xl mx-auto">
-        MMA Savant는 파이터, 기술, 이벤트, 역사에 대한 전문 지식을 제공합니다.
       </div>
     </div>
   )

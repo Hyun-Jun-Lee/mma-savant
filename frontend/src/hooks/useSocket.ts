@@ -185,11 +185,29 @@ export function useSocket() {
         }
       }
 
-      // 텍스트 content 처리 (insights 포함)
-      let textContent = data.content || ""
-      if (data.insights && data.insights.length > 0) {
-        textContent += "\n\n**주요 인사이트:**\n" + data.insights.map(insight => `• ${insight}`).join('\n')
+      // 텍스트 content 처리 - JSON 제거하고 insights 조건부 추가
+      let textContent = ""
+
+      // content에서 JSON 제거 (디버깅 로그 추가)
+      if (data.content) {
+        console.log('🔍 Original content:', data.content)
+        const { visualizationData: parsedViz, textContent: cleanText } = processAssistantResponse(data.content)
+        console.log('🧹 Cleaned text:', cleanText)
+        console.log('📊 Parsed visualization:', parsedViz)
+        textContent = cleanText
       }
+
+      // 시각화 데이터가 없을 때만 insights를 텍스트로 추가
+      // (시각화가 있으면 ChartRenderer에서 이미 인사이트를 표시함)
+      if (!visualizationData && data.insights && data.insights.length > 0) {
+        if (textContent && textContent.trim().length > 0) {
+          textContent += "\n\n"
+        }
+        textContent += "**주요 인사이트:**\n" + data.insights.map(insight => `• ${insight}`).join('\n')
+      }
+
+      console.log('✅ Final textContent:', textContent)
+      console.log('📊 Has visualization:', !!visualizationData)
 
       // 완성된 메시지로 즉시 추가 (스트리밍 우회)
       const finalMessage = {

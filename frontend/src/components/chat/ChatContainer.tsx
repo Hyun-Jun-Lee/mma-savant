@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { MessageList } from "./MessageList"
+import { DashboardGrid } from "./DashboardGrid"
 import { MessageInput } from "./MessageInput"
 import { SessionSidebar } from "./SessionSidebar"
 import { useChatStore } from "@/store/chatStore"
@@ -12,7 +12,7 @@ import { useUser } from "@/hooks/useUser"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { UserProfile } from "@/components/auth/UserProfile"
-import { ArrowLeft, MessageSquare, Trash2, Wifi, WifiOff, Plus, History } from "lucide-react"
+import { ArrowLeft, MessageSquare, Trash2, Wifi, WifiOff, Plus, History, User } from "lucide-react"
 import { useRouter } from "next/navigation"
 
 export function ChatContainer() {
@@ -87,15 +87,15 @@ export function ChatContainer() {
   }
 
   return (
-    <div className="flex flex-col h-screen bg-gradient-to-br from-zinc-900 via-gray-900 to-slate-900">
-      {/* 배경 패턴 - 스크롤 가능한 전체 영역에 적용 */}
+    <div className="relative flex h-screen w-full flex-col overflow-hidden bg-gradient-to-br from-zinc-900 via-gray-900 to-slate-900">
+      {/* 배경 패턴 */}
       <div className="fixed inset-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-gray-700/20 via-transparent to-transparent pointer-events-none" />
       <div className="fixed inset-0 bg-grid-white/[0.02] bg-[size:50px_50px] pointer-events-none" />
-      
-      {/* 헤더 */}
-      <div className="relative z-10 bg-black/20 backdrop-blur-sm border-b border-white/10">
-        <div className="flex items-center justify-between p-4">
-          <div className="flex items-center gap-4">
+
+      {/* 상단 헤더 */}
+      <header className="flex-shrink-0 border-b border-solid border-white/10 px-4 sm:px-10 py-3 relative z-10">
+        <div className="mx-auto flex max-w-7xl items-center justify-between whitespace-nowrap">
+          <div className="flex items-center gap-4 text-white">
             <Button
               variant="ghost"
               size="sm"
@@ -105,22 +105,15 @@ export function ChatContainer() {
               <ArrowLeft className="w-4 h-4 mr-2" />
               Home
             </Button>
-            
+
             <div className="flex items-center gap-3">
-              <div className="w-8 h-8 bg-white/10 backdrop-blur-sm rounded-lg flex items-center justify-center border border-white/20">
-                <MessageSquare className="w-4 h-4 text-white" />
+              <div className="w-6 h-6">
+                <MessageSquare className="w-6 h-6 text-white" />
               </div>
-              <div className="flex flex-col">
-                <h1 className="text-lg font-semibold text-white">
-                  MMA Savant
-                </h1>
-                {currentSession?.title && (
-                  <span className="text-xs text-zinc-400 truncate max-w-[200px]">
-                    {currentSession.title}
-                  </span>
-                )}
-              </div>
-              
+              <h2 className="text-white text-lg font-bold leading-tight tracking-[-0.015em]">
+                MMA Savant
+              </h2>
+
               {/* 연결 상태 표시 */}
               <div className="flex items-center gap-2 px-3 py-1.5 bg-white/5 backdrop-blur-sm rounded-full border border-white/10">
                 {isConnected ? (
@@ -145,7 +138,7 @@ export function ChatContainer() {
               <History className="w-4 h-4 mr-2" />
               History
             </Button>
-            
+
             <Button
               variant="ghost"
               size="sm"
@@ -155,7 +148,7 @@ export function ChatContainer() {
               <Plus className="w-4 h-4 mr-2" />
               New Chat
             </Button>
-            
+
             <Button
               variant="ghost"
               size="sm"
@@ -165,10 +158,26 @@ export function ChatContainer() {
               <Trash2 className="w-4 h-4 mr-2" />
               Clear
             </Button>
-            
+
             <div className="ml-2">
               <UserProfile />
             </div>
+          </div>
+        </div>
+      </header>
+
+      {/* 상단 입력 영역 */}
+      <div className="flex-shrink-0 bg-gradient-to-br from-zinc-900 via-gray-900 to-slate-900 backdrop-blur-sm p-4 sm:px-10 border-b border-solid border-white/10 relative z-10">
+        <div className="mx-auto flex max-w-7xl items-center gap-3">
+          <div className="h-10 w-10 shrink-0 rounded-full bg-white/10 backdrop-blur-sm border border-white/20 flex items-center justify-center">
+            <User className="w-5 h-5 text-white" />
+          </div>
+          <div className="flex-1">
+            <MessageInput
+              onSendMessage={handleSendMessage}
+              disabled={isLoading}
+              placeholder="궁금한 MMA 데이터를 질문해보세요..."
+            />
           </div>
         </div>
       </div>
@@ -182,24 +191,13 @@ export function ChatContainer() {
         </div>
       )}
 
-      {/* 메인 컨텐츠 영역 */}
-      <div className="relative z-10 flex flex-col flex-1 min-h-0 bg-transparent">
-        {/* 메시지 목록 */}
-        <div className="flex-1 bg-transparent">
-          <MessageList />
-        </div>
-
-        {/* 메시지 입력 */}
-        <div className="border-t border-white/10 bg-gradient-to-br from-zinc-900 via-gray-900 to-slate-900 backdrop-blur-sm">
-          <MessageInput
-            onSendMessage={handleSendMessage}
-            disabled={isLoading}
-          />
-        </div>
-      </div>
+      {/* 메인 대시보드 그리드 */}
+      <main className="flex-1 overflow-y-auto relative z-10">
+        <DashboardGrid />
+      </main>
 
       {/* 세션 사이드바 */}
-      <SessionSidebar 
+      <SessionSidebar
         isOpen={showSessionSidebar}
         onClose={() => setShowSessionSidebar(false)}
       />
