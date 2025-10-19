@@ -3,9 +3,7 @@
 import { useEffect, useRef, useMemo } from "react"
 import { useChatStore } from "@/store/chatStore"
 import { Message } from "@/types/chat"
-import { MessageBubble } from "./MessageBubble"
 import { QuestionAnswerCard } from "./QuestionAnswerCard"
-import { TypingIndicator } from "./TypingIndicator"
 import { Bot } from "lucide-react"
 
 export function HistoryView() {
@@ -105,17 +103,19 @@ export function HistoryView() {
           </div>
         )}
 
-        {/* 진행 중인 메시지들 (쌍이 안 맞는 경우) */}
-        {messages.length > questionAnswerPairs.length * 2 && (
-          <div className="max-w-4xl mx-auto space-y-4">
-            {messages.slice(questionAnswerPairs.length * 2).map((message) => (
-              <MessageBubble key={message.id} message={message} />
-            ))}
+        {/* 로딩 상태 표시 - 응답 대기 중일 때만 */}
+        {isTyping && (
+          <div className="flex justify-center items-center py-8">
+            <div className="bg-zinc-800/50 backdrop-blur-sm border border-zinc-700 rounded-lg px-6 py-4 flex items-center gap-3">
+              <div className="flex space-x-1">
+                <div className="w-2 h-2 bg-blue-400 rounded-full animate-pulse"></div>
+                <div className="w-2 h-2 bg-blue-400 rounded-full animate-pulse" style={{ animationDelay: '0.2s' }}></div>
+                <div className="w-2 h-2 bg-blue-400 rounded-full animate-pulse" style={{ animationDelay: '0.4s' }}></div>
+              </div>
+              <span className="text-zinc-300 text-sm">응답을 생성하고 있습니다...</span>
+            </div>
           </div>
         )}
-
-        {/* 타이핑 인디케이터 */}
-        {isTyping && <TypingIndicator isVisible={isTyping} />}
 
         {/* 스크롤 앵커 */}
         <div ref={bottomRef} />
