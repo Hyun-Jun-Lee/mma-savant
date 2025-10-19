@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useRef, useEffect } from "react"
 import { Card, CardContent } from "@/components/ui/card"
 import { ChartRenderer } from "@/components/visualization/ChartRenderer"
 import { Message } from "@/types/chat"
@@ -16,13 +16,24 @@ interface QuestionAnswerCardProps {
 
 export function QuestionAnswerCard({ userQuestion, assistantResponse }: QuestionAnswerCardProps) {
   const [isExpanded, setIsExpanded] = useState(false)
+  const [contentHeight, setContentHeight] = useState(0)
+  const contentRef = useRef<HTMLDivElement>(null)
+  const cardId = `${userQuestion.id.slice(0, 8)}-${assistantResponse.id.slice(0, 8)}`
 
-  const toggleExpanded = () => {
+  useEffect(() => {
+    if (contentRef.current) {
+      setContentHeight(contentRef.current.scrollHeight)
+    }
+  }, [assistantResponse.content, assistantResponse.visualizationData])
+
+  const toggleExpanded = (e: React.MouseEvent) => {
+    e.stopPropagation()
+    console.log(`🔄 Toggling card ${cardId}: ${isExpanded} -> ${!isExpanded}`)
     setIsExpanded(!isExpanded)
   }
 
   return (
-    <Card className="bg-zinc-800/50 backdrop-blur-sm border-zinc-700 hover:bg-zinc-800/70 hover:border-zinc-600 transition-all duration-300 cursor-pointer group">
+    <Card className="bg-zinc-800/50 backdrop-blur-sm border-zinc-700 hover:bg-zinc-800/70 hover:border-zinc-600 transition-all duration-300 cursor-pointer group min-h-[120px]" style={{ willChange: 'height, transform' }}>
       <CardContent className="p-6">
         {/* 사용자 질문 - 항상 표시 */}
         <div className="flex items-start gap-3" onClick={toggleExpanded}>
@@ -48,11 +59,15 @@ export function QuestionAnswerCard({ userQuestion, assistantResponse }: Question
         </div>
 
         {/* 어시스턴트 응답 - 펼쳤을 때만 표시 */}
-        <div className={cn(
-          "overflow-hidden transition-all duration-300 ease-in-out",
-          isExpanded ? "max-h-[2000px] opacity-100 mt-4" : "max-h-0 opacity-0"
-        )}>
-          <div className="border-t border-zinc-700 pt-4">
+        <div
+          className="overflow-hidden transition-all duration-300 ease-in-out"
+          style={{
+            height: isExpanded ? `${contentHeight}px` : '0px',
+            opacity: isExpanded ? 1 : 0,
+            marginTop: isExpanded ? '1rem' : '0px'
+          }}
+        >
+          <div ref={contentRef} className="border-t border-zinc-700 pt-4">
             {/* 어시스턴트 헤더 */}
             <div className="flex items-start gap-3 mb-4">
               <div className="w-8 h-8 shrink-0 rounded-full bg-blue-600 flex items-center justify-center">

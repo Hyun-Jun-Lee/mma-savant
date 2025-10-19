@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { DashboardGrid } from "./DashboardGrid"
+import { HistoryView } from "./HistoryView"
 import { MessageInput } from "./MessageInput"
 import { SessionSidebar } from "./SessionSidebar"
 import { useChatStore } from "@/store/chatStore"
@@ -16,20 +16,20 @@ import { ArrowLeft, MessageSquare, Trash2, Wifi, WifiOff, Plus, History, User } 
 import { useRouter } from "next/navigation"
 
 export function ChatContainer() {
-  const { addMessage, clearChat, isLoading, currentSession } = useChatStore()
+  const { addMessage, clearChat, isLoading, currentSession, sessions } = useChatStore()
   const { user } = useAuth()
   const { isConnected, isTyping, sendMessage } = useSocket()
-  const { createSession, loadSessions } = useChatSession()
+  const { createSession, loadSessions, switchToSession } = useChatSession()
   const { incrementUsage } = useUser()
   const router = useRouter()
   const [error, setError] = useState<string | null>(null)
   const [showSessionSidebar, setShowSessionSidebar] = useState(false)
 
-  // 컴포넌트 마운트 시 세션 목록만 로드 (자동 세션 생성 제거)
+  // 컴포넌트 마운트 시 세션 목록 로드 후 가장 최근 세션으로 전환
   useEffect(() => {
     const initializeData = async () => {
       try {
-        // 기존 세션 목록만 로드
+        // 기존 세션 목록 로드
         await loadSessions()
       } catch (error) {
         console.error('Failed to load sessions:', error)
@@ -40,7 +40,32 @@ export function ChatContainer() {
     if (user) {
       initializeData()
     }
-  }, [user, loadSessions]) // createSession과 currentSession 의존성 제거
+  }, [user, loadSessions])
+
+  // 세션 목록이 로드된 후 가장 최근 세션으로 자동 전환
+  useEffect(() => {
+    const loadMostRecentSession = async () => {
+      if (sessions.length > 0 && !currentSession) {
+        // 가장 최근 세션 찾기 (last_message_at 기준)
+        const mostRecentSession = sessions.reduce((latest, session) => {
+          if (!session.last_message_at) return latest
+          if (!latest?.last_message_at) return session
+          return session.last_message_at > latest.last_message_at ? session : latest
+        })
+
+        if (mostRecentSession) {
+          console.log('🔄 Auto-switching to most recent session:', mostRecentSession.session_id)
+          try {
+            await switchToSession(mostRecentSession.session_id)
+          } catch (error) {
+            console.error('Failed to switch to recent session:', error)
+          }
+        }
+      }
+    }
+
+    loadMostRecentSession()
+  }, [sessions, currentSession, switchToSession])
 
   const handleSendMessage = async (message: string) => {
     try {
@@ -191,9 +216,9 @@ export function ChatContainer() {
         </div>
       )}
 
-      {/* 메인 대시보드 그리드 */}
+      {/* 메인 히스토리 뷰 */}
       <main className="flex-1 overflow-y-auto relative z-10">
-        <DashboardGrid />
+        <HistoryView />
       </main>
 
       {/* 세션 사이드바 */}
