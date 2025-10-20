@@ -3,27 +3,24 @@
 import { useState, useEffect } from "react"
 import { HistoryView } from "./HistoryView"
 import { MessageInput } from "./MessageInput"
-import { SessionSidebar } from "./SessionSidebar"
 import { useChatStore } from "@/store/chatStore"
 import { useAuth } from "@/hooks/useAuth"
 import { useSocket } from "@/hooks/useSocket"
 import { useChatSession } from "@/hooks/useChatSession"
 import { useUser } from "@/hooks/useUser"
 import { Button } from "@/components/ui/button"
-import { Card } from "@/components/ui/card"
 import { UserProfile } from "@/components/auth/UserProfile"
-import { ArrowLeft, MessageSquare, Trash2, Wifi, WifiOff, Plus, History, User } from "lucide-react"
+import { ArrowLeft, MessageSquare, User } from "lucide-react"
 import { useRouter } from "next/navigation"
 
 export function ChatContainer() {
-  const { addMessage, clearChat, isLoading, currentSession, sessions } = useChatStore()
+  const { addMessage, isLoading, currentSession, sessions } = useChatStore()
   const { user } = useAuth()
   const { isConnected, isTyping, sendMessage } = useSocket()
-  const { createSession, loadSessions, switchToSession } = useChatSession()
+  const { loadSessions, switchToSession } = useChatSession()
   const { incrementUsage } = useUser()
   const router = useRouter()
   const [error, setError] = useState<string | null>(null)
-  const [showSessionSidebar, setShowSessionSidebar] = useState(false)
 
   // 컴포넌트 마운트 시 세션 목록 로드 후 가장 최근 세션으로 전환
   useEffect(() => {
@@ -97,19 +94,6 @@ export function ChatContainer() {
     }
   }
 
-  const handleNewChat = async () => {
-    try {
-      await createSession()
-      setError(null)
-    } catch (error) {
-      setError("새 채팅 생성에 실패했습니다.")
-    }
-  }
-
-  const handleClearChat = () => {
-    clearChat()
-    setError(null)
-  }
 
   return (
     <div className="relative flex h-screen w-full flex-col overflow-hidden bg-gradient-to-br from-zinc-900 via-gray-900 to-slate-900">
@@ -154,39 +138,7 @@ export function ChatContainer() {
           </div>
 
           <div className="flex items-center gap-2">
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => setShowSessionSidebar(true)}
-              className="text-zinc-400 hover:text-white hover:bg-white/10 border border-white/10 backdrop-blur-sm"
-            >
-              <History className="w-4 h-4 mr-2" />
-              History
-            </Button>
-
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={handleNewChat}
-              className="text-zinc-400 hover:text-white hover:bg-white/10 border border-white/10 backdrop-blur-sm"
-            >
-              <Plus className="w-4 h-4 mr-2" />
-              New Chat
-            </Button>
-
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={handleClearChat}
-              className="text-zinc-400 hover:text-white hover:bg-white/10 border border-white/10 backdrop-blur-sm"
-            >
-              <Trash2 className="w-4 h-4 mr-2" />
-              Clear
-            </Button>
-
-            <div className="ml-2">
-              <UserProfile />
-            </div>
+            <UserProfile />
           </div>
         </div>
       </header>
@@ -221,11 +173,6 @@ export function ChatContainer() {
         <HistoryView />
       </main>
 
-      {/* 세션 사이드바 */}
-      <SessionSidebar
-        isOpen={showSessionSidebar}
-        onClose={() => setShowSessionSidebar(false)}
-      />
     </div>
   )
 }
