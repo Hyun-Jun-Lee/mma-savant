@@ -2,13 +2,14 @@
 
 import { useEffect, useRef, useMemo, useState } from "react"
 import { useChatStore } from "@/store/chatStore"
+import { useChatSession } from "@/hooks/useChatSession"
 import { Message } from "@/types/chat"
 import { QuestionAnswerCard } from "./QuestionAnswerCard"
 import { SessionDetailModal } from "./SessionDetailModal"
 import { Bot } from "lucide-react"
 
 export function HistoryView() {
-  const { messages, isTyping, currentSession } = useChatStore()
+  const { messages, isTyping, currentSession, sessions } = useChatStore()
   const bottomRef = useRef<HTMLDivElement>(null)
   const [selectedSessionId, setSelectedSessionId] = useState<number | null>(null)
   const [isModalOpen, setIsModalOpen] = useState(false)
@@ -46,8 +47,8 @@ export function HistoryView() {
   }, [messages, isTyping])
 
 
-  // 메시지가 없을 때만 환영 메시지 표시 (히스토리가 있으면 카드 표시)
-  if (messages.length === 0) {
+  // 현재 메시지도 없고 기존 세션도 없을 때만 환영 메시지 표시
+  if (messages.length === 0 && sessions.length === 0) {
     return (
       <div className="flex-1 overflow-y-auto px-4 py-6 sm:px-10">
         <div className="mx-auto max-w-7xl">
@@ -88,8 +89,70 @@ export function HistoryView() {
     )
   }
 
-  // 메시지가 있으면 카드 형태로 표시 (완성된 쌍이 없어도 표시)
+  // 현재 메시지가 없지만 기존 세션이 있는 경우 - 세션 목록을 카드로 표시
+  if (messages.length === 0 && sessions.length > 0) {
+    return (
+      <>
+        <div className="flex-1 overflow-y-auto px-4 py-6 sm:px-10">
+          <div className="mx-auto max-w-7xl">
+            <div className="mb-6">
+              <h2 className="text-2xl font-bold text-white mb-2">이전 대화</h2>
+              <p className="text-zinc-400">이전 질문들을 다시 확인하거나 새로운 질문을 시작하세요.</p>
+            </div>
 
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 animate-fade-in">
+              {sessions.map((session) => (
+                <div
+                  key={session.id}
+                  className="bg-white/5 backdrop-blur-sm border border-white/10 rounded-lg p-4 hover:bg-white/10 transition-colors cursor-pointer"
+                  onClick={(e) => {
+                    e.preventDefault()
+                    e.stopPropagation()
+                    console.log('Session card clicked:', session.id)
+                    console.log('Setting selectedSessionId to:', session.id)
+                    console.log('Setting isModalOpen to: true')
+                    setSelectedSessionId(session.id)
+                    setIsModalOpen(true)
+                  }}
+                  style={{ pointerEvents: 'auto', zIndex: 10 }}
+                >
+                  <h3 className="text-white font-medium mb-2 line-clamp-2">
+                    {session.title || `채팅 ${session.id}`}
+                  </h3>
+                  <p className="text-zinc-400 text-sm">
+                    {session.last_message_at
+                      ? new Date(session.last_message_at).toLocaleDateString('ko-KR', {
+                          month: 'short',
+                          day: 'numeric',
+                          hour: '2-digit',
+                          minute: '2-digit'
+                        })
+                      : '시간 정보 없음'
+                    }
+                  </p>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        {/* 세션 상세 모달 */}
+        {console.log('Modal render check - isModalOpen:', isModalOpen, 'selectedSessionId:', selectedSessionId)}
+        <SessionDetailModal
+          sessionId={selectedSessionId}
+          isOpen={isModalOpen}
+          onClose={() => {
+            console.log('Modal close triggered')
+            setIsModalOpen(false)
+            setSelectedSessionId(null)
+          }}
+          sessionTitle={sessions.find(s => s.id === selectedSessionId)?.title}
+        />
+      </>
+    )
+  }
+
+  // 메시지가 있으면 카드 형태로 표시 (완성된 쌍이 없어도 표시)
   return (
     <div className="flex-1 overflow-y-auto px-4 py-6 sm:px-10">
       <div className="mx-auto max-w-7xl">
@@ -129,14 +192,16 @@ export function HistoryView() {
       </div>
 
       {/* 세션 상세 모달 */}
+      {console.log('Modal render check - isModalOpen:', isModalOpen, 'selectedSessionId:', selectedSessionId)}
       <SessionDetailModal
         sessionId={selectedSessionId}
         isOpen={isModalOpen}
         onClose={() => {
+          console.log('Modal close triggered')
           setIsModalOpen(false)
           setSelectedSessionId(null)
         }}
-        sessionTitle={questionAnswerPairs.find(p => p.userQuestion.id === selectedSessionId)?.userQuestion.content}
+        sessionTitle={sessions.find(s => s.id === selectedSessionId)?.title}
       />
     </div>
   )

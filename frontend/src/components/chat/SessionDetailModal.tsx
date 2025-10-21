@@ -8,15 +8,17 @@ import { Bot, User, X, Loader2 } from "lucide-react"
 import { ChatApiService } from "@/services/chatApi"
 import { formatDistanceToNow } from "date-fns"
 import { ko } from "date-fns/locale"
+import { processAssistantResponse } from "@/lib/visualizationParser"
 
 interface SessionDetailModalProps {
-  sessionId: string | null
+  sessionId: number | null
   isOpen: boolean
   onClose: () => void
   sessionTitle?: string
 }
 
 export function SessionDetailModal({ sessionId, isOpen, onClose, sessionTitle }: SessionDetailModalProps) {
+  console.log('SessionDetailModal props:', { sessionId, isOpen, onClose: !!onClose, sessionTitle })
   const [loading, setLoading] = useState(false)
   const [messages, setMessages] = useState<Message[]>([])
   const [error, setError] = useState<string | null>(null)
@@ -35,14 +37,39 @@ export function SessionDetailModal({ sessionId, isOpen, onClose, sessionTitle }:
 
     try {
       // 세션의 히스토리 로드
-      const response = await ChatApiService.getChatHistory(sessionId, 50, 0)
-      const loadedMessages: Message[] = response.messages.map(msg => ({
-        id: msg.id,
-        content: msg.content,
-        role: msg.role as 'user' | 'assistant',
-        timestamp: new Date(msg.timestamp),
-        // visualization data는 content에서 파싱해야 할 수도 있음
-      }))
+      const response = await ChatApiService.getChatHistory(sessionId as number, 50, 0)
+      const loadedMessages: Message[] = response.messages.map(msg => {
+        // assistant 메시지인 경우 시각화 데이터 파싱
+        if (msg.role === 'assistant') {
+          console.log('🔍 Processing assistant message:', msg.content.substring(0, 200))
+          const { visualizationData, textContent } = processAssistantResponse(msg.content)
+          console.log('📊 Parsed visualization:', !!visualizationData)
+          console.log('📝 Text content after parsing:', textContent?.substring(0, 200))
+
+          // textContent가 비어있거나 여전히 JSON이 포함되어 있다면 빈 문자열로
+          let finalContent = textContent || ''
+          if (finalContent.includes('```json') || finalContent.includes('selected_visualization')) {
+            console.log('⚠️ JSON still present in content, removing entirely')
+            finalContent = ''
+          }
+
+          return {
+            id: msg.id,
+            content: finalContent,
+            role: msg.role as 'user' | 'assistant',
+            timestamp: new Date(msg.timestamp),
+            visualizationData: visualizationData // 파싱된 시각화 데이터
+          }
+        }
+
+        // user 메시지는 그대로
+        return {
+          id: msg.id,
+          content: msg.content,
+          role: msg.role as 'user' | 'assistant',
+          timestamp: new Date(msg.timestamp),
+        }
+      })
       setMessages(loadedMessages)
     } catch (err) {
       console.error('Failed to load session details:', err)
@@ -123,8 +150,8 @@ export function SessionDetailModal({ sessionId, isOpen, onClose, sessionTitle }:
                         </div>
                       )}
 
-                      {/* 텍스트 응답 */}
-                      {assistantMessage.content && (
+                      {/* 텍스트 응답 - 시각화가 없거나 추가 텍스트가 있을 때만 표시 */}
+                      {assistantMessage.content && assistantMessage.content.trim().length > 0 && (
                         <div className="prose prose-invert max-w-none">
                           <p className="text-zinc-200 whitespace-pre-wrap">
                             {assistantMessage.content}

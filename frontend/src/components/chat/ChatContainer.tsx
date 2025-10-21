@@ -22,12 +22,13 @@ export function ChatContainer() {
   const router = useRouter()
   const [error, setError] = useState<string | null>(null)
 
-  // 컴포넌트 마운트 시 세션 목록 로드 후 가장 최근 세션으로 전환
+  // 컴포넌트 마운트 시 세션 목록 로드 (자동 전환 제거 - 새 대화로 시작)
   useEffect(() => {
     const initializeData = async () => {
       try {
-        // 기존 세션 목록 로드
+        // 기존 세션 목록 로드 (사이드바에서 이전 대화 확인용)
         await loadSessions()
+        console.log('📋 Session list loaded for sidebar access')
       } catch (error) {
         console.error('Failed to load sessions:', error)
         setError('세션 목록 로드 중 오류가 발생했습니다.')
@@ -38,31 +39,6 @@ export function ChatContainer() {
       initializeData()
     }
   }, [user, loadSessions])
-
-  // 세션 목록이 로드된 후 가장 최근 세션으로 자동 전환
-  useEffect(() => {
-    const loadMostRecentSession = async () => {
-      if (sessions.length > 0 && !currentSession) {
-        // 가장 최근 세션 찾기 (last_message_at 기준)
-        const mostRecentSession = sessions.reduce((latest, session) => {
-          if (!session.last_message_at) return latest
-          if (!latest?.last_message_at) return session
-          return session.last_message_at > latest.last_message_at ? session : latest
-        })
-
-        if (mostRecentSession) {
-          console.log('🔄 Auto-switching to most recent session:', mostRecentSession.id)
-          try {
-            await switchToSession(mostRecentSession.id)
-          } catch (error) {
-            console.error('Failed to switch to recent session:', error)
-          }
-        }
-      }
-    }
-
-    loadMostRecentSession()
-  }, [sessions, currentSession, switchToSession])
 
   const handleSendMessage = async (message: string) => {
     try {
