@@ -1,14 +1,17 @@
 "use client"
 
-import { useEffect, useRef, useMemo } from "react"
+import { useEffect, useRef, useMemo, useState } from "react"
 import { useChatStore } from "@/store/chatStore"
 import { Message } from "@/types/chat"
 import { QuestionAnswerCard } from "./QuestionAnswerCard"
+import { SessionDetailModal } from "./SessionDetailModal"
 import { Bot } from "lucide-react"
 
 export function HistoryView() {
-  const { messages, isTyping } = useChatStore()
+  const { messages, isTyping, currentSession } = useChatStore()
   const bottomRef = useRef<HTMLDivElement>(null)
+  const [selectedSessionId, setSelectedSessionId] = useState<string | null>(null)
+  const [isModalOpen, setIsModalOpen] = useState(false)
 
   // 메시지를 질문-응답 쌍으로 그룹핑
   const questionAnswerPairs = useMemo(() => {
@@ -97,7 +100,11 @@ export function HistoryView() {
               <QuestionAnswerCard
                 key={`${pair.userQuestion.id}-${pair.assistantResponse.id}`}
                 userQuestion={pair.userQuestion}
-                assistantResponse={pair.assistantResponse}
+                sessionId={currentSession?.session_id || pair.userQuestion.id}
+                onClick={() => {
+                  setSelectedSessionId(currentSession?.session_id || pair.userQuestion.id)
+                  setIsModalOpen(true)
+                }}
               />
             ))}
           </div>
@@ -120,6 +127,17 @@ export function HistoryView() {
         {/* 스크롤 앵커 */}
         <div ref={bottomRef} />
       </div>
+
+      {/* 세션 상세 모달 */}
+      <SessionDetailModal
+        sessionId={selectedSessionId}
+        isOpen={isModalOpen}
+        onClose={() => {
+          setIsModalOpen(false)
+          setSelectedSessionId(null)
+        }}
+        sessionTitle={questionAnswerPairs.find(p => p.userQuestion.id === selectedSessionId)?.userQuestion.content}
+      />
     </div>
   )
 }
