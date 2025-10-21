@@ -24,7 +24,7 @@ from llm.stream_processor import (
 )
 from common.utils import remove_timestamps_from_tool_result
 from llm.performance_monitor import setup_langsmith_tracing
-from conversation.message_manager import ChatHistoryManager
+from conversation.message_manager import ChatHistory
 from database.connection.postgres_conn import get_async_db_context
 from common.logging_config import get_logger
 from common.utils import kr_time_now
@@ -37,7 +37,7 @@ class LangChainLLMService:
     LangChain LLM 서비스 V2 - 모듈화된 아키텍처
     """
 
-    def __init__(self, max_cache_size: int = 100, provider: Optional[str] = None):
+    def __init__(self, max_cache_size: int = 5, provider: Optional[str] = None):
         """
         서비스 초기화
 
@@ -48,11 +48,9 @@ class LangChainLLMService:
         # 성능 모니터링 및 트레이싱 설정
         setup_langsmith_tracing()
 
-        # 핵심 컴포넌트 초기화
-        self.history_manager = ChatHistoryManager(
-            async_db_session_factory=get_async_db_context,
-            max_cache_size=max_cache_size
-        )
+        # 데이터베이스 세션 팩토리 저장 (ChatHistory 생성시 사용)
+        self.async_db_session_factory = get_async_db_context
+        self.max_cache_size = max_cache_size
 
         self.agent_manager = AgentManager()
 
@@ -162,7 +160,15 @@ class LangChainLLMService:
         """채팅 히스토리 로드 및 에러 처리"""
         try:
             history_start = time.time()
-            history = await self.history_manager.get_session_history(conversation_id, user_id)
+            # 매번 새로운 ChatHistory 인스턴스 생성 (새 conversation이므로)
+            history = ChatHistory(
+                conversation_id=conversation_id,
+                user_id=user_id,
+                async_db_session_factory=self.async_db_session_factory,
+                max_cache_size=self.max_cache_size
+            )
+            # 초기 로드
+            await history._ensure_loaded()
             history_time = time.time() - history_start
             LOGGER.info(f"⏱️ History loading: {history_time:.3f}s")
             LOGGER.info(f"📚 Loaded {len(history.messages)} messages from cache")
@@ -433,7 +439,7 @@ _langchain_service_v2 = None
 
 async def get_langchain_service(
     provider: Optional[str] = None,
-    max_cache_size: int = 100
+    max_cache_size: int = 5
 ) -> LangChainLLMService:
     """
     글로벌 LangChain 서비스 V2 인스턴스 반환

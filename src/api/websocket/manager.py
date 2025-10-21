@@ -263,6 +263,9 @@ class ConnectionManager:
             content, conversation_id = await self._validate_message_data(connection_id, message_data)
             validated_conversation_id = await self._validate_or_create_session(db, user.id, conversation_id, content)
 
+            # 사용자 메시지를 즉시 데이터베이스에 저장
+            await self._save_user_message(db, validated_conversation_id, user.id, content)
+
             # 응답 처리
             await self._send_message_acknowledgment(connection_id, validated_conversation_id)
             await self._process_llm_streaming_response(connection_id, content, validated_conversation_id, user.id)
@@ -306,30 +309,15 @@ class ConnectionManager:
         conversation_id: Optional[int],
         content: str
     ) -> int:
-        """기존 세션 검증 또는 새 세션 생성"""
-        if conversation_id:
-            # 기존 세션 검증
-            session_valid = await ChatSessionService.validate_session_access(
-                db=db,
-                conversation_id=conversation_id,
-                user_id=user_id
-            )
-
-            if not session_valid:
-                LOGGER.warning(f"❌ Session validation failed for conversation_id={conversation_id}")
-                raise ValueError("Invalid conversation ID or access denied")
-
-            LOGGER.info(f"✅ Session validation successful: conversation_id={conversation_id}")
-            return conversation_id
-        else:
-            # 새 세션 생성
-            session_response = await get_or_create_session(
-                db=db,
-                user_id=user_id,
-                content=content
-            )
-            LOGGER.info(f"✅ New session created: conversation_id={session_response.id}")
-            return session_response.id
+        """매번 새로운 conversation 생성 (질문-응답 쌍별로)"""
+        # 기존 세션 검증 로직 제거 - 항상 새 conversation 생성
+        session_response = await get_or_create_session(
+            db=db,
+            user_id=user_id,
+            content=content
+        )
+        LOGGER.info(f"✅ New conversation created for each question: conversation_id={session_response.id}")
+        return session_response.id
 
     async def _send_message_acknowledgment(self, connection_id: str, conversation_id: int) -> None:
         """메시지 수신 확인 및 타이핑 상태 시작"""
@@ -551,6 +539,29 @@ class ConnectionManager:
                     "input": getattr(action, 'tool_input', {}),
                     "result": processed_result
                 })
+
+    async def _save_user_message(self, db: AsyncSession, conversation_id: int, user_id: int, content: str) -> None:
+        """사용자 메시지를 데이터베이스에 즉시 저장"""
+        try:
+            from conversation.repositories import add_message_to_session
+
+            saved_message = await add_message_to_session(
+                session=db,
+                conversation_id=conversation_id,
+                user_id=user_id,
+                content=content,
+                role="user"
+            )
+
+            if saved_message:
+                LOGGER.info(f"✅ User message saved to DB: conversation_id={conversation_id}")
+            else:
+                LOGGER.warning(f"❌ Failed to save user message: conversation_id={conversation_id}")
+
+        except Exception as e:
+            LOGGER.error(f"❌ Error saving user message to DB: {e}")
+            LOGGER.error(format_exc())
+            # 사용자 메시지 저장 실패는 치명적이지 않으므로 예외를 다시 발생시키지 않음
 
     async def _handle_message_error(self, connection_id: str, error: Exception) -> None:
         """메시지 처리 에러 핸들링"""
