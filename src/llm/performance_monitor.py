@@ -36,7 +36,7 @@ class TimingMetric:
 @dataclass
 class PerformanceSession:
     """성능 측정 세션"""
-    session_id: str
+    conversation_id : int
     message_id: str
     user_id: Optional[int] = None
     start_time: float = field(default_factory=time.time)
@@ -63,7 +63,7 @@ class PerformanceSession:
         total_duration = self.get_total_duration()
         
         return {
-            "session_id": self.session_id,
+            "conversation_id": self.conversation_id,
             "message_id": self.message_id,
             "user_id": self.user_id,
             "total_duration": total_duration,
@@ -117,7 +117,7 @@ def setup_langsmith_tracing():
 
 def create_langsmith_metadata(
     user_id: int,
-    session_id: str,
+    conversation_id : int,
     message_id: str,
     **additional_metadata
 ) -> Dict[str, Any]:
@@ -126,7 +126,7 @@ def create_langsmith_metadata(
     
     Args:
         user_id: 사용자 ID
-        session_id: 세션 ID
+        conversation_id: 세션 ID
         message_id: 메시지 ID
         **additional_metadata: 추가 메타데이터
         
@@ -135,7 +135,7 @@ def create_langsmith_metadata(
     """
     metadata = {
         "user_id": user_id,
-        "session_id": session_id,
+        "conversation_id": conversation_id,
         "message_id": message_id,
         "service": "mma-savant",
         "version": "1.0",
@@ -152,7 +152,7 @@ def log_performance_metrics(
     execution_time: float,
     tools_used: int,
     response_length: int,
-    session_id: str,
+    conversation_id : int,
     message_id: str,
     **additional_metrics
 ):
@@ -163,7 +163,7 @@ def log_performance_metrics(
         execution_time: 실행 시간 (초)
         tools_used: 사용된 도구 수
         response_length: 응답 길이 (문자 수)
-        session_id: 세션 ID
+        conversation_id: 세션 ID
         message_id: 메시지 ID
         **additional_metrics: 추가 메트릭
     """
@@ -172,7 +172,7 @@ def log_performance_metrics(
             "execution_time": execution_time,
             "tools_used_count": tools_used,
             "response_length": response_length,
-            "session_id": session_id,
+            "conversation_id": conversation_id,
             "message_id": message_id,
             "timestamp": kr_time_now().isoformat(),
             **additional_metrics
@@ -192,7 +192,7 @@ def log_performance_metrics(
             LOGGER.info(f"📊 Performance - Time: {execution_time:.2f}s, Tools: {tools_used}, Length: {response_length}")
         
         # 성능 세션에 메트릭 추가
-        session_key = f"{session_id}_{message_id}"
+        session_key = f"{conversation_id}_{message_id}"
         if session_key in _performance_sessions:
             _performance_sessions[session_key].add_metric(
                 "total_execution",
@@ -209,7 +209,7 @@ def log_performance_metrics(
 def log_error_details(
     error: Exception,
     context: Dict[str, Any],
-    session_id: Optional[str] = None,
+    conversation_id: Optional[str] = None,
     message_id: Optional[str] = None,
     langsmith_metadata: Optional[Dict[str, Any]] = None
 ):
@@ -219,7 +219,7 @@ def log_error_details(
     Args:
         error: 발생한 에러
         context: 에러 발생 컨텍스트
-        session_id: 세션 ID
+        conversation_id: 세션 ID
         message_id: 메시지 ID
         langsmith_metadata: LangSmith 메타데이터
     """
@@ -231,8 +231,8 @@ def log_error_details(
             "timestamp": kr_time_now().isoformat()
         }
         
-        if session_id:
-            error_details["session_id"] = session_id
+        if conversation_id:
+            error_details["conversation_id"] = conversation_id
         if message_id:
             error_details["message_id"] = message_id
         
@@ -322,7 +322,7 @@ def timing_decorator(operation_name: Optional[str] = None):
 
 
 def create_performance_session(
-    session_id: str,
+    conversation_id : int,
     message_id: str,
     user_id: Optional[int] = None,
     **metadata
@@ -331,7 +331,7 @@ def create_performance_session(
     성능 측정 세션 생성
     
     Args:
-        session_id: 세션 ID
+        conversation_id: 세션 ID
         message_id: 메시지 ID
         user_id: 사용자 ID
         **metadata: 추가 메타데이터
@@ -340,49 +340,49 @@ def create_performance_session(
         PerformanceSession: 생성된 성능 세션
     """
     session = PerformanceSession(
-        session_id=session_id,
+        conversation_id=conversation_id,
         message_id=message_id,
         user_id=user_id,
         metadata=metadata
     )
     
-    session_key = f"{session_id}_{message_id}"
+    session_key = f"{conversation_id}_{message_id}"
     _performance_sessions[session_key] = session
     
     LOGGER.debug(f"📊 Performance session created: {session_key}")
     return session
 
 
-def get_performance_session(session_id: str, message_id: str) -> Optional[PerformanceSession]:
+def get_performance_session(conversation_id : int, message_id: str) -> Optional[PerformanceSession]:
     """
     성능 세션 조회
     
     Args:
-        session_id: 세션 ID
+        conversation_id: 세션 ID
         message_id: 메시지 ID
         
     Returns:
         Optional[PerformanceSession]: 성능 세션 (없으면 None)
     """
-    session_key = f"{session_id}_{message_id}"
+    session_key = f"{conversation_id}_{message_id}"
     return _performance_sessions.get(session_key)
 
 
 def finish_performance_session(
-    session_id: str,
+    conversation_id : int,
     message_id: str
 ) -> Optional[Dict[str, Any]]:
     """
     성능 세션 완료 및 요약 반환
     
     Args:
-        session_id: 세션 ID
+        conversation_id: 세션 ID
         message_id: 메시지 ID
         
     Returns:
         Optional[Dict]: 성능 요약 (세션이 없으면 None)
     """
-    session_key = f"{session_id}_{message_id}"
+    session_key = f"{conversation_id}_{message_id}"
     session = _performance_sessions.pop(session_key, None)
     
     if session:
@@ -420,7 +420,7 @@ def get_timing_summary() -> Dict[str, Any]:
             
             if duration > slowest_duration:
                 slowest_duration = duration
-                slowest_session = session.session_id
+                slowest_session = session.conversation_id
         
         return {
             "active_sessions": active_sessions,
@@ -464,7 +464,7 @@ def cleanup_old_sessions(max_age_seconds: int = 3600):
 def log_langsmith_final_metrics(
     total_time: float,
     message_id: str,
-    session_id: str,
+    conversation_id : int,
     user_id: Optional[int] = None,
     **additional_metrics
 ):
@@ -473,7 +473,7 @@ def log_langsmith_final_metrics(
         final_metrics = {
             "total_streaming_time": total_time,
             "message_id": message_id,
-            "session_id": session_id,
+            "conversation_id": conversation_id,
             "completion_status": "success",
             **additional_metrics
         }
@@ -507,7 +507,7 @@ if __name__ == "__main__":
         print("\n📋 Metadata Creation:")
         metadata = create_langsmith_metadata(
             user_id=123,
-            session_id="test_session",
+            conversation_id="test_session",
             message_id="test_message"
         )
         print(f"  Keys: {list(metadata.keys())}")
@@ -515,7 +515,7 @@ if __name__ == "__main__":
         # 성능 세션 테스트
         print("\n⏱️ Performance Session:")
         session = create_performance_session(
-            session_id="test_session",
+            conversation_id="test_session",
             message_id="test_message",
             user_id=123
         )

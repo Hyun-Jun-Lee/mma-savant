@@ -23,7 +23,6 @@ export interface Message {
 export interface ChatSession {
   id: number
   user_id: number
-  session_id: string
   title?: string
   last_message_at?: Date
   created_at: Date
@@ -56,8 +55,8 @@ export interface ChatStore extends ChatState {
   setCurrentSession: (session: ChatSession | null) => void
   setSessions: (sessions: ChatSession[]) => void
   addSession: (session: ChatSession) => void
-  removeSession: (sessionId: string) => void
-  updateSession: (sessionId: string, updates: Partial<ChatSession>) => void
+  removeSession: (sessionId: number) => void
+  updateSession: (sessionId: number, updates: Partial<ChatSession>) => void
   setSessionsLoading: (loading: boolean) => void
   setHistoryLoading: (loading: boolean) => void
   loadMessagesFromHistory: (messages: Message[]) => void

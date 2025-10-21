@@ -21,7 +21,7 @@ LOGGER = get_logger(__name__)
 
 def create_llm_with_callbacks(
     message_id: str,
-    session_id: str,
+    conversation_id : int,
     provider: Optional[str] = None,
     **model_kwargs
 ) -> Tuple[Any, Any]:
@@ -30,7 +30,7 @@ def create_llm_with_callbacks(
     
     Args:
         message_id: 메시지 ID
-        session_id: 세션 ID  
+        conversation_id: 세션 ID  
         provider: LLM 프로바이더 (None이면 Config.LLM_PROVIDER 사용)
         **model_kwargs: 모델별 추가 파라미터
         
@@ -48,16 +48,16 @@ def create_llm_with_callbacks(
     
     try:
         if selected_provider == LLMProvider.ANTHROPIC.value:
-            return get_anthropic_model_and_callback(message_id, session_id, **model_kwargs)
+            return get_anthropic_model_and_callback(message_id, conversation_id, **model_kwargs)
             
         elif selected_provider == LLMProvider.HUGGINGFACE.value:
-            return get_huggingface_model_and_callback(message_id, session_id, **model_kwargs)
+            return get_huggingface_model_and_callback(message_id, conversation_id, **model_kwargs)
             
         elif selected_provider == LLMProvider.OPENROUTER.value:
-            return get_openrouter_model_and_callback(message_id, session_id, **model_kwargs)
+            return get_openrouter_model_and_callback(message_id, conversation_id, **model_kwargs)
             
         elif selected_provider == LLMProvider.OPENAI.value:
-            return get_openai_model_and_callback(message_id, session_id, **model_kwargs)
+            return get_openai_model_and_callback(message_id, conversation_id, **model_kwargs)
             
         else:
             available = [p.value for p in LLMProvider]
@@ -73,7 +73,7 @@ def create_llm_with_callbacks(
 
 def get_anthropic_model_and_callback(
     message_id: str, 
-    session_id: str,
+    conversation_id : int,
     **kwargs
 ) -> Tuple[Any, Any]:
     """
@@ -81,7 +81,7 @@ def get_anthropic_model_and_callback(
     
     Args:
         message_id: 메시지 ID
-        session_id: 세션 ID
+        conversation_id: 세션 ID
         **kwargs: 추가 모델 파라미터 (온도, 최대 토큰 등)
         
     Returns:
@@ -93,7 +93,7 @@ def get_anthropic_model_and_callback(
     
     try:
         # 콜백 핸들러 생성
-        callback_handler = get_anthropic_callback_handler(message_id, session_id)
+        callback_handler = get_anthropic_callback_handler(message_id, conversation_id)
         
         # 모델별 파라미터 적용
         model_params = {
@@ -117,7 +117,7 @@ def get_anthropic_model_and_callback(
 
 def get_huggingface_model_and_callback(
     message_id: str,
-    session_id: str, 
+    conversation_id : int, 
     model_name: Optional[str] = None,
     **kwargs
 ) -> Tuple[Any, Any]:
@@ -126,7 +126,7 @@ def get_huggingface_model_and_callback(
     
     Args:
         message_id: 메시지 ID
-        session_id: 세션 ID
+        conversation_id: 세션 ID
         model_name: 모델 이름 (None이면 Config.HUGGINGFACE_MODEL_NAME 사용)
         **kwargs: 추가 모델 파라미터
         
@@ -141,7 +141,7 @@ def get_huggingface_model_and_callback(
         # 콜백 핸들러 생성
         callback_handler = get_huggingface_callback_handler(
             message_id, 
-            session_id, 
+            conversation_id, 
             model_name=final_model_name
         )
 
@@ -185,7 +185,7 @@ def get_huggingface_model_and_callback(
 
 def get_openrouter_model_and_callback(
     message_id: str,
-    session_id: str,
+    conversation_id : int,
     model_name: Optional[str] = None,
     **kwargs
 ) -> Tuple[Any, Any]:
@@ -194,7 +194,7 @@ def get_openrouter_model_and_callback(
     
     Args:
         message_id: 메시지 ID
-        session_id: 세션 ID
+        conversation_id: 세션 ID
         model_name: 모델 이름 (None이면 Config.OPENROUTER_MODEL_NAME 사용)
         **kwargs: 추가 모델 파라미터
         
@@ -212,7 +212,7 @@ def get_openrouter_model_and_callback(
         # 콜백 핸들러 생성
         callback_handler = get_openrouter_callback_handler(
             message_id=message_id,
-            session_id=session_id,
+            conversation_id=conversation_id,
             model_name=final_model_name
         )
         
@@ -242,7 +242,7 @@ def get_openrouter_model_and_callback(
 
 def get_openai_model_and_callback(
     message_id: str, 
-    session_id: str,
+    conversation_id : int,
     **kwargs
 ) -> Tuple[Any, Any]:
     """
@@ -250,7 +250,7 @@ def get_openai_model_and_callback(
     
     Args:
         message_id: 메시지 ID
-        session_id: 세션 ID
+        conversation_id: 세션 ID
         **kwargs: 추가 모델 파라미터
         
     Returns:

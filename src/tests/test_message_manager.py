@@ -122,7 +122,7 @@ def mock_chat_history():
             content="Hello",
             role="user",
             timestamp=datetime.fromisoformat("2024-01-01T00:00:00"),
-            session_id="test_session",
+            conversation_id="test_session",
             tool_results=None
         ),
         ChatMessageResponse(
@@ -130,13 +130,13 @@ def mock_chat_history():
             content="Hi there!",
             role="assistant",
             timestamp=datetime.fromisoformat("2024-01-01T00:00:01"),
-            session_id="test_session",
+            conversation_id="test_session",
             tool_results=None
         )
     ]
     
     return ChatHistoryResponse(
-        session_id="test_session",
+        conversation_id="test_session",
         messages=messages,
         total_messages=2,
         has_more=False
@@ -150,13 +150,13 @@ class TestChatHistory:
     async def test_init_creates_background_task(self, mock_db_session_factory):
         """초기화 시 백그라운드 태스크가 생성되는지 테스트"""
         chat_history = ChatHistory(
-            session_id="test_session",
+            conversation_id="test_session",
             user_id=1,
             async_db_session_factory=mock_db_session_factory,
             max_cache_size=5
         )
         
-        assert chat_history.session_id == "test_session"
+        assert chat_history.conversation_id == "test_session"
         assert chat_history.user_id == 1
         assert chat_history.max_cache_size == 5
         assert chat_history._save_task is not None
@@ -171,7 +171,7 @@ class TestChatHistory:
         # 백그라운드 태스크를 비활성화하여 이벤트 루프 충돌 방지
         with patch.object(ChatHistory, '_start_background_message_save'):
             chat_history = ChatHistory(
-                session_id="test_session",
+                conversation_id="test_session",
                 user_id=1,
                 async_db_session_factory=mock_db_session_factory,
                 max_cache_size=5
@@ -197,7 +197,7 @@ class TestChatHistory:
         """캐시 크기 제한 및 LRU 동작 테스트"""
         with patch.object(ChatHistory, '_start_background_message_save'):
             chat_history = ChatHistory(
-                session_id="test_session",
+                conversation_id="test_session",
                 user_id=1,
                 async_db_session_factory=mock_db_session_factory,
                 max_cache_size=3  # 최대 3개 메시지
@@ -220,7 +220,7 @@ class TestChatHistory:
         """툴 결과가 있는 AI 메시지 추가 테스트"""
         with patch.object(ChatHistory, '_start_background_message_save'):
             chat_history = ChatHistory(
-                session_id="test_session",
+                conversation_id="test_session",
                 user_id=1,
                 async_db_session_factory=mock_db_session_factory,
                 max_cache_size=5
@@ -245,7 +245,7 @@ class TestChatHistory:
         """백그라운드 저장 큐 기능 테스트"""
         with patch.object(ChatHistory, '_start_background_message_save'):
             chat_history = ChatHistory(
-                session_id="test_session",
+                conversation_id="test_session",
                 user_id=1,
                 async_db_session_factory=mock_db_session_factory,
                 max_cache_size=5
@@ -272,7 +272,7 @@ class TestChatHistory:
                 mock_get_chat_history.return_value = mock_chat_history
                 
                 chat_history = ChatHistory(
-                    session_id="test_session",
+                    conversation_id="test_session",
                     user_id=1,
                     async_db_session_factory=mock_db_session_factory,
                     max_cache_size=5
@@ -293,7 +293,7 @@ class TestChatHistory:
                 # get_chat_history가 호출되었는지 확인
                 mock_get_chat_history.assert_called_once()
                 call_args = mock_get_chat_history.call_args
-                assert call_args.kwargs["session_id"] == "test_session"
+                assert call_args.kwargs["conversation_id"] == "test_session"
                 assert call_args.kwargs["user_id"] == 1
                 assert call_args.kwargs["limit"] == 5
     
@@ -302,7 +302,7 @@ class TestChatHistory:
         """메시지 클리어 테스트"""
         with patch.object(ChatHistory, '_start_background_message_save'):
             chat_history = ChatHistory(
-                session_id="test_session",
+                conversation_id="test_session",
                 user_id=1,
                 async_db_session_factory=mock_db_session_factory,
                 max_cache_size=5

@@ -51,9 +51,9 @@ export function ChatContainer() {
         })
 
         if (mostRecentSession) {
-          console.log('🔄 Auto-switching to most recent session:', mostRecentSession.session_id)
+          console.log('🔄 Auto-switching to most recent session:', mostRecentSession.id)
           try {
-            await switchToSession(mostRecentSession.session_id)
+            await switchToSession(mostRecentSession.id)
           } catch (error) {
             console.error('Failed to switch to recent session:', error)
           }
@@ -74,7 +74,7 @@ export function ChatContainer() {
       }
 
       // 세션 생성은 WebSocket에서 처리하므로 여기서는 제거
-      // currentSession이 있으면 session_id를 전달, 없으면 null로 전달하여 WebSocket에서 새 세션 생성
+      // currentSession이 있으면 conversation_id를 전달, 없으면 null로 전달하여 WebSocket에서 새 세션 생성
 
       // 사용자 메시지 추가
       addMessage({
@@ -82,7 +82,7 @@ export function ChatContainer() {
         role: "user",
       })
 
-      // 실시간 소켓을 통해 메시지 전송 (session_id는 WebSocket에서 처리)
+      // 실시간 소켓을 통해 메시지 전송 (conversation_id는 WebSocket에서 처리)
       await sendMessage(message)
 
       // 사용량 증가 (비동기, 실패해도 채팅 기능에 영향 없음)

@@ -10,7 +10,7 @@ import { Bot } from "lucide-react"
 export function HistoryView() {
   const { messages, isTyping, currentSession } = useChatStore()
   const bottomRef = useRef<HTMLDivElement>(null)
-  const [selectedSessionId, setSelectedSessionId] = useState<string | null>(null)
+  const [selectedSessionId, setSelectedSessionId] = useState<number | null>(null)
   const [isModalOpen, setIsModalOpen] = useState(false)
 
   // 메시지를 질문-응답 쌍으로 그룹핑
@@ -100,9 +100,9 @@ export function HistoryView() {
               <QuestionAnswerCard
                 key={`${pair.userQuestion.id}-${pair.assistantResponse.id}`}
                 userQuestion={pair.userQuestion}
-                sessionId={currentSession?.session_id || pair.userQuestion.id}
+                sessionId={currentSession?.id || pair.userQuestion.id}
                 onClick={() => {
-                  setSelectedSessionId(currentSession?.session_id || pair.userQuestion.id)
+                  setSelectedSessionId(currentSession?.id || Number(pair.userQuestion.id))
                   setIsModalOpen(true)
                 }}
               />

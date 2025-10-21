@@ -200,7 +200,7 @@ async def test_two_phase_system(model_name: str, query: str, db: AsyncSession):
 
         async for chunk in service.generate_streaming_chat_response(
             user_message=query,
-            session_id="test_session",
+            conversation_id="test_session",
             user_id=1
         ):
             results.append(chunk)

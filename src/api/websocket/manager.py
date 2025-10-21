@@ -32,8 +32,8 @@ class ConnectionManager:
         # 연결별 사용자: {connection_id: UserModel}
         self.connection_users: Dict[str, UserModel] = {}
         
-        # 세션별 연결: {session_id: Set[connection_id]}
-        self.session_connections: Dict[str, Set[str]] = {}
+        # 대화별 연결: {conversation_id: Set[connection_id]}
+        self.conversation_connections: Dict[int, Set[str]] = {}
         
         # LLM 서비스 (LangChain 사용)
         self.llm_service: LangChainLLMService = None
@@ -105,10 +105,10 @@ class ConnectionManager:
             return result_str[:500] + "..." if len(result_str) > 500 else result_str
     
     async def connect(
-        self, 
-        websocket: WebSocket, 
+        self,
+        websocket: WebSocket,
         user: UserModel,
-        session_id: Optional[str] = None
+        conversation_id: Optional[int] = None
     ) -> str:
         """
         새 WebSocket 연결 수락 및 등록
@@ -134,11 +134,11 @@ class ConnectionManager:
                 self.user_connections[user.id] = set()
             self.user_connections[user.id].add(connection_id)
             
-            # 세션별 연결 관리 (세션 ID가 있는 경우)
-            if session_id:
-                if session_id not in self.session_connections:
-                    self.session_connections[session_id] = set()
-                self.session_connections[session_id].add(connection_id)
+            # 대화별 연결 관리 (대화 ID가 있는 경우)
+            if conversation_id:
+                if conversation_id not in self.conversation_connections:
+                    self.conversation_connections[conversation_id] = set()
+                self.conversation_connections[conversation_id].add(connection_id)
             
             LOGGER.info(f"🔌 User {user.id} connected with connection {connection_id}")
             
@@ -170,11 +170,11 @@ class ConnectionManager:
             if not self.user_connections[user.id]:
                 del self.user_connections[user.id]
         
-        # 세션별 연결에서 제거
-        for session_id in list(self.session_connections.keys()):
-            self.session_connections[session_id].discard(connection_id)
-            if not self.session_connections[session_id]:
-                del self.session_connections[session_id]
+        # 대화별 연결에서 제거
+        for conversation_id in list(self.conversation_connections.keys()):
+            self.conversation_connections[conversation_id].discard(connection_id)
+            if not self.conversation_connections[conversation_id]:
+                del self.conversation_connections[conversation_id]
         
         LOGGER.info(f"🔌 Connection {connection_id} disconnected")
     
@@ -232,12 +232,12 @@ class ConnectionManager:
             for connection_id in self.user_connections[user_id].copy():
                 await self.send_to_connection(connection_id, message)
     
-    async def send_to_session(self, session_id: str, message: dict):
+    async def send_to_conversation(self, conversation_id: int, message: dict):
         """
-        특정 세션의 모든 연결에 메시지 전송
+        특정 대화의 모든 연결에 메시지 전송
         """
-        if session_id in self.session_connections:
-            for connection_id in self.session_connections[session_id].copy():
+        if conversation_id in self.conversation_connections:
+            for connection_id in self.conversation_connections[conversation_id].copy():
                 await self.send_to_connection(connection_id, message)
     
     async def broadcast(self, message: dict):
@@ -260,12 +260,12 @@ class ConnectionManager:
         try:
             # 검증 단계
             user = await self._validate_user_connection(connection_id)
-            content, session_id = await self._validate_message_data(connection_id, message_data)
-            validated_session_id = await self._validate_or_create_session(db, user.id, session_id, content)
+            content, conversation_id = await self._validate_message_data(connection_id, message_data)
+            validated_conversation_id = await self._validate_or_create_session(db, user.id, conversation_id, content)
 
             # 응답 처리
-            await self._send_message_acknowledgment(connection_id, validated_session_id)
-            await self._process_llm_streaming_response(connection_id, content, validated_session_id, user.id)
+            await self._send_message_acknowledgment(connection_id, validated_conversation_id)
+            await self._process_llm_streaming_response(connection_id, content, validated_conversation_id, user.id)
 
         except Exception as e:
             await self._handle_message_error(connection_id, e)
@@ -283,10 +283,10 @@ class ConnectionManager:
             raise ValueError(f"User not found for connection {connection_id}")
         return user
 
-    async def _validate_message_data(self, connection_id: str, message_data: Dict[str, Any]) -> Tuple[str, Optional[str]]:
-        """메시지 내용과 세션 ID 검증"""
+    async def _validate_message_data(self, connection_id: str, message_data: Dict[str, Any]) -> Tuple[str, Optional[int]]:
+        """메시지 내용과 대화 ID 검증"""
         content = message_data.get("content", "").strip()
-        session_id = message_data.get("session_id")
+        conversation_id = message_data.get("conversation_id")
 
         if not content:
             LOGGER.warning(f"❌ Empty message content from {connection_id}")
@@ -297,30 +297,30 @@ class ConnectionManager:
             })
             raise ValueError("Message content is required")
 
-        return content, session_id
+        return content, conversation_id
 
     async def _validate_or_create_session(
         self,
         db: AsyncSession,
         user_id: int,
-        session_id: Optional[str],
+        conversation_id: Optional[int],
         content: str
-    ) -> str:
+    ) -> int:
         """기존 세션 검증 또는 새 세션 생성"""
-        if session_id:
+        if conversation_id:
             # 기존 세션 검증
             session_valid = await ChatSessionService.validate_session_access(
                 db=db,
-                session_id=session_id,
+                conversation_id=conversation_id,
                 user_id=user_id
             )
 
             if not session_valid:
-                LOGGER.warning(f"❌ Session validation failed for session_id={session_id}")
-                raise ValueError("Invalid session ID or access denied")
+                LOGGER.warning(f"❌ Session validation failed for conversation_id={conversation_id}")
+                raise ValueError("Invalid conversation ID or access denied")
 
-            LOGGER.info(f"✅ Session validation successful: session_id={session_id}")
-            return session_id
+            LOGGER.info(f"✅ Session validation successful: conversation_id={conversation_id}")
+            return conversation_id
         else:
             # 새 세션 생성
             session_response = await get_or_create_session(
@@ -328,16 +328,16 @@ class ConnectionManager:
                 user_id=user_id,
                 content=content
             )
-            LOGGER.info(f"✅ New session created: session_id={session_response.session_id}")
-            return session_response.session_id
+            LOGGER.info(f"✅ New session created: conversation_id={session_response.id}")
+            return session_response.id
 
-    async def _send_message_acknowledgment(self, connection_id: str, session_id: str) -> None:
+    async def _send_message_acknowledgment(self, connection_id: str, conversation_id: int) -> None:
         """메시지 수신 확인 및 타이핑 상태 시작"""
         # 메시지 수신 확인
         await self.send_to_connection(connection_id, {
             "type": "message_received",
             "message_id": str(uuid.uuid4()),
-            "session_id": session_id,
+            "conversation_id": conversation_id,
             "timestamp": kr_time_now().isoformat()
         })
 
@@ -352,7 +352,7 @@ class ConnectionManager:
         self,
         connection_id: str,
         content: str,
-        session_id: str,
+        conversation_id: int,
         user_id: int
     ) -> None:
         """LLM 스트리밍 응답 처리"""
@@ -365,7 +365,7 @@ class ConnectionManager:
 
         async for chunk in self.llm_service.generate_streaming_chat_response(
             user_message=content,
-            session_id=session_id,
+            conversation_id=conversation_id,
             user_id=user_id
         ):
             chunk_count += 1
@@ -373,28 +373,28 @@ class ConnectionManager:
 
             chunk_type = chunk.get("type")
             if chunk_type == "start":
-                await self._handle_start_chunk(connection_id, chunk, assistant_message_id, session_id)
+                await self._handle_start_chunk(connection_id, chunk, assistant_message_id, conversation_id)
             elif chunk_type == "content":
-                assistant_content += await self._handle_content_chunk(connection_id, chunk, assistant_message_id, session_id)
+                assistant_content += await self._handle_content_chunk(connection_id, chunk, assistant_message_id, conversation_id)
             elif chunk_type == "final_result":
-                await self._handle_final_result_chunk(connection_id, chunk, assistant_message_id, session_id)
+                await self._handle_final_result_chunk(connection_id, chunk, assistant_message_id, conversation_id)
             elif chunk_type == "end":
-                await self._handle_end_chunk(connection_id, chunk, assistant_message_id, session_id, len(assistant_content))
+                await self._handle_end_chunk(connection_id, chunk, assistant_message_id, conversation_id, len(assistant_content))
             elif chunk_type == "error":
-                await self._handle_error_chunk(connection_id, chunk, assistant_message_id, session_id)
+                await self._handle_error_chunk(connection_id, chunk, assistant_message_id, conversation_id)
 
     async def _handle_start_chunk(
         self,
         connection_id: str,
         chunk: Dict[str, Any],
         assistant_message_id: str,
-        session_id: str
+        conversation_id: int
     ) -> None:
         """응답 시작 청크 처리"""
         await self.send_to_connection(connection_id, {
             "type": "response_start",
             "message_id": assistant_message_id,
-            "session_id": session_id,
+            "conversation_id": conversation_id,
             "timestamp": chunk["timestamp"]
         })
 
@@ -403,7 +403,7 @@ class ConnectionManager:
         connection_id: str,
         chunk: Dict[str, Any],
         assistant_message_id: str,
-        session_id: str
+        conversation_id: int
     ) -> str:
         """실시간 콘텐츠 청크 처리"""
         content = chunk["content"]
@@ -411,7 +411,7 @@ class ConnectionManager:
             "type": "response_chunk",
             "content": content,
             "message_id": assistant_message_id,
-            "session_id": session_id,
+            "conversation_id": conversation_id,
             "timestamp": chunk["timestamp"]
         }
 
@@ -429,7 +429,7 @@ class ConnectionManager:
         connection_id: str,
         chunk: Dict[str, Any],
         assistant_message_id: str,
-        session_id: str
+        conversation_id: int
     ) -> None:
         """최종 결과 청크 처리 (시각화 데이터 포함)"""
         final_content = chunk.get("content", "")
@@ -437,7 +437,7 @@ class ConnectionManager:
             "type": "final_result",
             "content": final_content,
             "message_id": assistant_message_id,
-            "session_id": session_id,
+            "conversation_id": conversation_id,
             "timestamp": chunk["timestamp"],
             # Frontend에서 사용하는 시각화 데이터
             "visualization_type": chunk.get("visualization_type"),
@@ -457,12 +457,42 @@ class ConnectionManager:
         if "intermediate_steps" in chunk:
             await self._process_tool_results(chunk["intermediate_steps"])
 
+        # 최종 어시스턴트 메시지를 데이터베이스에 저장
+        try:
+            user = self.connection_users.get(connection_id)
+            if user and final_content.strip():  # 빈 내용이 아닌 경우에만 저장
+                from conversation.repositories import add_message_to_session
+                from database.connection.postgres_conn import get_async_db
+
+                async for db in get_async_db():
+                    try:
+                        saved_message = await add_message_to_session(
+                            session=db,
+                            conversation_id=conversation_id,
+                            user_id=user.id,
+                            content=final_content,
+                            role="assistant"
+                        )
+                        if saved_message:
+                            LOGGER.info(f"✅ Final assistant message saved to DB: {assistant_message_id}")
+                        else:
+                            LOGGER.warning(f"❌ Failed to save final assistant message: {assistant_message_id}")
+                        break
+                    except Exception as save_error:
+                        LOGGER.error(f"❌ Error saving final message to DB: {save_error}")
+                        LOGGER.error(format_exc())
+            else:
+                LOGGER.warning(f"⚠️ Skipping message save: user={bool(user)}, content_length={len(final_content.strip())}")
+        except Exception as e:
+            LOGGER.error(f"❌ Error in final message save process: {e}")
+            LOGGER.error(format_exc())
+
     async def _handle_end_chunk(
         self,
         connection_id: str,
         chunk: Dict[str, Any],
         assistant_message_id: str,
-        session_id: str,
+        conversation_id: int,
         total_content_length: int
     ) -> None:
         """응답 종료 청크 처리"""
@@ -477,7 +507,7 @@ class ConnectionManager:
         await self.send_to_connection(connection_id, {
             "type": "response_end",
             "message_id": assistant_message_id,
-            "session_id": session_id,
+            "conversation_id": conversation_id,
             "timestamp": chunk["timestamp"]
         })
 
@@ -486,7 +516,7 @@ class ConnectionManager:
         connection_id: str,
         chunk: Dict[str, Any],
         assistant_message_id: str,
-        session_id: str
+        conversation_id: int
     ) -> None:
         """에러 청크 처리"""
         # 타이핑 상태 종료
@@ -501,7 +531,7 @@ class ConnectionManager:
             "type": "error",
             "error": chunk["error"],
             "message_id": assistant_message_id,
-            "session_id": session_id,
+            "conversation_id": conversation_id,
             "timestamp": chunk["timestamp"]
         })
 
@@ -546,7 +576,7 @@ class ConnectionManager:
         return {
             "total_connections": len(self.active_connections),
             "total_users": len(self.user_connections),
-            "total_sessions": len(self.session_connections),
+            "total_conversations": len(self.conversation_connections),
             "timestamp": kr_time_now().isoformat()
         }
 

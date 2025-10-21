@@ -75,20 +75,20 @@ MMA Savant 챗봇 서비스의 백엔드 API 구현 계획서
   # Query: ?limit=20&offset=0
   # Response: {"sessions": [ChatSessionResponse], "total_sessions": int}
   ```
-- [x] **GET /api/chat/session/{session_id}** - 특정 채팅 세션 조회
-- [x] **DELETE /api/chat/session/{session_id}** - 채팅 세션 삭제
-- [x] **PUT /api/chat/session/{session_id}/title** - 세션 제목 업데이트
-- [x] **GET /api/chat/session/{session_id}/validate** - 세션 접근 권한 확인
+- [x] **GET /api/chat/session/{conversation_id}** - 특정 채팅 세션 조회
+- [x] **DELETE /api/chat/session/{conversation_id}** - 채팅 세션 삭제
+- [x] **PUT /api/chat/session/{conversation_id}/title** - 세션 제목 업데이트
+- [x] **GET /api/chat/session/{conversation_id}/validate** - 세션 접근 권한 확인
 
 #### 2.2 채팅 히스토리 API
 - [x] **GET /api/chat/history** - 채팅 히스토리 조회
   ```python
-  # Query: ?session_id=str&limit=50&offset=0
+  # Query: ?conversation_id=str&limit=50&offset=0
   # Response: ChatHistoryResponse (messages, total_messages, has_more)
   ```
 - [x] **POST /api/chat/message** - 채팅 메시지 저장 (백업용)
   ```python
-  # Body: {"content": str, "role": str, "session_id": str}
+  # Body: {"content": str, "role": str, "conversation_id": str}
   # Response: ChatMessageResponse
   ```
 
@@ -132,7 +132,7 @@ MMA Savant 챗봇 서비스의 백엔드 API 구현 계획서
 #### 4.1 WebSocket 연결 관리
 - [x] **WebSocket 엔드포인트** - `/ws/chat`
   ```python
-  # Query: ?token={jwt_token}&session_id={session_id}
+  # Query: ?token={jwt_token}&conversation_id={conversation_id}
   # JWT 토큰 검증 후 연결 허용
   ```
 - [x] 연결 상태 관리 (연결/해제) - ConnectionManager 클래스
@@ -142,7 +142,7 @@ MMA Savant 챗봇 서비스의 백엔드 API 구현 계획서
 #### 4.2 실시간 메시지 처리
 - [x] **메시지 수신 처리**
   ```python
-  # Client -> Server: {"type": "message", "content": str, "session_id": str}
+  # Client -> Server: {"type": "message", "content": str, "conversation_id": str}
   ```
 - [x] **LLM 스트리밍 응답**
   ```python

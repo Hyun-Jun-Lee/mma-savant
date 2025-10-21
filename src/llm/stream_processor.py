@@ -225,7 +225,7 @@ def create_final_result(
     content: str,
     tool_results: List[Dict[str, Any]],
     message_id: str,
-    session_id: str,
+    conversation_id : int,
     execution_time: float,
     user_id: Optional[int] = None,
     **kwargs
@@ -237,7 +237,7 @@ def create_final_result(
         content: 최종 응답 콘텐츠
         tool_results: 도구 실행 결과들
         message_id: 메시지 ID
-        session_id: 세션 ID
+        conversation_id: 세션 ID
         execution_time: 실행 시간 (초)
         **kwargs: 추가 메타데이터
         
@@ -249,7 +249,7 @@ def create_final_result(
         "content": content,
         "tool_results": tool_results,
         "message_id": message_id,
-        "session_id": session_id,
+        "conversation_id": conversation_id,
         "timestamp": kr_time_now().isoformat(),
         "execution_time": execution_time,
         "metadata": {
@@ -270,7 +270,7 @@ def create_final_result(
 def create_error_response(
     error: Exception,
     message_id: str,
-    session_id: str,
+    conversation_id : int,
     context: Optional[Dict[str, Any]] = None,
     **kwargs
 ) -> Dict[str, Any]:
@@ -280,7 +280,7 @@ def create_error_response(
     Args:
         error: 발생한 에러
         message_id: 메시지 ID
-        session_id: 세션 ID  
+        conversation_id: 세션 ID  
         context: 에러 발생 컨텍스트
         **kwargs: 추가 메타데이터
         
@@ -300,7 +300,7 @@ def create_error_response(
         "type": "error",
         "error": user_friendly_message,
         "message_id": message_id,
-        "session_id": session_id,
+        "conversation_id": conversation_id,
         "timestamp": kr_time_now().isoformat(),
         "metadata": {
             "error_type": type(error).__name__,
@@ -315,7 +315,7 @@ def create_streaming_chunk(
     chunk_type: str,
     content: str,
     message_id: str,
-    session_id: str,
+    conversation_id : int,
     **metadata
 ) -> Dict[str, Any]:
     """
@@ -325,7 +325,7 @@ def create_streaming_chunk(
         chunk_type: 청크 타입 (content, tool_start, tool_end 등)
         content: 청크 콘텐츠
         message_id: 메시지 ID
-        session_id: 세션 ID
+        conversation_id: 세션 ID
         **metadata: 추가 메타데이터
         
     Returns:
@@ -335,7 +335,7 @@ def create_streaming_chunk(
         "type": chunk_type,
         "content": content,
         "message_id": message_id,
-        "session_id": session_id,
+        "conversation_id": conversation_id,
         "timestamp": kr_time_now().isoformat(),
         "metadata": metadata
     }
@@ -351,7 +351,7 @@ def validate_streaming_chunk(chunk: Dict[str, Any]) -> bool:
     Returns:
         bool: 유효한 청크인지 여부
     """
-    required_fields = ["type", "message_id", "session_id", "timestamp"]
+    required_fields = ["type", "message_id", "conversation_id", "timestamp"]
     
     if not isinstance(chunk, dict):
         return False

@@ -85,14 +85,14 @@ async def get_user_from_token(token: str, db: AsyncSession) -> UserModel:
 async def websocket_chat_endpoint(
     websocket: WebSocket,
     token: Optional[str] = None,
-    session_id: Optional[str] = None,
+    conversation_id: Optional[int] = None,
     db: AsyncSession = Depends(get_async_db)
 ):
     """
     채팅을 위한 WebSocket 엔드포인트
-    
+
     연결 방법:
-    ws://localhost:8000/ws/chat?token={jwt_token}&session_id={session_id}
+    ws://localhost:8000/ws/chat?token={jwt_token}&conversation_id={conversation_id}
     """
     connection_id = None
     
@@ -118,7 +118,7 @@ async def websocket_chat_endpoint(
         connection_id = await connection_manager.connect(
             websocket=websocket,
             user=user,
-            session_id=session_id
+            conversation_id=conversation_id
         )
         
         # 잠깐 대기하여 WebSocket 완전히 준비되도록 함
@@ -134,10 +134,10 @@ async def websocket_chat_endpoint(
         try:
             print(f"📩 Sending connection established message to {connection_id}")
             await connection_manager.send_to_connection(connection_id, {
-                "type": "connection_established", 
+                "type": "connection_established",
                 "connection_id": connection_id,
                 "user_id": user.id,
-                "session_id": session_id,
+                "conversation_id": conversation_id,
                 "timestamp": kr_time_now().isoformat(),
                 "message": "연결이 성공적으로 설정되었습니다."
             })

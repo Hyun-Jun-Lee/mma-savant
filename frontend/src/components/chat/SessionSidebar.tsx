@@ -42,7 +42,7 @@ export function SessionSidebar({ isOpen, onClose }: SessionSidebarProps) {
     updateSessionTitle 
   } = useChatSession()
 
-  const [editingSessionId, setEditingSessionId] = useState<string | null>(null)
+  const [editingSessionId, setEditingSessionId] = useState<number | null>(null)
   const [editTitle, setEditTitle] = useState("")
 
   const handleCreateSession = async () => {
@@ -52,14 +52,14 @@ export function SessionSidebar({ isOpen, onClose }: SessionSidebarProps) {
     }
   }
 
-  const handleSelectSession = async (sessionId: string) => {
+  const handleSelectSession = async (sessionId: number) => {
     const success = await switchToSession(sessionId)
     if (success) {
       onClose()
     }
   }
 
-  const handleDeleteSession = async (sessionId: string, e: React.MouseEvent) => {
+  const handleDeleteSession = async (sessionId: number, e: React.MouseEvent) => {
     e.stopPropagation()
     
     if (confirm('이 세션을 삭제하시겠습니까?')) {
@@ -69,11 +69,11 @@ export function SessionSidebar({ isOpen, onClose }: SessionSidebarProps) {
 
   const handleEditTitle = (session: ChatSession, e: React.MouseEvent) => {
     e.stopPropagation()
-    setEditingSessionId(session.session_id)
+    setEditingSessionId(session.id)
     setEditTitle(session.title || `채팅 ${session.id}`)
   }
 
-  const handleSaveTitle = async (sessionId: string, e: React.MouseEvent) => {
+  const handleSaveTitle = async (sessionId: number, e: React.MouseEvent) => {
     e.stopPropagation()
     
     if (editTitle.trim()) {
@@ -154,17 +154,17 @@ export function SessionSidebar({ isOpen, onClose }: SessionSidebarProps) {
               <div className="space-y-2">
                 {sessions.map((session) => (
                   <div
-                    key={session.session_id}
+                    key={session.id}
                     className={`group p-3 rounded-lg cursor-pointer transition-all duration-200 border ${
-                      currentSession?.session_id === session.session_id
+                      currentSession?.id === session.id
                         ? 'bg-white/10 border-white/20 shadow-lg'
                         : 'bg-white/5 border-white/10 hover:bg-white/10 hover:border-white/20'
                     }`}
-                    onClick={() => handleSelectSession(session.session_id)}
+                    onClick={() => handleSelectSession(session.id)}
                   >
                     <div className="flex items-start justify-between">
                       <div className="flex-1 min-w-0">
-                        {editingSessionId === session.session_id ? (
+                        {editingSessionId === session.id ? (
                           <div className="flex items-center gap-1">
                             <input
                               type="text"
@@ -175,7 +175,7 @@ export function SessionSidebar({ isOpen, onClose }: SessionSidebarProps) {
                               autoFocus
                               onKeyDown={(e) => {
                                 if (e.key === 'Enter') {
-                                  handleSaveTitle(session.session_id, e as any)
+                                  handleSaveTitle(session.id, e as any)
                                 } else if (e.key === 'Escape') {
                                   handleCancelEdit(e as any)
                                 }
@@ -185,7 +185,7 @@ export function SessionSidebar({ isOpen, onClose }: SessionSidebarProps) {
                               variant="ghost"
                               size="sm"
                               className="p-1 h-7 w-7 hover:bg-emerald-500/20"
-                              onClick={(e) => handleSaveTitle(session.session_id, e)}
+                              onClick={(e) => handleSaveTitle(session.id, e)}
                             >
                               <Check className="w-3 h-3 text-emerald-400" />
                             </Button>
@@ -216,7 +216,7 @@ export function SessionSidebar({ isOpen, onClose }: SessionSidebarProps) {
                         )}
                       </div>
 
-                      {editingSessionId !== session.session_id && (
+                      {editingSessionId !== session.id && (
                         <div className="flex items-center gap-1 ml-2">
                           <Button
                             variant="ghost"
@@ -231,7 +231,7 @@ export function SessionSidebar({ isOpen, onClose }: SessionSidebarProps) {
                             variant="ghost"
                             size="sm"
                             className="p-1 h-7 w-7 opacity-0 group-hover:opacity-100 transition-opacity text-red-400 hover:text-red-300 hover:bg-red-500/20"
-                            onClick={(e) => handleDeleteSession(session.session_id, e)}
+                            onClick={(e) => handleDeleteSession(session.id, e)}
                             title="Delete session"
                           >
                             <Trash2 className="w-3 h-3" />

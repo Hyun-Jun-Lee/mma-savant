@@ -62,7 +62,7 @@ class ChatSessionService:
     @staticmethod
     async def get_session_by_id(
         db: AsyncSession,
-        session_id: str,
+        conversation_id: int,
         user_id: int
     ) -> Optional[ChatSessionResponse]:
         """
@@ -70,14 +70,14 @@ class ChatSessionService:
         """
         return await conv_repo.get_chat_session_by_id(
             session=db,
-            session_id=session_id,
+            conversation_id=conversation_id,
             user_id=user_id
         )
     
     @staticmethod
     async def delete_session(
         db: AsyncSession,
-        session_id: str,
+        conversation_id: int,
         user_id: int
     ) -> bool:
         """
@@ -85,14 +85,14 @@ class ChatSessionService:
         """
         return await conv_repo.delete_chat_session(
             session=db,
-            session_id=session_id,
+            conversation_id=conversation_id,
             user_id=user_id
         )
     
     @staticmethod
     async def update_session_title(
         db: AsyncSession,
-        session_id: str,
+        conversation_id: int,
         user_id: int,
         new_title: str
     ) -> Optional[ChatSessionResponse]:
@@ -101,7 +101,7 @@ class ChatSessionService:
         """
         return await conv_repo.update_chat_session_title(
             session=db,
-            session_id=session_id,
+            conversation_id=conversation_id,
             user_id=user_id,
             new_title=new_title
         )
@@ -109,7 +109,7 @@ class ChatSessionService:
     @staticmethod
     async def get_session_history(
         db: AsyncSession,
-        session_id: str,
+        conversation_id: int,
         user_id: int,
         limit: int = 50,
         offset: int = 0
@@ -119,7 +119,7 @@ class ChatSessionService:
         """
         return await conv_repo.get_chat_history(
             session=db,
-            session_id=session_id,
+            conversation_id=conversation_id,
             user_id=user_id,
             limit=limit,
             offset=offset
@@ -128,7 +128,7 @@ class ChatSessionService:
     @staticmethod
     async def add_message(
         db: AsyncSession,
-        session_id: str,
+        conversation_id: int,
         user_id: int,
         message_data: ChatMessageCreate
     ) -> Optional[ChatMessageResponse]:
@@ -137,7 +137,7 @@ class ChatSessionService:
         """
         return await conv_repo.add_message_to_session(
             session=db,
-            session_id=session_id,
+            conversation_id=conversation_id,
             user_id=user_id,
             content=message_data.content,
             role=message_data.role,
@@ -147,7 +147,7 @@ class ChatSessionService:
     @staticmethod
     async def validate_session_access(
         db: AsyncSession,
-        session_id: str,
+        conversation_id: int,
         user_id: int
     ) -> bool:
         """
@@ -155,7 +155,7 @@ class ChatSessionService:
         """
         session_data = await conv_repo.get_chat_session_by_id(
             session=db,
-            session_id=session_id,
+            conversation_id=conversation_id,
             user_id=user_id
         )
         return session_data is not None
@@ -163,23 +163,23 @@ class ChatSessionService:
 async def get_or_create_session(
     db: AsyncSession,
     user_id: int,
-    session_id: Optional[str] = None,
+    conversation_id: Optional[int] = None,
     content: Optional[str] = None
 ) -> ChatSessionResponse:
     """
     세션 ID가 있으면 조회, 없으면 새로 생성
     """
-    if session_id:
+    if conversation_id:
         # 기존 세션 조회
         existing_session = await ChatSessionService.get_session_by_id(
             db=db,
-            session_id=session_id,
+            conversation_id=conversation_id,
             user_id=user_id
         )
-        
+
         if existing_session:
             return existing_session
-    
+
     # 새 세션 생성
     session_create = ChatSessionCreate(title=content)
     return await ChatSessionService.create_new_session(
@@ -191,7 +191,7 @@ async def get_or_create_session(
 
 async def add_assistant_response(
     db: AsyncSession,
-    session_id: str,
+    conversation_id: int,
     user_id: int,
     response_content: str,
     tool_results: Optional[List[dict]] = None
@@ -202,13 +202,13 @@ async def add_assistant_response(
     message_create = ChatMessageCreate(
         content=response_content,
         role="assistant",
-        session_id=session_id,
+        conversation_id=conversation_id,
         tool_results=tool_results
     )
-    
+
     return await ChatSessionService.add_message(
         db=db,
-        session_id=session_id,
+        conversation_id=conversation_id,
         user_id=user_id,
         message_data=message_create
     )

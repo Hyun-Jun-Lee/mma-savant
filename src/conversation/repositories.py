@@ -14,32 +14,28 @@ from common.utils import kr_time_now
 # 채팅 세션 관리 함수들
 
 async def create_chat_session(
-    session: AsyncSession, 
-    user_id: int, 
+    session: AsyncSession,
+    user_id: int,
     title: Optional[str] = None
 ) -> ChatSessionResponse:
     """
     새 채팅 세션 생성.
     """
-    # 고유한 session_id 생성
-    session_id = str(uuid.uuid4())
-    
     # 제목이 없으면 기본 제목 생성
     if not title:
         title = f"채팅 {kr_time_now().strftime('%Y-%m-%d %H:%M')}"
-    
+
     # 새로운 대화 세션 생성 (메시지는 별도 테이블에 저장)
     db_conversation = ConversationModel(
         user_id=user_id,
-        session_id=session_id,
         title=title
     )
-    
+
     session.add(db_conversation)
     await session.flush()
     session_response = db_conversation.to_session_response()
     await session.commit()
-    
+
     return session_response
 
 
@@ -58,7 +54,7 @@ async def get_user_chat_sessions(
             ConversationModel,
             func.max(MessageModel.created_at).label('last_message_at')
         )
-        .outerjoin(MessageModel, ConversationModel.session_id == MessageModel.session_id)
+        .outerjoin(MessageModel, ConversationModel.id == MessageModel.conversation_id)
         .where(ConversationModel.user_id == user_id)
         .group_by(ConversationModel.id)
         .order_by(desc(ConversationModel.updated_at))
@@ -75,8 +71,8 @@ async def get_user_chat_sessions(
 
 
 async def get_chat_session_by_id(
-    session: AsyncSession, 
-    session_id: str, 
+    session: AsyncSession,
+    conversation_id: int,
     user_id: int
 ) -> Optional[ChatSessionResponse]:
     """
@@ -85,18 +81,18 @@ async def get_chat_session_by_id(
     result = await session.execute(
         select(ConversationModel)
         .where(
-            ConversationModel.session_id == session_id,
+            ConversationModel.id == conversation_id,
             ConversationModel.user_id == user_id
         )
     )
-    
+
     conversation = result.scalar_one_or_none()
     return conversation.to_session_response() if conversation else None
 
 
 async def delete_chat_session(
     session: AsyncSession,
-    session_id: str,
+    conversation_id: int,
     user_id: int
 ) -> bool:
     """
@@ -105,15 +101,15 @@ async def delete_chat_session(
     result = await session.execute(
         select(ConversationModel)
         .where(
-            ConversationModel.session_id == session_id,
+            ConversationModel.id == conversation_id,
             ConversationModel.user_id == user_id
         )
     )
-    
+
     conversation = result.scalar_one_or_none()
     if not conversation:
         return False
-    
+
     await session.delete(conversation)
     await session.flush()
     await session.commit()
@@ -122,7 +118,7 @@ async def delete_chat_session(
 
 async def update_chat_session_title(
     session: AsyncSession,
-    session_id: str,
+    conversation_id: int,
     user_id: int,
     new_title: str
 ) -> Optional[ChatSessionResponse]:
@@ -132,7 +128,7 @@ async def update_chat_session_title(
     await session.execute(
         update(ConversationModel)
         .where(
-            ConversationModel.session_id == session_id,
+            ConversationModel.id == conversation_id,
             ConversationModel.user_id == user_id
         )
         .values(
@@ -140,17 +136,17 @@ async def update_chat_session_title(
             updated_at=kr_time_now()
         )
     )
-    
+
     await session.flush()
     await session.commit()
-    
+
     # 업데이트된 세션 조회
-    return await get_chat_session_by_id(session, session_id, user_id)
+    return await get_chat_session_by_id(session, conversation_id, user_id)
 
 
 async def get_chat_history(
     session: AsyncSession,
-    session_id: str,
+    conversation_id: int,
     user_id: int,
     limit: int = 50,
     offset: int = 0
@@ -162,38 +158,38 @@ async def get_chat_history(
     conv_result = await session.execute(
         select(ConversationModel)
         .where(
-            ConversationModel.session_id == session_id,
+            ConversationModel.id == conversation_id,
             ConversationModel.user_id == user_id
         )
     )
-    
+
     conversation = conv_result.scalar_one_or_none()
     if not conversation:
         return None
-    
+
     # 전체 메시지 수 조회
     total_count_result = await session.execute(
         select(func.count(MessageModel.id))
-        .where(MessageModel.session_id == session_id)
+        .where(MessageModel.conversation_id == conversation_id)
     )
     total_messages = total_count_result.scalar() or 0
-    
+
     # 메시지 목록 조회 (페이지네이션 적용)
     messages_result = await session.execute(
         select(MessageModel)
-        .where(MessageModel.session_id == session_id)
+        .where(MessageModel.conversation_id == conversation_id)
         .order_by(MessageModel.created_at)
         .offset(offset)
         .limit(limit)
     )
-    
+
     messages = messages_result.scalars().all()
     message_responses = [msg.to_response() for msg in messages]
-    
+
     has_more = offset + limit < total_messages
-    
+
     return ChatHistoryResponse(
-        session_id=session_id,
+        conversation_id=conversation_id,
         messages=message_responses,
         total_messages=total_messages,
         has_more=has_more
@@ -202,7 +198,7 @@ async def get_chat_history(
 
 async def add_message_to_session(
     session: AsyncSession,
-    session_id: str,
+    conversation_id: int,
     user_id: int,
     content: str,
     role: str,
@@ -215,20 +211,20 @@ async def add_message_to_session(
     result = await session.execute(
         select(ConversationModel)
         .where(
-            ConversationModel.session_id == session_id,
+            ConversationModel.id == conversation_id,
             ConversationModel.user_id == user_id
         )
     )
-    
+
     conversation = result.scalar_one_or_none()
     if not conversation:
         return None
-    
+
     # 새 메시지 생성
     message_id = str(uuid.uuid4())
     new_message = MessageModel(
         message_id=message_id,
-        session_id=session_id,
+        conversation_id=conversation_id,
         content=content,
         role=role,
         tool_results=tool_results

@@ -34,16 +34,16 @@ export class ChatApiService {
   /**
    * 특정 채팅 세션 조회
    */
-  static async getSession(sessionId: string): Promise<ChatSessionResponse> {
-    const response = await api.get<ChatSessionResponse>(`/api/chat/session/${sessionId}`)
+  static async getSession(conversationId: number): Promise<ChatSessionResponse> {
+    const response = await api.get<ChatSessionResponse>(`/api/chat/session/${conversationId}`)
     return response.data!
   }
 
   /**
    * 채팅 세션 삭제
    */
-  static async deleteSession(sessionId: string): Promise<{ success: boolean; message: string }> {
-    const response = await api.delete(`/api/chat/session/${sessionId}`)
+  static async deleteSession(conversationId: number): Promise<{ success: boolean; message: string }> {
+    const response = await api.delete(`/api/chat/session/${conversationId}`)
     return response.data!
   }
 
@@ -51,11 +51,11 @@ export class ChatApiService {
    * 채팅 세션 제목 업데이트
    */
   static async updateSessionTitle(
-    sessionId: string,
+    conversationId: number,
     title: string
   ): Promise<ChatSessionResponse> {
     const response = await api.put<ChatSessionResponse>(
-      `/api/chat/session/${sessionId}/title`,
+      `/api/chat/session/${conversationId}/title`,
       { title }
     )
     return response.data!
@@ -65,12 +65,12 @@ export class ChatApiService {
    * 채팅 히스토리 조회
    */
   static async getChatHistory(
-    sessionId: string,
+    conversationId: number,
     limit = 50,
     offset = 0
   ): Promise<ChatHistoryResponse> {
     const response = await api.get<ChatHistoryResponse>(
-      `/api/chat/history?session_id=${sessionId}&limit=${limit}&offset=${offset}`
+      `/api/chat/history?conversation_id=${conversationId}&limit=${limit}&offset=${offset}`
     )
     return response.data!
   }
@@ -86,9 +86,9 @@ export class ChatApiService {
   /**
    * 세션 접근 권한 확인
    */
-  static async validateSessionAccess(sessionId: string): Promise<SessionValidationResponse> {
+  static async validateSessionAccess(conversationId: number): Promise<SessionValidationResponse> {
     const response = await api.get<SessionValidationResponse>(
-      `/api/chat/session/${sessionId}/validate`
+      `/api/chat/session/${conversationId}/validate`
     )
     return response.data!
   }

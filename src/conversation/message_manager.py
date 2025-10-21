@@ -14,8 +14,8 @@ LOGGER = get_logger(__name__)
 class ChatHistory(BaseChatMessageHistory):
     """채팅 히스토리"""
     
-    def __init__(self, session_id: str, user_id: int, async_db_session_factory, max_cache_size: int = 100):
-        self.session_id = session_id
+    def __init__(self, conversation_id : int, user_id: int, async_db_session_factory, max_cache_size: int = 100):
+        self.conversation_id = conversation_id
         self.user_id = user_id
         self.async_db_session_factory = async_db_session_factory
         self.max_cache_size = max_cache_size  # 메모리 캐시 최대 메시지 개수
@@ -49,7 +49,7 @@ class ChatHistory(BaseChatMessageHistory):
                         # Repository 함수 사용 (권한 확인 포함)
                         saved_message = await add_message_to_session(
                             session=session,
-                            session_id=self.session_id,
+                            conversation_id=self.conversation_id,
                             user_id=self.user_id,
                             content=message_data["content"],
                             role=message_data["role"],
@@ -169,7 +169,7 @@ class ChatHistory(BaseChatMessageHistory):
                 # Repository 함수 사용 (권한 확인 포함)
                 history = await get_chat_history(
                     session=session,
-                    session_id=self.session_id,
+                    conversation_id=self.conversation_id,
                     user_id=self.user_id,
                     limit=self.max_cache_size  # 캐시 크기만큼만 로드
                 )
@@ -229,11 +229,11 @@ class ChatHistoryManager:
         self.max_cache_size = max_cache_size
         self._active_histories: Dict[str, ChatHistory] = {}
     
-    async def get_session_history(self, session_id: str, user_id: int) -> ChatHistory:
+    async def get_session_history(self, conversation_id : int, user_id: int) -> ChatHistory:
         """세션별 하이브리드 히스토리 반환"""
-        if session_id not in self._active_histories:
+        if conversation_id not in self._active_histories:
             history = ChatHistory(
-                session_id=session_id,
+                conversation_id=conversation_id,
                 user_id=user_id,
                 async_db_session_factory=self.async_db_session_factory,
                 max_cache_size=self.max_cache_size
@@ -242,15 +242,15 @@ class ChatHistoryManager:
             # 초기 로드
             await history._ensure_loaded()
             
-            self._active_histories[session_id] = history
+            self._active_histories[conversation_id] = history
         
-        return self._active_histories[session_id]
+        return self._active_histories[conversation_id]
     
-    async def cleanup_session(self, session_id: str):
+    async def cleanup_session(self, conversation_id : int):
         """특정 세션 정리"""
-        if session_id in self._active_histories:
-            await self._active_histories[session_id].close()
-            del self._active_histories[session_id]
+        if conversation_id in self._active_histories:
+            await self._active_histories[conversation_id].close()
+            del self._active_histories[conversation_id]
     
     async def cleanup_all(self):
         """모든 세션 정리"""

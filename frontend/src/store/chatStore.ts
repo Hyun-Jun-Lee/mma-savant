@@ -93,15 +93,15 @@ export const useChatStore = create<ChatStore>((set, get) => ({
   },
   
   removeSession: (sessionId) => set((state) => ({
-    sessions: state.sessions.filter(s => s.session_id !== sessionId),
-    currentSession: state.currentSession?.session_id === sessionId ? null : state.currentSession
+    sessions: state.sessions.filter(s => s.id !== sessionId),
+    currentSession: state.currentSession?.id === sessionId ? null : state.currentSession
   })),
   
   updateSession: (sessionId, updates) => set((state) => ({
     sessions: state.sessions.map(session =>
-      session.session_id === sessionId ? { ...session, ...updates } : session
+      session.id === sessionId ? { ...session, ...updates } : session
     ),
-    currentSession: state.currentSession?.session_id === sessionId
+    currentSession: state.currentSession?.id === sessionId
       ? { ...state.currentSession, ...updates }
       : state.currentSession
   })),

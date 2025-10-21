@@ -9,7 +9,6 @@ export interface ChatSessionCreate {
 export interface ChatSessionResponse {
   id: number
   user_id: number
-  session_id: string
   title?: string
   message_count: number
   last_message_at?: string
@@ -25,7 +24,7 @@ export interface ChatSessionListResponse {
 export interface ChatMessageCreate {
   content: string
   role: 'user' | 'assistant'
-  session_id: string
+  conversation_id: number
 }
 
 export interface ChatMessageResponse {
@@ -33,11 +32,11 @@ export interface ChatMessageResponse {
   content: string
   role: 'user' | 'assistant'
   timestamp: string
-  session_id: string
+  conversation_id: number
 }
 
 export interface ChatHistoryResponse {
-  session_id: string
+  conversation_id: number
   messages: ChatMessageResponse[]
   total_messages: number
   has_more: boolean
@@ -79,7 +78,7 @@ export interface AuthCheckResponse {
 }
 
 export interface SessionValidationResponse {
-  session_id: string
+  conversation_id: number
   has_access: boolean
   user_id: number
 }

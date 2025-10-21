@@ -75,9 +75,9 @@ async def get_user_chat_sessions(
         )
 
 
-@router.get("/session/{session_id}", response_model=ChatSessionResponse)
+@router.get("/session/{conversation_id}", response_model=ChatSessionResponse)
 async def get_chat_session(
-    session_id: str,
+    conversation_id: int,
     current_user: UserModel = Depends(get_current_user),
     db: AsyncSession = Depends(get_async_db)
 ):
@@ -87,7 +87,7 @@ async def get_chat_session(
     try:
         session_response = await ChatSessionService.get_session_by_id(
             db=db,
-            session_id=session_id,
+            conversation_id=conversation_id,
             user_id=current_user.id
         )
         
@@ -110,9 +110,9 @@ async def get_chat_session(
         )
 
 
-@router.delete("/session/{session_id}")
+@router.delete("/session/{conversation_id}")
 async def delete_chat_session(
-    session_id: str,
+    conversation_id: int,
     current_user: UserModel = Depends(get_current_user),
     db: AsyncSession = Depends(get_async_db)
 ):
@@ -122,7 +122,7 @@ async def delete_chat_session(
     try:
         deleted = await ChatSessionService.delete_session(
             db=db,
-            session_id=session_id,
+            conversation_id=conversation_id,
             user_id=current_user.id
         )
         
@@ -145,9 +145,9 @@ async def delete_chat_session(
         )
 
 
-@router.put("/session/{session_id}/title", response_model=ChatSessionResponse)
+@router.put("/session/{conversation_id}/title", response_model=ChatSessionResponse)
 async def update_session_title(
-    session_id: str,
+    conversation_id: int,
     title : str,
     current_user: UserModel = Depends(get_current_user),
     db: AsyncSession = Depends(get_async_db)
@@ -161,10 +161,10 @@ async def update_session_title(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Title is required"
             )
-        
+
         updated_session = await ChatSessionService.update_session_title(
             db=db,
-            session_id=session_id,
+            conversation_id=conversation_id,
             user_id=current_user.id,
             new_title=title
         )
@@ -190,7 +190,7 @@ async def update_session_title(
 
 @router.get("/history", response_model=ChatHistoryResponse)
 async def get_chat_history(
-    session_id: str = Query(..., description="Session ID"),
+    conversation_id: int = Query(..., description="Conversation ID"),
     limit: int = Query(50, ge=1, le=200),
     offset: int = Query(0, ge=0),
     current_user: UserModel = Depends(get_current_user),
@@ -202,7 +202,7 @@ async def get_chat_history(
     try:
         history_response = await ChatSessionService.get_session_history(
             db=db,
-            session_id=session_id,
+            conversation_id=conversation_id,
             user_id=current_user.id,
             limit=limit,
             offset=offset
@@ -241,19 +241,19 @@ async def save_chat_message(
         # 세션 접근 권한 확인
         has_access = await ChatSessionService.validate_session_access(
             db=db,
-            session_id=message_data.session_id,
+            conversation_id=message_data.conversation_id,
             user_id=current_user.id
         )
-        
+
         if not has_access:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="Access denied to this chat session"
             )
-        
+
         message_response = await ChatSessionService.add_message(
             db=db,
-            session_id=message_data.session_id,
+            conversation_id=message_data.conversation_id,
             user_id=current_user.id,
             message_data=message_data
         )
@@ -277,9 +277,9 @@ async def save_chat_message(
         )
 
 
-@router.get("/session/{session_id}/validate")
+@router.get("/session/{conversation_id}/validate")
 async def validate_session_access(
-    session_id: str,
+    conversation_id: int,
     current_user: UserModel = Depends(get_current_user),
     db: AsyncSession = Depends(get_async_db)
 ):
@@ -289,12 +289,12 @@ async def validate_session_access(
     try:
         has_access = await ChatSessionService.validate_session_access(
             db=db,
-            session_id=session_id,
+            conversation_id=conversation_id,
             user_id=current_user.id
         )
-        
+
         return {
-            "session_id": session_id,
+            "conversation_id": conversation_id,
             "has_access": has_access,
             "user_id": current_user.id
         }

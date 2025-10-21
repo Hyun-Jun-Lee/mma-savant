@@ -47,7 +47,7 @@ database Schema {
     table conversations {
         id: INTEGER PRIMARY KEY
         user_id: INTEGER FOREIGN KEY -> users(id)
-        session_id: TEXT UNIQUE
+        conversation_id: TEXT UNIQUE
         title: TEXT
         messages: JSON  // 전체 대화 메시지 배열
         created_at: DATETIME
@@ -596,7 +596,7 @@ module Conversation {
     
     // WebSocket Router
     router WebSocketRouter {
-        WS     /ws/chat                      -> handleChatWebSocket  // with query params: ?token=jwt&session_id=uuid
+        WS     /ws/chat                      -> handleChatWebSocket  // with query params: ?token=jwt&conversation_id=uuid
         GET    /ws/stats                     -> getWebSocketStats
         GET    /ws/health                    -> webSocketHealthCheck
     }

@@ -10,10 +10,10 @@ from common.utils import kr_time_now
 class OpenRouterCallbackHandler(AsyncCallbackHandler):
     """OpenRouter 스트리밍 콜백 핸들러"""
     
-    def __init__(self, message_id: str, session_id: str, model_name: str = "unknown"):
+    def __init__(self, message_id: str, conversation_id : int, model_name: str = "unknown"):
         self.tokens = []
         self.message_id = message_id
-        self.session_id = session_id
+        self.conversation_id = conversation_id
         self.model_name = model_name
         self.current_content = ""
         self.stream_queue = asyncio.Queue()
@@ -32,7 +32,7 @@ class OpenRouterCallbackHandler(AsyncCallbackHandler):
                     "type": "content",
                     "content": token,
                     "message_id": self.message_id,
-                    "session_id": self.session_id,
+                    "conversation_id": self.conversation_id,
                     "model": self.model_name,
                     "timestamp": kr_time_now().isoformat()
                 })
@@ -49,7 +49,7 @@ class OpenRouterCallbackHandler(AsyncCallbackHandler):
         await self.stream_queue.put({
             "type": "start",
             "message_id": self.message_id,
-            "session_id": self.session_id,
+            "conversation_id": self.conversation_id,
             "model": self.model_name,
             "provider": "openrouter",
             "timestamp": kr_time_now().isoformat()
@@ -67,7 +67,7 @@ class OpenRouterCallbackHandler(AsyncCallbackHandler):
         await self.stream_queue.put({
             "type": "end",
             "message_id": self.message_id,
-            "session_id": self.session_id,
+            "conversation_id": self.conversation_id,
             "model": self.model_name,
             "final_content": self.current_content,
             "usage": usage_info,
@@ -92,7 +92,7 @@ class OpenRouterCallbackHandler(AsyncCallbackHandler):
             "tool_name": tool_name,
             "tool_input": input_str,
             "message_id": self.message_id,
-            "session_id": self.session_id,
+            "conversation_id": self.conversation_id,
             "timestamp": kr_time_now().isoformat()
         })
     
@@ -113,7 +113,7 @@ class OpenRouterCallbackHandler(AsyncCallbackHandler):
             "type": "tool_end",
             "tool_result": output,
             "message_id": self.message_id,
-            "session_id": self.session_id,
+            "conversation_id": self.conversation_id,
             "timestamp": kr_time_now().isoformat()
         })
     
@@ -136,15 +136,15 @@ class OpenRouterCallbackHandler(AsyncCallbackHandler):
             "error": user_friendly_error,
             "raw_error": error_message,
             "message_id": self.message_id,
-            "session_id": self.session_id,
+            "conversation_id": self.conversation_id,
             "model": self.model_name,
             "timestamp": kr_time_now().isoformat()
         })
 
-def get_openrouter_callback_handler(message_id: str, session_id: str, model_name: str = "unknown"):
+def get_openrouter_callback_handler(message_id: str, conversation_id : int, model_name: str = "unknown"):
     """OpenRouter 콜백 핸들러 생성"""
     return OpenRouterCallbackHandler(
         message_id=message_id, 
-        session_id=session_id,
+        conversation_id=conversation_id,
         model_name=model_name
     )

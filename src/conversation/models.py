@@ -14,7 +14,6 @@ from common.base_model import BaseModel, BaseSchema
 
 class ConversationSchema(BaseSchema):
     user_id : int
-    session_id : str
     messages : List[Dict]
     tool_results : Optional[List[Dict]] = None
 
@@ -33,7 +32,6 @@ class ChatSessionCreate(BaseSchema):
 class ChatSessionResponse(BaseSchema):
     """채팅 세션 응답"""
     user_id: int
-    session_id: str
     title: Optional[str] = None
     last_message_at: Optional[datetime] = None
 
@@ -44,7 +42,7 @@ class ChatMessageCreate(BaseSchema):
     """새 메시지 생성 요청"""
     content: str
     role: str  # "user" or "assistant"
-    session_id: str
+    conversation_id: int
     tool_results: Optional[List[Dict]] = None
 
     model_config = ConfigDict(from_attributes=True)
@@ -53,7 +51,7 @@ class ChatMessageCreate(BaseSchema):
 class MessageSchema(BaseSchema):
     """메시지 스키마"""
     message_id: str
-    session_id: str
+    conversation_id: int
     content: str
     role: str
     tool_results: Optional[List[Dict]] = None
@@ -67,7 +65,7 @@ class ChatMessageResponse(BaseSchema):
     content: str
     role: str
     timestamp: datetime
-    session_id: str
+    conversation_id: int
     tool_results: Optional[List[Dict]] = None
 
     model_config = ConfigDict(from_attributes=True)
@@ -75,7 +73,7 @@ class ChatMessageResponse(BaseSchema):
 
 class ChatHistoryResponse(BaseSchema):
     """채팅 히스토리 응답"""
-    session_id: str
+    conversation_id: int
     messages: List[ChatMessageResponse]
     total_messages: int
     has_more: bool
@@ -98,15 +96,15 @@ class ChatSessionListResponse(BaseSchema):
 class MessageModel(BaseModel):
     """개별 메시지 모델"""
     __tablename__ = "message"
-    
+
     message_id = Column(String, nullable=False, unique=True, index=True)  # UUID
-    session_id = Column(String, ForeignKey("conversation.session_id"), nullable=False, index=True)
+    conversation_id = Column(Integer, ForeignKey("conversation.id"), nullable=False, index=True)
     content = Column(Text, nullable=False)
     role = Column(String, nullable=False)  # "user" or "assistant"
     tool_results = Column(JSONB, nullable=True)  # tool 결과 저장
-    
+
     # 관계 설정
-    session = relationship("ConversationModel", back_populates="message_records")
+    conversation = relationship("ConversationModel", back_populates="message_records")
     
     def to_response(self) -> ChatMessageResponse:
         """ChatMessageResponse로 변환"""
@@ -115,28 +113,26 @@ class MessageModel(BaseModel):
             content=self.content,
             role=self.role,
             timestamp=self.created_at,
-            session_id=self.session_id,
+            conversation_id=self.conversation_id,
             tool_results=self.tool_results
         )
 
 
 class ConversationModel(BaseModel):
     __tablename__ = "conversation"
-    
+
     user_id = Column(Integer, ForeignKey("user.id"), nullable=False)
-    session_id = Column(String, nullable=False, unique=True, index=True)
     title = Column(Text, nullable=True)  # 채팅 세션 제목
 
     # 관계 설정
     user = relationship("UserModel", back_populates="conversations")
-    message_records = relationship("MessageModel", back_populates="session", cascade="all, delete-orphan", order_by="MessageModel.created_at")
+    message_records = relationship("MessageModel", back_populates="conversation", cascade="all, delete-orphan", order_by="MessageModel.created_at")
     
 
     @classmethod
     def from_schema(cls, conversation: ConversationSchema):
         return cls(
             user_id=conversation.user_id,
-            session_id=conversation.session_id,
             title=getattr(conversation, 'title', None)
         )
     
@@ -145,7 +141,6 @@ class ConversationModel(BaseModel):
         return ChatSessionResponse(
             id=self.id,
             user_id=self.user_id,
-            session_id=self.session_id,
             title=self.title,
             last_message_at=last_message_at or self.updated_at,
             created_at=self.created_at,

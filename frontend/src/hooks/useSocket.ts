@@ -51,7 +51,7 @@ export function useSocket() {
     socket.on('response_chunk', (data: {
       content: string;
       message_id: string;
-      session_id: string;
+      conversation_id: number;
       timestamp: string;
       type: string;
     }) => {
@@ -154,7 +154,7 @@ export function useSocket() {
     socket.on('final_result', (data: {
       content?: string;
       message_id: string;
-      session_id: string;
+      conversation_id: number;
       timestamp: string;
       visualization_type?: string;
       visualization_data?: any;
@@ -225,7 +225,7 @@ export function useSocket() {
     })
 
     // 스트리밍 완료 처리 (백엔드는 response_end 이벤트 사용)
-    socket.on('response_end', (data: { message_id: string; session_id: string; timestamp: string; type: string }) => {
+    socket.on('response_end', (data: { message_id: string; conversation_id: number; timestamp: string; type: string }) => {
       console.log('✅ Response complete:', data.message_id)
       // 스트리밍 메시지를 완료 상태로 변경
       if (currentStreamingMessage.current && currentStreamingMessage.current.id === data.message_id) {
@@ -274,22 +274,21 @@ export function useSocket() {
     })
 
     // 메시지 수신 확인 처리 (새 세션 생성 시 세션 정보 업데이트)
-    socket.on('message_received', (data: { 
+    socket.on('message_received', (data: {
       type: string;
       message_id: string;
-      session_id: string;
+      conversation_id: number;
       timestamp: string;
     }) => {
       console.log('📩 Message received confirmation:', data)
       
       // 현재 세션이 없거나 다른 세션이면 업데이트
-      if (!currentSession || currentSession.session_id !== data.session_id) {
-        console.log('🔄 Updating current session from WebSocket:', data.session_id)
-        
+      if (!currentSession || currentSession.id !== data.conversation_id) {
+        console.log('🔄 Updating current session from WebSocket:', data.conversation_id)
+
         // 새 세션 정보 생성 (기본 정보만)
         const newSession = {
-          id: Date.now(), // 임시 ID
-          session_id: data.session_id,
+          id: data.conversation_id,
           user_id: 0, // 임시 user_id
           title: `채팅 ${new Date().toLocaleString()}`,
           created_at: new Date(),
@@ -358,9 +357,9 @@ export function useSocket() {
       console.log('✅ Connection established, sending message')
     }
     
-    // 현재 세션 ID로 메시지 전송 (동적으로 세션 ID 설정)
-    console.log('📤 Sending message with session:', currentSession?.session_id)
-    socketRef.current.sendMessage(message, currentSession?.session_id)
+    // 현재 conversation ID로 메시지 전송 (동적으로 conversation ID 설정)
+    console.log('📤 Sending message with conversation:', currentSession?.id)
+    socketRef.current.sendMessage(message, currentSession?.id)
   }
 
   return {

@@ -35,7 +35,6 @@ export function useChatSession() {
   const convertApiResponseToSession = useCallback((response: ChatSessionResponse): ChatSession => ({
     id: response.id,
     user_id: response.user_id,
-    session_id: response.session_id,
     title: response.title,
     last_message_at: response.last_message_at ? new Date(response.last_message_at) : undefined,
     created_at: new Date(response.created_at),
@@ -82,14 +81,14 @@ export function useChatSession() {
   /**
    * 특정 세션으로 전환
    */
-  const switchToSession = useCallback(async (sessionId: string): Promise<boolean> => {
+  const switchToSession = useCallback(async (conversationId: number): Promise<boolean> => {
     try {
-      const response = await ChatApiService.getSession(sessionId)
+      const response = await ChatApiService.getSession(conversationId)
       const session = convertApiResponseToSession(response)
       setCurrentSession(session)
-      
+
       // 채팅 히스토리 로드
-      await loadChatHistory(sessionId)
+      await loadChatHistory(conversationId)
       return true
     } catch (error) {
       console.error('Failed to switch session:', error)
@@ -102,10 +101,10 @@ export function useChatSession() {
   /**
    * 채팅 히스토리 불러오기
    */
-  const loadChatHistory = useCallback(async (sessionId: string, limit = 50, offset = 0) => {
+  const loadChatHistory = useCallback(async (conversationId: number, limit = 50, offset = 0) => {
     setHistoryLoading(true)
     try {
-      const response = await ChatApiService.getChatHistory(sessionId, limit, offset)
+      const response = await ChatApiService.getChatHistory(conversationId, limit, offset)
       const messages: Message[] = response.messages.map(msg => ({
         id: msg.id,
         content: msg.content,
@@ -125,13 +124,13 @@ export function useChatSession() {
   /**
    * 세션 삭제
    */
-  const deleteSession = useCallback(async (sessionId: string): Promise<boolean> => {
+  const deleteSession = useCallback(async (conversationId: number): Promise<boolean> => {
     try {
-      await ChatApiService.deleteSession(sessionId)
-      removeSession(sessionId)
-      
+      await ChatApiService.deleteSession(conversationId)
+      removeSession(conversationId)
+
       // 현재 세션이 삭제된 경우 세션 클리어 (자동 생성하지 않음)
-      if (currentSession?.session_id === sessionId) {
+      if (currentSession?.id === conversationId) {
         setCurrentSession(null)
         clearChat()
       }
@@ -147,12 +146,12 @@ export function useChatSession() {
   /**
    * 세션 제목 업데이트
    */
-  const updateSessionTitle = useCallback(async (sessionId: string, title: string): Promise<boolean> => {
+  const updateSessionTitle = useCallback(async (conversationId: number, title: string): Promise<boolean> => {
     try {
-      const response = await ChatApiService.updateSessionTitle(sessionId, title)
+      const response = await ChatApiService.updateSessionTitle(conversationId, title)
       const updatedSession = convertApiResponseToSession(response)
-      
-      updateSession(sessionId, { title: updatedSession.title })
+
+      updateSession(conversationId, { title: updatedSession.title })
       return true
     } catch (error) {
       console.error('Failed to update session title:', error)
@@ -165,9 +164,9 @@ export function useChatSession() {
   /**
    * 세션 접근 권한 확인
    */
-  const validateSessionAccess = useCallback(async (sessionId: string): Promise<boolean> => {
+  const validateSessionAccess = useCallback(async (conversationId: number): Promise<boolean> => {
     try {
-      const response = await ChatApiService.validateSessionAccess(sessionId)
+      const response = await ChatApiService.validateSessionAccess(conversationId)
       return response.has_access
     } catch (error) {
       console.error('Failed to validate session access:', error)

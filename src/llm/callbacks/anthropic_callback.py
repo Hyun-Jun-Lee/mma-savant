@@ -11,10 +11,10 @@ from common.utils import kr_time_now
 class AnthropicCallbackHandler(AsyncCallbackHandler):
     """실제 스트리밍을 위한 콜백 핸들러"""
     
-    def __init__(self, message_id: str, session_id: str):
+    def __init__(self, message_id: str, conversation_id : int):
         self.tokens = []
         self.message_id = message_id
-        self.session_id = session_id
+        self.conversation_id = conversation_id
         self.current_content = ""
         self.stream_queue = asyncio.Queue()
         self.is_streaming = False
@@ -73,7 +73,7 @@ class AnthropicCallbackHandler(AsyncCallbackHandler):
                     "type": "content",
                     "content": token_str,
                     "message_id": self.message_id,
-                    "session_id": self.session_id,
+                    "conversation_id": self.conversation_id,
                     "timestamp": kr_time_now().isoformat()
                 })
                 
@@ -91,7 +91,7 @@ class AnthropicCallbackHandler(AsyncCallbackHandler):
         await self.stream_queue.put({
             "type": "start",
             "message_id": self.message_id,
-            "session_id": self.session_id,
+            "conversation_id": self.conversation_id,
             "timestamp": kr_time_now().isoformat()
         })
     
@@ -103,7 +103,7 @@ class AnthropicCallbackHandler(AsyncCallbackHandler):
         await self.stream_queue.put({
             "type": "end",
             "message_id": self.message_id,
-            "session_id": self.session_id,
+            "conversation_id": self.conversation_id,
             "timestamp": kr_time_now().isoformat(),
             "final_content": self.current_content
         })
@@ -127,7 +127,7 @@ class AnthropicCallbackHandler(AsyncCallbackHandler):
             "tool_name": tool_name,
             "tool_input": input_str,
             "message_id": self.message_id,
-            "session_id": self.session_id,
+            "conversation_id": self.conversation_id,
             "timestamp": kr_time_now().isoformat()
         })
     
@@ -154,7 +154,7 @@ class AnthropicCallbackHandler(AsyncCallbackHandler):
             "type": "tool_end",
             "tool_result": output[:200] + "..." if len(output) > 200 else output,
             "message_id": self.message_id,
-            "session_id": self.session_id,
+            "conversation_id": self.conversation_id,
             "timestamp": kr_time_now().isoformat()
         })
     
@@ -164,9 +164,9 @@ class AnthropicCallbackHandler(AsyncCallbackHandler):
             "type": "thinking",
             "thought": f"Using tool: {action.tool}",
             "message_id": self.message_id,
-            "session_id": self.session_id,
+            "conversation_id": self.conversation_id,
             "timestamp": kr_time_now().isoformat()
         })
 
-def get_anthropic_callback_handler(message_id: str, session_id: str):
-    return AnthropicCallbackHandler(message_id=message_id, session_id=session_id)
+def get_anthropic_callback_handler(message_id: str, conversation_id : int):
+    return AnthropicCallbackHandler(message_id=message_id, conversation_id=conversation_id)

@@ -15,10 +15,10 @@ class HuggingFaceCallbackHandler(AsyncCallbackHandler):
     HuggingFace Inference API를 통한 스트리밍 응답 처리
     """
     
-    def __init__(self, message_id: str, session_id: str, model_name: str = "huggingface"):
+    def __init__(self, message_id: str, conversation_id : int, model_name: str = "huggingface"):
         self.tokens = []
         self.message_id = message_id
-        self.session_id = session_id
+        self.conversation_id = conversation_id
         self.model_name = model_name
         self.current_content = ""
         self.stream_queue = asyncio.Queue()
@@ -43,7 +43,7 @@ class HuggingFaceCallbackHandler(AsyncCallbackHandler):
                     "type": "content",
                     "content": token_str,
                     "message_id": self.message_id,
-                    "session_id": self.session_id,
+                    "conversation_id": self.conversation_id,
                     "model": self.model_name,
                     "token_count": self.token_count,
                     "timestamp": kr_time_now().isoformat()
@@ -111,7 +111,7 @@ class HuggingFaceCallbackHandler(AsyncCallbackHandler):
         await self.stream_queue.put({
             "type": "start",
             "message_id": self.message_id,
-            "session_id": self.session_id,
+            "conversation_id": self.conversation_id,
             "model": self.model_name,
             "timestamp": kr_time_now().isoformat()
         })
@@ -128,7 +128,7 @@ class HuggingFaceCallbackHandler(AsyncCallbackHandler):
         await self.stream_queue.put({
             "type": "end",
             "message_id": self.message_id,
-            "session_id": self.session_id,
+            "conversation_id": self.conversation_id,
             "model": self.model_name,
             "timestamp": kr_time_now().isoformat(),
             "final_content": self.current_content,
@@ -162,7 +162,7 @@ class HuggingFaceCallbackHandler(AsyncCallbackHandler):
         await self.stream_queue.put({
             "type": "error",
             "message_id": self.message_id,
-            "session_id": self.session_id,
+            "conversation_id": self.conversation_id,
             "model": self.model_name,
             "timestamp": kr_time_now().isoformat(),
             "error": str(error),
@@ -189,7 +189,7 @@ class HuggingFaceCallbackHandler(AsyncCallbackHandler):
             "tool_name": tool_name,
             "tool_input": input_str,
             "message_id": self.message_id,
-            "session_id": self.session_id,
+            "conversation_id": self.conversation_id,
             "model": self.model_name,
             "timestamp": kr_time_now().isoformat()
         })
@@ -213,7 +213,7 @@ class HuggingFaceCallbackHandler(AsyncCallbackHandler):
             "type": "tool_end",
             "tool_result": output[:200] + "..." if len(output) > 200 else output,
             "message_id": self.message_id,
-            "session_id": self.session_id,
+            "conversation_id": self.conversation_id,
             "model": self.model_name,
             "timestamp": kr_time_now().isoformat()
         })
@@ -224,7 +224,7 @@ class HuggingFaceCallbackHandler(AsyncCallbackHandler):
             "type": "thinking",
             "thought": f"Using tool: {action.tool}",
             "message_id": self.message_id,
-            "session_id": self.session_id,
+            "conversation_id": self.conversation_id,
             "model": self.model_name,
             "timestamp": kr_time_now().isoformat()
         })
@@ -246,7 +246,7 @@ class HuggingFaceCallbackHandler(AsyncCallbackHandler):
 
 def get_huggingface_callback_handler(
     message_id: str, 
-    session_id: str, 
+    conversation_id : int, 
     model_name: str = "huggingface"
 ) -> HuggingFaceCallbackHandler:
     """
@@ -254,7 +254,7 @@ def get_huggingface_callback_handler(
     
     Args:
         message_id: 메시지 ID
-        session_id: 세션 ID  
+        conversation_id: 세션 ID  
         model_name: 모델 이름 (로깅용)
         
     Returns:
@@ -262,6 +262,6 @@ def get_huggingface_callback_handler(
     """
     return HuggingFaceCallbackHandler(
         message_id=message_id,
-        session_id=session_id, 
+        conversation_id=conversation_id, 
         model_name=model_name
     )

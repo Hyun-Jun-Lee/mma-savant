@@ -10,7 +10,7 @@ export interface RealSocketEvents {
   message: (data: { content: string; role: 'assistant'; timestamp: Date; messageId?: string }) => void
   message_chunk: (data: { content: string; fullContent: string; role: 'assistant'; timestamp: Date; messageId: string }) => void
   response_complete: (data: { messageId: string; timestamp: Date }) => void
-  final_result: (data: { content: string; message_id: string; session_id: string; timestamp: string; tool_results?: any[]; intermediate_steps?: any[] }) => void
+  final_result: (data: { content: string; message_id: string; conversation_id: number; timestamp: string; tool_results?: any[]; intermediate_steps?: any[] }) => void
   typing: (data: { isTyping: boolean }) => void
   error: (error: string) => void
 }
@@ -21,9 +21,9 @@ class RealSocket extends EventEmitter {
   private reconnectAttempts = 0
   private maxReconnectAttempts = 5
   private reconnectDelay = 1000
-  private sessionId: string | null = null
+  private conversationId: number | null = null
 
-  async connect(sessionId?: string) {
+  async connect(conversationId?: number) {
     try {
       // 이미 연결된 상태면 중복 연결 방지
       if (this.connected && this.socket?.readyState === WebSocket.OPEN) {
@@ -45,7 +45,7 @@ class RealSocket extends EventEmitter {
         throw new Error('No authentication token found')
       }
 
-      this.sessionId = sessionId || null
+      this.conversationId = conversationId || null
       
       // WebSocket URL 구성
       const wsUrl = process.env.NEXT_PUBLIC_WS_URL || 'ws://localhost:8000'
@@ -53,14 +53,14 @@ class RealSocket extends EventEmitter {
         token: jwtToken
       })
       
-      if (this.sessionId) {
-        params.append('session_id', this.sessionId)
+      if (this.conversationId) {
+        params.append('conversation_id', this.conversationId.toString())
       }
 
       const url = `${wsUrl}/ws/chat?${params.toString()}`
       
       console.log('🔌 Connecting to WebSocket:', url)
-      console.log('🔌 Session ID for connection:', this.sessionId)
+      console.log('🔌 Conversation ID for connection:', this.conversationId)
       
       this.socket = new WebSocket(url)
       
@@ -94,7 +94,7 @@ class RealSocket extends EventEmitter {
         //   this.reconnectAttempts++
         //   console.log(`🔄 Reconnecting... Attempt ${this.reconnectAttempts}/${this.maxReconnectAttempts}`)
         //   setTimeout(() => {
-        //     this.connect(this.sessionId || undefined)
+        //     this.connect(this.conversationId || undefined)
         //   }, this.reconnectDelay * this.reconnectAttempts)
         // } else {
         //   console.log('❌ Max reconnect attempts reached, giving up')
@@ -138,7 +138,7 @@ class RealSocket extends EventEmitter {
     console.log('🔌 WebSocket disconnected manually')
   }
 
-  sendMessage(message: string, sessionId?: string) {
+  sendMessage(message: string, conversationId?: number) {
     console.log('📤 sendMessage called, connection state:', this.connected)
     console.log('📤 Socket exists:', !!this.socket)
     console.log('📤 Socket readyState:', this.socket?.readyState)
@@ -149,14 +149,14 @@ class RealSocket extends EventEmitter {
       return
     }
 
-    // 전달받은 세션 ID를 우선 사용, 없으면 기존 세션 ID 사용
-    const useSessionId = sessionId || this.sessionId
-    console.log('📤 Using session ID for message:', useSessionId)
+    // 전달받은 conversation ID를 우선 사용, 없으면 기존 conversation ID 사용
+    const useConversationId = conversationId || this.conversationId
+    console.log('📤 Using conversation ID for message:', useConversationId)
     
     const messageData = {
       type: 'message',
       content: message,
-      session_id: useSessionId
+      conversation_id: useConversationId
     }
 
     try {
@@ -181,7 +181,7 @@ class RealSocket extends EventEmitter {
     switch (data.type) {
       case 'connection_established':
         console.log('✅ Connection established:', data.message)
-        this.sessionId = data.session_id
+        this.conversationId = data.conversation_id
         // 연결 상태를 명시적으로 업데이트
         this.connected = true
         console.log('🔌 Connection state updated to connected:', this.connected)
@@ -198,10 +198,10 @@ class RealSocket extends EventEmitter {
         
       case 'message_received':
         console.log('✅ Message received by server')
-        // 서버에서 새로운 세션 ID를 받은 경우 업데이트
-        if (data.session_id && data.session_id !== this.sessionId) {
-          console.log(`🔄 Session ID updated: ${this.sessionId} -> ${data.session_id}`)
-          this.sessionId = data.session_id
+        // 서버에서 새로운 대화 ID를 받은 경우 업데이트
+        if (data.conversation_id && data.conversation_id !== this.conversationId) {
+          console.log(`🔄 Conversation ID updated: ${this.conversationId} -> ${data.conversation_id}`)
+          this.conversationId = data.conversation_id
         }
         break
         
@@ -238,7 +238,7 @@ class RealSocket extends EventEmitter {
         this.emit('final_result', {
           content: data.content,
           message_id: data.message_id,
-          session_id: data.session_id,
+          conversation_id: data.conversation_id,
           timestamp: data.timestamp,
           visualization_type: data.visualization_type,
           visualization_data: data.visualization_data,
@@ -287,9 +287,9 @@ class RealSocket extends EventEmitter {
     }
   }
 
-  // 현재 세션 ID 반환
-  getSessionId() {
-    return this.sessionId
+  // 현재 대화 ID 반환
+  getConversationId() {
+    return this.conversationId
   }
 }
 
