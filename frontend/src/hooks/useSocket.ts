@@ -5,18 +5,39 @@ import { getRealSocket } from '@/lib/realSocket'
 import { useChatStore } from '@/store/chatStore'
 import { processAssistantResponse } from '@/lib/visualizationParser'
 import { VisualizationData } from '@/types/chat'
+import { ChatApiService } from '@/services/chatApi'
 
 export function useSocket() {
   const [isConnected, setIsConnected] = useState(false)
   const [isTyping, setIsTyping] = useState(false)
   const socketRef = useRef(getRealSocket())
-  const { addMessage, updateMessage, setConnected, setTyping, currentSession, setCurrentSession } = useChatStore()
+  const { addMessage, updateMessage, setConnected, setTyping, currentSession, setCurrentSession, setSessions } = useChatStore()
   const currentStreamingMessage = useRef<{
     id: string;
     content: string;
     storeId?: string;
     visualizationData?: VisualizationData | null;
   } | null>(null)
+
+  // 세션 목록 새로고침 함수
+  const refreshSessions = useCallback(async () => {
+    try {
+      console.log('🔄 Refreshing sessions after AI response completion')
+      const response = await ChatApiService.getSessions(20, 0)
+      const convertedSessions = response.sessions.map(session => ({
+        id: session.id,
+        user_id: session.user_id,
+        title: session.title,
+        last_message_at: session.last_message_at ? new Date(session.last_message_at) : undefined,
+        created_at: new Date(session.created_at),
+        updated_at: new Date(session.updated_at),
+      }))
+      setSessions(convertedSessions)
+      console.log('✅ Sessions refreshed, count:', convertedSessions.length)
+    } catch (error) {
+      console.error('❌ Failed to refresh sessions:', error)
+    }
+  }, [setSessions])
 
   // Zustand 스토어 함수들은 이미 안정적이므로 직접 사용
 
@@ -222,6 +243,14 @@ export function useSocket() {
 
       // 현재 스트리밍 메시지 정리
       currentStreamingMessage.current = null
+
+      // AI 응답 완료 즉시 메시지 클리어 및 세션 목록 새로고침
+      console.log('🧹 Clearing messages immediately after AI response completion')
+      setTimeout(() => {
+        const { clearChat } = useChatStore.getState()
+        clearChat()
+        refreshSessions()
+      }, 100) // 최소한의 지연으로 바로 클리어
     })
 
     // 스트리밍 완료 처리 (백엔드는 response_end 이벤트 사용)
@@ -264,6 +293,14 @@ export function useSocket() {
 
         console.log('🎉 Message finalized with visualization:', !!finalParsedVisualizationData)
         currentStreamingMessage.current = null
+
+        // AI 응답 완료 후 메시지 클리어 및 세션 목록 새로고침
+        setTimeout(() => {
+          console.log('🧹 Clearing messages after streaming completion')
+          const { clearChat } = useChatStore.getState()
+          clearChat()
+          refreshSessions()
+        }, 100) // 최소한의 지연으로 바로 클리어
       }
     })
 
@@ -281,7 +318,7 @@ export function useSocket() {
       timestamp: string;
     }) => {
       console.log('📩 Message received confirmation:', data)
-      
+
       // 현재 세션이 없거나 다른 세션이면 업데이트
       if (!currentSession || currentSession.id !== data.conversation_id) {
         console.log('🔄 Updating current session from WebSocket:', data.conversation_id)
@@ -295,8 +332,8 @@ export function useSocket() {
           updated_at: new Date(),
           last_message_at: new Date(data.timestamp)
         }
-        
-        // ChatStore의 현재 세션 업데이트
+
+        // ChatStore의 현재 세션 업데이트 (세션 목록은 AI 응답 완료 후 새로고침으로 처리)
         setCurrentSession(newSession)
         console.log('✅ Current session updated:', newSession)
       }
@@ -325,7 +362,7 @@ export function useSocket() {
       // 소켓 연결 해제
       socket.disconnect()
     }
-  }, [addMessage, updateMessage, setConnected, setTyping, setCurrentSession]) // currentSession 의존성 제거하여 재연결 방지
+  }, [addMessage, updateMessage, setConnected, setTyping, setCurrentSession, refreshSessions]) // refreshSessions 추가
 
   const sendMessage = async (message: string) => {
     console.log('🚀 sendMessage called, React isConnected:', isConnected)

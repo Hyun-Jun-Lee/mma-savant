@@ -15,7 +15,7 @@ from user.models import UserModel
 from conversation.services import ChatSessionService, get_or_create_session
 from llm.langchain_service import get_langchain_service, LangChainLLMService
 from common.logging_config import get_logger
-from common.utils import kr_time_now
+from common.utils import kr_time_now, parse_visualization_from_content
 
 LOGGER = get_logger(__name__)
 

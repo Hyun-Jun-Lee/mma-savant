@@ -87,9 +87,13 @@ export const useChatStore = create<ChatStore>((set, get) => ({
       created_at: new Date(session.created_at),
       updated_at: new Date(session.updated_at),
     }
-    set((state) => ({
-      sessions: [convertedSession, ...state.sessions]
-    }))
+    console.log('🏪 Adding session to store:', convertedSession.id, 'title:', convertedSession.title)
+    set((state) => {
+      console.log('🏪 Previous sessions count:', state.sessions.length)
+      const newSessions = [convertedSession, ...state.sessions]
+      console.log('🏪 New sessions count:', newSessions.length)
+      return { sessions: newSessions }
+    })
   },
   
   removeSession: (sessionId) => set((state) => ({

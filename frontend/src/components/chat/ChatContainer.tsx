@@ -49,8 +49,10 @@ export function ChatContainer() {
         return
       }
 
-      // 세션 생성은 WebSocket에서 처리하므로 여기서는 제거
-      // currentSession이 있으면 conversation_id를 전달, 없으면 null로 전달하여 WebSocket에서 새 세션 생성
+      // 새 질문 시작 시 현재 메시지와 세션 클리어 (각 질문은 새로운 conversation)
+      const { clearChat, setCurrentSession } = useChatStore.getState()
+      clearChat()
+      setCurrentSession(null)
 
       // 사용자 메시지 추가
       addMessage({

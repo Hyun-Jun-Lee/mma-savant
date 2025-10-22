@@ -235,3 +235,95 @@ def format_schema_for_prompt(schema_data: Dict) -> str:
     lines.append("**Remember**: Always use SINGULAR table names (match, fighter, event, NOT matches, fighters, events)")
     
     return '\n'.join(lines)
+
+
+def parse_visualization_from_content(content: str) -> tuple[dict, str]:
+    """
+    AI 응답에서 시각화 데이터를 파싱하고 깨끗한 텍스트를 반환
+
+    Args:
+        content: AI 응답 원본 내용
+
+    Returns:
+        tuple: (visualization_data dict or None, clean_text_content)
+    """
+    import re
+
+    visualization_data = None
+    clean_content = content
+
+    try:
+        # 전체 내용이 JSON인지 확인
+        trimmed = content.strip()
+        if trimmed.startswith('{') and trimmed.endswith('}'):
+            try:
+                parsed = json.loads(trimmed)
+                if parsed.get('selected_visualization') or parsed.get('visualization_data'):
+                    visualization_data = parsed
+                    # insights가 있으면 텍스트로 추출
+                    insights = parsed.get('insights', [])
+                    if insights and isinstance(insights, list):
+                        clean_content = '\n'.join(f"- {insight}" for insight in insights)
+                    else:
+                        clean_content = ""
+                    return visualization_data, clean_content
+            except:
+                pass
+
+        # JSON 코드 블록 패턴 찾기
+        json_patterns = [
+            r'```json\s*([\s\S]*?)\s*```',  # ```json { ... } ```
+            r'```\s*([\s\S]*?)\s*```',       # ``` { ... } ```
+        ]
+
+        json_string = None
+        for pattern in json_patterns:
+            match = re.search(pattern, content, re.DOTALL)
+            if match:
+                json_string = match.group(1)
+                break
+
+        # JSON 파싱 시도
+        if json_string:
+            try:
+                parsed = json.loads(json_string)
+                if (parsed.get('selected_visualization') and
+                    parsed.get('visualization_data')):
+                    visualization_data = parsed
+                    # insights가 있으면 텍스트로 추출
+                    insights = parsed.get('insights', [])
+                    if insights and isinstance(insights, list):
+                        # 코드블록에서 추출한 경우 원본에서 코드블록 제거하고 insights 추가
+                        clean_content = re.sub(r'```json[\s\S]*?```', '', content, flags=re.DOTALL)
+                        clean_content = clean_content.strip()
+                        if clean_content:
+                            clean_content += '\n\n'
+                        clean_content += '\n'.join(f"- {insight}" for insight in insights)
+                    else:
+                        # insights가 없으면 코드블록만 제거
+                        clean_content = re.sub(r'```json[\s\S]*?```', '', content, flags=re.DOTALL)
+                        clean_content = clean_content.strip()
+                    return visualization_data, clean_content
+            except:
+                pass
+
+        # 텍스트에서 JSON 블록 제거
+        clean_content = re.sub(r'```json[\s\S]*?```', '', clean_content, flags=re.DOTALL)
+        clean_content = re.sub(r'```[\s\S]*?```', '', clean_content, flags=re.DOTALL)
+
+        # 남아있는 JSON 객체 제거
+        clean_content = re.sub(r'\{[\s\S]*?"selected_visualization"[\s\S]*?\}', '', clean_content, flags=re.DOTALL)
+        clean_content = re.sub(r'\{[\s\S]*?"visualization_data"[\s\S]*?\}', '', clean_content, flags=re.DOTALL)
+
+        # 인사이트 중복 제거
+        clean_content = re.sub(r'\*\*주요 인사이트:\*\*[\s\S]*?(?=\n\n|\n$|$)', '', clean_content)
+        clean_content = re.sub(r'주요 인사이트:[\s\S]*?(?=\n\n|\n$|$)', '', clean_content)
+
+        # 연속된 빈 줄 정리
+        clean_content = re.sub(r'\n\s*\n\s*\n', '\n\n', clean_content)
+        clean_content = clean_content.strip()
+
+    except Exception as e:
+        logging.error(f"Error parsing visualization data: {e}")
+
+    return visualization_data, clean_content
