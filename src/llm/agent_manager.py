@@ -15,9 +15,11 @@ from llm.chart_loader import (
     get_supported_charts,
     validate_chart_id
 )
-from llm.prompts.agent_prompt_templates import (
+from llm.prompts import (
     create_phase1_prompt_template,
-    prepare_phase2_input
+    prepare_phase2_input,
+    get_phase1_prompt,
+    get_phase2_prompt
 )
 from llm.tools import create_sql_tool
 from config import Config
@@ -184,7 +186,6 @@ class AgentManager:
             LOGGER.info(f"🔍 Phase 1: Understanding and collecting data for query: {user_query[:50]}...")
 
             # Phase 1용 ReAct 프롬프트 생성
-            from llm.prompts.two_phase_prompts import get_phase1_prompt
             from llm.providers.openrouter_provider import create_react_prompt_template
 
             base_phase1_prompt = get_phase1_prompt()
@@ -279,8 +280,7 @@ class AgentManager:
             LOGGER.info(f"🎨 Phase 2: Processing and visualizing data for query")
 
             # Phase 2 프롬프트 생성
-            from llm.prompts.two_phase_prompts import get_phase2_prompt_with_charts
-            phase2_prompt = get_phase2_prompt_with_charts()
+            phase2_prompt = get_phase2_prompt()
 
             # Phase 2 입력 데이터 준비
             phase2_input = prepare_phase2_input(user_query, phase1_data)
