@@ -134,47 +134,7 @@ def get_model_info(model_name: str) -> Dict[str, Any]:
         }
 
 
-def create_react_prompt_template(base_prompt: str) -> Any:
-    """
-    ReAct 에이전트용 프롬프트 템플릿 생성
-
-    Args:
-        base_prompt: 기본 시스템 프롬프트
-
-    Returns:
-        ChatPromptTemplate: ReAct 형식 프롬프트
-    """
-    from langchain_core.prompts import ChatPromptTemplate
-
-    react_template = f"""{base_prompt}
-
-## ReAct Tool Usage Format
-You have access to the following tools:
-{{tools}}
-
-The available tool names are: {{tool_names}}
-
-📌 Tool Usage Rules:
-- 읽기 전용 계정이므로 SELECT 쿼리만 실행 가능
-- Action Input에는 SQL 쿼리만 작성 (마크다운 래핑 불필요)
-- 예시: Action Input: SELECT name FROM fighter LIMIT 5
-
-Use this exact format:
-
-Thought: [Your reasoning about what needs to be done]
-Action: [tool_name]
-Action Input: [input to the tool]
-Observation: [The result will appear here]
-... (this Thought/Action/Action Input/Observation can repeat as needed)
-Thought: [Your final reasoning]
-Final Answer: [Your response with collected data]
-
-Begin!
-
-Question: {{input}}
-Thought: {{agent_scratchpad}}"""
-
-    return ChatPromptTemplate.from_template(react_template)
+# create_react_prompt_template 함수는 llm.prompts.create_phase1_prompt_template()로 이동됨
 
 
 def get_openrouter_llm(

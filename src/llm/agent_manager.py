@@ -185,11 +185,10 @@ class AgentManager:
         try:
             LOGGER.info(f"🔍 Phase 1: Understanding and collecting data for query: {user_query[:50]}...")
 
-            # Phase 1용 ReAct 프롬프트 생성
-            from llm.providers.openrouter_provider import create_react_prompt_template
+            # Phase 1용 ReAct 프롬프트 생성 (prompts.py로 통합)
+            from llm.prompts import create_phase1_prompt_template
 
-            base_phase1_prompt = get_phase1_prompt()
-            react_prompt = create_react_prompt_template(base_phase1_prompt)
+            react_prompt = create_phase1_prompt_template()
 
             # ReAct 에이전트용 도구 생성
             tools = [
@@ -223,7 +222,11 @@ class AgentManager:
             # SQL 실행 결과 추출 (하나의 SQL 쿼리만 실행됨)
             sql_result = self._extract_sql_result(result.get("intermediate_steps", []))
 
-            # Phase 1 완료 결과 구성 (SQL 결과만 포함)
+            # 🎯 AI 추론 과정 추출 (Phase 2 컨텍스트 향상용)
+            agent_reasoning = result.get("output", "")
+            reasoning_steps_count = len(result.get("intermediate_steps", []))
+
+            # Phase 1 완료 결과 구성 (SQL 결과 + AI 추론 과정)
             phase1_result = {
                 "phase": 1,
                 "processing_id": processing_id,
@@ -232,7 +235,11 @@ class AgentManager:
                 "sql_success": sql_result.get("success", False),  # 성공 여부
                 "sql_data": sql_result.get("data", []),  # 실제 데이터
                 "sql_columns": sql_result.get("columns", []),  # 컬럼 정보
-                "row_count": sql_result.get("row_count", 0)  # 행 개수
+                "row_count": sql_result.get("row_count", 0),  # 행 개수
+
+                # 🔑 새로 추가: AI 추론 과정 정보
+                "agent_reasoning": agent_reasoning,  # AI의 전체 사고 과정
+                "reasoning_steps_count": reasoning_steps_count  # 실행된 단계 수
             }
 
             LOGGER.info(f"✅ Phase 1 completed: SQL query executed")
