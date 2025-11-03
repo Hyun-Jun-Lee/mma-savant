@@ -21,7 +21,7 @@ async def crawl_with_httpx(url: str) -> str:
     headers = {
         "User-Agent": generate_user_agent(os=('mac', 'linux'), device_type='desktop')
     }
-    async with httpx.AsyncClient(timeout=30.0) as client:
+    async with httpx.AsyncClient(timeout=30.0, follow_redirects=True) as client:
         try:
             response = await client.get(url, headers=headers)
             response.raise_for_status()
