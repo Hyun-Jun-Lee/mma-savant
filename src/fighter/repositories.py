@@ -34,15 +34,50 @@ async def get_fighter_by_name(session: AsyncSession, name: str) -> Optional[Figh
     fighter = result.scalar_one_or_none()
     return fighter.to_schema() if fighter else None
 
+async def get_fighter_by_name_best_record(session: AsyncSession, name: str) -> Optional[FighterSchema]:
+    """
+    fighter_name로 fighter 조회.
+    동명이인이 있을 경우 전적(승수)이 가장 좋은 선수를 반환.
+    이름으로 찾지 못한 경우, last name을 nickname으로 검색 시도.
+    랭킹 매핑 시 사용.
+    """
+    normalized_name = normalize_name(name)
+
+    # 1차 시도: 이름으로 검색
+    result = await session.execute(
+        select(FighterModel)
+        .where(FighterModel.name.ilike(f'%{normalized_name}%'))
+        .order_by(FighterModel.wins.desc())  # 승수가 많은 선수 우선
+    )
+    fighter_model = result.scalars().first()
+
+    # 2차 시도: 이름으로 못 찾았을 경우, last name을 nickname으로 검색
+    if not fighter_model:
+        name_parts = normalized_name.split()
+        if len(name_parts) >= 2:
+            last_name = name_parts[-1]  # 마지막 단어를 last name으로 간주
+            fighter_schema = await get_fighter_by_nickname(session, last_name)
+
+            # first name도 일치하는지 확인
+            if fighter_schema:
+                first_name = name_parts[0]
+                if first_name.lower() in fighter_schema.name.lower():
+                    return fighter_schema  # 이미 FighterSchema이므로 그대로 반환
+
+    return fighter_model.to_schema() if fighter_model else None
+
 async def get_fighter_by_nickname(session: AsyncSession, nickname: str) -> Optional[FighterSchema]:
     """
-    fighter_nickname로 fighter 조회.
+    fighter_nickname로 fighter 조회. (부분 매칭)
+    동명이인이 있을 경우 전적(승수)이 가장 좋은 선수를 반환.
     """
     normalized_nickname = normalize_name(nickname)
     result = await session.execute(
-        select(FighterModel).where(FighterModel.nickname == normalized_nickname)
+        select(FighterModel)
+        .where(FighterModel.nickname.ilike(f'%{normalized_nickname}%'))
+        .order_by(FighterModel.wins.desc())
     )
-    fighter = result.scalar_one_or_none()
+    fighter = result.scalars().first()
     return fighter.to_schema() if fighter else None
 
 async def get_ranking_by_fighter_id(session: AsyncSession, fighter_id: int) -> List[RankingSchema]:
