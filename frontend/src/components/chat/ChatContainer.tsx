@@ -28,7 +28,6 @@ export function ChatContainer() {
       try {
         // 기존 세션 목록 로드 (사이드바에서 이전 대화 확인용)
         await loadSessions()
-        console.log('📋 Session list loaded for sidebar access')
       } catch (error) {
         console.error('Failed to load sessions:', error)
         setError('세션 목록 로드 중 오류가 발생했습니다.')

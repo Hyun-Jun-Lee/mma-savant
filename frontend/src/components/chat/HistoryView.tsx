@@ -137,7 +137,6 @@ export function HistoryView() {
         </div>
 
         {/* 세션 상세 모달 */}
-        {console.log('Modal render check - isModalOpen:', isModalOpen, 'selectedSessionId:', selectedSessionId)}
         <SessionDetailModal
           sessionId={selectedSessionId}
           isOpen={isModalOpen}
@@ -192,7 +191,6 @@ export function HistoryView() {
       </div>
 
       {/* 세션 상세 모달 */}
-      {console.log('Modal render check - isModalOpen:', isModalOpen, 'selectedSessionId:', selectedSessionId)}
       <SessionDetailModal
         sessionId={selectedSessionId}
         isOpen={isModalOpen}

@@ -18,7 +18,6 @@ interface SessionDetailModalProps {
 }
 
 export function SessionDetailModal({ sessionId, isOpen, onClose, sessionTitle }: SessionDetailModalProps) {
-  console.log('SessionDetailModal props:', { sessionId, isOpen, onClose: !!onClose, sessionTitle })
   const [loading, setLoading] = useState(false)
   const [messages, setMessages] = useState<Message[]>([])
   const [error, setError] = useState<string | null>(null)
