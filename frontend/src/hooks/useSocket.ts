@@ -6,6 +6,7 @@ import { useChatStore } from '@/store/chatStore'
 import { processAssistantResponse } from '@/lib/visualizationParser'
 import { VisualizationData } from '@/types/chat'
 import { ChatApiService } from '@/services/chatApi'
+import { ErrorResponse, getErrorMessage, logErrorDetails } from '@/types/error'
 
 export function useSocket() {
   const [isConnected, setIsConnected] = useState(false)
@@ -44,17 +45,14 @@ export function useSocket() {
   useEffect(() => {
     const socket = socketRef.current
     
-    console.log('🎣 Setting up useSocket event listeners')
 
     // 연결 이벤트 처리
     socket.on('connect', () => {
-      console.log('🔌 Connected to WebSocket server')
       setIsConnected(true)
       setConnected(true)
     })
 
     socket.on('disconnect', () => {
-      console.log('🔌 Disconnected from WebSocket server')
       setIsConnected(false)
       setConnected(false)
     })
@@ -339,26 +337,50 @@ export function useSocket() {
       }
     })
 
-    // 에러 처리
+    // 에러 처리 (기존 socket error)
     socket.on('error', (error: string) => {
       console.error('Socket error:', error)
     })
 
+    // 백엔드 에러 응답 처리
+    socket.on('error_response', (errorData: ErrorResponse) => {
+      console.log('💥 Received error_response:', errorData)
+
+      // 개발 모드에서 상세 로깅
+      logErrorDetails(errorData)
+
+      // 사용자 친화적 메시지 가져오기
+      const userMessage = getErrorMessage(errorData.error_class)
+      console.log('📝 User-friendly message:', userMessage)
+
+      // 에러 메시지를 채팅에 추가 (assistant 메시지로 표시)
+      const errorMessage = {
+        content: `⚠️ ${userMessage}`,
+        role: 'assistant' as const,
+        isStreaming: false
+      }
+
+      console.log('💬 Adding error message to chat:', errorMessage)
+      const addedMessage = addMessage(errorMessage)
+      console.log('✅ Error message added with ID:', addedMessage.id)
+
+      // 타이핑 상태 해제
+      setIsTyping(false)
+      setTyping(false)
+
+      // 현재 스트리밍 메시지 정리
+      currentStreamingMessage.current = null
+    })
+
     // 초기 연결만 수행 (세션 ID 없이)
-    console.log('🔌 Setting up socket event listeners')
-    console.log('🔌 Socket current state:', socket.isConnected())
     
     // 연결되지 않은 경우에만 연결 시도
     if (!socket.isConnected()) {
-      console.log('🔌 Initial connection without session')
       socket.connect() // 세션 ID 없이 초기 연결
-    } else {
-      console.log('🔌 Socket already connected, skipping initial connect call')
     }
 
     // 클린업
     return () => {
-      console.log('🎣 Cleaning up useSocket event listeners')
       // 소켓 연결 해제
       socket.disconnect()
     }

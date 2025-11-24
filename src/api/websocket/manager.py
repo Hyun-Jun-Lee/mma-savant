@@ -370,6 +370,8 @@ class ConnectionManager:
                 await self._handle_end_chunk(connection_id, chunk, assistant_message_id, conversation_id, len(assistant_content))
             elif chunk_type == "error":
                 await self._handle_error_chunk(connection_id, chunk, assistant_message_id, conversation_id)
+            elif chunk_type == "error_response":
+                await self._handle_error_response_chunk(connection_id, chunk, assistant_message_id, conversation_id)
 
     async def _handle_start_chunk(
         self,
@@ -518,6 +520,32 @@ class ConnectionManager:
         await self.send_to_connection(connection_id, {
             "type": "error",
             "error": chunk["error"],
+            "message_id": assistant_message_id,
+            "conversation_id": conversation_id,
+            "timestamp": chunk["timestamp"]
+        })
+
+    async def _handle_error_response_chunk(
+        self,
+        connection_id: str,
+        chunk: Dict[str, Any],
+        assistant_message_id: str,
+        conversation_id: int
+    ) -> None:
+        """구조화된 에러 응답 청크 처리 (LLMException 기반)"""
+        # 타이핑 상태 종료
+        await self.send_to_connection(connection_id, {
+            "type": "typing",
+            "is_typing": False,
+            "timestamp": kr_time_now().isoformat()
+        })
+
+        # 구조화된 에러 응답 전송 (프론트엔드가 기대하는 형식)
+        await self.send_to_connection(connection_id, {
+            "type": "error_response",
+            "error": chunk["error"],
+            "error_class": chunk["error_class"],
+            "traceback": chunk["traceback"],
             "message_id": assistant_message_id,
             "conversation_id": conversation_id,
             "timestamp": chunk["timestamp"]

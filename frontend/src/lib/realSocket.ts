@@ -60,22 +60,16 @@ class RealSocket extends EventEmitter {
       const url = `${wsUrl}/ws/chat?${params.toString()}`
       
       console.log('🔌 Connecting to WebSocket:', url)
-      console.log('🔌 Conversation ID for connection:', this.conversationId)
       
       this.socket = new WebSocket(url)
       
       this.socket.onopen = () => {
-        console.log('🔌 WebSocket connected')
-        console.log('🔌 Setting connected state to true')
         this.connected = true
         this.reconnectAttempts = 0
-        console.log('🔌 Emitting connect event')
         this.emit('connect')
-        console.log('🔌 Connect event emitted, connected state:', this.connected)
       }
       
       this.socket.onclose = (event) => {
-        console.log('🔌 WebSocket disconnected:', event.code, event.reason)
         this.connected = false
         this.emit('disconnect')
         
@@ -84,10 +78,7 @@ class RealSocket extends EventEmitter {
           console.log('🚫 Not reconnecting due to authentication or server error')
           return
         }
-        
-        // 자동 재연결 시도 (디버깅을 위해 일시 비활성화)
-        console.log('❌ WebSocket connection closed, NOT reconnecting for debugging')
-        console.log('❌ Close event details:', { code: event.code, reason: event.reason })
+    
         
         // 재연결 로직 주석 처리
         // if (this.reconnectAttempts < this.maxReconnectAttempts) {
@@ -108,7 +99,6 @@ class RealSocket extends EventEmitter {
       }
       
       this.socket.onmessage = (event) => {
-        console.log('📡 Raw WebSocket message received:', event.data)
         try {
           const data = JSON.parse(event.data)
           console.log('📡 Parsed WebSocket data:', data)
@@ -125,7 +115,6 @@ class RealSocket extends EventEmitter {
   }
 
   disconnect() {
-    console.log('🔌 Disconnecting WebSocket')
     if (this.socket) {
       this.socket.close()
       this.socket = null
@@ -135,13 +124,9 @@ class RealSocket extends EventEmitter {
     // 모든 이벤트 리스너 제거
     this.removeAllListeners()
     this.emit('disconnect')
-    console.log('🔌 WebSocket disconnected manually')
   }
 
   sendMessage(message: string, conversationId?: number) {
-    console.log('📤 sendMessage called, connection state:', this.connected)
-    console.log('📤 Socket exists:', !!this.socket)
-    console.log('📤 Socket readyState:', this.socket?.readyState)
     
     if (!this.connected || !this.socket) {
       console.log('❌ Cannot send message - not connected')
@@ -169,8 +154,6 @@ class RealSocket extends EventEmitter {
   }
 
   private handleMessage(data: any) {
-    console.log('📥 Received WebSocket message:', data.type, data)
-    console.log('🔍 Type check:', typeof data.type, data.type.length, JSON.stringify(data.type))
     
     if (data.type === 'response_chunk') {
       console.log('🔍 Entering response_chunk case')
@@ -184,7 +167,6 @@ class RealSocket extends EventEmitter {
         this.conversationId = data.conversation_id
         // 연결 상태를 명시적으로 업데이트
         this.connected = true
-        console.log('🔌 Connection state updated to connected:', this.connected)
         break
         
       case 'welcome':
@@ -264,7 +246,12 @@ class RealSocket extends EventEmitter {
         console.error('❌ Server error:', data.error)
         this.emit('error', data.error)
         break
-        
+
+      case 'error_response':
+        console.log('💥 Received error_response:', data)
+        this.emit('error_response', data)
+        break
+
       case 'pong':
         console.log('🏓 Pong received')
         break
