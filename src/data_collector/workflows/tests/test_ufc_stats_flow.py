@@ -18,7 +18,7 @@ async def run_ufc_stats_flow():
     LOGGER.info("UFC 통계 크롤링 시작")
     start_time = time.time()
     
-    # 파이터 크롤링
+    # # 파이터 크롤링
     # LOGGER.info("Fighters scraping started")
     # await scrap_all_fighter_task(crawl_with_httpx)
     # LOGGER.info("Fighters scraping completed")
@@ -33,14 +33,14 @@ async def run_ufc_stats_flow():
     # await scrap_event_detail_task(crawl_with_httpx)
     # LOGGER.info("Event details scraping completed")
 
-    # # 매치 세부 정보 크롤링
-    # LOGGER.info("Match details scraping started")
-    # await scrap_match_detail_task(crawl_with_httpx)
-    # LOGGER.info("Match details scraping completed")
+    # 매치 세부 정보 크롤링
+    LOGGER.info("Match details scraping started")
+    await scrap_match_detail_task(crawl_with_httpx)
+    LOGGER.info("Match details scraping completed")
 
-    LOGGER.info("Rankings scraping started")
+    # LOGGER.info("Rankings scraping started")
     await scrap_rankings_task(crawl_with_httpx)
-    LOGGER.info("Rankings scraping completed")
+    # LOGGER.info("Rankings scraping completed")
     
     LOGGER.info("UFC 통계 크롤링 완료")
     end_time = time.time()
