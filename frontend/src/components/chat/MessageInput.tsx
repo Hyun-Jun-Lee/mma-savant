@@ -25,10 +25,9 @@ export function MessageInput({
     const trimmedMessage = currentMessage.trim()
     if (!trimmedMessage || isLoading || disabled) return
 
-    // 메시지 전송
     onSendMessage?.(trimmedMessage)
     setCurrentMessage("")
-    
+
     // 텍스트 영역 높이 리셋
     if (textareaRef.current) {
       textareaRef.current.style.height = "auto"
@@ -36,7 +35,8 @@ export function MessageInput({
   }
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === "Enter" && !e.shiftKey) {
+    // 한글 IME 조합 중일 때는 Enter 무시 (입력 분할 방지)
+    if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
       e.preventDefault()
       handleSend()
     }

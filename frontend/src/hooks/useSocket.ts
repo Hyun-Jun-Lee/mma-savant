@@ -373,7 +373,7 @@ export function useSocket() {
     })
 
     // 초기 연결만 수행 (세션 ID 없이)
-    
+
     // 연결되지 않은 경우에만 연결 시도
     if (!socket.isConnected()) {
       socket.connect() // 세션 ID 없이 초기 연결
@@ -384,7 +384,8 @@ export function useSocket() {
       // 소켓 연결 해제
       socket.disconnect()
     }
-  }, [addMessage, updateMessage, setConnected, setTyping, setCurrentSession, refreshSessions]) // refreshSessions 추가
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []) // 마운트 시 한 번만 실행 (의존성 배열 비움)
 
   const sendMessage = async (message: string) => {
     console.log('🚀 sendMessage called, React isConnected:', isConnected)

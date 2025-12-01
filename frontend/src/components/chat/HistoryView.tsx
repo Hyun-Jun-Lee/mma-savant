@@ -16,7 +16,7 @@ export function HistoryView() {
 
   // 메시지를 질문-응답 쌍으로 그룹핑
   const questionAnswerPairs = useMemo(() => {
-    const pairs: Array<{ userQuestion: Message; assistantResponse: Message }> = []
+    const pairs: Array<{ userQuestion: Message; assistantResponse?: Message }> = []
 
     for (let i = 0; i < messages.length; i++) {
       const currentMessage = messages[i]
@@ -28,13 +28,11 @@ export function HistoryView() {
           index > i && msg.role === 'assistant'
         )
 
-        // 쌍이 완성된 경우에만 추가
-        if (nextAssistantMessage) {
-          pairs.push({
-            userQuestion: currentMessage,
-            assistantResponse: nextAssistantMessage
-          })
-        }
+        // 쌍이 완성되지 않아도 사용자 메시지는 표시 (로딩 중 또는 에러 대기 상태)
+        pairs.push({
+          userQuestion: currentMessage,
+          assistantResponse: nextAssistantMessage // undefined일 수 있음
+        })
       }
     }
 
@@ -108,9 +106,6 @@ export function HistoryView() {
                   onClick={(e) => {
                     e.preventDefault()
                     e.stopPropagation()
-                    console.log('Session card clicked:', session.id)
-                    console.log('Setting selectedSessionId to:', session.id)
-                    console.log('Setting isModalOpen to: true')
                     setSelectedSessionId(session.id)
                     setIsModalOpen(true)
                   }}
@@ -141,7 +136,6 @@ export function HistoryView() {
           sessionId={selectedSessionId}
           isOpen={isModalOpen}
           onClose={() => {
-            console.log('Modal close triggered')
             setIsModalOpen(false)
             setSelectedSessionId(null)
           }}
@@ -160,7 +154,7 @@ export function HistoryView() {
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 animate-fade-in mb-6" style={{ alignItems: 'start' }}>
             {questionAnswerPairs.map((pair) => (
               <QuestionAnswerCard
-                key={`${pair.userQuestion.id}-${pair.assistantResponse.id}`}
+                key={`${pair.userQuestion.id}-${pair.assistantResponse?.id || 'pending'}`}
                 userQuestion={pair.userQuestion}
                 sessionId={currentSession?.id || pair.userQuestion.id}
                 onClick={() => {
@@ -171,6 +165,13 @@ export function HistoryView() {
             ))}
           </div>
         )}
+
+        {/* 에러 메시지 표시 - 응답 없이 에러만 있을 때 */}
+        {messages.filter(m => m.role === 'assistant' && m.content.startsWith('⚠️')).map((errorMsg) => (
+          <div key={errorMsg.id} className="mb-6 p-4 bg-red-500/10 backdrop-blur-sm border border-red-500/20 rounded-lg">
+            <p className="text-red-400 text-sm font-medium">{errorMsg.content}</p>
+          </div>
+        ))}
 
         {/* 로딩 상태 표시 - 응답 대기 중일 때만 */}
         {isTyping && (
@@ -195,7 +196,6 @@ export function HistoryView() {
         sessionId={selectedSessionId}
         isOpen={isModalOpen}
         onClose={() => {
-          console.log('Modal close triggered')
           setIsModalOpen(false)
           setSelectedSessionId(null)
         }}
