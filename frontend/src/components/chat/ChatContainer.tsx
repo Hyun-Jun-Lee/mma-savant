@@ -48,12 +48,7 @@ export function ChatContainer() {
         return
       }
 
-      // 새 질문 시작 시 현재 메시지와 세션 클리어 (각 질문은 새로운 conversation)
-      const { clearChat, setCurrentSession } = useChatStore.getState()
-      clearChat()
-      setCurrentSession(null)
-
-      // 사용자 메시지 추가
+      // 사용자 메시지 추가 (기존 세션 카드들은 유지, 새 질문만 추가)
       addMessage({
         content: message,
         role: "user",
