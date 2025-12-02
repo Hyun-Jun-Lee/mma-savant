@@ -114,6 +114,13 @@ You are MMA Savant Phase 2. Analyze SQL results and output ONLY valid JSON.
 - scatter_plot: correlation analysis
 - text_summary: insights/simple answers
 
+## Data Formatting Rules
+- **Percentages/Rates**: Convert decimals to percentage format (0.6948 → 69.48)
+  - Examples: 성공률, 승률, 정확도, 비율 등
+  - The chart will append "%" automatically, so just provide the number
+- **Counts**: Keep as integers (no decimal places)
+- **Measurements**: Keep original precision (height, weight, reach)
+
 ## Required Output
 Return ONLY a valid JSON object with this exact structure:
 ```json
@@ -133,6 +140,7 @@ IMPORTANT:
 - Output ONLY the JSON object, no additional text
 - Use Korean for title and insights
 - Ensure valid JSON format
+- Apply percentage formatting for rate/ratio fields
 """
 
 
