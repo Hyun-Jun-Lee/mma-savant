@@ -129,3 +129,27 @@
 .animate-fade-in {
   animation: fade-in 0.5s ease-out forwards;
 }
+
+/* 다크 테마 스크롤바 */
+.dark ::-webkit-scrollbar,
+[data-slot="dialog-content"]::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+.dark ::-webkit-scrollbar-track,
+[data-slot="dialog-content"]::-webkit-scrollbar-track {
+  background: #27272a; /* zinc-800 */
+  border-radius: 4px;
+}
+
+.dark ::-webkit-scrollbar-thumb,
+[data-slot="dialog-content"]::-webkit-scrollbar-thumb {
+  background: #52525b; /* zinc-600 */
+  border-radius: 4px;
+}
+
+.dark ::-webkit-scrollbar-thumb:hover,
+[data-slot="dialog-content"]::-webkit-scrollbar-thumb:hover {
+  background: #71717a; /* zinc-500 */
+}
