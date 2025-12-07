@@ -40,6 +40,9 @@ export interface ChatState {
   sessions: ChatSession[]
   sessionsLoading: boolean
   historyLoading: boolean
+  // 모달 상태
+  modalSessionId: number | null
+  isModalOpen: boolean
 }
 
 export interface ChatStore extends ChatState {
@@ -60,4 +63,7 @@ export interface ChatStore extends ChatState {
   setSessionsLoading: (loading: boolean) => void
   setHistoryLoading: (loading: boolean) => void
   loadMessagesFromHistory: (messages: Message[]) => void
+  // 모달 액션들
+  openModal: (sessionId: number) => void
+  closeModal: () => void
 }
