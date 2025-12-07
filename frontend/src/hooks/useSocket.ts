@@ -12,7 +12,7 @@ export function useSocket() {
   const [isConnected, setIsConnected] = useState(false)
   const [isTyping, setIsTyping] = useState(false)
   const socketRef = useRef(getRealSocket())
-  const { addMessage, updateMessage, setConnected, setTyping, currentSession, setCurrentSession, setSessions } = useChatStore()
+  const { addMessage, updateMessage, setConnected, setTyping, currentSession, setCurrentSession, setSessions, openModal } = useChatStore()
   const currentStreamingMessage = useRef<{
     id: string;
     content: string;
@@ -244,10 +244,16 @@ export function useSocket() {
 
       // AI 응답 완료 즉시 메시지 클리어 및 세션 목록 새로고침
       console.log('🧹 Clearing messages immediately after AI response completion')
-      setTimeout(() => {
+      const conversationId = data.conversation_id
+      setTimeout(async () => {
         const { clearChat } = useChatStore.getState()
         clearChat()
-        refreshSessions()
+        await refreshSessions()
+        // 세션 목록 새로고침 후 해당 세션의 모달 자동 열기
+        if (conversationId) {
+          console.log('🔓 Opening modal for session:', conversationId)
+          openModal(conversationId)
+        }
       }, 100) // 최소한의 지연으로 바로 클리어
     })
 
@@ -290,14 +296,20 @@ export function useSocket() {
         }
 
         console.log('🎉 Message finalized with visualization:', !!finalParsedVisualizationData)
+        const conversationId = data.conversation_id
         currentStreamingMessage.current = null
 
         // AI 응답 완료 후 메시지 클리어 및 세션 목록 새로고침
-        setTimeout(() => {
+        setTimeout(async () => {
           console.log('🧹 Clearing messages after streaming completion')
           const { clearChat } = useChatStore.getState()
           clearChat()
-          refreshSessions()
+          await refreshSessions()
+          // 세션 목록 새로고침 후 해당 세션의 모달 자동 열기
+          if (conversationId) {
+            console.log('🔓 Opening modal for session:', conversationId)
+            openModal(conversationId)
+          }
         }, 100) // 최소한의 지연으로 바로 클리어
       }
     })

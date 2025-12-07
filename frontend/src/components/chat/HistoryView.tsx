@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useRef, useMemo, useState } from "react"
+import { useEffect, useRef, useMemo } from "react"
 import { useChatStore } from "@/store/chatStore"
 import { useChatSession } from "@/hooks/useChatSession"
 import { Message } from "@/types/chat"
@@ -9,10 +9,8 @@ import { SessionDetailModal } from "./SessionDetailModal"
 import { Bot, MessageSquare, Loader2 } from "lucide-react"
 
 export function HistoryView() {
-  const { messages, isTyping, currentSession, sessions } = useChatStore()
+  const { messages, isTyping, currentSession, sessions, modalSessionId, isModalOpen, openModal, closeModal } = useChatStore()
   const bottomRef = useRef<HTMLDivElement>(null)
-  const [selectedSessionId, setSelectedSessionId] = useState<number | null>(null)
-  const [isModalOpen, setIsModalOpen] = useState(false)
 
   // 현재 진행 중인 질문 (응답이 아직 없는 사용자 메시지)
   const currentPendingQuestion = useMemo(() => {
@@ -130,8 +128,7 @@ export function HistoryView() {
                   onClick={(e) => {
                     e.preventDefault()
                     e.stopPropagation()
-                    setSelectedSessionId(session.id)
-                    setIsModalOpen(true)
+                    openModal(session.id)
                   }}
                 >
                   <h3 className="text-white font-medium mb-2 line-clamp-2">
@@ -160,13 +157,10 @@ export function HistoryView() {
 
       {/* 세션 상세 모달 */}
       <SessionDetailModal
-        sessionId={selectedSessionId}
+        sessionId={modalSessionId}
         isOpen={isModalOpen}
-        onClose={() => {
-          setIsModalOpen(false)
-          setSelectedSessionId(null)
-        }}
-        sessionTitle={sessions.find(s => s.id === selectedSessionId)?.title}
+        onClose={closeModal}
+        sessionTitle={sessions.find(s => s.id === modalSessionId)?.title}
       />
     </div>
   )
