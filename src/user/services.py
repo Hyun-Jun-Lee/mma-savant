@@ -247,8 +247,8 @@ async def update_user_usage(session: AsyncSession, usage_data: UserUsageUpdateDT
         new_daily_requests = current_usage.daily_requests + usage_data.increment_requests
         if new_daily_requests > current_usage.daily_limit:
             raise UserUsageLimitError(
-                current_usage.username, 
-                new_daily_requests, 
+                current_usage.username or f"user_{usage_data.user_id}",
+                new_daily_requests,
                 current_usage.daily_limit
             )
         
@@ -472,11 +472,19 @@ async def get_oauth_user_profile(session: AsyncSession, user_id: int) -> UserPro
     try:
         if not isinstance(user_id, int) or user_id <= 0:
             raise UserValidationError("user_id", user_id, "user_id must be a positive integer")
-        
+
         user = await user_repo.get_user_by_id(session, user_id)
         if not user:
             raise UserNotFoundError(user_id, "id")
-        
+
+        # 일일 사용량 계산 (날짜가 바뀌었으면 0으로 리셋)
+        from datetime import date
+        daily_requests = user.daily_requests
+        if user.last_request_date is None or user.last_request_date.date() < date.today():
+            daily_requests = 0
+
+        remaining_requests = max(0, DEFAULT_DAILY_LIMIT - daily_requests)
+
         return UserProfileResponse(
             id=user.id,
             email=user.email,
@@ -484,10 +492,13 @@ async def get_oauth_user_profile(session: AsyncSession, user_id: int) -> UserPro
             picture=user.picture,
             username=user.username,
             total_requests=user.total_requests,
+            daily_requests=daily_requests,
+            remaining_requests=remaining_requests,
             is_active=user.is_active,
-            created_at=user.created_at
+            created_at=user.created_at,
+            updated_at=user.updated_at
         )
-        
+
     except (UserValidationError, UserNotFoundError):
         raise
     except Exception as e:

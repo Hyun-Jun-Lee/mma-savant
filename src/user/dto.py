@@ -33,7 +33,7 @@ class UserProfileDTO(BaseModel):
 class UserUsageDTO(BaseModel):
     """사용자 사용량 통계 DTO"""
     user_id: int
-    username: str
+    username: Optional[str] = None  # OAuth 사용자는 username이 없을 수 있음
     total_requests: int
     daily_requests: int
     last_request_date: Optional[datetime]

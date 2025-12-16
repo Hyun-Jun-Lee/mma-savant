@@ -39,8 +39,11 @@ class UserProfileResponse(BaseSchema):
     picture: Optional[str] = None
     username: Optional[str] = None
     total_requests: int = 0
+    daily_requests: int = 0
+    remaining_requests: int = 100  # daily_limit - daily_requests
     is_active: bool = True
     created_at: datetime
+    updated_at: Optional[datetime] = None
 
     model_config = ConfigDict(from_attributes=True)
 
