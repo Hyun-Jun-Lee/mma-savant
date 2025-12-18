@@ -1,4 +1,4 @@
-from typing import List, Optional
+from typing import List, Optional, Tuple
 from datetime import datetime, date
 
 from sqlalchemy import select, update, func, or_
@@ -238,4 +238,131 @@ async def activate_user(session: AsyncSession, user_id: int) -> bool:
     await session.flush()
     await session.commit()
     return result.rowcount > 0
+
+
+#############################
+####### ADMIN FUNCTIONS #####
+#############################
+
+async def find_all_users(
+    session: AsyncSession,
+    page: int = 1,
+    page_size: int = 20,
+    search: Optional[str] = None
+) -> Tuple[List[UserModel], int]:
+    """
+    모든 사용자 목록 조회 (페이지네이션, 검색).
+    """
+    # 기본 쿼리
+    query = select(UserModel)
+
+    # 검색 조건
+    if search:
+        search_pattern = f"%{search}%"
+        query = query.where(
+            or_(
+                UserModel.name.ilike(search_pattern),
+                UserModel.email.ilike(search_pattern)
+            )
+        )
+
+    # 전체 개수 조회
+    count_query = select(func.count()).select_from(query.subquery())
+    total_count_result = await session.execute(count_query)
+    total_count = total_count_result.scalar() or 0
+
+    # 페이지네이션 적용
+    offset = (page - 1) * page_size
+    query = query.order_by(UserModel.created_at.desc()).offset(offset).limit(page_size)
+
+    result = await session.execute(query)
+    users = list(result.scalars().all())
+
+    return users, total_count
+
+
+async def update_daily_limit(
+    session: AsyncSession,
+    user_id: int,
+    limit: int
+) -> Optional[UserModel]:
+    """
+    사용자 일일 요청 제한 업데이트.
+    """
+    await session.execute(
+        update(UserModel)
+        .where(UserModel.id == user_id)
+        .values(daily_request_limit=limit, updated_at=kr_time_now())
+    )
+    await session.flush()
+    await session.commit()
+
+    result = await session.execute(
+        select(UserModel).where(UserModel.id == user_id)
+    )
+    return result.scalar_one_or_none()
+
+
+async def update_admin_status(
+    session: AsyncSession,
+    user_id: int,
+    is_admin: bool
+) -> Optional[UserModel]:
+    """
+    사용자 관리자 권한 업데이트.
+    """
+    await session.execute(
+        update(UserModel)
+        .where(UserModel.id == user_id)
+        .values(is_admin=is_admin, updated_at=kr_time_now())
+    )
+    await session.flush()
+    await session.commit()
+
+    result = await session.execute(
+        select(UserModel).where(UserModel.id == user_id)
+    )
+    return result.scalar_one_or_none()
+
+
+async def update_active_status(
+    session: AsyncSession,
+    user_id: int,
+    is_active: bool
+) -> Optional[UserModel]:
+    """
+    사용자 활성화 상태 업데이트.
+    """
+    await session.execute(
+        update(UserModel)
+        .where(UserModel.id == user_id)
+        .values(is_active=is_active, updated_at=kr_time_now())
+    )
+    await session.flush()
+    await session.commit()
+
+    result = await session.execute(
+        select(UserModel).where(UserModel.id == user_id)
+    )
+    return result.scalar_one_or_none()
+
+
+async def get_admin_users_count(session: AsyncSession) -> int:
+    """
+    관리자 사용자 수를 조회합니다.
+    """
+    result = await session.execute(
+        select(func.count(UserModel.id)).where(UserModel.is_admin == True)
+    )
+    return result.scalar() or 0
+
+
+async def get_user_model_by_id(session: AsyncSession, user_id: int) -> Optional[UserModel]:
+    """
+    user_id로 UserModel 조회 (스키마 변환 없이).
+    """
+    result = await session.execute(
+        select(UserModel).where(UserModel.id == user_id)
+    )
+    return result.scalar_one_or_none()
     

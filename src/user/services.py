@@ -483,7 +483,7 @@ async def get_oauth_user_profile(session: AsyncSession, user_id: int) -> UserPro
         if user.last_request_date is None or user.last_request_date.date() < date.today():
             daily_requests = 0
 
-        remaining_requests = max(0, DEFAULT_DAILY_LIMIT - daily_requests)
+        remaining_requests = max(0, user.daily_request_limit - daily_requests)
 
         return UserProfileResponse(
             id=user.id,
@@ -493,8 +493,10 @@ async def get_oauth_user_profile(session: AsyncSession, user_id: int) -> UserPro
             username=user.username,
             total_requests=user.total_requests,
             daily_requests=daily_requests,
+            daily_request_limit=user.daily_request_limit,
             remaining_requests=remaining_requests,
             is_active=user.is_active,
+            is_admin=user.is_admin,
             created_at=user.created_at,
             updated_at=user.updated_at
         )
@@ -503,3 +505,179 @@ async def get_oauth_user_profile(session: AsyncSession, user_id: int) -> UserPro
         raise
     except Exception as e:
         raise UserQueryError("get_oauth_user_profile", {"user_id": user_id}, str(e))
+
+
+#############################
+####### ADMIN SERVICES ######
+#############################
+
+from user.models import (
+    UserAdminResponse, UserLimitUpdate, UserAdminStatusUpdate,
+    UserActiveStatusUpdate, UserListResponse, AdminStatsResponse
+)
+from user.exceptions import (
+    InsufficientPermissionError, InvalidLimitValueError, SelfModificationError
+)
+from conversation import repositories as conversation_repo
+import math
+
+
+async def get_all_users(
+    session: AsyncSession,
+    page: int = 1,
+    page_size: int = 20,
+    search: Optional[str] = None
+) -> UserListResponse:
+    """
+    모든 사용자 목록 조회 (관리자용).
+    """
+    try:
+        # 페이지 크기 제한
+        page_size = min(max(1, page_size), 100)
+        page = max(1, page)
+
+        users, total_count = await user_repo.find_all_users(
+            session, page, page_size, search
+        )
+
+        total_pages = math.ceil(total_count / page_size) if total_count > 0 else 1
+
+        return UserListResponse(
+            users=[user.to_admin_response() for user in users],
+            total_users=total_count,
+            page=page,
+            page_size=page_size,
+            total_pages=total_pages
+        )
+
+    except Exception as e:
+        raise UserQueryError("get_all_users", {"page": page, "page_size": page_size}, str(e))
+
+
+async def get_user_admin_detail(
+    session: AsyncSession,
+    user_id: int
+) -> UserAdminResponse:
+    """
+    특정 사용자 상세 조회 (관리자용).
+    """
+    try:
+        user = await user_repo.get_user_model_by_id(session, user_id)
+        if not user:
+            raise UserNotFoundError(user_id, "id")
+
+        return user.to_admin_response()
+
+    except UserNotFoundError:
+        raise
+    except Exception as e:
+        raise UserQueryError("get_user_admin_detail", {"user_id": user_id}, str(e))
+
+
+async def update_user_limit(
+    session: AsyncSession,
+    user_id: int,
+    limit: int
+) -> UserAdminResponse:
+    """
+    사용자 일일 요청 제한 수정.
+    """
+    try:
+        # 제한 값 검증
+        if limit < 0 or limit > 10000:
+            raise InvalidLimitValueError(limit)
+
+        # 사용자 존재 확인
+        user = await user_repo.get_user_model_by_id(session, user_id)
+        if not user:
+            raise UserNotFoundError(user_id, "id")
+
+        # 업데이트
+        updated_user = await user_repo.update_daily_limit(session, user_id, limit)
+        return updated_user.to_admin_response()
+
+    except (UserNotFoundError, InvalidLimitValueError):
+        raise
+    except Exception as e:
+        raise UserQueryError("update_user_limit", {"user_id": user_id, "limit": limit}, str(e))
+
+
+async def update_user_admin_status(
+    session: AsyncSession,
+    user_id: int,
+    is_admin: bool,
+    current_user_id: int
+) -> UserAdminResponse:
+    """
+    사용자 관리자 권한 수정.
+    """
+    try:
+        # 자기 자신 수정 불가
+        if user_id == current_user_id:
+            raise SelfModificationError("admin status")
+
+        # 사용자 존재 확인
+        user = await user_repo.get_user_model_by_id(session, user_id)
+        if not user:
+            raise UserNotFoundError(user_id, "id")
+
+        # 업데이트
+        updated_user = await user_repo.update_admin_status(session, user_id, is_admin)
+        return updated_user.to_admin_response()
+
+    except (UserNotFoundError, SelfModificationError):
+        raise
+    except Exception as e:
+        raise UserQueryError("update_user_admin_status", {"user_id": user_id}, str(e))
+
+
+async def update_user_active_status(
+    session: AsyncSession,
+    user_id: int,
+    is_active: bool,
+    current_user_id: int
+) -> UserAdminResponse:
+    """
+    사용자 활성화 상태 수정.
+    """
+    try:
+        # 자기 자신 비활성화 불가
+        if user_id == current_user_id and not is_active:
+            raise SelfModificationError("active status")
+
+        # 사용자 존재 확인
+        user = await user_repo.get_user_model_by_id(session, user_id)
+        if not user:
+            raise UserNotFoundError(user_id, "id")
+
+        # 업데이트
+        updated_user = await user_repo.update_active_status(session, user_id, is_active)
+        return updated_user.to_admin_response()
+
+    except (UserNotFoundError, SelfModificationError):
+        raise
+    except Exception as e:
+        raise UserQueryError("update_user_active_status", {"user_id": user_id}, str(e))
+
+
+async def get_admin_stats(session: AsyncSession) -> AdminStatsResponse:
+    """
+    관리자 통계 조회.
+    """
+    try:
+        total_users = await user_repo.get_total_users_count(session)
+        active_users = await user_repo.get_active_users_count(session)
+        admin_users = await user_repo.get_admin_users_count(session)
+        total_requests_today = await user_repo.get_today_total_requests(session)
+        total_conversations = await conversation_repo.get_total_conversations_count(session)
+
+        return AdminStatsResponse(
+            total_users=total_users,
+            active_users=active_users,
+            admin_users=admin_users,
+            total_requests_today=total_requests_today,
+            total_conversations=total_conversations
+        )
+
+    except Exception as e:
+        raise UserQueryError("get_admin_stats", {}, str(e))

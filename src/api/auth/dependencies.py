@@ -129,3 +129,22 @@ async def get_optional_current_user(
             
     except HTTPException:
         return None
+
+
+async def get_current_admin_user(
+    current_user: UserModel = Depends(get_current_user)
+) -> UserModel:
+    """
+    관리자 권한 검증
+
+    1. get_current_user로 인증된 사용자 확인
+    2. is_admin == True 확인
+    3. 관리자가 아니면 403 Forbidden
+    """
+    if not current_user.is_admin:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Admin permission required"
+        )
+
+    return current_user

@@ -251,5 +251,16 @@ async def get_user_chat_sessions_count(session: AsyncSession, user_id: int) -> i
         select(func.count(ConversationModel.id))
         .where(ConversationModel.user_id == user_id)
     )
-    
+
+    return result.scalar() or 0
+
+
+async def get_total_conversations_count(session: AsyncSession) -> int:
+    """
+    전체 채팅 세션 수 조회 (관리자용).
+    """
+    result = await session.execute(
+        select(func.count(ConversationModel.id))
+    )
+
     return result.scalar() or 0
