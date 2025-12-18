@@ -44,14 +44,18 @@ export interface ChatHistoryResponse {
 
 export interface UserProfileResponse {
   id: number
-  name: string
-  email: string
-  avatar_url?: string
+  name?: string
+  email?: string
+  picture?: string  // Backend 필드명과 일치
+  username?: string
   total_requests: number
   daily_requests: number
+  daily_request_limit: number
   remaining_requests: number
+  is_active: boolean
+  is_admin: boolean
   created_at: string
-  updated_at: string
+  updated_at?: string
 }
 
 export interface UserProfileUpdate {
@@ -81,4 +85,49 @@ export interface SessionValidationResponse {
   conversation_id: number
   has_access: boolean
   user_id: number
+}
+
+// Admin API 타입
+
+export interface UserAdminResponse {
+  id: number
+  email?: string
+  name?: string
+  picture?: string
+  is_admin: boolean
+  total_requests: number
+  daily_requests: number
+  daily_request_limit: number
+  last_request_date?: string
+  is_active: boolean
+  created_at: string
+  updated_at?: string
+}
+
+export interface UserListResponse {
+  users: UserAdminResponse[]
+  total_users: number
+  page: number
+  page_size: number
+  total_pages: number
+}
+
+export interface UserLimitUpdate {
+  daily_request_limit: number
+}
+
+export interface UserAdminStatusUpdate {
+  is_admin: boolean
+}
+
+export interface UserActiveStatusUpdate {
+  is_active: boolean
+}
+
+export interface AdminStatsResponse {
+  total_users: number
+  active_users: number
+  admin_users: number
+  total_requests_today: number
+  total_conversations: number
 }
