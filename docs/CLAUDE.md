@@ -4,70 +4,180 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-MMA Savant is a comprehensive Mixed Martial Arts data collection and analysis platform consisting of:
-- **Data Collector**: Automated web scrapers using Playwright and httpx for collecting UFC stats
-- **Backend API**: FastAPI service providing REST endpoints for fighter, event, and match data
-- **Chat Interface**: Chainlit-powered conversational interface for querying MMA data
-- **Database**: PostgreSQL with comprehensive MMA schema and Redis for caching
+MMA Savant는 MMA(종합격투기) 데이터 수집, 분석, AI 채팅 서비스를 제공하는 플랫폼입니다.
 
-## Architecture
+### 주요 구성 요소
 
-### Core Data Flow
-1. **Scrapers** (`src/data_collector/scrapers/`) collect data from UFC stats using Playwright
-2. **Workflows** (`src/data_collector/workflows/`) orchestrate scraping tasks using Prefect
-3. **Repository Pattern** manages data persistence with SQLAlchemy models
-4. **API Services** expose data through FastAPI endpoints with domain-specific modules
+| 구성 요소 | 기술 스택 | 위치 |
+|-----------|-----------|------|
+| **Frontend** | Next.js 15, React 19, TypeScript, Tailwind CSS | `frontend/` |
+| **Backend API** | FastAPI, SQLAlchemy, PostgreSQL | `src/` |
+| **Data Collector** | Playwright, Prefect, httpx | `src/data_collector/` |
+| **Database** | PostgreSQL, Redis (캐싱) | Docker |
 
-### Key Components
-- **Models**: SQLAlchemy models with corresponding Pydantic schemas for validation
-- **Repositories**: Data access layer implementing repository pattern
-- **Services**: Business logic layer between API and repositories
-- **Database Session Management**: Context managers for transaction handling
+### 시스템 흐름
 
-## Development Commands
+```
+[사용자] → [Next.js Frontend] → [FastAPI Backend] → [PostgreSQL]
+              ↓                        ↓
+         NextAuth (Google)      WebSocket (실시간 채팅)
+              ↓                        ↓
+         JWT 토큰 교환           AI 응답 스트리밍
+```
 
-### Running the Application
+---
+
+## 주요 작업별 가이드
+
+### Backend 작업 시
+
+**디렉토리**: `src/`
+
+**패턴**: Repository → Service → Router
+
+```
+src/
+├── user/           # 사용자 관리 (OAuth, 프로필, 사용량)
+├── auth/           # JWT 인증, 의존성
+├── chat/           # 채팅 세션, 메시지
+├── conversation/   # 대화 관리
+├── admin/          # 관리자 API
+└── database/       # DB 세션, 초기화
+```
+
+**주요 파일**:
+- `src/user/models.py` - User 스키마/모델 정의
+- `src/auth/dependencies.py` - `get_current_user` 등 인증 의존성
+- `src/config.py` - 환경 설정
+
+**DB 세션 사용**:
+```python
+from database.session import get_async_session
+
+async with get_async_session() as session:
+    # DB 작업
+    pass
+```
+
+---
+
+### Frontend 작업 시
+
+**디렉토리**: `frontend/src/`
+
+**패턴**: hooks → components → pages
+
+```
+frontend/src/
+├── app/            # Next.js App Router 페이지
+│   ├── chat/       # 채팅 페이지 (보호됨)
+│   ├── profile/    # 프로필 페이지 (보호됨)
+│   └── auth/       # 로그인 페이지
+├── components/     # React 컴포넌트
+│   ├── chat/       # 채팅 UI
+│   ├── profile/    # 프로필 UI
+│   └── ui/         # shadcn/ui 기본 컴포넌트
+├── hooks/          # 커스텀 훅 (useAuth, useSocket, useChatSession, useUser)
+├── services/       # API 클라이언트 (chatApi, userApi)
+├── store/          # Zustand 상태 관리
+└── types/          # TypeScript 타입 정의
+```
+
+**주요 파일**:
+- `frontend/src/types/api.ts` - API 응답 타입 (Backend와 일치 필요)
+- `frontend/src/lib/auth.ts` - NextAuth 설정
+- `frontend/src/services/userApi.ts` - 사용자 API 호출
+
+---
+
+### 인증 관련 작업 시
+
+**인증 플로우**:
+```
+1. 사용자 → Google OAuth 로그인 (NextAuth)
+2. Frontend → POST /api/auth/google-token (Google 토큰 전송)
+3. Backend → JWT 토큰 발급 (24시간 유효)
+4. Frontend → Authorization: Bearer <jwt> 헤더로 API 호출
+```
+
+**관련 파일**:
+- Frontend: `frontend/src/lib/auth.ts`, `frontend/src/lib/api.ts`
+- Backend: `src/auth/jwt_handler.py`, `src/auth/dependencies.py`
+
+---
+
+### WebSocket 채팅 작업 시
+
+**연결**: `ws://localhost:8002/ws/chat?token={jwt}&conversation_id={id}`
+
+**이벤트 흐름**:
+```
+Client → "message" (질문)
+Server → "thinking_start" → "stream_chunk"(반복) → "stream_end"
+```
+
+**관련 파일**:
+- Frontend: `frontend/src/lib/realSocket.ts`, `frontend/src/hooks/useSocket.ts`
+- Backend: `src/websocket/` 디렉토리
+
+---
+
+### Data Collector 작업 시
+
+**디렉토리**: `src/data_collector/`
+
+```
+src/data_collector/
+├── scrapers/       # Playwright 스크래퍼
+├── workflows/      # Prefect 워크플로우
+└── main.py         # 스케줄러 (매주 수요일)
+```
+
+**실행**:
 ```bash
-# Start all services (PostgreSQL, Redis, data collector)
-docker-compose up -d
-
-# Run data collection workflow manually
 cd src/data_collector
 python main.py
-
-# Run specific test workflow
-python -m pytest src/data_collector/workflows/tests/test_ufc_stats_flow.py
-
-# Run individual scraper tests
-python src/data_collector/scrapers/test-by-html/test_fighters.py
 ```
 
-### Database Operations
+---
+
+## 개발 명령어
+
+### 서비스 실행
+
 ```bash
-# Initialize database tables
-cd src
-python database/init_tables.py
+# 전체 서비스 (Docker)
+docker-compose up -d
 
-# Initialize weight classes (run after table creation)
-python -c "from data_collector.workflows.tasks import init_weight_classes; init_weight_classes()"
+# Frontend 개발 서버
+cd frontend && npm run dev
+
+# Backend 개발 서버
+cd src && uvicorn main:app --reload --port 8002
 ```
 
-### Testing
+### 테스트
+
 ```bash
-# Run all tests
-python -m pytest
+# Backend 테스트
+python -m pytest src/
 
-# Run specific test file
-python -m pytest src/data_collector/workflows/tests/test_ufc_stats_flow.py -v
-
-# Run scraper validation tests
-python src/data_collector/scrapers/test-by-html/test_event_detail.py
+# Frontend 테스트 (설정 필요)
+cd frontend && npm test
 ```
 
-## Configuration
+### 데이터베이스
 
-### Environment Variables
-Create `.env` file with:
+```bash
+# 테이블 초기화
+cd src && python database/init_tables.py
+```
+
+---
+
+## 환경 변수
+
+### Backend (`src/.env`)
 ```
 DB_HOST=localhost
 DB_PORT=5432
@@ -76,69 +186,42 @@ DB_PASSWORD=your_password
 DB_NAME=ufc_stats
 REDIS_HOST=localhost
 REDIS_PORT=6379
-REDIS_PASSWORD=your_redis_password
-LLM_API_KEY=your_openai_key
-PREFECT_API_KEY=your_prefect_key
-PREFECT_API_URL=your_prefect_url
+NEXTAUTH_SECRET=your_secret  # JWT 서명 (Frontend와 공유)
 ```
 
-### Database Configuration
-- Uses `src/config.py` for centralized configuration management
-- PostgreSQL connection via asyncpg for async operations
-- Redis for caching with configurable authentication
-
-## Data Models Architecture
-
-### Core Entities
-- **Fighter**: Profile, stats, physical attributes with win/loss records
-- **Event**: UFC events with date, location, and associated matches
-- **Match**: Individual fights with detailed statistics and outcomes
-- **Ranking**: Fighter rankings by weight class with historical tracking
-- **WeightClass**: UFC weight divisions with boundaries
-
-### Key Relationships
-- Fighters have many-to-many relationships with matches via `fighter_match` table
-- Rankings link fighters to weight classes with temporal data
-- Events contain multiple matches with detailed statistics
-
-## Workflow Management
-
-### Prefect Integration
-- `src/data_collector/workflows/ufc_stats_flow.py`: Main scraping orchestration
-- Scheduled execution via `src/data_collector/main.py` (weekly on Wednesdays)
-- Task-based architecture for modular scraping operations
-
-### Scraping Strategy
-- **Playwright**: For JavaScript-heavy pages requiring browser automation
-- **httpx**: For static content and API endpoints
-- **Session Management**: Database sessions with proper cleanup
-- **Error Handling**: Comprehensive logging and retry mechanisms
-
-## API Structure
-
-### Domain Organization
-Each domain (`fighter/`, `event/`, `match/`) follows consistent structure:
-- `models.py`: SQLAlchemy models and Pydantic schemas
-- `repositories.py`: Data access layer
-- `services.py`: Business logic
-- `dto.py`: Data transfer objects (where applicable)
-
-### Database Sessions
-Use context managers for proper session handling:
-```python
-from database.session import db_session
-
-with db_session() as session:
-    # Database operations
-    pass
+### Frontend (`frontend/.env.local`)
+```
+NEXTAUTH_SECRET=your_secret
+NEXTAUTH_URL=http://localhost:3000
+GOOGLE_CLIENT_ID=your_google_client_id
+GOOGLE_CLIENT_SECRET=your_google_client_secret
+NEXT_PUBLIC_API_URL=http://localhost:8002
+NEXT_PUBLIC_WS_URL=ws://localhost:8002
 ```
 
-## Testing Strategy
+---
 
-### Test Organization
-- Unit tests in `src/data_collector/workflows/tests/`
-- Scraper validation tests in `src/data_collector/scrapers/test-by-html/`
-- Manual testing scripts in `src/test.py`
+## 문서 참조
 
-### Running Scrapers
-Individual scrapers can be tested with saved HTML files in `test-by-html/` directory for development without hitting live endpoints.
+### docs/API_INTERFACE.md
+
+API 엔드포인트 명세서. 다음 내용 포함:
+- **Authentication**: Google OAuth → JWT 토큰 교환
+- **User Management**: 프로필 조회/수정, 사용량 추적
+- **Chat Session**: 세션 CRUD, 메시지 히스토리
+- **WebSocket**: 실시간 채팅 프로토콜, 이벤트 타입
+- **Admin API**: 사용자 관리, 시스템 통계
+
+**참조 시점**: API 추가/수정, 프론트엔드 연동, 에러 코드 확인
+
+
+## 주의사항
+
+### Frontend ↔ Backend 타입 동기화
+`frontend/src/types/api.ts`의 타입은 Backend 스키마와 일치해야 합니다.
+- Backend: `src/user/models.py` → `UserProfileResponse`
+- Frontend: `frontend/src/types/api.ts` → `UserProfileResponse`
+
+### 필드명 컨벤션
+- 프로필 이미지: `picture` (Backend/Frontend 모두)
+- 날짜/시간: ISO 8601 형식 (`created_at`, `updated_at`)
