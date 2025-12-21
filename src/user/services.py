@@ -208,10 +208,11 @@ async def get_user_usage(session: AsyncSession, user_id: int) -> UserUsageDTO:
         usage_stats = await user_repo.get_user_usage_stats(session, user_id)
         if not usage_stats:
             raise UserNotFoundError(user_id, "id")
-        
-        daily_limit = DEFAULT_DAILY_LIMIT
+
+        # 사용자별 일일 제한 사용 (설정되지 않은 경우 기본값 사용)
+        daily_limit = usage_stats.get("daily_request_limit") or DEFAULT_DAILY_LIMIT
         remaining_requests = max(0, daily_limit - usage_stats["daily_requests"])
-        
+
         return UserUsageDTO(
             user_id=usage_stats["user_id"],
             username=usage_stats["username"],

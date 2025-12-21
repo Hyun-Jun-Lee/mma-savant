@@ -174,6 +174,7 @@ async def get_user_usage_stats(session: AsyncSession, user_id: int) -> Optional[
         "username": user.username,
         "total_requests": user.total_requests,
         "daily_requests": daily_requests,
+        "daily_request_limit": user.daily_request_limit,
         "last_request_date": user.last_request_date
     }
 
