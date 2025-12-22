@@ -2,7 +2,8 @@
 User 서비스 레이어
 사용자 인증, 회원가입, 로그인, 사용량 추적 등의 비즈니스 로직을 처리합니다.
 """
-import hashlib
+import re
+import bcrypt
 from typing import Optional
 from datetime import datetime, date
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -24,13 +25,14 @@ DEFAULT_DAILY_LIMIT = 100
 
 
 def _hash_password(password: str) -> str:
-    """비밀번호를 해시화합니다."""
-    return hashlib.sha256(password.encode()).hexdigest()
+    """비밀번호를 bcrypt로 해시화합니다."""
+    salt = bcrypt.gensalt()
+    return bcrypt.hashpw(password.encode('utf-8'), salt).decode('utf-8')
 
 
 def _verify_password(password: str, hashed_password: str) -> bool:
     """비밀번호를 검증합니다."""
-    return _hash_password(password) == hashed_password
+    return bcrypt.checkpw(password.encode('utf-8'), hashed_password.encode('utf-8'))
 
 
 def _validate_username(username: str) -> None:
@@ -50,15 +52,36 @@ def _validate_username(username: str) -> None:
 
 
 def _validate_password(password: str) -> None:
-    """비밀번호 유효성 검사"""
+    """
+    비밀번호 유효성 검사
+    - 최소 8자 이상
+    - 대문자, 소문자, 숫자, 특수문자 중 3가지 이상 포함
+    """
     if not password:
         raise UserValidationError("password", None, "Password cannot be empty")
-    
-    if len(password) < 6:
-        raise UserValidationError("password", None, "Password must be at least 6 characters")
-    
+
+    if len(password) < 8:
+        raise UserValidationError("password", None, "Password must be at least 8 characters")
+
     if len(password) > 100:
         raise UserValidationError("password", None, "Password must not exceed 100 characters")
+
+    # 비밀번호 복잡도 체크
+    complexity_count = 0
+    if re.search(r'[a-z]', password):  # 소문자
+        complexity_count += 1
+    if re.search(r'[A-Z]', password):  # 대문자
+        complexity_count += 1
+    if re.search(r'\d', password):  # 숫자
+        complexity_count += 1
+    if re.search(r'[!@#$%^&*(),.?":{}|<>]', password):  # 특수문자
+        complexity_count += 1
+
+    if complexity_count < 3:
+        raise UserValidationError(
+            "password", None,
+            "Password must contain at least 3 of: lowercase, uppercase, number, special character"
+        )
 
 
 async def signup_user(session: AsyncSession, user_data: UserCreateDTO) -> UserAuthResponseDTO:

@@ -56,7 +56,7 @@ async def create_user(session: AsyncSession, user: UserSchema) -> UserSchema:
     db_user = UserModel.from_schema(user)
     session.add(db_user)
     await session.flush()
-    await session.commit()
+    await session.refresh(db_user)
     return db_user.to_schema()
 
 
@@ -81,11 +81,11 @@ async def create_oauth_user(
         total_requests=0,
         daily_requests=0
     )
-    
+
     db_user = UserModel.from_schema(user_data)
     session.add(db_user)
     await session.flush()
-    await session.commit()
+    await session.refresh(db_user)
     return db_user.to_schema()
 
 
@@ -102,20 +102,19 @@ async def update_user_profile(
         update_data["name"] = profile_update.name
     if profile_update.picture is not None:
         update_data["picture"] = profile_update.picture
-    
+
     if not update_data:
         return await get_user_by_id(session, user_id)
-    
+
     update_data["updated_at"] = kr_time_now()
-    
+
     await session.execute(
         update(UserModel)
         .where(UserModel.id == user_id)
         .values(**update_data)
     )
     await session.flush()
-    await session.commit()
-    
+
     return await get_user_by_id(session, user_id)
 
 

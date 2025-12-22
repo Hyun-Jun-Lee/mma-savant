@@ -14,6 +14,8 @@ from config import Config
 class TokenData(BaseModel):
     """JWT 토큰에서 추출한 사용자 정보"""
     sub: str  # user id or email
+    user_id: Optional[int] = None  # 일반 로그인용
+    username: Optional[str] = None  # 일반 로그인용
     email: Optional[str] = None
     name: Optional[str] = None
     picture: Optional[str] = None
@@ -51,11 +53,13 @@ class JWTHandler:
                 algorithms=[self.algorithm]
             )
             
-            # NextAuth.js 토큰 구조에 맞춰 데이터 추출
+            # NextAuth.js 및 일반 로그인 토큰 구조에 맞춰 데이터 추출
             token_data = TokenData(
                 sub=payload.get("sub"),
+                user_id=payload.get("user_id"),  # 일반 로그인
+                username=payload.get("username"),  # 일반 로그인
                 email=payload.get("email"),
-                name=payload.get("name"), 
+                name=payload.get("name"),
                 picture=payload.get("picture"),
                 iat=payload.get("iat"),
                 exp=payload.get("exp")

@@ -23,22 +23,36 @@ router = APIRouter(prefix="/ws", tags=["WebSocket"])
 async def get_user_from_token(token: str, db: AsyncSession) -> UserModel:
     """
     JWT 토큰에서 사용자 정보 추출 (WebSocket용)
+    - 일반 로그인: user_id로 조회
+    - OAuth 로그인: email로 조회/생성
     """
     try:
         # JWT 토큰 디코딩
         token_data = jwt_handler.decode_token(token)
-        
+
         # 토큰 만료 확인
         if not jwt_handler.verify_token_expiry(token_data):
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Token has expired"
             )
-        
-        # 사용자 조회
-        if token_data.email:
+
+        user_schema = None
+
+        # 1. 일반 로그인 (user_id가 있는 경우)
+        if token_data.user_id:
+            user_schema = await user_repo.get_user_by_id(db, token_data.user_id)
+
+            if not user_schema:
+                raise HTTPException(
+                    status_code=status.HTTP_401_UNAUTHORIZED,
+                    detail="User not found"
+                )
+
+        # 2. OAuth 로그인 (이메일이 있는 경우)
+        elif token_data.email:
             user_schema = await user_repo.get_user_by_email(db, token_data.email)
-            
+
             if not user_schema:
                 # OAuth 사용자가 처음 로그인하는 경우 자동 생성
                 user_schema = await user_repo.create_oauth_user(
@@ -48,32 +62,31 @@ async def get_user_from_token(token: str, db: AsyncSession) -> UserModel:
                     picture=token_data.picture,
                     provider_id=token_data.sub
                 )
-            
-            # UserSchema를 UserModel로 변환
-            user = UserModel.from_schema(user_schema)
-            
+
+        # 3. provider_id로 조회 (fallback)
         else:
-            # 이메일이 없는 경우 sub(provider ID)로 조회
             user_schema = await user_repo.get_user_by_provider_id(db, token_data.sub)
-            
+
             if not user_schema:
                 raise HTTPException(
                     status_code=status.HTTP_401_UNAUTHORIZED,
                     detail="User not found"
                 )
-            
-            # UserSchema를 UserModel로 변환
-            user = UserModel.from_schema(user_schema)
-        
+
+        # UserSchema를 UserModel로 변환
+        user = UserModel.from_schema(user_schema)
+
         # 사용자 활성 상태 확인
         if not user.is_active:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Inactive user"
             )
-        
+
         return user
-        
+
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
