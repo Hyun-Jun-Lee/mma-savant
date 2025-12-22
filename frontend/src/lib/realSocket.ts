@@ -255,7 +255,12 @@ class RealSocket extends EventEmitter {
       case 'pong':
         console.log('🏓 Pong received')
         break
-        
+
+      case 'usage_limit_exceeded':
+        console.log('🚫 Usage limit exceeded:', data)
+        this.emit('usage_limit_exceeded', data)
+        break
+
       default:
         console.log('❓ Unknown message type:', data.type)
     }

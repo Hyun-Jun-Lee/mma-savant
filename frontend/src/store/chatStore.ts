@@ -15,6 +15,9 @@ export const useChatStore = create<ChatStore>((set, get) => ({
   // 모달 상태 초기값
   modalSessionId: null,
   isModalOpen: false,
+  // 사용량 제한 상태 초기값
+  usageLimit: null,
+  showUsageLimitPopup: false,
 
   addMessage: (message) => {
     const newMessage: Message = {
@@ -128,4 +131,8 @@ export const useChatStore = create<ChatStore>((set, get) => ({
   // 모달 액션들
   openModal: (sessionId) => set({ modalSessionId: sessionId, isModalOpen: true }),
   closeModal: () => set({ modalSessionId: null, isModalOpen: false }),
+
+  // 사용량 제한 액션들
+  setUsageLimit: (info) => set({ usageLimit: info }),
+  setShowUsageLimitPopup: (show) => set({ showUsageLimitPopup: show }),
 }))

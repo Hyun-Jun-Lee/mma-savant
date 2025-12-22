@@ -29,6 +29,15 @@ export interface ChatSession {
   updated_at: Date
 }
 
+// 사용량 제한 정보
+export interface UsageLimitInfo {
+  exceeded: boolean
+  dailyRequests: number
+  dailyLimit: number
+  remainingRequests: number
+  error?: string
+}
+
 export interface ChatState {
   messages: Message[]
   isLoading: boolean
@@ -43,6 +52,9 @@ export interface ChatState {
   // 모달 상태
   modalSessionId: number | null
   isModalOpen: boolean
+  // 사용량 제한 상태
+  usageLimit: UsageLimitInfo | null
+  showUsageLimitPopup: boolean
 }
 
 export interface ChatStore extends ChatState {
@@ -66,4 +78,7 @@ export interface ChatStore extends ChatState {
   // 모달 액션들
   openModal: (sessionId: number) => void
   closeModal: () => void
+  // 사용량 제한 액션들
+  setUsageLimit: (info: UsageLimitInfo | null) => void
+  setShowUsageLimitPopup: (show: boolean) => void
 }

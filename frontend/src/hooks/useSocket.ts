@@ -12,7 +12,7 @@ export function useSocket() {
   const [isConnected, setIsConnected] = useState(false)
   const [isTyping, setIsTyping] = useState(false)
   const socketRef = useRef(getRealSocket())
-  const { addMessage, updateMessage, setConnected, setTyping, currentSession, setCurrentSession, setSessions, openModal } = useChatStore()
+  const { addMessage, updateMessage, setConnected, setTyping, currentSession, setCurrentSession, setSessions, openModal, setUsageLimit, setShowUsageLimitPopup } = useChatStore()
   const currentStreamingMessage = useRef<{
     id: string;
     content: string;
@@ -381,6 +381,33 @@ export function useSocket() {
       setTyping(false)
 
       // 현재 스트리밍 메시지 정리
+      currentStreamingMessage.current = null
+    })
+
+    // 일일 사용량 제한 초과 처리
+    socket.on('usage_limit_exceeded', (data: {
+      error: string;
+      daily_requests: number;
+      daily_limit: number;
+      remaining_requests: number;
+      timestamp: string;
+    }) => {
+      console.log('🚫 Usage limit exceeded:', data)
+
+      // 사용량 제한 상태 업데이트
+      setUsageLimit({
+        exceeded: true,
+        dailyRequests: data.daily_requests,
+        dailyLimit: data.daily_limit,
+        remainingRequests: data.remaining_requests,
+        error: data.error
+      })
+
+      // 팝업 표시
+      setShowUsageLimitPopup(true)
+
+      setIsTyping(false)
+      setTyping(false)
       currentStreamingMessage.current = null
     })
 

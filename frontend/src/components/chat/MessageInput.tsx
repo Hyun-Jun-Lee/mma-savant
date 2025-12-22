@@ -13,12 +13,12 @@ interface MessageInputProps {
   placeholder?: string
 }
 
-export function MessageInput({ 
+export function MessageInput({
   onSendMessage,
   disabled = false,
-  placeholder = "MMA에 대해 무엇이든 물어보세요... (Shift+Enter로 줄바꿈)" 
+  placeholder = "MMA에 대해 무엇이든 물어보세요... (Shift+Enter로 줄바꿈)"
 }: MessageInputProps) {
-  const { currentMessage, setCurrentMessage, isLoading } = useChatStore()
+  const { currentMessage, setCurrentMessage, isLoading, usageLimit } = useChatStore()
   const textareaRef = useRef<HTMLTextAreaElement>(null)
 
   const handleSend = () => {
@@ -58,8 +58,15 @@ export function MessageInput({
     textareaRef.current?.focus()
   }, [])
 
-  const isDisabled = disabled || isLoading
+  // 사용량 제한 초과 시 입력 비활성화
+  const isUsageLimitExceeded = usageLimit?.exceeded ?? false
+  const isDisabled = disabled || isLoading || isUsageLimitExceeded
   const canSend = currentMessage.trim().length > 0 && !isDisabled
+
+  // 사용량 초과 시 placeholder 변경
+  const displayPlaceholder = isUsageLimitExceeded
+    ? "일일 사용량을 초과했습니다. 내일 다시 이용해 주세요."
+    : placeholder
 
   return (
     <div className="flex h-12 flex-1 flex-col min-w-40">
@@ -69,7 +76,7 @@ export function MessageInput({
           value={currentMessage}
           onChange={(e) => setCurrentMessage(e.target.value)}
           onKeyDown={handleKeyDown}
-          placeholder={placeholder}
+          placeholder={displayPlaceholder}
           disabled={isDisabled}
           className={cn(
             "h-full min-w-0 flex-1 resize-none overflow-hidden rounded-lg rounded-r-none border-none",

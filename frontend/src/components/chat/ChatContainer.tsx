@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react"
 import { HistoryView } from "./HistoryView"
 import { MessageInput } from "./MessageInput"
+import { UsageLimitPopup } from "./UsageLimitPopup"
 import { useChatStore } from "@/store/chatStore"
 import { useAuth } from "@/hooks/useAuth"
 import { useSocket } from "@/hooks/useSocket"
@@ -145,6 +146,8 @@ export function ChatContainer() {
         <HistoryView />
       </main>
 
+      {/* 사용량 제한 팝업 */}
+      <UsageLimitPopup />
     </div>
   )
 }
