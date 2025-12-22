@@ -1,17 +1,21 @@
 "use client"
 
+import { useState } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { GoogleLoginButton } from "@/components/auth/GoogleLoginButton"
-import { LoginForm } from "@/components/auth/LoginForm"
+import { SignupForm } from "@/components/auth/SignupForm"
 import { Button } from "@/components/ui/button"
 import { ArrowLeft } from "lucide-react"
 import { useRouter } from "next/navigation"
 import { useAuth } from "@/hooks/useAuth"
 import { useEffect } from "react"
 
-export default function SignInPage() {
+type AuthTab = "general" | "oauth"
+
+export default function SignUpPage() {
   const router = useRouter()
   const { isAuthenticated, isLoading } = useAuth()
+  const [activeTab, setActiveTab] = useState<AuthTab>("general")
 
   useEffect(() => {
     if (!isLoading && isAuthenticated) {
@@ -31,12 +35,12 @@ export default function SignInPage() {
     return null
   }
 
-  const handleLoginSuccess = () => {
+  const handleSignupSuccess = () => {
     router.push("/chat")
   }
 
-  const handleSignupClick = () => {
-    router.push("/auth/signup")
+  const handleLoginClick = () => {
+    router.push("/auth/signin")
   }
 
   return (
@@ -55,36 +59,63 @@ export default function SignInPage() {
                 MMA Savant
               </CardTitle>
               <CardDescription className="text-lg mt-2 text-zinc-400">
-                Sign in to your account
+                Create your account
               </CardDescription>
             </div>
           </div>
         </CardHeader>
 
         <CardContent className="space-y-6">
-          {/* 일반 로그인 폼 */}
-          <LoginForm
-            onSuccess={handleLoginSuccess}
-            onSignupClick={handleSignupClick}
-          />
-
-          {/* 구분선 */}
-          <div className="relative">
-            <div className="absolute inset-0 flex items-center">
-              <span className="w-full border-t border-white/10" />
-            </div>
-            <div className="relative flex justify-center text-xs uppercase">
-              <span className="bg-zinc-900 px-2 text-zinc-500">또는</span>
-            </div>
+          {/* Auth Tab Selector */}
+          <div className="flex rounded-lg bg-white/5 p-1">
+            <button
+              onClick={() => setActiveTab("general")}
+              className={`flex-1 py-2 px-4 text-sm font-medium rounded-md transition-all ${
+                activeTab === "general"
+                  ? "bg-white/10 text-white"
+                  : "text-zinc-400 hover:text-white"
+              }`}
+            >
+              일반 회원가입
+            </button>
+            <button
+              onClick={() => setActiveTab("oauth")}
+              className={`flex-1 py-2 px-4 text-sm font-medium rounded-md transition-all ${
+                activeTab === "oauth"
+                  ? "bg-white/10 text-white"
+                  : "text-zinc-400 hover:text-white"
+              }`}
+            >
+              소셜 로그인
+            </button>
           </div>
 
-          {/* Google 로그인 버튼 */}
-          <GoogleLoginButton
-            className="w-full bg-white text-zinc-900 hover:bg-zinc-100 font-medium border border-white/20 shadow-lg"
-            size="lg"
-          >
-            Continue with Google
-          </GoogleLoginButton>
+          {/* Tab Content */}
+          {activeTab === "general" ? (
+            <SignupForm
+              onSuccess={handleSignupSuccess}
+              onLoginClick={handleLoginClick}
+            />
+          ) : (
+            <div className="space-y-4">
+              <GoogleLoginButton
+                className="w-full bg-white text-zinc-900 hover:bg-zinc-100 font-medium border border-white/20 shadow-lg"
+                size="lg"
+              >
+                Continue with Google
+              </GoogleLoginButton>
+
+              <p className="text-center text-sm text-zinc-400">
+                이미 계정이 있으신가요?{" "}
+                <button
+                  onClick={handleLoginClick}
+                  className="text-red-500 hover:text-red-400 underline"
+                >
+                  로그인
+                </button>
+              </p>
+            </div>
+          )}
 
           <div className="text-center">
             <Button
@@ -98,7 +129,7 @@ export default function SignInPage() {
           </div>
 
           <div className="text-center text-xs text-zinc-500 space-y-2">
-            <p>By signing in, you agree to our Terms of Service and Privacy Policy.</p>
+            <p>By signing up, you agree to our Terms of Service and Privacy Policy.</p>
             <p>Get expert insights on MMA fighters, techniques, and fight analysis.</p>
           </div>
         </CardContent>
