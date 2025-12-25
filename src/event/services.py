@@ -1,75 +1,64 @@
-from datetime import date, datetime, timedelta
-from typing import Optional, List, Dict, Any
+from datetime import date
+from typing import Optional, List
 from calendar import monthrange
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from event import repositories as event_repo
 from event.dto import (
-    EventTimelineDTO, EventSearchDTO, EventSearchResultDTO,
-    MonthlyCalendarDTO, YearlyCalendarDTO, MonthlyBreakdownDTO, LocationStatisticsDTO,
-    EventRecommendationsDTO, NextAndLastEventsDTO, EventTrendsDTO
+    EventListDTO, EventSearchDTO, EventSearchResultDTO,
+    MonthlyCalendarDTO, YearlyCalendarDTO, MonthlyBreakdownDTO
 )
 from event.exceptions import (
-    EventNotFoundError, EventValidationError, EventDateError, EventLocationError,
-    EventQueryError
+    EventValidationError, EventDateError, EventQueryError
 )
 
 
-async def get_event_timeline(session: AsyncSession, period: str = "month") -> EventTimelineDTO:
+async def get_events(
+    session: AsyncSession,
+    page: int = 1,
+    limit: int = 10,
+    year: Optional[int] = None,
+    month: Optional[int] = None
+    ) -> EventListDTO:
     """
-    이벤트 타임라인을 조회합니다. (지난달, 이번달, 다음달 또는 지난해, 올해, 내년)
+    이벤트 목록을 조회합니다. 페이지네이션과 연도/월 필터링을 지원합니다.
     """
-    if period not in ["month", "year"]:
-        raise EventValidationError("period", period, "period must be 'month' or 'year'")
-    
+    if page < 1:
+        raise EventValidationError("page", page, "page must be a positive integer")
+    if limit < 1 or limit > 100:
+        raise EventValidationError("limit", limit, "limit must be between 1 and 100")
+
+    current_year = date.today().year
+    if year is not None and (year < 1993 or year > current_year + 10):
+        raise EventDateError(year, f"Year must be between 1993 and {current_year + 10}")
+    if month is not None and (month < 1 or month > 12):
+        raise EventDateError(month, "Month must be between 1 and 12")
+
     try:
-        today = date.today()
-        
-        if period == "month":
-            # 이번 달
-            current_events = await event_repo.get_events_by_month(session, today.year, today.month)
-            
-            # 지난 달
-            if today.month == 1:
-                last_month_events = await event_repo.get_events_by_month(session, today.year - 1, 12)
-            else:
-                last_month_events = await event_repo.get_events_by_month(session, today.year, today.month - 1)
-            
-            # 다음 달
-            if today.month == 12:
-                next_month_events = await event_repo.get_events_by_month(session, today.year + 1, 1)
-            else:
-                next_month_events = await event_repo.get_events_by_month(session, today.year, today.month + 1)
-            
-            return EventTimelineDTO(
-                period="monthly",
-                current_period=f"{today.year}-{today.month:02d}",
-                previous_events=last_month_events,
-                current_events=current_events,
-                upcoming_events=next_month_events
-            )
-        
-        elif period == "year":
-            # 올해
-            current_events = await event_repo.get_events_by_year(session, today.year)
-            
-            # 작년
-            last_year_events = await event_repo.get_events_by_year(session, today.year - 1)
-            
-            # 내년
-            next_year_events = await event_repo.get_events_by_year(session, today.year + 1)
-            
-            return EventTimelineDTO(
-                period="yearly",
-                current_period=str(today.year),
-                previous_events=last_year_events,
-                current_events=current_events,
-                upcoming_events=next_year_events
-            )
-    
+        if year is not None:
+            all_events = await event_repo.get_events_by_period(session, year, month)
+        else:
+            all_events = await event_repo.get_events(session, order_by="desc")
+
+        total = len(all_events)
+        start = (page - 1) * limit
+        end = start + limit
+        paginated_events = all_events[start:end]
+
+        return EventListDTO(
+            events=paginated_events,
+            total=total,
+            page=page,
+            limit=limit,
+            year=year,
+            month=month
+        )
+
+    except (EventValidationError, EventDateError):
+        raise
     except Exception as e:
-        raise EventQueryError("get_event_timeline", {"period": period}, str(e))
+        raise EventQueryError("get_events", {"page": page, "limit": limit, "year": year, "month": month}, str(e))
 
 
 async def search_events(
@@ -150,7 +139,7 @@ async def get_events_calendar(
     
     try:
         if month is not None:
-            events = await event_repo.get_events_by_month(session, year, month)
+            events = await event_repo.get_events_by_period(session, year, month)
             
             # 월별 캘린더 생성
             _, days_in_month = monthrange(year, month)
@@ -170,7 +159,7 @@ async def get_events_calendar(
                 calendar=calendar_data
             )
         else:
-            events = await event_repo.get_events_by_year(session, year)
+            events = await event_repo.get_events_by_period(session, year)
             
             # 연도별 월단위 그룹화
             monthly_data = {}
@@ -182,14 +171,14 @@ async def get_events_calendar(
                     monthly_data[month_key].append(event)
             
             return YearlyCalendarDTO(
-                type="yearly", 
+                type="yearly",
                 year=year,
                 total_events=len(events),
                 monthly_breakdown={
-                    month: MonthlyBreakdownDTO(
-                        count=len(events),
-                        events=events
-                    ) for month, events in monthly_data.items()
+                    month_key: MonthlyBreakdownDTO(
+                        count=len(month_events),
+                        events=month_events
+                    ) for month_key, month_events in monthly_data.items()
                 }
             )
     
@@ -197,136 +186,3 @@ async def get_events_calendar(
         raise
     except Exception as e:
         raise EventQueryError("get_events_calendar", {"year": year, "month": month}, str(e))
-
-
-async def get_location_statistics(session: AsyncSession) -> LocationStatisticsDTO:
-    """
-    장소별 이벤트 개최 통계를 제공합니다.
-    """
-    # 주요 MMA 개최지들
-    # TODO : 전체 개최지 조회 repository 추가
-    major_locations = [
-        "Las Vegas", "New York", "London", "Paris", "Abu Dhabi", 
-        "Miami", "Chicago", "Boston", "Los Angeles", "Toronto"
-    ]
-    
-    location_stats = {}
-    total_counted = 0
-    
-    for location in major_locations:
-        count = await event_repo.get_event_count_by_location(session, location)
-        if count > 0:
-            location_stats[location] = count
-            total_counted += count
-    
-    # 전체 이벤트 수 계산 (올해 기준)
-    current_year = date.today().year
-    total_this_year = await event_repo.get_event_count_by_year(session, current_year)
-    
-    return LocationStatisticsDTO(
-        location_breakdown=location_stats,
-        total_major_locations=total_counted,
-        total_events_this_year=total_this_year,
-        other_locations=max(0, total_this_year - total_counted)
-    )
-
-
-async def get_event_recommendations(
-        session: AsyncSession, 
-        recommendation_type: str = "upcoming"
-    ) -> EventRecommendationsDTO:
-    """
-    사용자에게 이벤트 추천을 제공합니다.
-    recommendation_type: 'upcoming', 'recent', 'popular'
-    """
-    if recommendation_type not in ["upcoming", "recent", "popular"]:
-        raise EventValidationError("recommendation_type", recommendation_type, 
-                                 "recommendation_type must be 'upcoming', 'recent', or 'popular'")
-    
-    try:
-        if recommendation_type == "upcoming":
-            events = await event_repo.get_upcoming_events(session, limit=5)
-            return EventRecommendationsDTO(
-                type="upcoming",
-                title="다가오는 추천 이벤트",
-                events=events,
-                description="곧 개최될 흥미진진한 MMA 이벤트들"
-            )
-        
-        elif recommendation_type == "recent":
-            events = await event_repo.get_recent_events(session, limit=5)
-            return EventRecommendationsDTO(
-                type="recent",
-                title="최근 개최된 이벤트",
-                events=events,
-                description="놓치셨을 수도 있는 최근 이벤트들"
-            )
-        # TODO : Popular 타입은 삭제
-        elif recommendation_type == "popular":
-            # 인기 이벤트는 메인 이벤트가 많은 이벤트로 정의
-            # 이 부분은 composition에서 처리하는 것이 맞을 수 있음
-            events = await event_repo.get_recent_events(session, limit=10)
-            return EventRecommendationsDTO(
-                type="popular",
-                title="인기 이벤트",
-                events=events[:5],  # 임시로 최근 이벤트 중 일부
-                description="팬들이 주목하는 인기 이벤트들"
-            )
-    
-    except EventValidationError:
-        raise
-    except Exception as e:
-        raise EventQueryError("get_event_recommendations", {"recommendation_type": recommendation_type}, str(e))
-
-
-async def get_next_and_last_events(session: AsyncSession) -> NextAndLastEventsDTO:
-    """
-    가장 가까운 다음 이벤트와 가장 최근 이벤트를 함께 조회합니다.
-    """
-    next_event = await event_repo.get_next_event(session)
-    last_event = await event_repo.get_last_event(session)
-    
-    days_until_next = None
-    days_since_last = None
-    
-    # 다음 이벤트까지 남은 일수 계산
-    if next_event and next_event.event_date:
-        days_until_next = (next_event.event_date - date.today()).days
-    
-    # 마지막 이벤트로부터 경과 일수 계산  
-    if last_event and last_event.event_date:
-        days_since_last = (date.today() - last_event.event_date).days
-    
-    return NextAndLastEventsDTO(
-        next_event=next_event,
-        last_event=last_event,
-        days_until_next=days_until_next,
-        days_since_last=days_since_last
-    )
-
-
-async def get_event_trends(session: AsyncSession, period: str = "yearly") -> EventTrendsDTO:
-    """
-    이벤트 개최 트렌드를 분석합니다.
-    """
-    current_year = date.today().year
-    trends = {}
-    
-    if period == "yearly":
-        # 최근 5년간 연도별 이벤트 수
-        for year in range(current_year - 4, current_year + 1):
-            count = await event_repo.get_event_count_by_year(session, year)
-            trends[str(year)] = count
-    
-    elif period == "monthly":
-        # 올해 월별 이벤트 수
-        for month in range(1, 13):
-            events = await event_repo.get_events_by_month(session, current_year, month)
-            trends[f"{current_year}-{month:02d}"] = len(events)
-    
-    return EventTrendsDTO(
-        period=period,
-        trends=trends,
-        total=sum(trends.values()),
-        average=sum(trends.values()) / len(trends) if trends else 0
-    )

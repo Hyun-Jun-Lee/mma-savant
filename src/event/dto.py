@@ -1,17 +1,17 @@
-from typing import Dict, List, Optional, Any
-from datetime import date
+from typing import Dict, List, Optional
 from pydantic import BaseModel, Field
 
 from event.models import EventSchema
 
 
-class EventTimelineDTO(BaseModel):
-    """이벤트 타임라인 정보"""
-    period: str = Field(description="기간 타입", example="monthly")
-    current_period: str = Field(description="현재 기간", example="2024-07")
-    previous_events: List[EventSchema] = Field(description="이전 기간 이벤트들")
-    current_events: List[EventSchema] = Field(description="현재 기간 이벤트들")
-    upcoming_events: List[EventSchema] = Field(description="다음 기간 이벤트들")
+class EventListDTO(BaseModel):
+    """이벤트 목록 (페이지네이션 포함)"""
+    events: List[EventSchema] = Field(description="이벤트 목록")
+    total: int = Field(description="전체 이벤트 수")
+    page: int = Field(description="현재 페이지", ge=1)
+    limit: int = Field(description="페이지당 이벤트 수", ge=1)
+    year: Optional[int] = Field(default=None, description="필터링된 연도")
+    month: Optional[int] = Field(default=None, description="필터링된 월")
 
 
 class EventSearchResultDTO(BaseModel):
@@ -50,35 +50,3 @@ class YearlyCalendarDTO(BaseModel):
     year: int = Field(description="연도")
     total_events: int = Field(description="총 이벤트 수")
     monthly_breakdown: Dict[str, MonthlyBreakdownDTO] = Field(description="월별 이벤트 요약")
-
-
-class LocationStatisticsDTO(BaseModel):
-    """장소별 통계 정보"""
-    location_breakdown: Dict[str, int] = Field(description="장소별 이벤트 수")
-    total_major_locations: int = Field(description="주요 장소 총 이벤트 수")
-    total_events_this_year: int = Field(description="올해 총 이벤트 수")
-    other_locations: int = Field(description="기타 장소 이벤트 수")
-
-
-class EventRecommendationsDTO(BaseModel):
-    """이벤트 추천 정보"""
-    type: str = Field(description="추천 타입", example="upcoming")
-    title: str = Field(description="추천 제목")
-    events: List[EventSchema] = Field(description="추천 이벤트 목록")
-    description: str = Field(description="추천 설명")
-
-
-class NextAndLastEventsDTO(BaseModel):
-    """다음/마지막 이벤트 정보"""
-    next_event: Optional[EventSchema] = Field(description="다음 이벤트")
-    last_event: Optional[EventSchema] = Field(description="마지막 이벤트")
-    days_until_next: Optional[int] = Field(description="다음 이벤트까지 남은 일수")
-    days_since_last: Optional[int] = Field(description="마지막 이벤트로부터 경과 일수")
-
-
-class EventTrendsDTO(BaseModel):
-    """이벤트 트렌드 정보"""
-    period: str = Field(description="분석 기간", example="yearly")
-    trends: Dict[str, int] = Field(description="기간별 이벤트 수")
-    total: int = Field(description="총 이벤트 수")
-    average: float = Field(description="평균 이벤트 수")
