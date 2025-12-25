@@ -1,5 +1,7 @@
 "use client"
 
+import { useRouter } from "next/navigation"
+import { useState, useEffect } from "react"
 import { useAuth } from "@/hooks/useAuth"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
@@ -13,9 +15,25 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { LogoutButton } from "./LogoutButton"
 import { User, Settings } from "lucide-react"
+import { UserApiService } from "@/services/userApi"
 
 export function UserProfile() {
+  const router = useRouter()
   const { user, isAuthenticated, isLoading } = useAuth()
+  const [isAdmin, setIsAdmin] = useState(false)
+
+  useEffect(() => {
+    async function checkAdminStatus() {
+      if (!isAuthenticated) return
+      try {
+        const profile = await UserApiService.getCurrentUserProfile()
+        setIsAdmin(profile.is_admin ?? false)
+      } catch (error) {
+        console.error("Failed to check admin status:", error)
+      }
+    }
+    checkAdminStatus()
+  }, [isAuthenticated])
 
   if (isLoading) {
     return (
@@ -62,14 +80,16 @@ export function UserProfile() {
           </div>
         </DropdownMenuLabel>
         <DropdownMenuSeparator />
-        <DropdownMenuItem>
+        <DropdownMenuItem onClick={() => router.push("/profile")}>
           <User className="mr-2 h-4 w-4" />
           <span>Profile</span>
         </DropdownMenuItem>
-        <DropdownMenuItem>
-          <Settings className="mr-2 h-4 w-4" />
-          <span>Settings</span>
-        </DropdownMenuItem>
+        {isAdmin && (
+          <DropdownMenuItem onClick={() => router.push("/settings")}>
+            <Settings className="mr-2 h-4 w-4" />
+            <span>Settings</span>
+          </DropdownMenuItem>
+        )}
         <DropdownMenuSeparator />
         <DropdownMenuItem asChild>
           <LogoutButton variant="ghost" className="w-full justify-start p-0" />

@@ -18,7 +18,6 @@ interface SessionDetailModalProps {
 }
 
 export function SessionDetailModal({ sessionId, isOpen, onClose, sessionTitle }: SessionDetailModalProps) {
-  console.log('SessionDetailModal props:', { sessionId, isOpen, onClose: !!onClose, sessionTitle })
   const [loading, setLoading] = useState(false)
   const [messages, setMessages] = useState<Message[]>([])
   const [error, setError] = useState<string | null>(null)
@@ -84,7 +83,7 @@ export function SessionDetailModal({ sessionId, isOpen, onClose, sessionTitle }:
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto bg-zinc-900 border-zinc-700">
+      <DialogContent className="w-fit max-w-[90vw] max-h-[85vh] overflow-y-auto bg-zinc-900 border-zinc-700">
         <DialogHeader>
           <DialogTitle className="text-white flex items-center justify-between">
             <span>{sessionTitle || '대화 상세'}</span>
@@ -131,35 +130,34 @@ export function SessionDetailModal({ sessionId, isOpen, onClose, sessionTitle }:
               {/* AI 응답 */}
               {assistantMessage && (
                 <div className="bg-blue-900/20 rounded-lg p-6 border border-blue-800/30">
-                  <div className="flex items-start gap-3">
+                  {/* 헤더: 아바타 + 이름 + 시간 */}
+                  <div className="flex items-center gap-3 mb-4">
                     <div className="w-10 h-10 shrink-0 rounded-full bg-blue-600 flex items-center justify-center">
                       <Bot className="w-5 h-5 text-white" />
                     </div>
-                    <div className="flex-1">
-                      <div className="flex items-center justify-between mb-2">
-                        <p className="text-white font-semibold">MMA Savant</p>
-                        <p className="text-zinc-500 text-sm">
-                          {formatDistanceToNow(assistantMessage.timestamp, { addSuffix: true, locale: ko })}
-                        </p>
-                      </div>
-
-                      {/* 시각화 데이터가 있으면 차트 렌더링 */}
-                      {assistantMessage.visualizationData && (
-                        <div className="mb-4">
-                          <ChartRenderer data={assistantMessage.visualizationData} />
-                        </div>
-                      )}
-
-                      {/* 텍스트 응답 - 시각화가 없거나 추가 텍스트가 있을 때만 표시 */}
-                      {assistantMessage.content && assistantMessage.content.trim().length > 0 && (
-                        <div className="prose prose-invert max-w-none">
-                          <p className="text-zinc-200 whitespace-pre-wrap">
-                            {assistantMessage.content}
-                          </p>
-                        </div>
-                      )}
+                    <div className="flex-1 flex items-center justify-between">
+                      <p className="text-white font-semibold">MMA Savant</p>
+                      <p className="text-zinc-500 text-sm">
+                        {formatDistanceToNow(assistantMessage.timestamp, { addSuffix: true, locale: ko })}
+                      </p>
                     </div>
                   </div>
+
+                  {/* 시각화 데이터가 있으면 차트 렌더링 - 전체 너비 사용 */}
+                  {assistantMessage.visualizationData && (
+                    <div className="mb-4 w-full">
+                      <ChartRenderer data={assistantMessage.visualizationData} />
+                    </div>
+                  )}
+
+                  {/* 텍스트 응답 - 시각화가 없거나 추가 텍스트가 있을 때만 표시 */}
+                  {assistantMessage.content && assistantMessage.content.trim().length > 0 && (
+                    <div className="prose prose-invert max-w-none">
+                      <p className="text-zinc-200 whitespace-pre-wrap">
+                        {assistantMessage.content}
+                      </p>
+                    </div>
+                  )}
                 </div>
               )}
             </>

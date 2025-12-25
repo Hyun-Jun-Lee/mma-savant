@@ -113,17 +113,17 @@ async def scrap_event_detail(crawler_fn: Callable, event_url: str, event_id: int
             if not weight_class_id:
                 print("weight_class", weight_class)
                 
-            
             # Create new fight entry
-            match_data ={ 
+            match_data ={
                 "match" : MatchSchema(
                 event_id=event_id,
                 order=current_order,
                 weight_class_id=weight_class_id,
                 detail_url=detail_url if detail_url else None,
                 method=method,
-                round=round_num,
-                time=time),
+                result_round=round_num,
+                time=time,
+                is_main_event=(current_order == total_fights)),
                 "fighters" : [
                     {"fighter_id": fighter_1_id, "result": fighter_1_result},
                     {"fighter_id": fighter_2_id, "result": fighter_2_result}

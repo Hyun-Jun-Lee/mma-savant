@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react"
 import { HistoryView } from "./HistoryView"
 import { MessageInput } from "./MessageInput"
+import { UsageLimitPopup } from "./UsageLimitPopup"
 import { useChatStore } from "@/store/chatStore"
 import { useAuth } from "@/hooks/useAuth"
 import { useSocket } from "@/hooks/useSocket"
@@ -28,7 +29,6 @@ export function ChatContainer() {
       try {
         // 기존 세션 목록 로드 (사이드바에서 이전 대화 확인용)
         await loadSessions()
-        console.log('📋 Session list loaded for sidebar access')
       } catch (error) {
         console.error('Failed to load sessions:', error)
         setError('세션 목록 로드 중 오류가 발생했습니다.')
@@ -49,12 +49,7 @@ export function ChatContainer() {
         return
       }
 
-      // 새 질문 시작 시 현재 메시지와 세션 클리어 (각 질문은 새로운 conversation)
-      const { clearChat, setCurrentSession } = useChatStore.getState()
-      clearChat()
-      setCurrentSession(null)
-
-      // 사용자 메시지 추가
+      // 사용자 메시지 추가 (기존 세션 카드들은 유지, 새 질문만 추가)
       addMessage({
         content: message,
         role: "user",
@@ -151,6 +146,8 @@ export function ChatContainer() {
         <HistoryView />
       </main>
 
+      {/* 사용량 제한 팝업 */}
+      <UsageLimitPopup />
     </div>
   )
 }

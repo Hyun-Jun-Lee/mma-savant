@@ -17,20 +17,26 @@ from match.models import (
 )
 
 async def save_fighters(session, fighters: List[FighterSchema]):
-    
+
     for fighter in fighters:
         if not fighter.name:
             continue
 
         fighter_name = normalize_name(fighter.name)
-            
-        # 기존 파이터 조회 (Pydantic 스키마 반환)
-        existing_model_query = await session.execute(
-            select(FighterModel).where(FighterModel.name == fighter_name)
-        )
+
+        # detail_url이 있으면 detail_url 기준으로 조회, 없으면 name 기준
+        if fighter.detail_url:
+            existing_model_query = await session.execute(
+                select(FighterModel).where(FighterModel.detail_url == fighter.detail_url)
+            )
+        else:
+            existing_model_query = await session.execute(
+                select(FighterModel).where(FighterModel.name == fighter_name)
+            )
+
         existing_model = existing_model_query.scalar_one_or_none()
-        
-        if existing_model:            
+
+        if existing_model:
             # 업데이트
             for key, value in fighter.model_dump(exclude={'id', 'created_at', 'updated_at'}).items():
                 setattr(existing_model, key, value)
@@ -38,7 +44,7 @@ async def save_fighters(session, fighters: List[FighterSchema]):
             # 새로 생성
             new_fighter = FighterModel.from_schema(fighter)
             session.add(new_fighter)
-    
+
     await session.commit()
 
 async def save_events(session, events: List[EventSchema]):

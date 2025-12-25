@@ -4,12 +4,24 @@ MCP 도구 없이 기본 LangChain 도구를 사용하여 ReAct + OpenRouter 지
 """
 import json
 import asyncio
+import traceback
 from typing import Dict, Any, Optional, List
 from traceback import format_exc
 
 from langchain.agents import create_react_agent, AgentExecutor
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.messages import BaseMessage, HumanMessage, AIMessage, SystemMessage
+
+from llm.exceptions import (
+    LLMException,
+    AIReasoningException,
+    IntermediateStepsException,
+    SQLExecutionException,
+    SQLResultExtractionException,
+    LLMResponseException,
+    JSONParsingException,
+    VisualizationValidationException
+)
 
 from llm.chart_loader import (
     get_supported_charts,
@@ -114,6 +126,10 @@ class AgentManager:
         Returns:
             Dict: 전체 처리 결과 및 최종 응답
         """
+        # 🧪 테스트용 에러 발생 (특정 키워드로 트리거)
+        if "테스트에러" in user_query or "테스트 에러" in user_query:
+            raise SQLExecutionException("SELECT * FROM test_table", "Table 'test_table' doesn't exist")
+
         processing_id = f"query_{hash(user_query)}_{int(asyncio.get_event_loop().time())}"
 
         try:
@@ -155,10 +171,14 @@ class AgentManager:
             }
             return simplified_result
 
+        except LLMException as e:
+            # Custom LLM exception 처리
+            return self._handle_llm_exception(e)
         except Exception as e:
-            LOGGER.error(f"❌ Error in Two-Step processing: {e}")
+            # 예상치 못한 일반 exception
+            LOGGER.error(f"❌ Unexpected Two-Step processing error: {e}")
             LOGGER.error(format_exc())
-            return self._create_error_response(f"Processing failed: {str(e)}")
+            return self._handle_general_exception(e)
 
     async def _understand_and_collect(
         self,
@@ -185,11 +205,10 @@ class AgentManager:
         try:
             LOGGER.info(f"🔍 Phase 1: Understanding and collecting data for query: {user_query[:50]}...")
 
-            # Phase 1용 ReAct 프롬프트 생성
-            from llm.providers.openrouter_provider import create_react_prompt_template
+            # Phase 1용 ReAct 프롬프트 생성 (prompts.py로 통합)
+            from llm.prompts import create_phase1_prompt_template
 
-            base_phase1_prompt = get_phase1_prompt()
-            react_prompt = create_react_prompt_template(base_phase1_prompt)
+            react_prompt = create_phase1_prompt_template()
 
             # ReAct 에이전트용 도구 생성
             tools = [
@@ -220,10 +239,31 @@ class AgentManager:
             # Phase 1 실행 - LLM이 질문 분석 후 도구들 선택/실행
             result = await agent_executor.ainvoke(execution_config)
 
-            # SQL 실행 결과 추출 (하나의 SQL 쿼리만 실행됨)
-            sql_result = self._extract_sql_result(result.get("intermediate_steps", []))
+            # 🎯 AI 추론 과정 추출 및 검증
+            agent_reasoning = result.get("output", "").strip()
+            intermediate_steps = result.get("intermediate_steps", [])
 
-            # Phase 1 완료 결과 구성 (SQL 결과만 포함)
+            # AI 추론 검증
+            if not agent_reasoning or len(agent_reasoning) < 10:
+                raise AIReasoningException(agent_reasoning)
+
+            # Intermediate steps 검증
+            if not intermediate_steps:
+                raise IntermediateStepsException()
+
+            # SQL 실행 결과 추출 (하나의 SQL 쿼리만 실행됨)
+            sql_result = self._extract_sql_result(intermediate_steps)
+
+            # SQL 실행 검증
+            if not sql_result.get("success", False):
+                raise SQLExecutionException(
+                    query=sql_result.get("query", ""),
+                    original_error=sql_result.get("error", "Unknown SQL error")
+                )
+
+            reasoning_steps_count = len(intermediate_steps)
+
+            # Phase 1 완료 결과 구성 (SQL 결과 + AI 추론 과정)
             phase1_result = {
                 "phase": 1,
                 "processing_id": processing_id,
@@ -232,27 +272,24 @@ class AgentManager:
                 "sql_success": sql_result.get("success", False),  # 성공 여부
                 "sql_data": sql_result.get("data", []),  # 실제 데이터
                 "sql_columns": sql_result.get("columns", []),  # 컬럼 정보
-                "row_count": sql_result.get("row_count", 0)  # 행 개수
+                "row_count": sql_result.get("row_count", 0),  # 행 개수
+
+                # 🔑 새로 추가: AI 추론 과정 정보
+                "agent_reasoning": agent_reasoning,  # AI의 전체 사고 과정
+                "reasoning_steps_count": reasoning_steps_count  # 실행된 단계 수
             }
 
             LOGGER.info(f"✅ Phase 1 completed: SQL query executed")
-            if not phase1_result['sql_success']:
-                LOGGER.warning(f"⚠️ SQL execution failed: {sql_result.get('error', 'Unknown error')}")
-
             return phase1_result
 
+        except LLMException as e:
+            # Custom LLM exception 처리
+            return self._handle_llm_exception(e)
         except Exception as e:
-            LOGGER.error(f"❌ Phase 1 error: {e}")
+            # 예상치 못한 일반 exception
+            LOGGER.error(f"❌ Unexpected Phase 1 error: {e}")
             LOGGER.error(format_exc())
-            return {
-                "error": str(e),
-                "phase": 1,
-                "processing_id": processing_id,
-                "sql_success": False,
-                "sql_data": [],
-                "sql_columns": [],
-                "row_count": 0
-            }
+            return self._handle_general_exception(e)
 
     async def _process_and_visualize(
         self,
@@ -291,8 +328,12 @@ class AgentManager:
             # 직접 LLM 호출 (Agent 없이)
             response = await llm.ainvoke(full_prompt)
 
-            # 응답 텍스트 추출
+            # 응답 텍스트 추출 및 검증
             response_text = response.content if hasattr(response, 'content') else str(response)
+
+            # LLM 응답 검증
+            if not response_text or len(response_text.strip()) < 5:
+                raise LLMResponseException(response_text)
 
             # 결과 파싱 및 시각화 데이터 구조화 (직접 응답 텍스트 전달)
             parsed_result = self._parse_phase2_result(response_text, processing_id, phase1_data)
@@ -303,15 +344,14 @@ class AgentManager:
             LOGGER.info(f"✅ Phase 2 completed: {validated_result.get('visualization_type', 'unknown')} visualization prepared")
             return validated_result
 
+        except LLMException as e:
+            # Custom LLM exception 처리
+            return self._handle_llm_exception(e)
         except Exception as e:
-            LOGGER.error(f"❌ Phase 2 error: {e}")
+            # 예상치 못한 일반 exception
+            LOGGER.error(f"❌ Unexpected Phase 2 error: {e}")
             LOGGER.error(format_exc())
-            return {
-                "error": str(e),
-                "phase": 2,
-                "processing_id": processing_id,
-                "fallback_visualization": self._create_fallback_visualization(phase1_data)
-            }
+            return self._handle_general_exception(e)
 
     def _parse_phase2_result(self, response_text: str, processing_id: str, phase1_data: Dict[str, Any]) -> Dict[str, Any]:
         """Phase 2 결과 파싱 및 시각화 데이터 구조화"""
@@ -327,9 +367,13 @@ class AgentManager:
             try:
                 # 먼저 직접 JSON 파싱 시도
                 extracted_json = json.loads(output_text)
-            except json.JSONDecodeError:
+            except json.JSONDecodeError as json_error:
                 # 실패 시 JSON 추출 함수 사용
                 extracted_json = self._extract_json_from_response(output_text)
+
+                # JSON 추출도 실패한 경우
+                if not extracted_json:
+                    raise JSONParsingException(response_text, str(json_error))
 
             if extracted_json:
                 # 구조화된 응답인 경우
@@ -377,10 +421,8 @@ class AgentManager:
 
             # 선택된 시각화 타입이 지원되는지 확인
             if not validate_chart_id(visualization_type):
-                LOGGER.warning(f"Unsupported visualization type: {visualization_type}, falling back to text_summary")
-                result["visualization_type"] = "text_summary"
-                result["visualization_data"] = {"content": result.get("final_response", "")}
-                result["fallback_applied"] = True
+                supported_types = list(get_supported_charts().keys())
+                raise VisualizationValidationException(visualization_type, supported_types)
 
             # 메타데이터 보강
             result["metadata"] = result.get("metadata", {})
@@ -561,8 +603,28 @@ class AgentManager:
                 "error": f"Error extracting results: {str(e)}"
             }
 
+    def _handle_llm_exception(self, exception: LLMException) -> Dict[str, Any]:
+        """LLM Exception 처리 및 3-field response 생성"""
+        LOGGER.error(f"❌ {exception.error_class}", exc_info=True)
+
+        return {
+            "error": True,
+            "error_class": exception.error_class,
+            "traceback": traceback.format_exc()
+        }
+
+    def _handle_general_exception(self, exception: Exception) -> Dict[str, Any]:
+        """예상치 못한 Exception 처리"""
+        LOGGER.error(f"❌ Unexpected error: {exception}", exc_info=True)
+
+        return {
+            "error": True,
+            "error_class": "UnexpectedException",
+            "traceback": traceback.format_exc()
+        }
+
     def _create_error_response(self, error_message: str, error_details: Dict = None) -> Dict[str, Any]:
-        """에러 응답 생성"""
+        """기존 에러 응답 생성 (호환성 유지용)"""
         return {
             "error": error_message,
             "error_details": error_details or {},

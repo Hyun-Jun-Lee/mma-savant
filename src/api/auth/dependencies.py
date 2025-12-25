@@ -50,14 +50,26 @@ async def get_current_user(
 ) -> UserModel:
     """
     토큰 정보를 기반으로 데이터베이스에서 사용자 조회/생성
-    NextAuth.js OAuth 사용자를 자동으로 DB에 저장
+    - 일반 로그인: user_id로 조회
+    - OAuth 로그인: email로 조회/생성
     """
     try:
-        
-        # 이메일로 사용자 조회 (OAuth 사용자는 이메일이 주요 식별자)
-        if token_data.email:
+        user_schema = None
+
+        # 1. 일반 로그인 (user_id가 있는 경우)
+        if token_data.user_id:
+            user_schema = await user_repo.get_user_by_id(db, token_data.user_id)
+
+            if not user_schema:
+                raise HTTPException(
+                    status_code=status.HTTP_401_UNAUTHORIZED,
+                    detail="User not found",
+                )
+
+        # 2. OAuth 로그인 (이메일이 있는 경우)
+        elif token_data.email:
             user_schema = await user_repo.get_user_by_email(db, token_data.email)
-            
+
             if not user_schema:
                 # OAuth 사용자가 처음 로그인하는 경우 자동 생성
                 user_schema = await user_repo.create_oauth_user(
@@ -67,32 +79,29 @@ async def get_current_user(
                     picture=token_data.picture,
                     provider_id=token_data.sub
                 )
-            
-            # UserSchema를 UserModel로 변환
-            user = UserModel.from_schema(user_schema)
-            
+
+        # 3. provider_id로 조회 (fallback)
         else:
-            # 이메일이 없는 경우 sub(provider ID)로 조회
             user_schema = await user_repo.get_user_by_provider_id(db, token_data.sub)
-            
+
             if not user_schema:
                 raise HTTPException(
                     status_code=status.HTTP_401_UNAUTHORIZED,
                     detail="User not found",
                 )
-            
-            # UserSchema를 UserModel로 변환
-            user = UserModel.from_schema(user_schema)
-        
+
+        # UserSchema를 UserModel로 변환
+        user = UserModel.from_schema(user_schema)
+
         # 사용자 활성 상태 확인
         if not user.is_active:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Inactive user",
             )
-        
+
         return user
-        
+
     except HTTPException:
         raise
     except Exception as e:
@@ -114,18 +123,44 @@ async def get_optional_current_user(
     """
     if not credentials:
         return None
-    
+
     try:
         token_data = jwt_handler.decode_token(credentials.credentials)
         if not jwt_handler.verify_token_expiry(token_data):
             return None
-        
-        if token_data.email:
+
+        user_schema = None
+
+        # 1. 일반 로그인 (user_id가 있는 경우)
+        if token_data.user_id:
+            user_schema = await user_repo.get_user_by_id(db, token_data.user_id)
+        # 2. OAuth 로그인 (이메일이 있는 경우)
+        elif token_data.email:
             user_schema = await user_repo.get_user_by_email(db, token_data.email)
-            return UserModel.from_schema(user_schema) if user_schema else None
+        # 3. provider_id로 조회 (fallback)
         else:
             user_schema = await user_repo.get_user_by_provider_id(db, token_data.sub)
-            return UserModel.from_schema(user_schema) if user_schema else None
-            
+
+        return UserModel.from_schema(user_schema) if user_schema else None
+
     except HTTPException:
         return None
+
+
+async def get_current_admin_user(
+    current_user: UserModel = Depends(get_current_user)
+) -> UserModel:
+    """
+    관리자 권한 검증
+
+    1. get_current_user로 인증된 사용자 확인
+    2. is_admin == True 확인
+    3. 관리자가 아니면 403 Forbidden
+    """
+    if not current_user.is_admin:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Admin permission required"
+        )
+
+    return current_user

@@ -12,6 +12,7 @@ from fastapi import WebSocket
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from user.models import UserModel
+from user.services import check_usage_limit, get_user_usage
 from conversation.services import ChatSessionService, get_or_create_session
 from llm.langchain_service import get_langchain_service, LangChainLLMService
 from common.logging_config import get_logger
@@ -260,6 +261,12 @@ class ConnectionManager:
         try:
             # 검증 단계
             user = await self._validate_user_connection(connection_id)
+
+            # 일일 사용량 제한 체크
+            is_within_limit = await self._check_usage_limit(connection_id, db, user.id)
+            if not is_within_limit:
+                return  # 제한 초과 시 처리 중단
+
             content, conversation_id = await self._validate_message_data(connection_id, message_data)
             validated_conversation_id = await self._validate_or_create_session(db, user.id, conversation_id, content)
 
@@ -285,6 +292,38 @@ class ConnectionManager:
             })
             raise ValueError(f"User not found for connection {connection_id}")
         return user
+
+    async def _check_usage_limit(self, connection_id: str, db: AsyncSession, user_id: int) -> bool:
+        """
+        사용자의 일일 사용량 제한 확인
+        Returns:
+            True: 사용 가능
+            False: 제한 초과
+        """
+        try:
+            is_within_limit = await check_usage_limit(db, user_id)
+
+            if not is_within_limit:
+                # 사용량 정보 조회하여 상세 메시지 제공
+                usage = await get_user_usage(db, user_id)
+                LOGGER.warning(f"🚫 User {user_id} exceeded daily limit: {usage.daily_requests}/{usage.daily_limit}")
+
+                await self.send_to_connection(connection_id, {
+                    "type": "usage_limit_exceeded",
+                    "error": "일일 사용량 제한을 초과했습니다.",
+                    "daily_requests": usage.daily_requests,
+                    "daily_limit": usage.daily_limit,
+                    "remaining_requests": 0,
+                    "timestamp": kr_time_now().isoformat()
+                })
+                return False
+
+            return True
+
+        except Exception as e:
+            LOGGER.error(f"❌ Error checking usage limit for user {user_id}: {e}")
+            # 제한 체크 실패 시 안전하게 허용 (서비스 중단 방지)
+            return True
 
     async def _validate_message_data(self, connection_id: str, message_data: Dict[str, Any]) -> Tuple[str, Optional[int]]:
         """메시지 내용과 대화 ID 검증"""
@@ -370,6 +409,8 @@ class ConnectionManager:
                 await self._handle_end_chunk(connection_id, chunk, assistant_message_id, conversation_id, len(assistant_content))
             elif chunk_type == "error":
                 await self._handle_error_chunk(connection_id, chunk, assistant_message_id, conversation_id)
+            elif chunk_type == "error_response":
+                await self._handle_error_response_chunk(connection_id, chunk, assistant_message_id, conversation_id)
 
     async def _handle_start_chunk(
         self,
@@ -518,6 +559,32 @@ class ConnectionManager:
         await self.send_to_connection(connection_id, {
             "type": "error",
             "error": chunk["error"],
+            "message_id": assistant_message_id,
+            "conversation_id": conversation_id,
+            "timestamp": chunk["timestamp"]
+        })
+
+    async def _handle_error_response_chunk(
+        self,
+        connection_id: str,
+        chunk: Dict[str, Any],
+        assistant_message_id: str,
+        conversation_id: int
+    ) -> None:
+        """구조화된 에러 응답 청크 처리 (LLMException 기반)"""
+        # 타이핑 상태 종료
+        await self.send_to_connection(connection_id, {
+            "type": "typing",
+            "is_typing": False,
+            "timestamp": kr_time_now().isoformat()
+        })
+
+        # 구조화된 에러 응답 전송 (프론트엔드가 기대하는 형식)
+        await self.send_to_connection(connection_id, {
+            "type": "error_response",
+            "error": chunk["error"],
+            "error_class": chunk["error_class"],
+            "traceback": chunk["traceback"],
             "message_id": assistant_message_id,
             "conversation_id": conversation_id,
             "timestamp": chunk["timestamp"]

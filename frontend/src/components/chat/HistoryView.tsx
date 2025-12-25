@@ -1,44 +1,32 @@
 "use client"
 
-import { useEffect, useRef, useMemo, useState } from "react"
+import { useEffect, useRef, useMemo } from "react"
 import { useChatStore } from "@/store/chatStore"
 import { useChatSession } from "@/hooks/useChatSession"
 import { Message } from "@/types/chat"
 import { QuestionAnswerCard } from "./QuestionAnswerCard"
 import { SessionDetailModal } from "./SessionDetailModal"
-import { Bot } from "lucide-react"
+import { Bot, MessageSquare, Loader2 } from "lucide-react"
 
 export function HistoryView() {
-  const { messages, isTyping, currentSession, sessions } = useChatStore()
+  const { messages, isTyping, currentSession, sessions, modalSessionId, isModalOpen, openModal, closeModal } = useChatStore()
   const bottomRef = useRef<HTMLDivElement>(null)
-  const [selectedSessionId, setSelectedSessionId] = useState<number | null>(null)
-  const [isModalOpen, setIsModalOpen] = useState(false)
 
-  // 메시지를 질문-응답 쌍으로 그룹핑
-  const questionAnswerPairs = useMemo(() => {
-    const pairs: Array<{ userQuestion: Message; assistantResponse: Message }> = []
+  // 현재 진행 중인 질문 (응답이 아직 없는 사용자 메시지)
+  const currentPendingQuestion = useMemo(() => {
+    const userMessages = messages.filter(m => m.role === 'user')
+    const assistantMessages = messages.filter(m => m.role === 'assistant')
 
-    for (let i = 0; i < messages.length; i++) {
-      const currentMessage = messages[i]
-
-      // 사용자 메시지를 찾으면
-      if (currentMessage.role === 'user') {
-        // 다음 어시스턴트 메시지를 찾기
-        const nextAssistantMessage = messages.find((msg, index) =>
-          index > i && msg.role === 'assistant'
-        )
-
-        // 쌍이 완성된 경우에만 추가
-        if (nextAssistantMessage) {
-          pairs.push({
-            userQuestion: currentMessage,
-            assistantResponse: nextAssistantMessage
-          })
-        }
-      }
+    // 마지막 사용자 메시지가 있고, 그에 대한 응답이 없으면 진행 중
+    if (userMessages.length > assistantMessages.length) {
+      return userMessages[userMessages.length - 1]
     }
+    return null
+  }, [messages])
 
-    return pairs // 시간순으로 표시 (최신이 아래)
+  // 에러 메시지 확인
+  const errorMessage = useMemo(() => {
+    return messages.find(m => m.role === 'assistant' && m.content.startsWith('⚠️'))
   }, [messages])
 
   // 새 메시지가 추가되거나 타이핑 상태가 변경될 때마다 스크롤을 맨 아래로
@@ -89,18 +77,50 @@ export function HistoryView() {
     )
   }
 
-  // 현재 메시지가 없지만 기존 세션이 있는 경우 - 세션 목록을 카드로 표시
-  if (messages.length === 0 && sessions.length > 0) {
-    return (
-      <>
-        <div className="flex-1 overflow-y-auto px-4 py-6 sm:px-10">
-          <div className="mx-auto max-w-7xl">
-            <div className="mb-6">
-              <h2 className="text-2xl font-bold text-white mb-2">이전 대화</h2>
-              <p className="text-zinc-400">이전 질문들을 다시 확인하거나 새로운 질문을 시작하세요.</p>
+  // 통합된 뷰: 현재 진행 중인 질문 + 기존 세션 카드들을 함께 표시
+  return (
+    <div className="flex-1 overflow-y-auto px-4 py-6 sm:px-10">
+      <div className="mx-auto max-w-7xl">
+
+        {/* 현재 진행 중인 질문 카드 (로딩 또는 에러 상태) */}
+        {currentPendingQuestion && (
+          <div className="mb-8">
+            <div className="bg-blue-500/10 backdrop-blur-sm border border-blue-500/30 rounded-lg p-6 animate-fade-in">
+              <div className="flex items-start gap-4">
+                <div className="w-10 h-10 shrink-0 rounded-full bg-blue-500/20 flex items-center justify-center">
+                  <MessageSquare className="w-5 h-5 text-blue-400" />
+                </div>
+                <div className="flex-1">
+                  <p className="text-white font-medium mb-3 line-clamp-3">
+                    {currentPendingQuestion.content}
+                  </p>
+
+                  {/* 에러 메시지 */}
+                  {errorMessage ? (
+                    <div className="p-3 bg-red-500/10 border border-red-500/20 rounded-lg">
+                      <p className="text-red-400 text-sm">{errorMessage.content}</p>
+                    </div>
+                  ) : isTyping ? (
+                    /* 로딩 상태 */
+                    <div className="flex items-center gap-3">
+                      <Loader2 className="w-4 h-4 text-blue-400 animate-spin" />
+                      <span className="text-blue-300 text-sm">응답을 생성하고 있습니다...</span>
+                    </div>
+                  ) : null}
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* 기존 세션 목록 */}
+        {sessions.length > 0 && (
+          <div>
+            <div className="mb-4">
+              <h2 className="text-lg font-semibold text-white">이전 대화</h2>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 animate-fade-in">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 animate-fade-in">
               {sessions.map((session) => (
                 <div
                   key={session.id}
@@ -108,13 +128,8 @@ export function HistoryView() {
                   onClick={(e) => {
                     e.preventDefault()
                     e.stopPropagation()
-                    console.log('Session card clicked:', session.id)
-                    console.log('Setting selectedSessionId to:', session.id)
-                    console.log('Setting isModalOpen to: true')
-                    setSelectedSessionId(session.id)
-                    setIsModalOpen(true)
+                    openModal(session.id)
                   }}
-                  style={{ pointerEvents: 'auto', zIndex: 10 }}
                 >
                   <h3 className="text-white font-medium mb-2 line-clamp-2">
                     {session.title || `채팅 ${session.id}`}
@@ -134,57 +149,6 @@ export function HistoryView() {
               ))}
             </div>
           </div>
-        </div>
-
-        {/* 세션 상세 모달 */}
-        {console.log('Modal render check - isModalOpen:', isModalOpen, 'selectedSessionId:', selectedSessionId)}
-        <SessionDetailModal
-          sessionId={selectedSessionId}
-          isOpen={isModalOpen}
-          onClose={() => {
-            console.log('Modal close triggered')
-            setIsModalOpen(false)
-            setSelectedSessionId(null)
-          }}
-          sessionTitle={sessions.find(s => s.id === selectedSessionId)?.title}
-        />
-      </>
-    )
-  }
-
-  // 메시지가 있으면 카드 형태로 표시 (완성된 쌍이 없어도 표시)
-  return (
-    <div className="flex-1 overflow-y-auto px-4 py-6 sm:px-10">
-      <div className="mx-auto max-w-7xl">
-        {/* 완성된 질문-응답 쌍이 있으면 카드로 표시 */}
-        {questionAnswerPairs.length > 0 && (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 animate-fade-in mb-6" style={{ alignItems: 'start' }}>
-            {questionAnswerPairs.map((pair) => (
-              <QuestionAnswerCard
-                key={`${pair.userQuestion.id}-${pair.assistantResponse.id}`}
-                userQuestion={pair.userQuestion}
-                sessionId={currentSession?.id || pair.userQuestion.id}
-                onClick={() => {
-                  setSelectedSessionId(currentSession?.id || Number(pair.userQuestion.id))
-                  setIsModalOpen(true)
-                }}
-              />
-            ))}
-          </div>
-        )}
-
-        {/* 로딩 상태 표시 - 응답 대기 중일 때만 */}
-        {isTyping && (
-          <div className="flex justify-center items-center py-8">
-            <div className="bg-zinc-800/50 backdrop-blur-sm border border-zinc-700 rounded-lg px-6 py-4 flex items-center gap-3">
-              <div className="flex space-x-1">
-                <div className="w-2 h-2 bg-blue-400 rounded-full animate-pulse"></div>
-                <div className="w-2 h-2 bg-blue-400 rounded-full animate-pulse" style={{ animationDelay: '0.2s' }}></div>
-                <div className="w-2 h-2 bg-blue-400 rounded-full animate-pulse" style={{ animationDelay: '0.4s' }}></div>
-              </div>
-              <span className="text-zinc-300 text-sm">응답을 생성하고 있습니다...</span>
-            </div>
-          </div>
         )}
 
         {/* 스크롤 앵커 */}
@@ -192,16 +156,11 @@ export function HistoryView() {
       </div>
 
       {/* 세션 상세 모달 */}
-      {console.log('Modal render check - isModalOpen:', isModalOpen, 'selectedSessionId:', selectedSessionId)}
       <SessionDetailModal
-        sessionId={selectedSessionId}
+        sessionId={modalSessionId}
         isOpen={isModalOpen}
-        onClose={() => {
-          console.log('Modal close triggered')
-          setIsModalOpen(false)
-          setSelectedSessionId(null)
-        }}
-        sessionTitle={sessions.find(s => s.id === selectedSessionId)?.title}
+        onClose={closeModal}
+        sessionTitle={sessions.find(s => s.id === modalSessionId)?.title}
       />
     </div>
   )

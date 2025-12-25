@@ -15,6 +15,7 @@ from langchain_core.messages import AIMessage, HumanMessage
 from config import Config
 from llm.model_factory import create_llm_with_callbacks, get_available_providers
 from llm.agent_manager import AgentManager
+from llm.exceptions import LLMException
 from llm.stream_processor import (
     extract_safe_text_content,
     clean_response_content,
@@ -312,6 +313,12 @@ class LangChainLLMService:
             chat_history=chat_history
         )
 
+        # 에러 체크 - agent_manager에서 반환된 에러 응답 처리
+        if result.get("error") is True:
+            # 이미 구조화된 에러 응답이므로 그대로 반환
+            execution_time = time.time() - two_phase_start
+            return result, execution_time
+
         execution_time = time.time() - two_phase_start
         LOGGER.info("✅ Two-Phase execution completed")
         LOGGER.info(f"⏱️ Total Two-Phase execution took: {execution_time:.3f}s")
@@ -323,6 +330,18 @@ class LangChainLLMService:
         message_id: str, conversation_id : int
     ) -> AsyncGenerator[Dict[str, Any], None]:
         """Agent 실행 결과 처리 및 히스토리 저장"""
+        # 에러 응답인 경우 바로 반환
+        if result.get("error") is True:
+            yield {
+                **result,  # error, error_class, traceback 포함
+                "type": "error_response",  # 프론트엔드가 기대하는 타입
+                "message_id": message_id,
+                "conversation_id": conversation_id,
+                "timestamp": kr_time_now().isoformat(),
+                "total_execution_time": execution_time
+            }
+            return
+
         # AI 응답을 히스토리에 추가 (시각화 정보는 저장하지 않고 간단한 요약만)
         summary_content = f"MMA 데이터 분석 완료: {result.get('visualization_type', 'unknown')} 차트, {result.get('row_count', 0)}개 데이터"
         ai_message = AIMessage(
@@ -348,11 +367,24 @@ class LangChainLLMService:
     def _handle_two_phase_error(
         self, error: Exception, message_id: str, conversation_id : int
     ) -> Dict[str, Any]:
-        """Two-Phase 에러 처리 (Rate limit 특별 처리 포함)"""
+        """Two-Phase 에러 처리 (LLMException 구조화 포함)"""
         LOGGER.error(f"❌ Two-Phase execution failed: {error}")
         LOGGER.error(format_exc())
 
-        # Rate limit 에러 특별 처리
+        # LLMException인 경우 구조화된 에러 응답 반환
+        if isinstance(error, LLMException):
+            return {
+                "type": "error_response",
+                "error": True,
+                "error_class": error.error_class,
+                "traceback": format_exc(),
+                "message_id": message_id,
+                "conversation_id": conversation_id,
+                "timestamp": kr_time_now().isoformat(),
+                "two_phase_system": True
+            }
+
+        # 일반 Exception 처리 (Rate limit 등)
         error_message = str(error)
         if "rate_limit_error" in error_message or "429" in error_message:
             LOGGER.warning("🚫 Rate limit exceeded - reducing token usage recommended")

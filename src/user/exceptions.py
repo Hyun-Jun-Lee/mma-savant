@@ -85,5 +85,34 @@ class UserSessionError(UserException):
         super().__init__(message, details)
 
 
+# Admin 관련 예외 클래스
+
+class InsufficientPermissionError(UserException):
+    """관리자 권한이 없을 때 발생하는 예외"""
+
+    def __init__(self, user_id: int, required_permission: str = "admin"):
+        message = f"User {user_id} does not have {required_permission} permission"
+        details = {"user_id": user_id, "required_permission": required_permission}
+        super().__init__(message, details)
+
+
+class InvalidLimitValueError(UserException):
+    """유효하지 않은 제한 값일 때 발생하는 예외"""
+
+    def __init__(self, value: int, min_value: int = 0, max_value: int = 10000):
+        message = f"Invalid limit value: {value}. Must be between {min_value} and {max_value}"
+        details = {"value": value, "min_value": min_value, "max_value": max_value}
+        super().__init__(message, details)
+
+
+class SelfModificationError(UserException):
+    """자기 자신의 권한/상태를 변경하려 할 때 발생하는 예외"""
+
+    def __init__(self, user_id: int, operation: str):
+        message = f"User {user_id} cannot {operation} their own account"
+        details = {"user_id": user_id, "operation": operation}
+        super().__init__(message, details)
+
+
 # 하위 호환성을 위한 별칭
 UserDomainError = UserException

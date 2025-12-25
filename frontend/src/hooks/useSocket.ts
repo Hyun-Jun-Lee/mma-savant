@@ -6,12 +6,13 @@ import { useChatStore } from '@/store/chatStore'
 import { processAssistantResponse } from '@/lib/visualizationParser'
 import { VisualizationData } from '@/types/chat'
 import { ChatApiService } from '@/services/chatApi'
+import { ErrorResponse, getErrorMessage, logErrorDetails } from '@/types/error'
 
 export function useSocket() {
   const [isConnected, setIsConnected] = useState(false)
   const [isTyping, setIsTyping] = useState(false)
   const socketRef = useRef(getRealSocket())
-  const { addMessage, updateMessage, setConnected, setTyping, currentSession, setCurrentSession, setSessions } = useChatStore()
+  const { addMessage, updateMessage, setConnected, setTyping, currentSession, setCurrentSession, setSessions, openModal, setUsageLimit, setShowUsageLimitPopup } = useChatStore()
   const currentStreamingMessage = useRef<{
     id: string;
     content: string;
@@ -44,17 +45,14 @@ export function useSocket() {
   useEffect(() => {
     const socket = socketRef.current
     
-    console.log('🎣 Setting up useSocket event listeners')
 
     // 연결 이벤트 처리
     socket.on('connect', () => {
-      console.log('🔌 Connected to WebSocket server')
       setIsConnected(true)
       setConnected(true)
     })
 
     socket.on('disconnect', () => {
-      console.log('🔌 Disconnected from WebSocket server')
       setIsConnected(false)
       setConnected(false)
     })
@@ -246,10 +244,16 @@ export function useSocket() {
 
       // AI 응답 완료 즉시 메시지 클리어 및 세션 목록 새로고침
       console.log('🧹 Clearing messages immediately after AI response completion')
-      setTimeout(() => {
+      const conversationId = data.conversation_id
+      setTimeout(async () => {
         const { clearChat } = useChatStore.getState()
         clearChat()
-        refreshSessions()
+        await refreshSessions()
+        // 세션 목록 새로고침 후 해당 세션의 모달 자동 열기
+        if (conversationId) {
+          console.log('🔓 Opening modal for session:', conversationId)
+          openModal(conversationId)
+        }
       }, 100) // 최소한의 지연으로 바로 클리어
     })
 
@@ -292,14 +296,20 @@ export function useSocket() {
         }
 
         console.log('🎉 Message finalized with visualization:', !!finalParsedVisualizationData)
+        const conversationId = data.conversation_id
         currentStreamingMessage.current = null
 
         // AI 응답 완료 후 메시지 클리어 및 세션 목록 새로고침
-        setTimeout(() => {
+        setTimeout(async () => {
           console.log('🧹 Clearing messages after streaming completion')
           const { clearChat } = useChatStore.getState()
           clearChat()
-          refreshSessions()
+          await refreshSessions()
+          // 세션 목록 새로고침 후 해당 세션의 모달 자동 열기
+          if (conversationId) {
+            console.log('🔓 Opening modal for session:', conversationId)
+            openModal(conversationId)
+          }
         }, 100) // 최소한의 지연으로 바로 클리어
       }
     })
@@ -339,30 +349,82 @@ export function useSocket() {
       }
     })
 
-    // 에러 처리
+    // 에러 처리 (기존 socket error)
     socket.on('error', (error: string) => {
       console.error('Socket error:', error)
     })
 
+    // 백엔드 에러 응답 처리
+    socket.on('error_response', (errorData: ErrorResponse) => {
+      console.log('💥 Received error_response:', errorData)
+
+      // 개발 모드에서 상세 로깅
+      logErrorDetails(errorData)
+
+      // 사용자 친화적 메시지 가져오기
+      const userMessage = getErrorMessage(errorData.error_class)
+      console.log('📝 User-friendly message:', userMessage)
+
+      // 에러 메시지를 채팅에 추가 (assistant 메시지로 표시)
+      const errorMessage = {
+        content: `⚠️ ${userMessage}`,
+        role: 'assistant' as const,
+        isStreaming: false
+      }
+
+      console.log('💬 Adding error message to chat:', errorMessage)
+      const addedMessage = addMessage(errorMessage)
+      console.log('✅ Error message added with ID:', addedMessage.id)
+
+      // 타이핑 상태 해제
+      setIsTyping(false)
+      setTyping(false)
+
+      // 현재 스트리밍 메시지 정리
+      currentStreamingMessage.current = null
+    })
+
+    // 일일 사용량 제한 초과 처리
+    socket.on('usage_limit_exceeded', (data: {
+      error: string;
+      daily_requests: number;
+      daily_limit: number;
+      remaining_requests: number;
+      timestamp: string;
+    }) => {
+      console.log('🚫 Usage limit exceeded:', data)
+
+      // 사용량 제한 상태 업데이트
+      setUsageLimit({
+        exceeded: true,
+        dailyRequests: data.daily_requests,
+        dailyLimit: data.daily_limit,
+        remainingRequests: data.remaining_requests,
+        error: data.error
+      })
+
+      // 팝업 표시
+      setShowUsageLimitPopup(true)
+
+      setIsTyping(false)
+      setTyping(false)
+      currentStreamingMessage.current = null
+    })
+
     // 초기 연결만 수행 (세션 ID 없이)
-    console.log('🔌 Setting up socket event listeners')
-    console.log('🔌 Socket current state:', socket.isConnected())
-    
+
     // 연결되지 않은 경우에만 연결 시도
     if (!socket.isConnected()) {
-      console.log('🔌 Initial connection without session')
       socket.connect() // 세션 ID 없이 초기 연결
-    } else {
-      console.log('🔌 Socket already connected, skipping initial connect call')
     }
 
     // 클린업
     return () => {
-      console.log('🎣 Cleaning up useSocket event listeners')
       // 소켓 연결 해제
       socket.disconnect()
     }
-  }, [addMessage, updateMessage, setConnected, setTyping, setCurrentSession, refreshSessions]) // refreshSessions 추가
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []) // 마운트 시 한 번만 실행 (의존성 배열 비움)
 
   const sendMessage = async (message: string) => {
     console.log('🚀 sendMessage called, React isConnected:', isConnected)

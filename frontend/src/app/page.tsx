@@ -2,7 +2,6 @@
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { GoogleLoginButton } from "@/components/auth/GoogleLoginButton";
 import { UserProfile } from "@/components/auth/UserProfile";
 import { useAuth } from "@/hooks/useAuth";
 import { useRouter } from "next/navigation";
@@ -42,12 +41,13 @@ export default function Home() {
               <UserProfile />
             ) : (
               !isLoading && (
-                <GoogleLoginButton 
+                <Button
                   size="sm"
-                  className="bg-white/10 backdrop-blur-sm border-white/20 text-white hover:bg-white/20"
+                  className="bg-white/10 backdrop-blur-sm border border-white/20 text-white hover:bg-white/20"
+                  onClick={() => router.push("/auth/signin")}
                 >
                   Sign in
-                </GoogleLoginButton>
+                </Button>
               )
             )}
           </div>
@@ -104,24 +104,25 @@ export default function Home() {
 
           {/* CTA 버튼들 */}
           <div className="space-y-4 max-w-md mx-auto">
-            <Button 
-              className="w-full h-14 bg-white text-zinc-900 hover:bg-zinc-100 font-semibold text-lg shadow-xl" 
+            <Button
+              className="w-full h-14 bg-white text-zinc-900 hover:bg-zinc-100 font-semibold text-lg shadow-xl"
               size="lg"
               onClick={handleStartChat}
             >
               <MessageSquare className="w-5 h-5 mr-3" />
               {isAuthenticated ? "Continue Analysis" : "Start Analysis"}
             </Button>
-            
+
             {!isAuthenticated && !isLoading && (
-              <GoogleLoginButton 
-                className="w-full h-12 bg-white/10 backdrop-blur-sm border-white/20 text-white hover:bg-white/20 font-medium" 
+              <Button
+                className="w-full h-12 bg-red-600 hover:bg-red-700 text-white font-medium"
                 size="lg"
+                onClick={() => router.push("/auth/signin")}
               >
-                Sign in with Google
-              </GoogleLoginButton>
+                로그인
+              </Button>
             )}
-            
+
             <p className="text-zinc-500 text-sm">
               Advanced AI analysis • Real-time insights • Professional grade data
             </p>
