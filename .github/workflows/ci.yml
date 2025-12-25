@@ -1,6 +1,8 @@
 name: CI
 
 on:
+  push:
+    branches: [main]
   pull_request:
     branches: [main]
 
@@ -26,6 +28,9 @@ jobs:
 
       - name: Run ESLint
         run: npm run lint
+
+      - name: Type check
+        run: npx tsc --noEmit
 
       - name: Build
         run: npm run build
@@ -57,6 +62,8 @@ jobs:
       DB_PASSWORD: postgres
       DB_NAME: savant_db
       TEST_DB_NAME: test_savant_db
+      NEXTAUTH_SECRET: test-secret-for-ci
+      TESTING: "true"
     steps:
       - uses: actions/checkout@v4
 
@@ -72,4 +79,4 @@ jobs:
         run: uv sync
 
       - name: Run tests
-        run: uv run pytest tests -v
+        run: uv run pytest tests -v --tb=short
