@@ -8,7 +8,9 @@ from datetime import date, datetime
 from typing import List
 
 import database
-from database.connection.test_postgres_conn import test_db_session, cleanup_test_db, reset_test_db_sequences
+from database.connection.test_postgres_conn import (
+    test_db_session, cleanup_test_db, reset_test_db_sequences, sync_test_db_schema
+)
 from fighter.models import FighterModel, FighterSchema, RankingModel, RankingSchema
 from match.models import MatchModel, FighterMatchModel, SigStrMatchStatModel, BasicMatchStatModel
 from event.models import EventModel
@@ -18,13 +20,18 @@ from common.utils import normalize_name
 @pytest_asyncio.fixture(scope="session", autouse=True)
 async def setup_test_database():
     """
-    테스트 세션 시작시 한번만 DB 정리
+    테스트 세션 시작시 한번만 DB 스키마 동기화 및 정리
     """
-    from database.connection.test_postgres_conn import cleanup_test_db, reset_test_db_sequences
-    # 세션 시작 시 한번만 정리
+    from database.connection.test_postgres_conn import (
+        cleanup_test_db, reset_test_db_sequences, sync_test_db_schema
+    )
+    # 1. 먼저 스키마 동기화 (누락된 테이블 생성)
+    await sync_test_db_schema()
+
+    # 2. 세션 시작 시 한번만 데이터 정리
     await cleanup_test_db()
     await reset_test_db_sequences()
-    
+
     yield
 
 
