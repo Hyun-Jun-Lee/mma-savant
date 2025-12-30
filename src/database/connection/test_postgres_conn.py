@@ -8,6 +8,7 @@ from sqlalchemy.orm import sessionmaker
 from sqlalchemy import text
 
 from config import get_database_url
+from common.base_model import DECLARATIVE_BASE
 import logging.config
 
 # 테스트 데이터베이스 URL
@@ -72,21 +73,27 @@ async def cleanup_test_db():
     모든 테이블의 데이터를 삭제하고 시퀀스 리셋
     """
     async with test_db_session_with_commit() as session:
-        # 외래키 제약조건 때문에 순서대로 삭제
+        # 외래키 제약조건 때문에 순서대로 삭제 (의존성 역순)
         tables_to_clean = [
+            "conversation",      # user에 의존
             "match_statistics",
-            "strike_detail", 
+            "strike_detail",
             "fighter_match",
             "ranking",
             "match",
             "event",
-            "fighter"
+            "fighter",
+            '"user"'             # PostgreSQL 예약어이므로 따옴표 필요
             # weight_class는 유지 (기본 데이터)
         ]
-        
+
         for table in tables_to_clean:
-            await session.execute(text(f"TRUNCATE TABLE {table} RESTART IDENTITY CASCADE"))
-        
+            try:
+                await session.execute(text(f"TRUNCATE TABLE {table} RESTART IDENTITY CASCADE"))
+            except Exception:
+                # 테이블이 없으면 무시 (아직 생성되지 않은 경우)
+                pass
+
         print("Test database cleaned successfully!")
 
 async def reset_test_db_sequences():
@@ -97,15 +104,57 @@ async def reset_test_db_sequences():
     async with test_db_session_with_commit() as session:
         sequences_to_reset = [
             "fighter_id_seq",
-            "event_id_seq", 
+            "event_id_seq",
             "match_id_seq",
             "fighter_match_id_seq",
             "ranking_id_seq",
             "strike_detail_id_seq",
-            "match_statistics_id_seq"
+            "match_statistics_id_seq",
+            "user_id_seq",
+            "conversation_id_seq"
         ]
-        
+
         for seq in sequences_to_reset:
-            await session.execute(text(f"SELECT setval('{seq}', 1, false)"))
-        
+            try:
+                await session.execute(text(f"SELECT setval('{seq}', 1, false)"))
+            except Exception:
+                # 시퀀스가 없으면 무시
+                pass
+
         print("Test database sequences reset successfully!")
+
+
+async def sync_test_db_schema():
+    """
+    테스트 데이터베이스 스키마를 모델 정의와 동기화합니다.
+    모든 SQLAlchemy 모델을 기반으로 누락된 테이블을 생성합니다.
+
+    주의: 기존 테이블은 수정하지 않고, 누락된 테이블만 생성합니다.
+    컬럼 변경이 필요한 경우 수동으로 마이그레이션하거나 테이블을 재생성해야 합니다.
+    """
+    # 모든 모델을 임포트하여 메타데이터에 등록
+    import database  # noqa: F401 - 모델 등록을 위한 임포트
+
+    async with test_async_engine.begin() as conn:
+        # 누락된 테이블만 생성 (checkfirst=True가 기본값)
+        await conn.run_sync(DECLARATIVE_BASE.metadata.create_all)
+
+    print("Test database schema synchronized successfully!")
+
+
+async def drop_and_recreate_test_db_schema():
+    """
+    테스트 데이터베이스의 모든 테이블을 삭제하고 재생성합니다.
+
+    경고: 모든 데이터가 삭제됩니다! 테스트 환경에서만 사용하세요.
+    """
+    # 모든 모델을 임포트하여 메타데이터에 등록
+    import database  # noqa: F401 - 모델 등록을 위한 임포트
+
+    async with test_async_engine.begin() as conn:
+        # 모든 테이블 삭제
+        await conn.run_sync(DECLARATIVE_BASE.metadata.drop_all)
+        # 모든 테이블 재생성
+        await conn.run_sync(DECLARATIVE_BASE.metadata.create_all)
+
+    print("Test database schema dropped and recreated successfully!")
