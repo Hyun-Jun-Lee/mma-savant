@@ -1,14 +1,14 @@
 """
 WebSocket Routes 테스트
-api/websocket/routes.py의 단위 테스트
+api/auth/dependencies.py의 get_user_from_token 단위 테스트
+(함수가 api.auth.dependencies로 이동됨)
 """
 import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
-from datetime import datetime, timedelta
 
 from fastapi import HTTPException
 
-from api.websocket.routes import get_user_from_token
+from api.auth.dependencies import get_user_from_token
 
 
 class TestGetUserFromToken:
@@ -77,9 +77,9 @@ class TestGetUserFromToken:
         self, mock_db_session, mock_user_schema, mock_user_model, mock_token_data_with_user_id
     ):
         """유효한 토큰 + user_id → UserModel 반환"""
-        with patch('api.websocket.routes.jwt_handler') as mock_jwt:
-            with patch('api.websocket.routes.user_repo') as mock_repo:
-                with patch('api.websocket.routes.UserModel') as mock_user_class:
+        with patch('api.auth.dependencies.jwt_handler') as mock_jwt:
+            with patch('api.auth.dependencies.user_repo') as mock_repo:
+                with patch('api.auth.dependencies.UserModel') as mock_user_class:
                     # Mock 설정
                     mock_jwt.decode_token.return_value = mock_token_data_with_user_id
                     mock_jwt.verify_token_expiry.return_value = True
@@ -100,9 +100,9 @@ class TestGetUserFromToken:
         self, mock_db_session, mock_user_schema, mock_user_model, mock_token_data_with_email
     ):
         """유효한 토큰 + email (기존 OAuth 사용자) → UserModel 반환"""
-        with patch('api.websocket.routes.jwt_handler') as mock_jwt:
-            with patch('api.websocket.routes.user_repo') as mock_repo:
-                with patch('api.websocket.routes.UserModel') as mock_user_class:
+        with patch('api.auth.dependencies.jwt_handler') as mock_jwt:
+            with patch('api.auth.dependencies.user_repo') as mock_repo:
+                with patch('api.auth.dependencies.UserModel') as mock_user_class:
                     mock_jwt.decode_token.return_value = mock_token_data_with_email
                     mock_jwt.verify_token_expiry.return_value = True
                     mock_repo.get_user_by_email = AsyncMock(return_value=mock_user_schema)
@@ -120,9 +120,9 @@ class TestGetUserFromToken:
         self, mock_db_session, mock_user_schema, mock_user_model, mock_token_data_with_email
     ):
         """유효한 토큰 + email (신규 OAuth 사용자) → 사용자 생성 후 반환"""
-        with patch('api.websocket.routes.jwt_handler') as mock_jwt:
-            with patch('api.websocket.routes.user_repo') as mock_repo:
-                with patch('api.websocket.routes.UserModel') as mock_user_class:
+        with patch('api.auth.dependencies.jwt_handler') as mock_jwt:
+            with patch('api.auth.dependencies.user_repo') as mock_repo:
+                with patch('api.auth.dependencies.UserModel') as mock_user_class:
                     mock_jwt.decode_token.return_value = mock_token_data_with_email
                     mock_jwt.verify_token_expiry.return_value = True
                     # 기존 사용자 없음 → 새로 생성
@@ -146,9 +146,9 @@ class TestGetUserFromToken:
         self, mock_db_session, mock_user_schema, mock_user_model, mock_token_data_with_sub_only
     ):
         """유효한 토큰 + sub만 있음 (fallback) → provider_id로 조회"""
-        with patch('api.websocket.routes.jwt_handler') as mock_jwt:
-            with patch('api.websocket.routes.user_repo') as mock_repo:
-                with patch('api.websocket.routes.UserModel') as mock_user_class:
+        with patch('api.auth.dependencies.jwt_handler') as mock_jwt:
+            with patch('api.auth.dependencies.user_repo') as mock_repo:
+                with patch('api.auth.dependencies.UserModel') as mock_user_class:
                     mock_jwt.decode_token.return_value = mock_token_data_with_sub_only
                     mock_jwt.verify_token_expiry.return_value = True
                     mock_repo.get_user_by_provider_id = AsyncMock(return_value=mock_user_schema)
@@ -166,7 +166,7 @@ class TestGetUserFromToken:
         self, mock_db_session, mock_token_data_with_user_id
     ):
         """만료된 토큰 → HTTPException 발생"""
-        with patch('api.websocket.routes.jwt_handler') as mock_jwt:
+        with patch('api.auth.dependencies.jwt_handler') as mock_jwt:
             mock_jwt.decode_token.return_value = mock_token_data_with_user_id
             mock_jwt.verify_token_expiry.return_value = False  # 만료됨
 
@@ -181,8 +181,8 @@ class TestGetUserFromToken:
         self, mock_db_session, mock_token_data_with_user_id
     ):
         """user_id로 사용자 조회 실패 → HTTPException 발생"""
-        with patch('api.websocket.routes.jwt_handler') as mock_jwt:
-            with patch('api.websocket.routes.user_repo') as mock_repo:
+        with patch('api.auth.dependencies.jwt_handler') as mock_jwt:
+            with patch('api.auth.dependencies.user_repo') as mock_repo:
                 mock_jwt.decode_token.return_value = mock_token_data_with_user_id
                 mock_jwt.verify_token_expiry.return_value = True
                 mock_repo.get_user_by_id = AsyncMock(return_value=None)
@@ -198,8 +198,8 @@ class TestGetUserFromToken:
         self, mock_db_session, mock_token_data_with_sub_only
     ):
         """provider_id로 사용자 조회 실패 → HTTPException 발생"""
-        with patch('api.websocket.routes.jwt_handler') as mock_jwt:
-            with patch('api.websocket.routes.user_repo') as mock_repo:
+        with patch('api.auth.dependencies.jwt_handler') as mock_jwt:
+            with patch('api.auth.dependencies.user_repo') as mock_repo:
                 mock_jwt.decode_token.return_value = mock_token_data_with_sub_only
                 mock_jwt.verify_token_expiry.return_value = True
                 mock_repo.get_user_by_provider_id = AsyncMock(return_value=None)
@@ -218,9 +218,9 @@ class TestGetUserFromToken:
         inactive_user_model = MagicMock()
         inactive_user_model.is_active = False
 
-        with patch('api.websocket.routes.jwt_handler') as mock_jwt:
-            with patch('api.websocket.routes.user_repo') as mock_repo:
-                with patch('api.websocket.routes.UserModel') as mock_user_class:
+        with patch('api.auth.dependencies.jwt_handler') as mock_jwt:
+            with patch('api.auth.dependencies.user_repo') as mock_repo:
+                with patch('api.auth.dependencies.UserModel') as mock_user_class:
                     mock_jwt.decode_token.return_value = mock_token_data_with_user_id
                     mock_jwt.verify_token_expiry.return_value = True
                     mock_repo.get_user_by_id = AsyncMock(return_value=mock_user_schema)
@@ -235,7 +235,7 @@ class TestGetUserFromToken:
     @pytest.mark.asyncio
     async def test_jwt_decode_error_raises_http_exception(self, mock_db_session):
         """JWT 디코딩 에러 → HTTPException 발생"""
-        with patch('api.websocket.routes.jwt_handler') as mock_jwt:
+        with patch('api.auth.dependencies.jwt_handler') as mock_jwt:
             mock_jwt.decode_token.side_effect = Exception("Invalid token format")
 
             with pytest.raises(HTTPException) as exc_info:
@@ -249,8 +249,8 @@ class TestGetUserFromToken:
         self, mock_db_session, mock_token_data_with_user_id
     ):
         """데이터베이스 에러 → HTTPException 발생"""
-        with patch('api.websocket.routes.jwt_handler') as mock_jwt:
-            with patch('api.websocket.routes.user_repo') as mock_repo:
+        with patch('api.auth.dependencies.jwt_handler') as mock_jwt:
+            with patch('api.auth.dependencies.user_repo') as mock_repo:
                 mock_jwt.decode_token.return_value = mock_token_data_with_user_id
                 mock_jwt.verify_token_expiry.return_value = True
                 mock_repo.get_user_by_id = AsyncMock(
