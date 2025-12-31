@@ -35,24 +35,7 @@ TestAsyncSessionLocal = sessionmaker(
 )
 
 @asynccontextmanager
-async def test_db_session():
-    """
-    테스트 전용 데이터베이스 세션 컨텍스트 매니저
-    각 테스트 후 자동으로 롤백하여 테스트 격리 보장
-    """
-    session = TestAsyncSessionLocal()
-    try:
-        yield session
-        # 테스트 완료 후 자동 롤백 (테스트 격리)
-        await session.rollback()
-    except Exception as e:
-        await session.rollback()
-        raise e
-    finally:
-        await session.close()
-
-@asynccontextmanager
-async def test_db_session_with_commit():
+async def db_session_for_test():
     """
     커밋이 필요한 테스트용 세션 (일부 통합 테스트용)
     주의: 이 세션은 실제로 DB에 변경사항을 커밋합니다
@@ -72,7 +55,7 @@ async def cleanup_test_db():
     테스트 데이터베이스 정리 함수
     모든 테이블의 데이터를 삭제하고 시퀀스 리셋
     """
-    async with test_db_session_with_commit() as session:
+    async with db_session_for_test() as session:
         # 외래키 제약조건 때문에 순서대로 삭제 (의존성 역순)
         tables_to_clean = [
             "conversation",      # user에 의존
@@ -101,7 +84,7 @@ async def reset_test_db_sequences():
     테스트 데이터베이스 시퀀스 리셋
     AUTO_INCREMENT ID를 1부터 다시 시작
     """
-    async with test_db_session_with_commit() as session:
+    async with db_session_for_test() as session:
         sequences_to_reset = [
             "fighter_id_seq",
             "event_id_seq",
