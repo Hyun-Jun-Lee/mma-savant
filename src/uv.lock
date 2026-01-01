@@ -3896,6 +3896,9 @@ requires-dist = [
     { name = "zstandard", specifier = "==0.23.0" },
 ]
 
+[package.metadata.requires-dev]
+dev = []
+
 [[package]]
 name = "sse-starlette"
 version = "2.3.6"
