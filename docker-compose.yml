@@ -21,17 +21,19 @@ services:
       - savant_db
 
   savant_db:
-    image: postgres:13
+    image: postgres:16
     container_name: savant_db
     ports:
-      - "5432:5432"
+      - "127.0.0.1:5432:5432"
     env_file:
       - .env
     environment:
+      - POSTGRES_USER=${DB_USER}
       - POSTGRES_PASSWORD=${DB_PASSWORD}
       - POSTGRES_DB=${DB_NAME}
       - DB_READONLY_USER=${DB_READONLY_USER}
       - DB_READONLY_PASSWORD=${DB_READONLY_PASSWORD}
+      - TEST_DB_NAME=${TEST_DB_NAME}
     volumes:
       - savant_db:/var/lib/postgresql/data
       - ./init_sqls:/docker-entrypoint-initdb.d
