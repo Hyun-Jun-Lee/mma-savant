@@ -130,8 +130,8 @@ class Config:
 
 def get_database_url(is_test : bool = False) -> str:
     if is_test:
-        return f"postgresql+asyncpg://postgres:{Config.DB_PASSWORD}@{Config.DB_HOST}:{Config.DB_PORT}/{Config.TEST_DB_NAME}"
-    return f"postgresql+asyncpg://postgres:{Config.DB_PASSWORD}@{Config.DB_HOST}:{Config.DB_PORT}/{Config.DB_NAME}"
+        return f"postgresql+asyncpg://{Config.DB_USER}:{Config.DB_PASSWORD}@{Config.DB_HOST}:{Config.DB_PORT}/{Config.TEST_DB_NAME}"
+    return f"postgresql+asyncpg://{Config.DB_USER}:{Config.DB_PASSWORD}@{Config.DB_HOST}:{Config.DB_PORT}/{Config.DB_NAME}"
 
 def get_logging_config() -> Dict[str, Any]:
     """환경에 따른 로깅 설정을 반환합니다."""

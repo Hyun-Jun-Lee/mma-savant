@@ -8,8 +8,6 @@ from sqlalchemy.orm import sessionmaker
 from sqlalchemy import text
 
 from config import get_database_url
-from common.base_model import DECLARATIVE_BASE
-import logging.config
 
 # 테스트 데이터베이스 URL
 TEST_DATABASE_URL = get_database_url(is_test=True)
@@ -58,6 +56,7 @@ async def cleanup_test_db():
     async with db_session_for_test() as session:
         # 외래키 제약조건 때문에 순서대로 삭제 (의존성 역순)
         tables_to_clean = [
+            "message",           # conversation에 의존
             "conversation",      # user에 의존
             "match_statistics",
             "strike_detail",
@@ -94,7 +93,8 @@ async def reset_test_db_sequences():
             "strike_detail_id_seq",
             "match_statistics_id_seq",
             "user_id_seq",
-            "conversation_id_seq"
+            "conversation_id_seq",
+            "message_id_seq"
         ]
 
         for seq in sequences_to_reset:
@@ -107,37 +107,3 @@ async def reset_test_db_sequences():
         print("Test database sequences reset successfully!")
 
 
-async def sync_test_db_schema():
-    """
-    테스트 데이터베이스 스키마를 모델 정의와 동기화합니다.
-    모든 SQLAlchemy 모델을 기반으로 누락된 테이블을 생성합니다.
-
-    주의: 기존 테이블은 수정하지 않고, 누락된 테이블만 생성합니다.
-    컬럼 변경이 필요한 경우 수동으로 마이그레이션하거나 테이블을 재생성해야 합니다.
-    """
-    # 모든 모델을 임포트하여 메타데이터에 등록
-    import database  # noqa: F401 - 모델 등록을 위한 임포트
-
-    async with test_async_engine.begin() as conn:
-        # 누락된 테이블만 생성 (checkfirst=True가 기본값)
-        await conn.run_sync(DECLARATIVE_BASE.metadata.create_all)
-
-    print("Test database schema synchronized successfully!")
-
-
-async def drop_and_recreate_test_db_schema():
-    """
-    테스트 데이터베이스의 모든 테이블을 삭제하고 재생성합니다.
-
-    경고: 모든 데이터가 삭제됩니다! 테스트 환경에서만 사용하세요.
-    """
-    # 모든 모델을 임포트하여 메타데이터에 등록
-    import database  # noqa: F401 - 모델 등록을 위한 임포트
-
-    async with test_async_engine.begin() as conn:
-        # 모든 테이블 삭제
-        await conn.run_sync(DECLARATIVE_BASE.metadata.drop_all)
-        # 모든 테이블 재생성
-        await conn.run_sync(DECLARATIVE_BASE.metadata.create_all)
-
-    print("Test database schema dropped and recreated successfully!")
