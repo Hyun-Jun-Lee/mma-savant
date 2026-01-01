@@ -76,6 +76,16 @@ async def scrap_event_detail(crawler_fn: Callable, event_url: str, event_id: int
         fighter_1_id = fighter_name_to_id_map.get(fighter_1.lower().strip())
         fighter_2_id = fighter_name_to_id_map.get(fighter_2.lower().strip())
 
+        # fighter_id가 None이면 로그 남기고 해당 매치 건너뛰기
+        if fighter_1_id is None or fighter_2_id is None:
+            missing_fighters = []
+            if fighter_1_id is None:
+                missing_fighters.append(fighter_1)
+            if fighter_2_id is None:
+                missing_fighters.append(fighter_2)
+            logging.warning(f"Fighter not found in DB, skipping match: {missing_fighters}")
+            continue
+
         # Check fight result
         win_element = cols[0].find('a', class_='b-flag b-flag_style_green')
         draw_nc_element = cols[0].find('a', class_='b-flag b-flag_style_bordered')
@@ -106,8 +116,9 @@ async def scrap_event_detail(crawler_fn: Callable, event_url: str, event_id: int
             else:
                 method = method_list[0] if method_list else None
 
-            round_num = cols[8].get_text(strip=True)
-            time = cols[9].get_text(strip=True)
+            round_num_text = cols[8].get_text(strip=True)
+            round_num = int(round_num_text) if round_num_text else None
+            time = cols[9].get_text(strip=True) or None
 
             weight_class_id = WeightClassSchema.get_id_by_name(weight_class)
             if not weight_class_id:

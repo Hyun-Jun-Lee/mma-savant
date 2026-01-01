@@ -9,22 +9,23 @@ from common.utils import normalize_name
 async def get_all_fighter(
     session: AsyncSession,
     page: int = 1,
-    page_size: int = 10
+    page_size: Optional[int] = 10
 ) -> List[FighterSchema]:
     """
-    모든 파이터를 페이지네이션하여 조회합니다.
+    모든 파이터를 조회합니다.
 
     Args:
         session: 데이터베이스 세션
         page: 페이지 번호 (1부터 시작, 기본값 1)
-        page_size: 페이지당 항목 수 (기본값 10)
+        page_size: 페이지당 항목 수 (기본값 10, None이면 전체 조회)
     """
-    offset = (page - 1) * page_size
-    result = await session.execute(
-        select(FighterModel)
-        .offset(offset)
-        .limit(page_size)
-    )
+    query = select(FighterModel)
+
+    if page_size is not None:
+        offset = (page - 1) * page_size
+        query = query.offset(offset).limit(page_size)
+
+    result = await session.execute(query)
     fighters = result.scalars().all()
     return [fighter.to_schema() for fighter in fighters]
 

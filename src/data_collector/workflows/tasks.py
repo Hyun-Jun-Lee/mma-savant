@@ -150,7 +150,7 @@ async def scrap_event_detail_task(crawler_fn : Callable) -> None:
     LOGGER.info("scrap_event_detail_task started")
     async with get_async_db_context() as session:
         events_list = await get_events(session)
-        all_fighters = await get_all_fighter(session)
+        all_fighters = await get_all_fighter(session, page_size=None)
 
     fighter_name_to_id_map = {fighter.name: fighter.id for fighter in all_fighters}
 
@@ -215,7 +215,7 @@ async def scrap_match_detail_task(crawler_fn: Callable) -> None:  # session 파�
     
     # 공통 데이터는 한 번만 조회
     async with get_async_db_context() as session:
-        all_fighters = await get_all_fighter(session)
+        all_fighters = await get_all_fighter(session, page_size=None)
         fighter_match_dict = await get_match_fighter_mapping(session)
     
     fighter_name_to_id_map = {fighter.name: fighter.id for fighter in all_fighters}
