@@ -1,7 +1,7 @@
 import { create } from 'zustand'
-import { ChatStore, Message, ChatSession } from '@/types/chat'
+import { ChatStore, Message } from '@/types/chat'
 
-export const useChatStore = create<ChatStore>((set, get) => ({
+export const useChatStore = create<ChatStore>((set) => ({
   messages: [],
   isLoading: false,
   isConnected: false,

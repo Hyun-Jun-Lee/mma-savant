@@ -6,7 +6,8 @@ import {
   Cell,
   ResponsiveContainer,
   Tooltip,
-  Legend
+  Legend,
+  PieLabelRenderProps
 } from "recharts"
 
 interface PieChartVisualizationProps {
@@ -42,7 +43,7 @@ export function PieChartVisualization({ data, xAxis, yAxis }: PieChartVisualizat
   ]
 
   // 데이터 정규화 (name, value 형태로 변환)
-  const pieData = data.map((item, index) => ({
+  const pieData = data.map((item) => ({
     name: String(item[nameKey]),
     value: Number(item[valueKey]) || 0,
     originalData: item
@@ -60,9 +61,11 @@ export function PieChartVisualization({ data, xAxis, yAxis }: PieChartVisualizat
             cx="50%"
             cy="50%"
             labelLine={false}
-            label={(entry) => {
-              const percent = ((entry.value / total) * 100).toFixed(1)
-              return `${entry.name}: ${percent}%`
+            label={(props: PieLabelRenderProps) => {
+              const name = String(props.name || '')
+              const value = Number(props.value) || 0
+              const percent = ((value / total) * 100).toFixed(1)
+              return `${name}: ${percent}%`
             }}
             outerRadius={100}
             fill="#8884d8"

@@ -7,17 +7,15 @@ import { useState } from "react"
 import { useChatStore } from "@/store/chatStore"
 import { useChatSession } from "@/hooks/useChatSession"
 import { Button } from "@/components/ui/button"
-import { Card } from "@/components/ui/card"
 import { ScrollArea } from "@/components/ui/scroll-area"
-import { 
-  MessageSquare, 
-  Plus, 
-  Trash2, 
-  Edit3, 
-  Check, 
+import {
+  MessageSquare,
+  Plus,
+  Trash2,
+  Edit3,
+  Check,
   X,
-  Clock,
-  MoreVertical
+  Clock
 } from "lucide-react"
 import { ChatSession } from "@/types/chat"
 import { formatDistanceToNow } from "date-fns"
@@ -175,9 +173,9 @@ export function SessionSidebar({ isOpen, onClose }: SessionSidebarProps) {
                               autoFocus
                               onKeyDown={(e) => {
                                 if (e.key === 'Enter') {
-                                  handleSaveTitle(session.id, e as any)
+                                  handleSaveTitle(session.id, e as unknown as React.MouseEvent)
                                 } else if (e.key === 'Escape') {
-                                  handleCancelEdit(e as any)
+                                  handleCancelEdit(e as unknown as React.MouseEvent)
                                 }
                               }}
                             />

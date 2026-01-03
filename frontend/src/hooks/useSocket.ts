@@ -176,10 +176,10 @@ export function useSocket() {
       conversation_id: number;
       timestamp: string;
       visualization_type?: string;
-      visualization_data?: any;
+      visualization_data?: Record<string, unknown>;
       insights?: string[];
-      tool_results?: any[];
-      intermediate_steps?: any[];
+      tool_results?: unknown[];
+      intermediate_steps?: unknown[];
     }) => {
       console.log('🎯 Received final_result:', data.message_id)
       console.log('📊 Visualization type:', data.visualization_type)
@@ -190,15 +190,21 @@ export function useSocket() {
       setTyping(false)
 
       // 직접 시각화 데이터 구성 (content 파싱 대신)
-      let visualizationData = null
-      if (data.visualization_type && data.visualization_data && data.visualization_type !== 'text_summary') {
+      let visualizationData: VisualizationData | null = null
+      const validVisualizationTypes = ['table', 'bar_chart', 'pie_chart', 'line_chart', 'scatter_plot', 'text_summary'] as const
+      if (
+        data.visualization_type &&
+        data.visualization_data &&
+        data.visualization_type !== 'text_summary' &&
+        validVisualizationTypes.includes(data.visualization_type as typeof validVisualizationTypes[number])
+      ) {
         visualizationData = {
-          selected_visualization: data.visualization_type,
+          selected_visualization: data.visualization_type as VisualizationData['selected_visualization'],
           visualization_data: {
-            title: data.visualization_data.title || "분석 결과",
-            data: data.visualization_data.data || data.visualization_data,
-            x_axis: data.visualization_data.x_axis,
-            y_axis: data.visualization_data.y_axis
+            title: String(data.visualization_data.title || "분석 결과"),
+            data: (data.visualization_data.data || data.visualization_data) as Record<string, string | number>[],
+            x_axis: data.visualization_data.x_axis as string | undefined,
+            y_axis: data.visualization_data.y_axis as string | undefined
           },
           insights: data.insights || []
         }

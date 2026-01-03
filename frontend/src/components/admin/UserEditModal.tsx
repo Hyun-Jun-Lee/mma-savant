@@ -54,8 +54,9 @@ export function UserEditModal({
         daily_request_limit: dailyLimit,
       })
       onUpdate(updated)
-    } catch (err: any) {
-      setError(err.message || "요청 제한 업데이트에 실패했습니다.")
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : "요청 제한 업데이트에 실패했습니다."
+      setError(errorMessage)
     } finally {
       setIsLoading(false)
     }
@@ -71,8 +72,9 @@ export function UserEditModal({
         is_admin: !user.is_admin,
       })
       onUpdate(updated)
-    } catch (err: any) {
-      setError(err.message || "관리자 권한 변경에 실패했습니다.")
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : "관리자 권한 변경에 실패했습니다."
+      setError(errorMessage)
     } finally {
       setIsLoading(false)
     }
@@ -88,8 +90,9 @@ export function UserEditModal({
         is_active: !user.is_active,
       })
       onUpdate(updated)
-    } catch (err: any) {
-      setError(err.message || "활성화 상태 변경에 실패했습니다.")
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : "활성화 상태 변경에 실패했습니다."
+      setError(errorMessage)
     } finally {
       setIsLoading(false)
     }

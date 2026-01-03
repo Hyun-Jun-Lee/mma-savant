@@ -1,8 +1,6 @@
 "use client"
 
-import { useState, useRef, useEffect } from "react"
-import { Button } from "@/components/ui/button"
-import { Textarea } from "@/components/ui/textarea"
+import { useRef, useEffect } from "react"
 import { useChatStore } from "@/store/chatStore"
 import { Send, Loader2 } from "lucide-react"
 import { cn } from "@/lib/utils"
@@ -19,7 +17,7 @@ export function MessageInput({
   placeholder = "MMA에 대해 무엇이든 물어보세요... (Shift+Enter로 줄바꿈)"
 }: MessageInputProps) {
   const { currentMessage, setCurrentMessage, isLoading, usageLimit } = useChatStore()
-  const textareaRef = useRef<HTMLTextAreaElement>(null)
+  const textareaRef = useRef<HTMLInputElement>(null)
 
   const handleSend = () => {
     const trimmedMessage = currentMessage.trim()
@@ -42,17 +40,6 @@ export function MessageInput({
     }
   }
 
-  const handleChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
-    const value = e.target.value
-    setCurrentMessage(value)
-    
-    // 자동 높이 조절
-    if (textareaRef.current) {
-      textareaRef.current.style.height = "auto"
-      textareaRef.current.style.height = `${Math.min(textareaRef.current.scrollHeight, 120)}px`
-    }
-  }
-
   useEffect(() => {
     // 컴포넌트 마운트 시 포커스
     textareaRef.current?.focus()
@@ -72,7 +59,7 @@ export function MessageInput({
     <div className="flex h-12 flex-1 flex-col min-w-40">
       <div className="flex h-full w-full flex-1 items-stretch rounded-lg">
         <input
-          ref={textareaRef as any}
+          ref={textareaRef}
           value={currentMessage}
           onChange={(e) => setCurrentMessage(e.target.value)}
           onKeyDown={handleKeyDown}

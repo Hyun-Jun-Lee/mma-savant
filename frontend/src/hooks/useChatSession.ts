@@ -9,7 +9,7 @@ import { useChatStore } from '@/store/chatStore'
 import { ChatApiService } from '@/services/chatApi'
 import { handleApiError } from '@/lib/api'
 import { ChatSession, Message } from '@/types/chat'
-import { ChatSessionResponse, ChatHistoryResponse } from '@/types/api'
+import { ChatSessionResponse } from '@/types/api'
 
 export function useChatSession() {
   const router = useRouter()
