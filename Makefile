@@ -1,7 +1,7 @@
 # MMA Savant Makefile
 # Simplifies deployment and operation tasks
 
-.PHONY: help check-env check-ports setup build up down logs clean test init-db run-scraper dev status restart flow-shell flow-up flow-down flow-restart db-up db-down db-restart api-up api-down api-restart
+.PHONY: help check-env check-ports setup build up down logs clean test init-db run-scraper dev status restart flow-shell flow-up flow-down flow-restart db-up db-down db-restart api-up api-down api-restart web-start web-down web-build
 
 # Default target
 help:
@@ -31,6 +31,9 @@ help:
 	@echo "  make api-up      - Start API service"
 	@echo "  make api-down    - Stop API service"
 	@echo "  make api-restart - Restart API service"
+	@echo "  make web-start   - Start frontend dev server"
+	@echo "  make web-down    - Stop frontend server"
+	@echo "  make web-build   - Build frontend for production"
 	@echo ""
 	@echo "🗄️  Database Operations:"
 	@echo "  make db-shell    - Connect to PostgreSQL shell"
@@ -125,7 +128,7 @@ db-up:
 
 api-up:
 	@echo "🚀 Starting API service..."
-	docker-compose up -d savant_api
+	docker-compose up -d api
 
 # Individual service down commands
 flow-down:
@@ -138,7 +141,7 @@ db-down:
 
 api-down:
 	@echo "🛑 Stopping API service..."
-	docker-compose stop savant_api
+	docker-compose stop api
 
 # Individual service restart commands
 flow-restart: flow-down flow-up
@@ -153,3 +156,16 @@ api-restart: api-down api-up
 # Quick status check
 quick-check: check-env check-ports status
 	@echo "📈 System status check complete!"
+
+# Frontend operations
+web-start:
+	@echo "🌐 Starting frontend dev server..."
+	docker-compose up -d web
+
+web-down:
+	@echo "🛑 Stopping frontend server..."
+	docker-compose stop web
+
+web-build:
+	@echo "🔨 Building frontend image..."
+	docker-compose build web
