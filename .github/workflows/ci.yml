@@ -40,11 +40,11 @@ jobs:
     runs-on: ubuntu-latest
     services:
       postgres:
-        image: postgres:15
+        image: postgres:16
         env:
-          POSTGRES_USER: postgres
-          POSTGRES_PASSWORD: postgres
-          POSTGRES_DB: test_savant_db
+          POSTGRES_USER: ${{ secrets.DB_USER }}
+          POSTGRES_PASSWORD: ${{ secrets.DB_PASSWORD }}
+          POSTGRES_DB: ${{ secrets.TEST_DB_NAME }}
         ports:
           - 5432:5432
         options: >-
@@ -57,12 +57,12 @@ jobs:
         working-directory: src
     env:
       DB_HOST: localhost
-      DB_PORT: 5432
-      DB_USER: postgres
-      DB_PASSWORD: postgres
-      DB_NAME: savant_db
-      TEST_DB_NAME: test_savant_db
-      NEXTAUTH_SECRET: test-secret-for-ci
+      DB_PORT: ${{ secrets.DB_PORT }}
+      DB_USER: ${{ secrets.DB_USER }}
+      DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
+      DB_NAME: ${{ secrets.DB_NAME }}
+      TEST_DB_NAME: ${{ secrets.TEST_DB_NAME }}
+      NEXTAUTH_SECRET: ${{ secrets.NEXTAUTH_SECRET }}
       TESTING: "true"
     steps:
       - uses: actions/checkout@v4
