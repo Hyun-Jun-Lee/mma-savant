@@ -24,7 +24,6 @@ from llm.stream_processor import (
     validate_streaming_chunk
 )
 from common.utils import remove_timestamps_from_tool_result
-from llm.performance_monitor import setup_langsmith_tracing
 from conversation.message_manager import ChatHistory
 from database.connection.postgres_conn import get_async_db_context
 from common.logging_config import get_logger
@@ -46,9 +45,6 @@ class LangChainLLMService:
             max_cache_size: 히스토리 캐시 크기
             provider: 사용할 LLM 프로바이더 (None이면 Config에서 결정)
         """
-        # 성능 모니터링 및 트레이싱 설정
-        setup_langsmith_tracing()
-
         # 데이터베이스 세션 팩토리 저장 (ChatHistory 생성시 사용)
         self.async_db_session_factory = get_async_db_context
         self.max_cache_size = max_cache_size
@@ -121,17 +117,6 @@ class LangChainLLMService:
             # 총 실행 시간 로깅
             total_time = time.time() - start_time
             LOGGER.info(f"⏱️ Total streaming function took: {total_time:.3f}s")
-
-            # LangSmith 최종 메트릭 로깅 (자동으로 추적됨)
-            if Config.LANGCHAIN_TRACING_V2:
-                final_metrics = {
-                    "total_streaming_time": total_time,
-                    "message_id": message_id,
-                    "conversation_id": conversation_id,
-                    "user_id": user_id,
-                    "completion_status": "success"
-                }
-                LOGGER.info(f"LangSmith final metrics: {final_metrics}")
 
     async def _validate_streaming_parameters(
         self, conversation_id: Optional[int], user_id: Optional[int], message_id: str
@@ -396,8 +381,7 @@ class LangChainLLMService:
             "message_id": message_id,
             "conversation_id": conversation_id,
             "timestamp": kr_time_now().isoformat(),
-            "two_phase_system": True,
-            "langsmith_enabled": Config.LANGCHAIN_TRACING_V2
+            "two_phase_system": True
         }
 
     def get_conversation_starter(self) -> str:
@@ -436,9 +420,6 @@ class LangChainLLMService:
             agent_health = await self.agent_manager.health_check()
             health_status["two_phase_system"] = agent_health
             health_status["agent_manager_version"] = "v2"
-
-            # LangSmith 상태
-            health_status["langsmith_enabled"] = Config.LANGCHAIN_TRACING_V2
 
             return health_status
 
