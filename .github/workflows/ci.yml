@@ -78,5 +78,12 @@ jobs:
       - name: Install dependencies
         run: uv sync
 
+      - name: Initialize database schema
+        env:
+          PGPASSWORD: ${{ secrets.DB_PASSWORD }}
+        run: |
+          psql -h localhost -U ${{ secrets.DB_USER }} -d ${{ secrets.TEST_DB_NAME }} -f ../init_sqls/01_init_table.sql
+          psql -h localhost -U ${{ secrets.DB_USER }} -d ${{ secrets.TEST_DB_NAME }} -f ../init_sqls/03_init_weight_class.sql
+
       - name: Run tests
         run: uv run pytest tests -v --tb=short
