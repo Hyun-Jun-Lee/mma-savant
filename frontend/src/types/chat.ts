@@ -16,8 +16,8 @@ export interface Message {
   role: "user" | "assistant"
   timestamp: Date
   isStreaming?: boolean
-  // 시각화 데이터 필드 추가
-  visualizationData?: VisualizationData
+  // 시각화 데이터 필드 추가 (null 허용 - API 응답에서 null이 올 수 있음)
+  visualizationData?: VisualizationData | null
 }
 
 export interface ChatSession {

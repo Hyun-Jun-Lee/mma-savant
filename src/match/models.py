@@ -115,8 +115,8 @@ class MatchModel(BaseModel):
 class FighterMatchModel(BaseModel):
     __tablename__ = "fighter_match"
     
-    fighter_id = Column(Integer, ForeignKey("fighter.id"))
-    match_id = Column(Integer, ForeignKey("match.id"))
+    fighter_id = Column(Integer, ForeignKey("fighter.id"), nullable=False)
+    match_id = Column(Integer, ForeignKey("match.id"), nullable=False)
     
     result = Column(String)
     

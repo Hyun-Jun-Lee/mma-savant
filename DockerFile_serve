@@ -1,9 +1,20 @@
-FROM prefecthq/prefect:3-python3.9
+FROM python:3.12-slim
+
+# uv 설치
+COPY --from=ghcr.io/astral-sh/uv:latest /uv /bin/uv
+
+# 작업 디렉토리 설정
+WORKDIR /app
+
+# 의존성 파일 먼저 복사 (캐시 활용)
+COPY src/pyproject.toml src/uv.lock* ./
+
+# 의존성 설치
+RUN uv sync --frozen --no-dev
 
 # 소스 코드 복사
-COPY ./crawlers/ /app/crawlers/
+COPY src/ ./
 
-# 필요한 Python 패키지 설치
-WORKDIR /app/crawlers
-RUN pip install --upgrade pip
-RUN pip install --no-cache-dir -r requirements.txt
+# 환경변수 설정
+ENV PYTHONPATH=/app
+ENV PYTHONUNBUFFERED=1

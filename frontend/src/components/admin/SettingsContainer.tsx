@@ -11,7 +11,7 @@ import { UserApiService } from "@/services/userApi"
 import { AdminStats } from "./AdminStats"
 import { UserTable } from "./UserTable"
 import { UserEditModal } from "./UserEditModal"
-import type { UserAdminResponse, UserListResponse, AdminStatsResponse } from "@/types/api"
+import type { UserAdminResponse, AdminStatsResponse } from "@/types/api"
 
 export function SettingsContainer() {
   const router = useRouter()
@@ -52,7 +52,7 @@ export function SettingsContainer() {
       try {
         const data = await AdminApiService.getAdminStats()
         setStats(data)
-      } catch (err: any) {
+      } catch (err) {
         console.error("Failed to fetch stats:", err)
       } finally {
         setIsStatsLoading(false)
@@ -70,8 +70,9 @@ export function SettingsContainer() {
       setUsers(data.users)
       setTotalUsers(data.total_users)
       setTotalPages(data.total_pages)
-    } catch (err: any) {
-      setError(err.message || "사용자 목록을 불러오는데 실패했습니다.")
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : "사용자 목록을 불러오는데 실패했습니다."
+      setError(errorMessage)
     } finally {
       setIsLoading(false)
     }

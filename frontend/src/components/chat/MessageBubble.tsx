@@ -16,7 +16,6 @@ interface MessageBubbleProps {
 export function MessageBubble({ message }: MessageBubbleProps) {
   const { user } = useAuth()
   const isUser = message.role === "user"
-  const isAssistant = message.role === "assistant"
 
   return (
     <div className={cn(

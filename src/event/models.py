@@ -34,7 +34,7 @@ class EventModel(BaseModel):
     matches = relationship("MatchModel", back_populates="event")
 
     @classmethod
-    def from_schema(cls, event: EventSchema) -> None:
+    def from_schema(cls, event: EventSchema) -> "EventModel":
         return cls(
             name=event.name,
             location=event.location,

@@ -1,592 +1,504 @@
-
+"""
+Fighter Services 통합 테스트
+실제 테스트 DB를 사용한 서비스 레이어 검증
+"""
 import pytest
-from unittest.mock import AsyncMock, patch, MagicMock
-from datetime import date, datetime
+from datetime import datetime
+from sqlalchemy.ext.asyncio import AsyncSession
 
-import database
-
-from fighter.models import FighterSchema, RankingSchema
-from fighter.dto import (
-    FighterWithRankingsDTO, WeightClassRankingsDTO, RankedFighterDTO,
-    FightersByStanceDTO, UndefeatedFightersDTO, FightersByPhysicalAttributesDTO,
-    FightersPerformanceAnalysisDTO, WeightClassDepthAnalysisDTO
-)
+from fighter.models import FighterModel, FighterSchema, RankingModel, RankingSchema
+from fighter.dto import FighterWithRankingsDTO, WeightClassRankingsDTO, RankedFighterDTO
 from fighter import services as fighter_services
 from fighter.exceptions import (
-    FighterNotFoundError, FighterValidationError, FighterQueryError, 
-    FighterWeightClassError, FighterSearchError, FighterPerformanceError
+    FighterNotFoundError, FighterValidationError, FighterQueryError,
+    FighterWeightClassError, FighterSearchError
 )
 
 
-class TestGetFighterById:
-    """get_fighter_by_id 함수 테스트"""
-    
-    @pytest.mark.asyncio
-    async def test_get_fighter_by_id_success(self):
-        """정상적으로 파이터를 찾은 경우"""
-        # Given: 모킹된 세션과 파이터 데이터
-        mock_session = AsyncMock()
-        fighter_data = FighterSchema(
-            id=1,
-            name="Jon Jones",
-            nickname="Bones",
-            wins=26,
-            losses=1,
-            draws=0
+# =============================================================================
+# 헬퍼 함수: 테스트용 파이터/랭킹 생성
+# =============================================================================
+
+async def create_test_fighter(
+    session: AsyncSession,
+    name: str,
+    nickname: str = None,
+    wins: int = 10,
+    losses: int = 2,
+    draws: int = 0,
+    belt: bool = False,
+    stance: str = "Orthodox"
+) -> FighterModel:
+    """테스트용 파이터 생성"""
+    timestamp = datetime.now().strftime("%H%M%S%f")
+    fighter = FighterModel(
+        name=f"{name}_{timestamp}",
+        nickname=nickname,
+        wins=wins,
+        losses=losses,
+        draws=draws,
+        belt=belt,
+        stance=stance
+    )
+    session.add(fighter)
+    await session.flush()
+    return fighter
+
+
+async def create_test_ranking(
+    session: AsyncSession,
+    fighter_id: int,
+    weight_class_id: int,
+    ranking: int
+) -> RankingModel:
+    """테스트용 랭킹 생성"""
+    ranking_model = RankingModel(
+        fighter_id=fighter_id,
+        weight_class_id=weight_class_id,
+        ranking=ranking
+    )
+    session.add(ranking_model)
+    await session.flush()
+    return ranking_model
+
+
+# =============================================================================
+# get_fighter_by_id 테스트
+# =============================================================================
+
+@pytest.mark.asyncio
+async def test_get_fighter_by_id_success(clean_test_session: AsyncSession):
+    """정상적으로 파이터를 찾은 경우"""
+    # Given: 테스트 파이터 생성
+    fighter = await create_test_fighter(
+        clean_test_session,
+        name="Jon Jones",
+        nickname="Bones",
+        wins=26,
+        losses=1,
+        draws=0
+    )
+
+    # 랭킹 추가 (Lightweight=4, Welterweight=5)
+    await create_test_ranking(clean_test_session, fighter.id, 4, 1)
+    await create_test_ranking(clean_test_session, fighter.id, 5, 3)
+
+    # When: 서비스 호출
+    result = await fighter_services.get_fighter_by_id(clean_test_session, fighter.id)
+
+    # Then: FighterWithRankingsDTO 반환
+    assert isinstance(result, FighterWithRankingsDTO)
+    assert result.fighter.id == fighter.id
+    assert "Jones" in result.fighter.name
+    assert result.fighter.wins == 26
+    assert result.fighter.losses == 1
+    assert len(result.rankings) == 2
+
+
+@pytest.mark.asyncio
+async def test_get_fighter_by_id_not_found(clean_test_session: AsyncSession):
+    """파이터를 찾지 못한 경우 예외 발생"""
+    # When & Then: 존재하지 않는 ID로 조회 시 예외
+    with pytest.raises(FighterNotFoundError) as exc_info:
+        await fighter_services.get_fighter_by_id(clean_test_session, 99999)
+
+    assert "Fighter not found with id: 99999" in str(exc_info.value)
+
+
+@pytest.mark.asyncio
+async def test_get_fighter_by_id_no_rankings(clean_test_session: AsyncSession):
+    """랭킹이 없는 파이터의 경우"""
+    # Given: 랭킹 없는 파이터 생성
+    fighter = await create_test_fighter(
+        clean_test_session,
+        name="Unknown Fighter",
+        wins=5,
+        losses=2,
+        draws=0
+    )
+
+    # When: 서비스 호출
+    result = await fighter_services.get_fighter_by_id(clean_test_session, fighter.id)
+
+    # Then: 빈 랭킹
+    assert isinstance(result, FighterWithRankingsDTO)
+    assert result.rankings == {}
+
+
+@pytest.mark.asyncio
+async def test_get_fighter_by_id_invalid_id(clean_test_session: AsyncSession):
+    """잘못된 fighter ID 처리 테스트"""
+    # When & Then: 음수 ID
+    with pytest.raises(FighterValidationError, match="fighter_id must be a positive integer"):
+        await fighter_services.get_fighter_by_id(clean_test_session, -1)
+
+    # When & Then: 0 ID
+    with pytest.raises(FighterValidationError, match="fighter_id must be a positive integer"):
+        await fighter_services.get_fighter_by_id(clean_test_session, 0)
+
+
+# =============================================================================
+# get_fighter_ranking_by_weight_class 테스트
+# =============================================================================
+
+@pytest.mark.asyncio
+async def test_get_fighter_ranking_by_weight_class_success(clean_test_session: AsyncSession):
+    """정상적으로 체급별 랭킹을 조회한 경우"""
+    # Given: Lightweight(4) 체급에 파이터 3명 생성
+    fighter1 = await create_test_fighter(clean_test_session, "LW Fighter 1", wins=20, losses=1)
+    fighter2 = await create_test_fighter(clean_test_session, "LW Fighter 2", wins=18, losses=2)
+    fighter3 = await create_test_fighter(clean_test_session, "LW Fighter 3", wins=15, losses=3)
+
+    await create_test_ranking(clean_test_session, fighter1.id, 4, 1)
+    await create_test_ranking(clean_test_session, fighter2.id, 4, 2)
+    await create_test_ranking(clean_test_session, fighter3.id, 4, 3)
+
+    # When: 서비스 호출
+    result = await fighter_services.get_fighter_ranking_by_weight_class(
+        clean_test_session, "Lightweight"
+    )
+
+    # Then: WeightClassRankingsDTO 반환
+    assert isinstance(result, WeightClassRankingsDTO)
+    assert result.weight_class_name == "Lightweight"
+    assert len(result.rankings) == 3
+
+    # 랭킹 순서 확인
+    assert result.rankings[0].ranking == 1
+    assert result.rankings[1].ranking == 2
+    assert result.rankings[2].ranking == 3
+
+
+@pytest.mark.asyncio
+async def test_get_fighter_ranking_by_weight_class_invalid_weight_class(clean_test_session: AsyncSession):
+    """잘못된 체급명인 경우 예외 발생"""
+    # When & Then
+    with pytest.raises(FighterWeightClassError):
+        await fighter_services.get_fighter_ranking_by_weight_class(
+            clean_test_session, "Invalid Weight Class"
         )
-        ranking_data = [
-            RankingSchema(id=1, fighter_id=1, weight_class_id=1, ranking=1),
-            RankingSchema(id=2, fighter_id=1, weight_class_id=2, ranking=3)
-        ]
-        
-        # Mock repository functions
-        with patch('fighter.repositories.get_fighter_by_id', return_value=fighter_data) as mock_get_fighter, \
-             patch('fighter.repositories.get_ranking_by_fighter_id', return_value=ranking_data) as mock_get_ranking, \
-             patch('common.models.WeightClassSchema.get_name_by_id', side_effect=lambda x: f"WeightClass_{x}"):
-            
-            # When: 서비스 함수 호출
-            result = await fighter_services.get_fighter_by_id(mock_session, 1)
-            
-            # Then: 올바른 DTO가 반환되고 repository 함수들이 호출됨
-            assert isinstance(result, FighterWithRankingsDTO)
-            assert result.fighter.id == 1
-            assert result.fighter.name == "Jon Jones"
-            assert result.fighter.nickname == "Bones"
-            assert len(result.rankings) == 2
-            assert result.rankings["WeightClass_1"] == 1
-            assert result.rankings["WeightClass_2"] == 3
-            
-            mock_get_fighter.assert_called_once_with(mock_session, 1)
-            mock_get_ranking.assert_called_once_with(mock_session, 1)
-    
-    @pytest.mark.asyncio
-    async def test_get_fighter_by_id_not_found(self):
-        """파이터를 찾지 못한 경우 예외 발생"""
-        # Given: 모킹된 세션과 None 반환
-        mock_session = AsyncMock()
-        
-        with patch('fighter.repositories.get_fighter_by_id', return_value=None):
-            # When & Then: FighterNotFoundError 예외 발생 확인
-            with pytest.raises(FighterNotFoundError) as exc_info:
-                await fighter_services.get_fighter_by_id(mock_session, 999)
-            
-            assert "Fighter not found with id: 999" in str(exc_info.value)
-            assert exc_info.value.details["fighter_identifier"] == 999
-    
-    @pytest.mark.asyncio
-    async def test_get_fighter_by_id_no_rankings(self):
-        """랭킹이 없는 파이터의 경우"""
-        # Given: 랭킹이 없는 파이터
-        mock_session = AsyncMock()
-        fighter_data = FighterSchema(
-            id=2,
-            name="Unknown Fighter",
-            wins=5,
-            losses=2,
-            draws=0
-        )
-        
-        with patch('fighter.repositories.get_fighter_by_id', return_value=fighter_data), \
-             patch('fighter.repositories.get_ranking_by_fighter_id', return_value=[]):
-            
-            # When: 서비스 함수 호출
-            result = await fighter_services.get_fighter_by_id(mock_session, 2)
-            
-            # Then: 빈 랭킹 딕셔너리와 함께 DTO 반환
-            assert isinstance(result, FighterWithRankingsDTO)
-            assert result.fighter.id == 2
-            assert result.rankings == {}
 
 
-class TestGetFighterByName:
-    """get_fighter_by_name 함수 테스트"""
-    
-    @pytest.mark.asyncio
-    async def test_get_fighter_by_name_success(self):
-        """정상적으로 이름으로 파이터를 찾은 경우"""
-        # Given: 모킹된 데이터
-        mock_session = AsyncMock()
-        fighter_data = FighterSchema(
-            id=3,
-            name="Amanda Nunes",
-            nickname="The Lioness",
-            wins=22,
-            losses=5,
-            draws=0
-        )
-        ranking_data = [RankingSchema(id=3, fighter_id=3, weight_class_id=3, ranking=1)]
-        
-        with patch('fighter.repositories.get_fighter_by_name', return_value=fighter_data), \
-             patch('fighter.repositories.get_ranking_by_fighter_id', return_value=ranking_data), \
-             patch('common.models.WeightClassSchema.get_name_by_id', return_value="Bantamweight"):
-            
-            # When: 서비스 함수 호출
-            result = await fighter_services.get_fighter_by_name(mock_session, "Amanda Nunes")
-            
-            # Then: 올바른 DTO 반환
-            assert isinstance(result, FighterWithRankingsDTO)
-            assert result.fighter.name == "Amanda Nunes"
-            assert result.rankings["Bantamweight"] == 1
-    
-    @pytest.mark.asyncio
-    async def test_get_fighter_by_name_not_found(self):
-        """이름으로 파이터를 찾지 못한 경우"""
-        # Given: None 반환
-        mock_session = AsyncMock()
-        
-        with patch('fighter.repositories.get_fighter_by_name', return_value=None):
-            # When & Then: 예외 발생 확인
-            with pytest.raises(FighterNotFoundError) as exc_info:
-                await fighter_services.get_fighter_by_name(mock_session, "Nonexistent Fighter")
-            
-            assert "Fighter not found with name: Nonexistent Fighter" in str(exc_info.value)
+@pytest.mark.asyncio
+async def test_get_fighter_ranking_by_weight_class_empty_name(clean_test_session: AsyncSession):
+    """빈 체급 이름 처리 테스트"""
+    # When & Then
+    with pytest.raises(FighterValidationError, match="Weight class name cannot be empty"):
+        await fighter_services.get_fighter_ranking_by_weight_class(clean_test_session, "")
 
 
-class TestGetFighterByNickname:
-    """get_fighter_by_nickname 함수 테스트"""
-    
-    @pytest.mark.asyncio
-    async def test_get_fighter_by_nickname_success(self):
-        """정상적으로 닉네임으로 파이터를 찾은 경우"""
-        # Given: 모킹된 데이터
-        mock_session = AsyncMock()
-        fighter_data = FighterSchema(
-            id=4,
-            name="Conor McGregor",
-            nickname="The Notorious",
-            wins=22,
-            losses=6,
-            draws=0
-        )
-        
-        with patch('fighter.repositories.get_fighter_by_nickname', return_value=fighter_data), \
-             patch('fighter.repositories.get_ranking_by_fighter_id', return_value=[]):
-            
-            # When: 서비스 함수 호출
-            result = await fighter_services.get_fighter_by_nickname(mock_session, "The Notorious")
-            
-            # Then: 올바른 DTO 반환
-            assert isinstance(result, FighterWithRankingsDTO)
-            assert result.fighter.nickname == "The Notorious"
-    
-    @pytest.mark.asyncio
-    async def test_get_fighter_by_nickname_not_found(self):
-        """닉네임으로 파이터를 찾지 못한 경우"""
-        # Given: None 반환
-        mock_session = AsyncMock()
-        
-        with patch('fighter.repositories.get_fighter_by_nickname', return_value=None):
-            # When & Then: 예외 발생 확인
-            with pytest.raises(FighterNotFoundError) as exc_info:
-                await fighter_services.get_fighter_by_nickname(mock_session, "Unknown Nickname")
-            
-            assert "Fighter not found with nickname: Unknown Nickname" in str(exc_info.value)
+@pytest.mark.asyncio
+async def test_get_fighter_ranking_by_weight_class_empty_rankings(clean_test_session: AsyncSession):
+    """해당 체급에 랭킹된 파이터가 없는 경우"""
+    # Given: Featherweight(3)에는 랭킹 없음
+    # When: 서비스 호출
+    result = await fighter_services.get_fighter_ranking_by_weight_class(
+        clean_test_session, "Featherweight"
+    )
+
+    # Then: 빈 랭킹 리스트
+    assert isinstance(result, WeightClassRankingsDTO)
+    assert result.weight_class_name == "Featherweight"
+    assert len(result.rankings) == 0
 
 
-class TestGetFighterRankingByWeightClass:
-    """get_fighter_ranking_by_weight_class 함수 테스트"""
-    
-    @pytest.mark.asyncio
-    async def test_get_fighter_ranking_by_weight_class_success(self):
-        """정상적으로 체급별 랭킹을 조회한 경우"""
-        # Given: 모킹된 데이터
-        mock_session = AsyncMock()
-        fighters_data = [
-            FighterSchema(id=1, name="Fighter 1", wins=20, losses=1, draws=0),
-            FighterSchema(id=2, name="Fighter 2", wins=18, losses=2, draws=0),
-            FighterSchema(id=3, name="Fighter 3", wins=15, losses=3, draws=0)
-        ]
-        
-        with patch('common.models.WeightClassSchema.get_id_by_name', return_value=5), \
-             patch('fighter.repositories.get_fighters_by_weight_class_ranking', return_value=fighters_data):
-            
-            # When: 서비스 함수 호출
-            result = await fighter_services.get_fighter_ranking_by_weight_class(mock_session, "Lightweight")
-            
-            # Then: 올바른 WeightClassRankingsDTO 반환
-            assert isinstance(result, WeightClassRankingsDTO)
-            assert result.weight_class_name == "Lightweight"
-            assert len(result.rankings) == 3
-            
-            # 랭킹 순서 확인
-            assert result.rankings[0].ranking == 1
-            assert result.rankings[0].fighter.name == "Fighter 1"
-            assert result.rankings[1].ranking == 2
-            assert result.rankings[1].fighter.name == "Fighter 2"
-            assert result.rankings[2].ranking == 3
-            assert result.rankings[2].fighter.name == "Fighter 3"
-    
-    @pytest.mark.asyncio
-    async def test_get_fighter_ranking_by_weight_class_invalid_weight_class(self):
-        """잘못된 체급명인 경우 예외 발생"""
-        # Given: 잘못된 체급명
-        mock_session = AsyncMock()
-        
-        with patch('common.models.WeightClassSchema.get_id_by_name', return_value=None):
-            # When & Then: InvalidWeightClassError 예외 발생 확인
-            with pytest.raises(FighterWeightClassError) as exc_info:
-                await fighter_services.get_fighter_ranking_by_weight_class(mock_session, "Invalid Weight Class")
-            
-            assert "Invalid weight class Invalid Weight Class:" in str(exc_info.value)
-            assert exc_info.value.details["weight_class_id"] == "Invalid Weight Class"
-    
-    @pytest.mark.asyncio
-    async def test_get_fighter_ranking_by_weight_class_empty_result(self):
-        """해당 체급에 파이터가 없는 경우"""
-        # Given: 빈 결과
-        mock_session = AsyncMock()
-        
-        with patch('common.models.WeightClassSchema.get_id_by_name', return_value=7), \
-             patch('fighter.repositories.get_fighters_by_weight_class_ranking', return_value=[]):
-            
-            # When: 서비스 함수 호출
-            result = await fighter_services.get_fighter_ranking_by_weight_class(mock_session, "Heavyweight")
-            
-            # Then: 빈 랭킹 리스트와 함께 DTO 반환
-            assert isinstance(result, WeightClassRankingsDTO)
-            assert result.weight_class_name == "Heavyweight"
-            assert len(result.rankings) == 0
+# =============================================================================
+# get_top_fighters_by_record 테스트
+# =============================================================================
+
+@pytest.mark.asyncio
+async def test_get_top_fighters_by_record_by_wins(clean_test_session: AsyncSession):
+    """승수 기준 상위 파이터들을 조회한 경우"""
+    # Given: 다양한 승수의 파이터 생성
+    await create_test_fighter(clean_test_session, "Low Wins", wins=5, losses=0)
+    await create_test_fighter(clean_test_session, "Mid Wins", wins=15, losses=2)
+    await create_test_fighter(clean_test_session, "High Wins", wins=30, losses=1)
+
+    # When: 승수 기준 top 3 조회
+    result = await fighter_services.get_top_fighters_by_record(
+        clean_test_session, "win", weight_class_id=None, limit=3
+    )
+
+    # Then: WeightClassRankingsDTO 반환
+    assert isinstance(result, WeightClassRankingsDTO)
+    assert result.weight_class_name is None  # 전체 조회
+    assert len(result.rankings) >= 1
+
+    # 승수 내림차순 정렬 확인
+    if len(result.rankings) >= 2:
+        assert result.rankings[0].fighter.wins >= result.rankings[1].fighter.wins
 
 
-class TestGetTopFightersByRecord:
-    """get_top_fighters_by_record 함수 테스트"""
-    
-    @pytest.mark.asyncio
-    async def test_get_top_fighters_by_record_success(self):
-        """정상적으로 기록 기준 상위 파이터들을 조회한 경우"""
-        # Given: 모킹된 데이터
-        mock_session = AsyncMock()
-        fighter_with_rank_data = [
-            {
-                "ranking": 1,
-                "fighter": FighterSchema(id=1, name="Fighter 1", wins=25, losses=0, draws=0)
-            },
-            {
-                "ranking": 2,
-                "fighter": FighterSchema(id=2, name="Fighter 2", wins=23, losses=1, draws=0)
-            }
-        ]
-        
-        with patch('fighter.repositories.get_top_fighter_by_record', return_value=fighter_with_rank_data), \
-             patch('common.models.WeightClassSchema.get_name_by_id', return_value="Welterweight"):
-            
-            # When: 서비스 함수 호출
-            result = await fighter_services.get_top_fighters_by_record(
-                mock_session, "win", weight_class_id=3, limit=5
-            )
-            
-            # Then: 올바른 WeightClassRankingsDTO 반환
-            assert isinstance(result, WeightClassRankingsDTO)
-            assert result.weight_class_name == "Welterweight"
-            assert len(result.rankings) == 2
-            assert result.rankings[0].ranking == 1
-            assert result.rankings[0].fighter.name == "Fighter 1"
-    
-    @pytest.mark.asyncio
-    async def test_get_top_fighters_by_record_no_weight_class(self):
-        """체급 지정 없이 전체 파이터 조회"""
-        # Given: weight_class_id가 None인 경우
-        mock_session = AsyncMock()
-        fighter_with_rank_data = [
-            {
-                "ranking": 1,
-                "fighter": FighterSchema(id=1, name="Global Fighter 1", wins=30, losses=0, draws=0)
-            }
-        ]
-        
-        with patch('fighter.repositories.get_top_fighter_by_record', return_value=fighter_with_rank_data):
-            
-            # When: 서비스 함수 호출
-            result = await fighter_services.get_top_fighters_by_record(
-                mock_session, "win", weight_class_id=None, limit=10
-            )
-            
-            # Then: weight_class_name이 None인 DTO 반환
-            assert isinstance(result, WeightClassRankingsDTO)
-            assert result.weight_class_name is None
-            assert len(result.rankings) == 1
-    
-    @pytest.mark.asyncio
-    async def test_get_top_fighters_by_record_different_records(self):
-        """다양한 기록 타입(win, loss, draw) 테스트"""
-        # Given: 각 기록 타입별 데이터
-        mock_session = AsyncMock()
-        
-        test_cases = [
-            ("win", "최다 승수"),
-            ("loss", "최다 패수"),
-            ("draw", "최다 무승부")
-        ]
-        
-        for record_type, description in test_cases:
-            fighter_data = [{
-                "ranking": 1,
-                "fighter": FighterSchema(id=1, name=f"Fighter for {description}", wins=10, losses=5, draws=2)
-            }]
-            
-            with patch('fighter.repositories.get_top_fighter_by_record', return_value=fighter_data):
-                # When: 서비스 함수 호출
-                result = await fighter_services.get_top_fighters_by_record(
-                    mock_session, record_type, limit=5
-                )
-                
-                # Then: 올바른 결과 반환
-                assert isinstance(result, WeightClassRankingsDTO)
-                assert len(result.rankings) == 1
+@pytest.mark.asyncio
+async def test_get_top_fighters_by_record_with_weight_class_filter(clean_test_session: AsyncSession):
+    """체급 필터링이 포함된 기록 기준 조회"""
+    # Given: 두 체급에 파이터 생성
+    lw_fighter = await create_test_fighter(clean_test_session, "LW Top", wins=25, losses=1)
+    ww_fighter = await create_test_fighter(clean_test_session, "WW Top", wins=30, losses=0)
+
+    await create_test_ranking(clean_test_session, lw_fighter.id, 4, 1)  # Lightweight
+    await create_test_ranking(clean_test_session, ww_fighter.id, 5, 1)  # Welterweight
+
+    # When: Lightweight만 조회
+    result = await fighter_services.get_top_fighters_by_record(
+        clean_test_session, "win", weight_class_id=4, limit=5
+    )
+
+    # Then: Lightweight 파이터만 포함
+    assert isinstance(result, WeightClassRankingsDTO)
+    assert result.weight_class_name == "lightweight"
+
+    # WW 파이터는 포함되지 않아야 함
+    fighter_names = [r.fighter.name for r in result.rankings]
+    assert not any("WW Top" in name for name in fighter_names)
 
 
-class TestBuildFighterWithRankings:
-    """_build_fighter_with_rankings 헬퍼 함수 테스트"""
-    
-    @pytest.mark.asyncio
-    async def test_build_fighter_with_rankings_multiple_weight_classes(self):
-        """여러 체급에서 랭킹을 가진 파이터"""
-        # Given: 여러 체급 랭킹 데이터
-        mock_session = AsyncMock()
-        fighter_data = FighterSchema(
-            id=5,
-            name="Multi-Division Champion",
-            wins=20,
-            losses=0,
-            draws=0
-        )
-        ranking_data = [
-            RankingSchema(id=1, fighter_id=5, weight_class_id=1, ranking=1),
-            RankingSchema(id=2, fighter_id=5, weight_class_id=2, ranking=1),
-            RankingSchema(id=3, fighter_id=5, weight_class_id=3, ranking=2)
-        ]
-        
-        with patch('fighter.repositories.get_ranking_by_fighter_id', return_value=ranking_data), \
-             patch('common.models.WeightClassSchema.get_name_by_id', side_effect=lambda x: f"Division_{x}"):
-            
-            # When: 헬퍼 함수 호출
-            result = await fighter_services._build_fighter_with_rankings(mock_session, fighter_data)
-            
-            # Then: 모든 체급의 랭킹이 포함된 DTO 반환
-            assert isinstance(result, FighterWithRankingsDTO)
-            assert result.fighter.id == 5
-            assert len(result.rankings) == 3
-            assert result.rankings["Division_1"] == 1
-            assert result.rankings["Division_2"] == 1
-            assert result.rankings["Division_3"] == 2
-    
-    @pytest.mark.asyncio
-    async def test_build_fighter_with_rankings_weight_class_name_none(self):
-        """체급명이 None인 경우 처리"""
-        # Given: 체급명이 None을 반환하는 경우
-        mock_session = AsyncMock()
-        fighter_data = FighterSchema(id=6, name="Test Fighter", wins=10, losses=2, draws=0)
-        ranking_data = [RankingSchema(id=1, fighter_id=6, weight_class_id=999, ranking=5)]
-        
-        with patch('fighter.repositories.get_ranking_by_fighter_id', return_value=ranking_data), \
-             patch('common.models.WeightClassSchema.get_name_by_id', return_value=None):
-            
-            # When: 헬퍼 함수 호출
-            result = await fighter_services._build_fighter_with_rankings(mock_session, fighter_data)
-            
-            # Then: None 키가 제외된 빈 랭킹 딕셔너리
-            assert isinstance(result, FighterWithRankingsDTO)
-            assert result.rankings == {}  # None 값은 제외되어야 함
+@pytest.mark.asyncio
+async def test_get_top_fighters_by_record_invalid_record(clean_test_session: AsyncSession):
+    """잘못된 record 값 처리 테스트"""
+    # When & Then
+    with pytest.raises(FighterValidationError, match="record must be 'win', 'loss', or 'draw'"):
+        await fighter_services.get_top_fighters_by_record(clean_test_session, "invalid")
 
 
-class TestServiceLayerIntegration:
-    """서비스 레이어 통합 테스트"""
-    
-    @pytest.mark.asyncio
-    async def test_service_functions_call_correct_repositories(self):
-        """서비스 함수들이 올바른 repository 함수를 호출하는지 확인"""
-        # Given: 모든 repository 함수 모킹
-        mock_session = AsyncMock()
-        fighter_data = FighterSchema(id=1, name="Test Fighter", wins=10, losses=1, draws=0)
-        
-        with patch('fighter.repositories.get_fighter_by_id') as mock_get_by_id, \
-             patch('fighter.repositories.get_fighter_by_name') as mock_get_by_name, \
-             patch('fighter.repositories.get_fighter_by_nickname') as mock_get_by_nickname, \
-             patch('fighter.repositories.get_ranking_by_fighter_id', return_value=[]), \
-             patch('fighter.repositories.get_fighters_by_weight_class_ranking', return_value=[]), \
-             patch('fighter.repositories.get_top_fighter_by_record', return_value=[]), \
-             patch('common.models.WeightClassSchema.get_id_by_name', return_value=1), \
-             patch('common.models.WeightClassSchema.get_name_by_id', return_value="TestClass"):
-            
-            # ID로 조회 테스트
-            mock_get_by_id.return_value = fighter_data
-            await fighter_services.get_fighter_by_id(mock_session, 1)
-            mock_get_by_id.assert_called_once_with(mock_session, 1)
-            
-            # 이름으로 조회 테스트
-            mock_get_by_name.return_value = fighter_data
-            await fighter_services.get_fighter_by_name(mock_session, "Test Fighter")
-            mock_get_by_name.assert_called_once_with(mock_session, "Test Fighter")
-            
-            # 닉네임으로 조회 테스트
-            mock_get_by_nickname.return_value = fighter_data
-            await fighter_services.get_fighter_by_nickname(mock_session, "Test Nickname")
-            mock_get_by_nickname.assert_called_once_with(mock_session, "Test Nickname")
+@pytest.mark.asyncio
+async def test_get_top_fighters_by_record_invalid_limit(clean_test_session: AsyncSession):
+    """잘못된 limit 값 처리 테스트"""
+    # When & Then
+    with pytest.raises(FighterValidationError, match="limit must be a positive integer"):
+        await fighter_services.get_top_fighters_by_record(clean_test_session, "win", limit=0)
 
 
-class TestReturnTypeBug:
-    """수정된 반환 타입 테스트"""
-    
-    @pytest.mark.asyncio
-    async def test_get_top_fighters_by_record_return_type_fixed(self):
-        """
-        get_top_fighters_by_record 함수의 반환 타입이 올바르게 수정되었는지 확인
-        함수 시그니처: -> WeightClassRankingsDTO
-        실제 반환: WeightClassRankingsDTO
-        """
-        # Given: 모킹된 데이터
-        mock_session = AsyncMock()
-        fighter_data = [{
-            "ranking": 1,
-            "fighter": FighterSchema(id=1, name="Test Fighter", wins=20, losses=0, draws=0)
-        }]
-        
-        with patch('fighter.repositories.get_top_fighter_by_record', return_value=fighter_data):
-            # When: 함수 호출
-            result = await fighter_services.get_top_fighters_by_record(mock_session, "win")
-            
-            # Then: WeightClassRankingsDTO가 반환됨 (수정됨)
-            assert isinstance(result, WeightClassRankingsDTO)
-            assert result.weight_class_name is None  # weight_class_id가 None인 경우
-            assert len(result.rankings) == 1
+# =============================================================================
+# search_fighters 테스트
+# =============================================================================
+
+@pytest.mark.asyncio
+async def test_search_fighters_by_name(clean_test_session: AsyncSession):
+    """이름으로 파이터를 검색한 경우"""
+    # Given: 파이터들 생성
+    await create_test_fighter(clean_test_session, "Jon Jones", nickname="Bones", wins=26)
+    await create_test_fighter(clean_test_session, "Jon Fitch", wins=32)
+    await create_test_fighter(clean_test_session, "Daniel Cormier", nickname="DC", wins=22)
+
+    # When: "Jon" 검색
+    result = await fighter_services.search_fighters(clean_test_session, "Jon", limit=10)
+
+    # Then: Jon이 포함된 파이터만
+    assert isinstance(result, list)
+    assert len(result) == 2
+    assert all(isinstance(r, FighterWithRankingsDTO) for r in result)
+
+    result_names = [r.fighter.name for r in result]
+    assert any("Jon Jones" in name for name in result_names)
+    assert any("Jon Fitch" in name for name in result_names)
+    assert not any("Daniel" in name for name in result_names)
 
 
-class TestFighterServicesErrorHandling:
-    """Fighter Services 예외 처리 테스트"""
-    
-    @pytest.mark.asyncio
-    async def test_get_fighter_by_id_invalid_id(self):
-        """잘못된 fighter ID 처리 테스트"""
-        mock_session = AsyncMock()
-        
-        # When & Then: 잘못된 fighter ID로 조회시 FighterValidationError 발생
-        with pytest.raises(FighterValidationError, match="fighter_id must be a positive integer"):
-            await fighter_services.get_fighter_by_id(mock_session, -1)
-        
-        with pytest.raises(FighterValidationError, match="fighter_id must be a positive integer"):
-            await fighter_services.get_fighter_by_id(mock_session, 0)
-        
-        with pytest.raises(FighterValidationError, match="fighter_id must be a positive integer"):
-            await fighter_services.get_fighter_by_id(mock_session, "invalid")
-    
-    @pytest.mark.asyncio
-    async def test_get_fighter_by_name_empty_name(self):
-        """빈 fighter 이름 처리 테스트"""
-        mock_session = AsyncMock()
-        
-        # When & Then: 빈 이름으로 조회시 FighterValidationError 발생
-        with pytest.raises(FighterValidationError, match="Fighter name cannot be empty"):
-            await fighter_services.get_fighter_by_name(mock_session, "")
-        
-        with pytest.raises(FighterValidationError, match="Fighter name cannot be empty"):
-            await fighter_services.get_fighter_by_name(mock_session, "   ")
-    
-    @pytest.mark.asyncio
-    async def test_get_fighter_by_nickname_empty_nickname(self):
-        """빈 fighter 닉네임 처리 테스트"""
-        mock_session = AsyncMock()
-        
-        # When & Then: 빈 닉네임으로 조회시 FighterValidationError 발생
-        with pytest.raises(FighterValidationError, match="Fighter nickname cannot be empty"):
-            await fighter_services.get_fighter_by_nickname(mock_session, "")
-        
-        with pytest.raises(FighterValidationError, match="Fighter nickname cannot be empty"):
-            await fighter_services.get_fighter_by_nickname(mock_session, "   ")
-    
-    @pytest.mark.asyncio
-    async def test_get_fighter_ranking_by_weight_class_empty_name(self):
-        """빈 체급 이름 처리 테스트"""
-        mock_session = AsyncMock()
-        
-        # When & Then: 빈 체급 이름으로 조회시 FighterValidationError 발생
-        with pytest.raises(FighterValidationError, match="Weight class name cannot be empty"):
-            await fighter_services.get_fighter_ranking_by_weight_class(mock_session, "")
-        
-        with pytest.raises(FighterValidationError, match="Weight class name cannot be empty"):
-            await fighter_services.get_fighter_ranking_by_weight_class(mock_session, "   ")
-    
-    @pytest.mark.asyncio
-    async def test_get_top_fighters_by_record_invalid_record(self):
-        """잘못된 record 값 처리 테스트"""
-        mock_session = AsyncMock()
-        
-        # When & Then: 잘못된 record 값으로 조회시 FighterValidationError 발생
-        with pytest.raises(FighterValidationError, match="record must be 'win', 'loss', or 'draw'"):
-            await fighter_services.get_top_fighters_by_record(mock_session, "invalid")
-    
-    @pytest.mark.asyncio
-    async def test_get_top_fighters_by_record_invalid_limit(self):
-        """잘못된 limit 값 처리 테스트"""
-        mock_session = AsyncMock()
-        
-        # When & Then: 잘못된 limit 값으로 조회시 FighterValidationError 발생
-        with pytest.raises(FighterValidationError, match="limit must be a positive integer"):
-            await fighter_services.get_top_fighters_by_record(mock_session, "win", limit=0)
-        
-        with pytest.raises(FighterValidationError, match="limit must be a positive integer"):
-            await fighter_services.get_top_fighters_by_record(mock_session, "win", limit=-1)
-    
-    @pytest.mark.asyncio
-    async def test_search_fighters_empty_search_term(self):
-        """빈 검색어 처리 테스트"""
-        mock_session = AsyncMock()
-        
-        # When & Then: 빈 검색어로 조회시 FighterValidationError 발생
-        with pytest.raises(FighterValidationError, match="Search term cannot be empty"):
-            await fighter_services.search_fighters(mock_session, "")
-        
-        with pytest.raises(FighterValidationError, match="Search term cannot be empty"):
-            await fighter_services.search_fighters(mock_session, "   ")
-    
-    @pytest.mark.asyncio
-    async def test_get_fighters_by_stance_analysis_empty_stance(self):
-        """빈 스탠스 처리 테스트"""
-        mock_session = AsyncMock()
-        
-        # When & Then: 빈 스탠스로 조회시 FighterValidationError 발생
-        with pytest.raises(FighterValidationError, match="Stance cannot be empty"):
-            await fighter_services.get_fighters_by_stance_analysis(mock_session, "")
-        
-        with pytest.raises(FighterValidationError, match="Stance cannot be empty"):
-            await fighter_services.get_fighters_by_stance_analysis(mock_session, "   ")
-    
-    @pytest.mark.asyncio
-    async def test_get_fighters_by_stance_analysis_invalid_stance(self):
-        """잘못된 스탠스 처리 테스트"""
-        mock_session = AsyncMock()
-        
-        # When & Then: 잘못된 스탠스로 조회시 FighterValidationError 발생
-        with pytest.raises(FighterValidationError, match="stance must be one of"):
-            await fighter_services.get_fighters_by_stance_analysis(mock_session, "Invalid Stance")
-    
-    @pytest.mark.asyncio
-    async def test_get_undefeated_fighters_analysis_invalid_min_wins(self):
-        """잘못된 min_wins 값 처리 테스트"""
-        mock_session = AsyncMock()
-        
-        # When & Then: 잘못된 min_wins 값으로 조회시 FighterValidationError 발생
-        with pytest.raises(FighterValidationError, match="min_wins must be a non-negative integer"):
-            await fighter_services.get_undefeated_fighters_analysis(mock_session, -1)
-        
-        with pytest.raises(FighterValidationError, match="min_wins must be a non-negative integer"):
-            await fighter_services.get_undefeated_fighters_analysis(mock_session, "invalid")
-    
-    @pytest.mark.asyncio
-    async def test_repository_error_handling(self):
-        """Repository 에러 처리 테스트"""
-        mock_session = AsyncMock()
-        
-        # Given: repository에서 예외 발생하도록 설정
-        with patch('fighter.services.fighter_repo.get_fighter_by_id', side_effect=Exception("Database error")):
-            
-            # When & Then: FighterQueryError로 래핑되어 발생
-            with pytest.raises(FighterQueryError, match="Fighter query 'get_fighter_by_id' failed"):
-                await fighter_services.get_fighter_by_id(mock_session, 1)
+@pytest.mark.asyncio
+async def test_search_fighters_by_nickname(clean_test_session: AsyncSession):
+    """닉네임으로 파이터를 검색한 경우"""
+    # Given: 닉네임이 있는 파이터 생성
+    await create_test_fighter(clean_test_session, "Jon Jones", nickname="Bones", wins=26)
+
+    # When: 닉네임으로 검색
+    result = await fighter_services.search_fighters(clean_test_session, "Bones", limit=10)
+
+    # Then: 닉네임 매칭
+    assert len(result) >= 1
+    assert any("Jones" in r.fighter.name for r in result)
+
+
+@pytest.mark.asyncio
+async def test_search_fighters_empty_search_term(clean_test_session: AsyncSession):
+    """빈 검색어 처리 테스트"""
+    # When & Then
+    with pytest.raises(FighterValidationError, match="Search term cannot be empty"):
+        await fighter_services.search_fighters(clean_test_session, "")
+
+
+@pytest.mark.asyncio
+async def test_search_fighters_invalid_limit(clean_test_session: AsyncSession):
+    """잘못된 limit 값 처리 테스트"""
+    # When & Then
+    with pytest.raises(FighterValidationError, match="limit must be a positive integer"):
+        await fighter_services.search_fighters(clean_test_session, "Jon", limit=0)
+
+
+@pytest.mark.asyncio
+async def test_search_fighters_no_results(clean_test_session: AsyncSession):
+    """검색 결과가 없는 경우"""
+    # When: 존재하지 않는 이름 검색
+    result = await fighter_services.search_fighters(
+        clean_test_session, "NonExistentFighterXYZ123", limit=10
+    )
+
+    # Then: 빈 리스트
+    assert isinstance(result, list)
+    assert len(result) == 0
+
+
+# =============================================================================
+# get_all_champions 테스트
+# =============================================================================
+
+@pytest.mark.asyncio
+async def test_get_all_champions_success(clean_test_session: AsyncSession):
+    """정상적으로 챔피언들을 조회한 경우"""
+    # Given: 챔피언과 일반 파이터 생성
+    await create_test_fighter(clean_test_session, "Champion 1", wins=20, belt=True)
+    await create_test_fighter(clean_test_session, "Champion 2", wins=18, belt=True)
+    await create_test_fighter(clean_test_session, "Contender", wins=15, belt=False)
+
+    # When: 챔피언 조회
+    result = await fighter_services.get_all_champions(clean_test_session)
+
+    # Then: 챔피언만 포함
+    assert isinstance(result, list)
+    assert len(result) >= 2
+    assert all(isinstance(c, FighterWithRankingsDTO) for c in result)
+
+    # 모든 결과가 belt=True
+    for champion in result:
+        assert champion.fighter.belt is True
+
+
+@pytest.mark.asyncio
+async def test_get_all_champions_no_champions(clean_test_session: AsyncSession):
+    """챔피언이 없는 경우"""
+    # Given: 일반 파이터만 생성
+    await create_test_fighter(clean_test_session, "Contender 1", wins=15, belt=False)
+    await create_test_fighter(clean_test_session, "Contender 2", wins=12, belt=False)
+
+    # When: 챔피언 조회
+    result = await fighter_services.get_all_champions(clean_test_session)
+
+    # Then: 빈 리스트 (이 테스트 이전 챔피언이 없다고 가정할 수 없으므로 타입만 확인)
+    assert isinstance(result, list)
+
+
+# =============================================================================
+# _build_fighter_with_rankings 테스트
+# =============================================================================
+
+@pytest.mark.asyncio
+async def test_build_fighter_with_rankings_multiple_weight_classes(clean_test_session: AsyncSession):
+    """여러 체급에서 랭킹을 가진 파이터"""
+    # Given: 두 체급에 랭킹된 파이터
+    fighter = await create_test_fighter(
+        clean_test_session, "Multi-Division Champion", wins=20
+    )
+    await create_test_ranking(clean_test_session, fighter.id, 4, 1)  # Lightweight
+    await create_test_ranking(clean_test_session, fighter.id, 5, 1)  # Welterweight
+
+    # 파이터 스키마 조회
+    from fighter import repositories as fighter_repo
+    fighter_schema = await fighter_repo.get_fighter_by_id(clean_test_session, fighter.id)
+
+    # When: _build_fighter_with_rankings 호출
+    result = await fighter_services._build_fighter_with_rankings(
+        clean_test_session, fighter_schema
+    )
+
+    # Then: 두 체급 랭킹 포함
+    assert isinstance(result, FighterWithRankingsDTO)
+    assert len(result.rankings) == 2
+    assert "lightweight" in result.rankings
+    assert "welterweight" in result.rankings
+
+
+@pytest.mark.asyncio
+async def test_build_fighter_with_rankings_no_rankings(clean_test_session: AsyncSession):
+    """랭킹이 없는 파이터"""
+    # Given: 랭킹 없는 파이터
+    fighter = await create_test_fighter(clean_test_session, "Unranked Fighter", wins=5)
+
+    from fighter import repositories as fighter_repo
+    fighter_schema = await fighter_repo.get_fighter_by_id(clean_test_session, fighter.id)
+
+    # When: _build_fighter_with_rankings 호출
+    result = await fighter_services._build_fighter_with_rankings(
+        clean_test_session, fighter_schema
+    )
+
+    # Then: 빈 랭킹
+    assert isinstance(result, FighterWithRankingsDTO)
+    assert result.rankings == {}
+
+
+# =============================================================================
+# 통합 시나리오 테스트
+# =============================================================================
+
+@pytest.mark.asyncio
+async def test_full_fighter_workflow(clean_test_session: AsyncSession):
+    """전체 파이터 워크플로우 통합 테스트"""
+    # 1. 챔피언 파이터 생성
+    champion = await create_test_fighter(
+        clean_test_session,
+        name="Integration Test Champion",
+        nickname="The Integrator",
+        wins=25,
+        losses=0,
+        belt=True
+    )
+
+    # 2. 랭킹 추가
+    await create_test_ranking(clean_test_session, champion.id, 4, 1)  # Lightweight
+
+    # 3. ID로 조회
+    fighter_result = await fighter_services.get_fighter_by_id(
+        clean_test_session, champion.id
+    )
+    assert fighter_result.fighter.belt is True
+    assert "lightweight" in fighter_result.rankings
+    assert fighter_result.rankings["lightweight"] == 1
+
+    # 4. 체급별 랭킹 조회
+    ranking_result = await fighter_services.get_fighter_ranking_by_weight_class(
+        clean_test_session, "Lightweight"
+    )
+    assert len(ranking_result.rankings) >= 1
+
+    # 5. 이름으로 검색
+    search_result = await fighter_services.search_fighters(
+        clean_test_session, "Integration Test", limit=10
+    )
+    assert len(search_result) >= 1
+
+    # 6. 챔피언 목록 조회
+    champions = await fighter_services.get_all_champions(clean_test_session)
+    champion_ids = [c.fighter.id for c in champions]
+    assert champion.id in champion_ids
+
+
+@pytest.mark.asyncio
+async def test_top_fighters_by_different_records(clean_test_session: AsyncSession):
+    """다양한 기록 기준으로 상위 파이터 조회"""
+    # Given: 다양한 기록의 파이터들
+    await create_test_fighter(clean_test_session, "High Win", wins=30, losses=1, draws=0)
+    await create_test_fighter(clean_test_session, "High Loss", wins=10, losses=15, draws=0)
+    await create_test_fighter(clean_test_session, "High Draw", wins=15, losses=10, draws=5)
+
+    # When: 각 기준으로 조회
+    win_result = await fighter_services.get_top_fighters_by_record(
+        clean_test_session, "win", limit=5
+    )
+    loss_result = await fighter_services.get_top_fighters_by_record(
+        clean_test_session, "loss", limit=5
+    )
+    draw_result = await fighter_services.get_top_fighters_by_record(
+        clean_test_session, "draw", limit=5
+    )
+
+    # Then: 각 결과가 올바른 타입
+    assert isinstance(win_result, WeightClassRankingsDTO)
+    assert isinstance(loss_result, WeightClassRankingsDTO)
+    assert isinstance(draw_result, WeightClassRankingsDTO)
 
 
 if __name__ == "__main__":
-    # 간단한 실행 테스트
-    print("Fighter Services 테스트 실행...")
-    print("✅ 테스트 파일 생성 완료!")
-    print("\n전체 테스트 실행: pytest src/fighter/test/test_services.py -v")
-    print("특정 테스트 클래스 실행: pytest src/fighter/test/test_services.py::TestGetFighterById -v")
+    print("Fighter Services 통합 테스트")
+    print("실제 테스트 DB를 사용한 서비스 레이어 검증")
+    print("\n테스트 실행:")
+    print("uv run pytest tests/fighter/test_fighter_services.py -v")

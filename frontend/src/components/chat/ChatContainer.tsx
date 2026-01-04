@@ -15,10 +15,10 @@ import { ArrowLeft, MessageSquare, User } from "lucide-react"
 import { useRouter } from "next/navigation"
 
 export function ChatContainer() {
-  const { addMessage, isLoading, currentSession, sessions } = useChatStore()
+  const { addMessage, isLoading } = useChatStore()
   const { user } = useAuth()
-  const { isConnected, isTyping, sendMessage } = useSocket()
-  const { loadSessions, switchToSession } = useChatSession()
+  const { isConnected, sendMessage } = useSocket()
+  const { loadSessions } = useChatSession()
   const { incrementUsage } = useUser()
   const router = useRouter()
   const [error, setError] = useState<string | null>(null)

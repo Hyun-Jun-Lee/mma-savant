@@ -2,7 +2,7 @@ from datetime import date
 from typing import Optional, List
 from typing_extensions import Literal
 
-from sqlalchemy import select, extract, func
+from sqlalchemy import select, extract
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from event.models import EventModel, EventSchema
@@ -49,54 +49,38 @@ async def get_event_by_name(session: AsyncSession, name: str) -> Optional[EventS
     event = result.scalar_one_or_none()
     return event.to_schema() if event else None
 
-async def get_events_by_year(
-    session: AsyncSession, year: int
-) -> List[EventSchema]:
-    """
-    특정 연도에 개최된 모든 이벤트를 날짜순으로 조회합니다.
-    """
-    result = await session.execute(
-        select(EventModel)
-        .where(extract("year", EventModel.event_date) == year)
-        .order_by(EventModel.event_date.asc())
-    )
-    events = result.scalars().all()
-    return [event.to_schema() for event in events]
-
-async def get_events_by_month(
-    session: AsyncSession, year: int, month: int
-) -> List[EventSchema]:
-    """
-    특정 연도와 월에 개최된 모든 이벤트를 날짜순으로 조회합니다.
-    """
-    result = await session.execute(
-        select(EventModel)
-        .where(
-            extract("year", EventModel.event_date) == year,
-            extract("month", EventModel.event_date) == month
-        )
-        .order_by(EventModel.event_date.asc())
-    )
-    events = result.scalars().all()
-    return [event.to_schema() for event in events]
-
-async def get_events_by_date(
+async def get_events_by_period(
     session: AsyncSession,
-    date: date,
+    year: int,
+    month: Optional[int] = None,
+    day: Optional[int] = None,
     direction: Literal["before", "after", "on"] = "on"
 ) -> List[EventSchema]:
     """
-    특정 날짜를 기준으로 이벤트를 조회합니다.
-    'on'은 해당 날짜의 이벤트, 'before'는 이전 이벤트, 'after'는 이후 이벤트를 반환합니다.
+    기간별 이벤트 조회.
+    - year만: 해당 연도 전체 이벤트
+    - year + month: 해당 월 이벤트
+    - year + month + day: 특정 날짜 기준 (direction으로 before/after/on 선택)
     """
     stmt = select(EventModel)
 
-    if direction == "before":
-        stmt = stmt.where(EventModel.event_date < date).order_by(EventModel.event_date.desc())
-    elif direction == "after":
-        stmt = stmt.where(EventModel.event_date > date).order_by(EventModel.event_date.asc())
-    else:  # "on"
-        stmt = stmt.where(EventModel.event_date == date)
+    if day is not None and month is not None:
+        target_date = date(year, month, day)
+        if direction == "before":
+            stmt = stmt.where(EventModel.event_date < target_date).order_by(EventModel.event_date.desc())
+        elif direction == "after":
+            stmt = stmt.where(EventModel.event_date > target_date).order_by(EventModel.event_date.asc())
+        else:  # "on"
+            stmt = stmt.where(EventModel.event_date == target_date).order_by(EventModel.event_date.asc())
+    elif month is not None:
+        stmt = stmt.where(
+            extract("year", EventModel.event_date) == year,
+            extract("month", EventModel.event_date) == month
+        ).order_by(EventModel.event_date.asc())
+    else:
+        stmt = stmt.where(
+            extract("year", EventModel.event_date) == year
+        ).order_by(EventModel.event_date.asc())
 
     result = await session.execute(stmt)
     events = result.scalars().all()
@@ -153,43 +137,6 @@ async def search_events_by_name(session: AsyncSession, search_term: str, limit: 
     events = result.scalars().all()
     return [event.to_schema() for event in events]
 
-async def get_event_by_exact_name(session: AsyncSession, name: str) -> Optional[EventSchema]:
-    """
-    정확한 이벤트 이름으로 조회합니다. (대소문자 무시)
-    """
-    result = await session.execute(
-        select(EventModel)
-        .where(EventModel.name.ilike(name))
-    )
-    event = result.scalar_one_or_none()
-    return event.to_schema() if event else None
-
-async def get_next_event(session: AsyncSession) -> Optional[EventSchema]:
-    """
-    가장 가까운 다음 이벤트를 조회합니다.
-    """
-    result = await session.execute(
-        select(EventModel)
-        .where(EventModel.event_date > date.today())
-        .order_by(EventModel.event_date.asc())
-        .limit(1)
-    )
-    event = result.scalar_one_or_none()
-    return event.to_schema() if event else None
-
-async def get_last_event(session: AsyncSession) -> Optional[EventSchema]:
-    """
-    가장 최근에 개최된 이벤트를 조회합니다.
-    """
-    result = await session.execute(
-        select(EventModel)
-        .where(EventModel.event_date <= date.today())
-        .order_by(EventModel.event_date.desc())
-        .limit(1)
-    )
-    event = result.scalar_one_or_none()
-    return event.to_schema() if event else None
-
 async def get_events_date_range(
     session: AsyncSession, 
     start_date: date, 
@@ -208,24 +155,3 @@ async def get_events_date_range(
     )
     events = result.scalars().all()
     return [event.to_schema() for event in events]
-
-async def get_event_count_by_year(session: AsyncSession, year: int) -> int:
-    """
-    특정 연도에 개최된 이벤트 개수를 반환합니다.
-    """
-    result = await session.execute(
-        select(func.count(EventModel.id))
-        .where(extract("year", EventModel.event_date) == year)
-    )
-    return result.scalar() or 0
-
-async def get_event_count_by_location(session: AsyncSession, location: str) -> int:
-    """
-    특정 장소에서 개최된 이벤트 개수를 반환합니다.
-    """
-    result = await session.execute(
-        select(func.count(EventModel.id))
-        .where(EventModel.location.ilike(f"%{location}%"))
-    )
-    return result.scalar() or 0
-

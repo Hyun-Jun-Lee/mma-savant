@@ -1,15 +1,12 @@
 "use client"
 
-import { useEffect, useRef, useMemo } from "react"
+import { useRef, useMemo, useEffect } from "react"
 import { useChatStore } from "@/store/chatStore"
-import { useChatSession } from "@/hooks/useChatSession"
-import { Message } from "@/types/chat"
-import { QuestionAnswerCard } from "./QuestionAnswerCard"
 import { SessionDetailModal } from "./SessionDetailModal"
 import { Bot, MessageSquare, Loader2 } from "lucide-react"
 
 export function HistoryView() {
-  const { messages, isTyping, currentSession, sessions, modalSessionId, isModalOpen, openModal, closeModal } = useChatStore()
+  const { messages, isTyping, sessions, modalSessionId, isModalOpen, openModal, closeModal } = useChatStore()
   const bottomRef = useRef<HTMLDivElement>(null)
 
   // 현재 진행 중인 질문 (응답이 아직 없는 사용자 메시지)
@@ -60,13 +57,13 @@ export function HistoryView() {
                 <p className="text-xs text-zinc-500 font-medium uppercase tracking-wider">Sample questions:</p>
                 <div className="space-y-2 text-sm">
                   <div className="bg-white/5 backdrop-blur-sm border border-white/10 rounded-lg p-3 text-zinc-300 hover:bg-white/10 transition-colors cursor-pointer">
-                    "What are Jon Jones' key techniques?"
+                    {`"What are Jon Jones' key techniques?"`}
                   </div>
                   <div className="bg-white/5 backdrop-blur-sm border border-white/10 rounded-lg p-3 text-zinc-300 hover:bg-white/10 transition-colors cursor-pointer">
-                    "What was UFC 300's main event?"
+                    {`"What was UFC 300's main event?"`}
                   </div>
                   <div className="bg-white/5 backdrop-blur-sm border border-white/10 rounded-lg p-3 text-zinc-300 hover:bg-white/10 transition-colors cursor-pointer">
-                    "Explain Brazilian Jiu-Jitsu basics"
+                    {`"Explain Brazilian Jiu-Jitsu basics"`}
                   </div>
                 </div>
               </div>

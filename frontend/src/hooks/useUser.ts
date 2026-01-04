@@ -5,7 +5,7 @@
 
 import { useCallback, useState } from 'react'
 import { UserApiService } from '@/services/userApi'
-import { handleApiError } from '@/lib/api'
+import { handleApiError, ApiError } from '@/lib/api'
 import { UserProfileResponse, UserProfileUpdate, UsageResponse } from '@/types/api'
 
 export function useUser() {
@@ -25,7 +25,8 @@ export function useUser() {
     } catch (error) {
       console.error('Failed to load user profile:', error)
       // 인증 오류가 아닌 경우에만 알림 표시
-      if (!error?.status || error.status !== 401) {
+      const isAuthError = error instanceof ApiError && error.status === 401
+      if (!isAuthError) {
         alert(`프로필 로드 실패: ${handleApiError(error)}`)
       }
       return null

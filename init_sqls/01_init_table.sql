@@ -151,23 +151,24 @@ CREATE TABLE IF NOT EXISTS "user" (
     provider VARCHAR,
     total_requests INTEGER DEFAULT 0 NOT NULL,
     daily_requests INTEGER DEFAULT 0 NOT NULL,
+    daily_request_limit INTEGER DEFAULT 100 NOT NULL,
     last_request_date TIMESTAMP,
     is_active BOOLEAN DEFAULT TRUE NOT NULL,
+    is_admin BOOLEAN DEFAULT FALSE NOT NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
--- conversation 테이블 (채팅 세션 관리) - 새로운 구조
+-- conversation 테이블 (채팅 세션 관리)
 CREATE TABLE IF NOT EXISTS conversation (
     id SERIAL PRIMARY KEY,
     user_id INTEGER NOT NULL,
-    session_id VARCHAR NOT NULL UNIQUE,
     title TEXT,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    
+
     -- 외래키 제약조건
-    CONSTRAINT fk_conversation_user 
+    CONSTRAINT fk_conversation_user
         FOREIGN KEY (user_id) REFERENCES "user"(id) ON DELETE CASCADE
 );
 
@@ -175,16 +176,16 @@ CREATE TABLE IF NOT EXISTS conversation (
 CREATE TABLE IF NOT EXISTS message (
     id SERIAL PRIMARY KEY,
     message_id VARCHAR NOT NULL UNIQUE,
-    session_id VARCHAR NOT NULL,
+    conversation_id INTEGER NOT NULL,
     content TEXT NOT NULL,
     role VARCHAR NOT NULL CHECK (role IN ('user', 'assistant')),
     tool_results JSONB,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    
+
     -- 외래키 제약조건
-    CONSTRAINT fk_message_session_id 
-        FOREIGN KEY (session_id) REFERENCES conversation(session_id) ON DELETE CASCADE
+    CONSTRAINT fk_message_conversation
+        FOREIGN KEY (conversation_id) REFERENCES conversation(id) ON DELETE CASCADE
 );
 
 -- 성능을 위한 인덱스 생성
@@ -201,10 +202,9 @@ CREATE INDEX IF NOT EXISTS idx_match_statistics_fighter_match_id ON match_statis
 CREATE INDEX IF NOT EXISTS idx_user_email ON "user"(email);
 CREATE INDEX IF NOT EXISTS idx_user_provider_id ON "user"(provider_id);
 CREATE INDEX IF NOT EXISTS idx_conversation_user_id ON conversation(user_id);
-CREATE INDEX IF NOT EXISTS idx_conversation_session_id ON conversation(session_id);
 
 -- message 테이블 인덱스
-CREATE INDEX IF NOT EXISTS idx_message_session_id ON message(session_id);
+CREATE INDEX IF NOT EXISTS idx_message_conversation_id ON message(conversation_id);
 CREATE INDEX IF NOT EXISTS idx_message_message_id ON message(message_id);
 CREATE INDEX IF NOT EXISTS idx_message_created_at ON message(created_at);
 CREATE INDEX IF NOT EXISTS idx_message_role ON message(role);

@@ -13,7 +13,7 @@ from conversation.models import (
     ChatSessionCreate, ChatSessionResponse, ChatMessageCreate,
     ChatMessageResponse, ChatHistoryResponse, ChatSessionListResponse
 )
-from conversation.services import ChatSessionService
+from conversation import services as conv_service
 
 
 router = APIRouter(prefix="/api/chat", tags=["Chat Session Management"])
@@ -29,7 +29,7 @@ async def create_chat_session(
     새 채팅 세션 생성
     """
     try:
-        session_response = await ChatSessionService.create_new_session(
+        session_response = await conv_service.create_new_session(
             db=db,
             user_id=current_user.id,
             session_data=session_data
@@ -57,7 +57,7 @@ async def get_user_chat_sessions(
     """
     try:
         print(f"🔍 Getting sessions for user: {current_user.id}")
-        sessions_response = await ChatSessionService.get_user_sessions(
+        sessions_response = await conv_service.get_user_sessions(
             db=db,
             user_id=current_user.id,
             limit=limit,
@@ -85,7 +85,7 @@ async def get_chat_session(
     특정 채팅 세션 조회
     """
     try:
-        session_response = await ChatSessionService.get_session_by_id(
+        session_response = await conv_service.get_session_by_id(
             db=db,
             conversation_id=conversation_id,
             user_id=current_user.id
@@ -120,7 +120,7 @@ async def delete_chat_session(
     채팅 세션 삭제
     """
     try:
-        deleted = await ChatSessionService.delete_session(
+        deleted = await conv_service.delete_session(
             db=db,
             conversation_id=conversation_id,
             user_id=current_user.id
@@ -162,7 +162,7 @@ async def update_session_title(
                 detail="Title is required"
             )
 
-        updated_session = await ChatSessionService.update_session_title(
+        updated_session = await conv_service.update_session_title(
             db=db,
             conversation_id=conversation_id,
             user_id=current_user.id,
@@ -200,7 +200,7 @@ async def get_chat_history(
     채팅 히스토리 조회
     """
     try:
-        history_response = await ChatSessionService.get_session_history(
+        history_response = await conv_service.get_session_history(
             db=db,
             conversation_id=conversation_id,
             user_id=current_user.id,
@@ -239,7 +239,7 @@ async def save_chat_message(
     """
     try:
         # 세션 접근 권한 확인
-        has_access = await ChatSessionService.validate_session_access(
+        has_access = await conv_service.validate_session_access(
             db=db,
             conversation_id=message_data.conversation_id,
             user_id=current_user.id
@@ -251,7 +251,7 @@ async def save_chat_message(
                 detail="Access denied to this chat session"
             )
 
-        message_response = await ChatSessionService.add_message(
+        message_response = await conv_service.add_message(
             db=db,
             conversation_id=message_data.conversation_id,
             user_id=current_user.id,
@@ -287,7 +287,7 @@ async def validate_session_access(
     세션 접근 권한 확인
     """
     try:
-        has_access = await ChatSessionService.validate_session_access(
+        has_access = await conv_service.validate_session_access(
             db=db,
             conversation_id=conversation_id,
             user_id=current_user.id

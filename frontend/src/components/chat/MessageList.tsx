@@ -5,7 +5,6 @@ import { MessageBubble } from "./MessageBubble"
 import { TypingIndicator } from "./TypingIndicator"
 import { useChatStore } from "@/store/chatStore"
 import { ScrollArea } from "@/components/ui/scroll-area"
-import { Card } from "@/components/ui/card"
 import { Bot } from "lucide-react"
 
 export function MessageList() {
@@ -49,13 +48,13 @@ export function MessageList() {
             <p className="text-xs text-zinc-500 font-medium uppercase tracking-wider">Sample questions:</p>
             <div className="space-y-2 text-sm">
               <div className="bg-white/5 backdrop-blur-sm border border-white/10 rounded-lg p-3 text-zinc-300 hover:bg-white/10 transition-colors cursor-pointer">
-                "What are Jon Jones' key techniques?"
+                {`"What are Jon Jones' key techniques?"`}
               </div>
               <div className="bg-white/5 backdrop-blur-sm border border-white/10 rounded-lg p-3 text-zinc-300 hover:bg-white/10 transition-colors cursor-pointer">
-                "What was UFC 300's main event?"
+                {`"What was UFC 300's main event?"`}
               </div>
               <div className="bg-white/5 backdrop-blur-sm border border-white/10 rounded-lg p-3 text-zinc-300 hover:bg-white/10 transition-colors cursor-pointer">
-                "Explain Brazilian Jiu-Jitsu basics"
+                {`"Explain Brazilian Jiu-Jitsu basics"`}
               </div>
             </div>
           </div>

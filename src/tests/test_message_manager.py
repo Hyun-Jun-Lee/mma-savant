@@ -122,7 +122,7 @@ def mock_chat_history():
             content="Hello",
             role="user",
             timestamp=datetime.fromisoformat("2024-01-01T00:00:00"),
-            conversation_id="test_session",
+            conversation_id=1,
             tool_results=None
         ),
         ChatMessageResponse(
@@ -130,13 +130,13 @@ def mock_chat_history():
             content="Hi there!",
             role="assistant",
             timestamp=datetime.fromisoformat("2024-01-01T00:00:01"),
-            conversation_id="test_session",
+            conversation_id=1,
             tool_results=None
         )
     ]
-    
+
     return ChatHistoryResponse(
-        conversation_id="test_session",
+        conversation_id=1,
         messages=messages,
         total_messages=2,
         has_more=False

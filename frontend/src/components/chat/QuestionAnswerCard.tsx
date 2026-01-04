@@ -2,17 +2,18 @@
 
 import { Card, CardContent } from "@/components/ui/card"
 import { Message } from "@/types/chat"
-import { User, MessageSquare, ChevronRight } from "lucide-react"
+import { MessageSquare, ChevronRight } from "lucide-react"
 import { formatDistanceToNow } from "date-fns"
 import { ko } from "date-fns/locale"
 
 interface QuestionAnswerCardProps {
   userQuestion: Message
-  sessionId: string
-  onClick: () => void
+  assistantResponse?: Message
+  sessionId?: string
+  onClick?: () => void
 }
 
-export function QuestionAnswerCard({ userQuestion, sessionId, onClick }: QuestionAnswerCardProps) {
+export function QuestionAnswerCard({ userQuestion, onClick }: QuestionAnswerCardProps) {
   return (
     <Card
       className="bg-zinc-800/50 backdrop-blur-sm border-zinc-700 hover:bg-zinc-800/70 hover:border-zinc-600 transition-all duration-300 cursor-pointer group"

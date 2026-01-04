@@ -43,7 +43,7 @@ export class ChatApiService {
    * 채팅 세션 삭제
    */
   static async deleteSession(conversationId: number): Promise<{ success: boolean; message: string }> {
-    const response = await api.delete(`/api/chat/session/${conversationId}`)
+    const response = await api.delete<{ success: boolean; message: string }>(`/api/chat/session/${conversationId}`)
     return response.data!
   }
 

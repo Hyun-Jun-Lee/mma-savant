@@ -10,7 +10,7 @@ export interface RealSocketEvents {
   message: (data: { content: string; role: 'assistant'; timestamp: Date; messageId?: string }) => void
   message_chunk: (data: { content: string; fullContent: string; role: 'assistant'; timestamp: Date; messageId: string }) => void
   response_complete: (data: { messageId: string; timestamp: Date }) => void
-  final_result: (data: { content: string; message_id: string; conversation_id: number; timestamp: string; tool_results?: any[]; intermediate_steps?: any[] }) => void
+  final_result: (data: { content: string; message_id: string; conversation_id: number; timestamp: string; tool_results?: unknown[]; intermediate_steps?: unknown[] }) => void
   typing: (data: { isTyping: boolean }) => void
   error: (error: string) => void
 }
@@ -153,18 +153,19 @@ class RealSocket extends EventEmitter {
     }
   }
 
-  private handleMessage(data: any) {
-    
-    if (data.type === 'response_chunk') {
+  private handleMessage(data: Record<string, unknown>) {
+    const messageType = String(data.type || '')
+
+    if (messageType === 'response_chunk') {
       console.log('🔍 Entering response_chunk case')
-    } else if (data.type.includes('response_chunk')) {
+    } else if (messageType.includes('response_chunk')) {
       console.log('🔍 Type includes response_chunk but not exact match')
     }
     
-    switch (data.type) {
+    switch (messageType) {
       case 'connection_established':
         console.log('✅ Connection established:', data.message)
-        this.conversationId = data.conversation_id
+        this.conversationId = data.conversation_id as number | null
         // 연결 상태를 명시적으로 업데이트
         this.connected = true
         break
@@ -172,23 +173,23 @@ class RealSocket extends EventEmitter {
       case 'welcome':
         // 환영 메시지를 어시스턴트 메시지로 처리
         this.emit('message', {
-          content: data.content,
+          content: String(data.content || ''),
           role: 'assistant' as const,
           timestamp: new Date()
         })
         break
-        
+
       case 'message_received':
         console.log('✅ Message received by server')
         // 서버에서 새로운 대화 ID를 받은 경우 업데이트
         if (data.conversation_id && data.conversation_id !== this.conversationId) {
           console.log(`🔄 Conversation ID updated: ${this.conversationId} -> ${data.conversation_id}`)
-          this.conversationId = data.conversation_id
+          this.conversationId = data.conversation_id as number
         }
         break
-        
+
       case 'typing':
-        this.emit('typing', { isTyping: data.is_typing })
+        this.emit('typing', { isTyping: Boolean(data.is_typing) })
         break
         
       case 'response_start':
@@ -196,37 +197,39 @@ class RealSocket extends EventEmitter {
         this.currentResponse = ''
         break
         
-      case 'response_chunk':
-        console.log('📝 Processing response_chunk:', data.content)
+      case 'response_chunk': {
+        const chunkContent = String(data.content || '')
+        console.log('📝 Processing response_chunk:', chunkContent)
         console.log('📝 Current response length before:', this.currentResponse.length)
         // 스트리밍 응답 처리 - 청크를 누적
-        this.currentResponse += data.content
+        this.currentResponse += chunkContent
         console.log('📝 Current response length after:', this.currentResponse.length)
-        console.log('📝 Emitting message_chunk event with chunk:', data.content)
+        console.log('📝 Emitting message_chunk event with chunk:', chunkContent)
         // 증분 청크와 전체 내용을 함께 전달
         this.emit('message_chunk', {
-          content: data.content, // 현재 청크만
+          content: chunkContent, // 현재 청크만
           fullContent: this.currentResponse, // 전체 누적 내용
           role: 'assistant' as const,
           timestamp: new Date(),
-          messageId: data.message_id
+          messageId: String(data.message_id || '')
         })
         break
+      }
         
       case 'final_result':
         console.log('🎯 Processing final_result:', data)
         this.emit('typing', { isTyping: false })
         // final_result를 useSocket의 final_result 리스너로 전달
         this.emit('final_result', {
-          content: data.content,
-          message_id: data.message_id,
-          conversation_id: data.conversation_id,
-          timestamp: data.timestamp,
-          visualization_type: data.visualization_type,
-          visualization_data: data.visualization_data,
-          insights: data.insights,
-          tool_results: data.tool_results,
-          intermediate_steps: data.intermediate_steps
+          content: data.content as string,
+          message_id: data.message_id as string,
+          conversation_id: data.conversation_id as number,
+          timestamp: data.timestamp as string,
+          visualization_type: data.visualization_type as string | undefined,
+          visualization_data: data.visualization_data as Record<string, unknown> | undefined,
+          insights: data.insights as string[] | undefined,
+          tool_results: data.tool_results as unknown[] | undefined,
+          intermediate_steps: data.intermediate_steps as unknown[] | undefined
         })
         this.currentResponse = '' // 초기화
         break
@@ -236,7 +239,7 @@ class RealSocket extends EventEmitter {
         this.emit('typing', { isTyping: false })
         // 스트리밍 완료 - 기존 메시지를 완료 상태로 변경 (중복 메시지 방지)
         this.emit('response_complete', {
-          messageId: data.message_id,
+          messageId: String(data.message_id || ''),
           timestamp: new Date()
         })
         this.currentResponse = '' // 초기화
@@ -244,7 +247,7 @@ class RealSocket extends EventEmitter {
 
       case 'error':
         console.error('❌ Server error:', data.error)
-        this.emit('error', data.error)
+        this.emit('error', String(data.error || 'Unknown error'))
         break
 
       case 'error_response':
@@ -262,7 +265,7 @@ class RealSocket extends EventEmitter {
         break
 
       default:
-        console.log('❓ Unknown message type:', data.type)
+        console.log('❓ Unknown message type:', messageType)
     }
   }
 
