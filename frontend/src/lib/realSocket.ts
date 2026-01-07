@@ -47,8 +47,12 @@ class RealSocket extends EventEmitter {
 
       this.conversationId = conversationId || null
       
-      // WebSocket URL 구성
-      const wsUrl = process.env.NEXT_PUBLIC_WS_URL || 'ws://localhost:8000'
+      // WebSocket URL 구성 (API URL에서 자동 변환: http→ws, https→wss)
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL
+      if (!apiUrl) {
+        throw new Error('NEXT_PUBLIC_API_URL environment variable is not set')
+      }
+      const wsUrl = apiUrl.replace(/^http/, 'ws')
       const params = new URLSearchParams({
         token: jwtToken
       })

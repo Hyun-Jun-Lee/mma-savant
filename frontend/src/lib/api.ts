@@ -4,7 +4,11 @@
 import { getSession } from 'next-auth/react'
 import { AuthApiService } from '@/services/authApi'
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL
+
+if (!API_BASE_URL) {
+  throw new Error('NEXT_PUBLIC_API_URL environment variable is not set')
+}
 
 export interface ApiResponse<T = unknown> {
   data?: T
