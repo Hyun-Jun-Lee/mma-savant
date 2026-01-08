@@ -57,20 +57,37 @@ log_info "==================================="
 
 cd $PROJECT_DIR
 
-# 1. 이미지 Pull
+# 0. 초기 Nginx 설정 생성
+log_info "Generating initial Nginx configuration..."
+if [ -f "$NGINX_TEMPLATE" ]; then
+    export ACTIVE_API=api-$NEW
+    export ACTIVE_WEB=web-$NEW
+    export SERVER_PORT=$(grep -E "^SERVER_PORT=" $PROJECT_DIR/.env | cut -d'=' -f2)
+    envsubst '${ACTIVE_API} ${ACTIVE_WEB} ${SERVER_PORT}' < $NGINX_TEMPLATE > $NGINX_CONF
+    log_success "Nginx configuration generated for $NEW environment"
+else
+    log_error "Nginx template not found at $NGINX_TEMPLATE"
+    exit 1
+fi
+
+# 1. 인프라 서비스 확인 및 시작 (DB, Redis만 먼저)
+log_info "Starting infrastructure services (DB, Redis)..."
+docker compose -f $COMPOSE_FILE up -d savant_db redis
+
+# 2. 이미지 Pull
 log_info "Pulling images..."
 docker pull $REGISTRY/api:$VERSION
 docker pull $REGISTRY/web:$VERSION
 
 log_success "Images pulled successfully"
 
-# 2. 환경변수 설정 및 새 환경 시작
-log_info "Starting $NEW environment..."
+# 3. 환경변수 설정 및 새 환경 시작 (API, Web)
+log_info "Starting $NEW environment (API, Web)..."
 export REGISTRY=$REGISTRY
 export IMAGE_VERSION=$VERSION
 docker compose -f $COMPOSE_FILE --profile $NEW up -d
 
-# 3. Health Check 대기
+# 4. Health Check 대기
 log_info "Waiting for health check..."
 MAX_RETRIES=30
 RETRY=0
@@ -95,40 +112,33 @@ if [ $RETRY -ge $MAX_RETRIES ]; then
     exit 1
 fi
 
-# 4. Nginx 설정 전환
-log_info "Switching Nginx to $NEW environment..."
+# 5. Nginx 시작
+log_info "Starting Nginx..."
+docker compose -f $COMPOSE_FILE up -d nginx
 
-if [ -f "$NGINX_TEMPLATE" ]; then
-    export ACTIVE_API=api-$NEW
-    export ACTIVE_WEB=web-$NEW
-    export SERVER_PORT=$(grep -E "^SERVER_PORT=" $PROJECT_DIR/.env | cut -d'=' -f2)
-    envsubst '${ACTIVE_API} ${ACTIVE_WEB} ${SERVER_PORT}' < $NGINX_TEMPLATE > $NGINX_CONF
-
-    # Nginx 리로드
-    if docker exec nginx nginx -t > /dev/null 2>&1; then
-        docker exec nginx nginx -s reload
-        log_success "Nginx configuration updated and reloaded"
-    else
-        log_error "Nginx configuration test failed!"
-        exit 1
-    fi
+# Nginx 상태 확인
+sleep 3
+if docker ps --filter "name=nginx" --filter "status=running" | grep -q nginx; then
+    log_success "Nginx started successfully"
 else
-    log_warn "Nginx template not found, skipping Nginx configuration"
+    log_error "Nginx failed to start!"
+    docker logs nginx --tail 20
+    exit 1
 fi
 
-# 5. 활성 환경 기록
+# 6. 활성 환경 기록
 echo "$NEW" > $ACTIVE_ENV_FILE
 log_success "Active environment updated: $NEW"
 
-# 6. 배포 버전 기록
+# 7. 배포 버전 기록
 echo "$VERSION" > $PROJECT_DIR/.deployed-version
 log_success "Deployed version recorded: $VERSION"
 
-# 7. 구 환경 종료
+# 8. 구 환경 종료
 log_info "Stopping $OLD environment..."
 docker compose -f $COMPOSE_FILE --profile $OLD stop 2>/dev/null || true
 
-# 8. 이전 이미지 정리
+# 9. 이전 이미지 정리
 log_info "Cleaning up old images..."
 docker image prune -f > /dev/null 2>&1 || true
 

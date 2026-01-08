@@ -124,8 +124,7 @@ jobs:
             cd ~/mma-savant
 
             # 최신 설정 파일 가져오기
-            git fetch origin main
-            git reset --hard origin/main
+            git pull origin main
 
             # GitHub Container Registry 로그인
             echo "${{ secrets.DEPLOY_GHCR_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
