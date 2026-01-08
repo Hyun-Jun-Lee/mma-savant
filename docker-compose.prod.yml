@@ -35,7 +35,7 @@ services:
     networks:
       - savant_network
     healthcheck:
-      test: ["CMD-SHELL", "wget -q --spider http://localhost:$$SERVER_PORT/health || exit 1"]
+      test: ["CMD-SHELL", "wget -qO- http://localhost:${SERVER_PORT}/health || exit 1"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -65,7 +65,7 @@ services:
     networks:
       - savant_network
     healthcheck:
-      test: ["CMD-SHELL", "wget -q --spider http://localhost:$$SERVER_PORT/health || exit 1"]
+      test: ["CMD-SHELL", "wget -qO- http://localhost:${SERVER_PORT}/health || exit 1"]
       interval: 30s
       timeout: 10s
       retries: 3
