@@ -205,9 +205,9 @@ log_success "Active environment updated: $NEW"
 echo "$VERSION" > $PROJECT_DIR/.deployed-version
 log_success "Deployed version recorded: $VERSION"
 
-# 9. 구 환경 종료
+# 9. 구 환경 종료 (컨테이너 이름으로 직접 종료 - profile stop은 Podman에서 모든 컨테이너를 종료시킴)
 log_info "Stopping $OLD environment..."
-docker compose -f $COMPOSE_FILE --profile $OLD stop 2>/dev/null || true
+docker stop api-$OLD web-$OLD 2>/dev/null || true
 
 # 10. 이전 이미지 정리
 log_info "Cleaning up old images..."
