@@ -4,7 +4,7 @@ user/repositories.py의 데이터베이스 레이어 함수들에 대한 통합 
 실제 테스트 DB를 사용하여 데이터 저장/조회/수정/삭제 검증
 """
 import pytest
-from datetime import datetime, date, timedelta
+from datetime import datetime, timedelta, timezone
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from user import repositories as user_repo
@@ -289,7 +289,7 @@ async def test_update_user_usage_daily_reset(clean_test_session: AsyncSession):
             password_hash="hash",
             total_requests=50,
             daily_requests=30,
-            last_request_date=datetime.now() - timedelta(days=2),  # 2일 전
+            last_request_date=datetime.now(timezone.utc) - timedelta(days=2),  # 2일 전
             is_active=True
         )
     )
@@ -300,7 +300,7 @@ async def test_update_user_usage_daily_reset(clean_test_session: AsyncSession):
     # Then: daily_requests 리셋되고 새로 증가
     assert updated_user.total_requests == 55  # 50 + 5
     assert updated_user.daily_requests == 5   # 리셋 후 5
-    assert updated_user.last_request_date.date() == date.today()
+    assert updated_user.last_request_date.date() == datetime.now(timezone.utc).date()
 
 
 @pytest.mark.asyncio
