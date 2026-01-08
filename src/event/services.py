@@ -12,6 +12,7 @@ from event.dto import (
 from event.exceptions import (
     EventValidationError, EventDateError, EventQueryError
 )
+from common.utils import utc_today
 
 
 async def get_events(
@@ -29,7 +30,7 @@ async def get_events(
     if limit < 1 or limit > 100:
         raise EventValidationError("limit", limit, "limit must be between 1 and 100")
 
-    current_year = date.today().year
+    current_year = utc_today().year
     if year is not None and (year < 1993 or year > current_year + 10):
         raise EventDateError(year, f"Year must be between 1993 and {current_year + 10}")
     if month is not None and (month < 1 or month > 12):
@@ -129,7 +130,7 @@ async def get_events_calendar(
     특정 연도/월의 이벤트 캘린더를 생성합니다.
     """
     # 연도 검증
-    current_year = date.today().year
+    current_year = utc_today().year
     if not isinstance(year, int) or year < 1993 or year > current_year + 10:  # UFC는 1993년 시작
         raise EventDateError(year, f"Year must be between 1993 and {current_year + 10}")
     

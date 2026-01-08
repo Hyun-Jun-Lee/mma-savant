@@ -12,7 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from database.connection.postgres_conn import get_async_db
 from api.auth.dependencies import get_user_from_token
 from api.websocket.manager import connection_manager
-from common.utils import kr_time_now
+from common.utils import utc_now
 
 
 router = APIRouter(prefix="/ws", tags=["WebSocket"])
@@ -75,7 +75,7 @@ async def websocket_chat_endpoint(
                 "connection_id": connection_id,
                 "user_id": user.id,
                 "conversation_id": conversation_id,
-                "timestamp": kr_time_now().isoformat(),
+                "timestamp": utc_now().isoformat(),
                 "message": "연결이 성공적으로 설정되었습니다."
             })
         except ConnectionError as e:
@@ -112,7 +112,7 @@ async def websocket_chat_endpoint(
                     # 핑-퐁 처리 (연결 상태 확인)
                     await connection_manager.send_to_connection(connection_id, {
                         "type": "pong",
-                        "timestamp": kr_time_now().isoformat()
+                        "timestamp": utc_now().isoformat()
                     })
                 
                 elif message_type == "typing":
@@ -121,7 +121,7 @@ async def websocket_chat_endpoint(
                     await connection_manager.send_to_connection(connection_id, {
                         "type": "typing_echo",
                         "is_typing": is_typing,
-                        "timestamp": kr_time_now().isoformat()
+                        "timestamp": utc_now().isoformat()
                     })
                 
                 else:
@@ -129,14 +129,14 @@ async def websocket_chat_endpoint(
                     await connection_manager.send_to_connection(connection_id, {
                         "type": "error",
                         "error": f"Unknown message type: {message_type}",
-                        "timestamp": kr_time_now().isoformat()
+                        "timestamp": utc_now().isoformat()
                     })
                     
             except json.JSONDecodeError:
                 await connection_manager.send_to_connection(connection_id, {
                     "type": "error",
                     "error": "Invalid JSON format",
-                    "timestamp": kr_time_now().isoformat()
+                    "timestamp": utc_now().isoformat()
                 })
             
             except WebSocketDisconnect:
@@ -164,7 +164,7 @@ async def websocket_chat_endpoint(
                     await connection_manager.send_to_connection(connection_id, {
                         "type": "error",
                         "error": f"Failed to process message: {error_msg}",
-                        "timestamp": kr_time_now().isoformat()
+                        "timestamp": utc_now().isoformat()
                     })
                 except ConnectionError:
                     # ConnectionError는 이미 연결이 정리되었으므로 즉시 루프 종료
@@ -205,5 +205,5 @@ async def websocket_health_check():
         "status": "healthy",
         "service": "websocket",
         "stats": stats,
-        "timestamp": kr_time_now().isoformat()
+        "timestamp": utc_now().isoformat()
     }

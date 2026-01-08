@@ -27,7 +27,7 @@ from common.utils import remove_timestamps_from_tool_result
 from conversation.message_manager import ChatHistory
 from database.connection.postgres_conn import get_async_db_context
 from common.logging_config import get_logger
-from common.utils import kr_time_now
+from common.utils import utc_now
 
 LOGGER = get_logger(__name__)
 
@@ -110,7 +110,7 @@ class LangChainLLMService:
                 "error": str(e),
                 "message_id": message_id,
                 "conversation_id": conversation_id,
-                "timestamp": kr_time_now().isoformat()
+                "timestamp": utc_now().isoformat()
             }
 
         finally:
@@ -168,7 +168,7 @@ class LangChainLLMService:
                 "error": f"Failed to load chat history: {str(e)}",
                 "message_id": message_id,
                 "conversation_id": conversation_id,
-                "timestamp": kr_time_now().isoformat()
+                "timestamp": utc_now().isoformat()
             }
 
     async def _setup_two_phase_system(
@@ -223,7 +223,7 @@ class LangChainLLMService:
                 "error": f"Failed to setup Two-Phase system: {str(e)}",
                 "message_id": message_id,
                 "conversation_id": conversation_id,
-                "timestamp": kr_time_now().isoformat(),
+                "timestamp": utc_now().isoformat(),
                 "two_phase_system": True
             }
 
@@ -282,7 +282,7 @@ class LangChainLLMService:
             "description": "Analyzing query and collecting data",
             "message_id": message_id,
             "conversation_id": conversation_id,
-            "timestamp": kr_time_now().isoformat()
+            "timestamp": utc_now().isoformat()
         }
 
     async def _execute_agent_two_step(
@@ -322,7 +322,7 @@ class LangChainLLMService:
                 "type": "error_response",  # 프론트엔드가 기대하는 타입
                 "message_id": message_id,
                 "conversation_id": conversation_id,
-                "timestamp": kr_time_now().isoformat(),
+                "timestamp": utc_now().isoformat(),
                 "total_execution_time": execution_time
             }
             return
@@ -345,7 +345,7 @@ class LangChainLLMService:
             "type": "final_result",
             "message_id": message_id,
             "conversation_id": conversation_id,
-            "timestamp": kr_time_now().isoformat(),
+            "timestamp": utc_now().isoformat(),
             "total_execution_time": execution_time
         }
 
@@ -365,7 +365,7 @@ class LangChainLLMService:
                 "traceback": format_exc(),
                 "message_id": message_id,
                 "conversation_id": conversation_id,
-                "timestamp": kr_time_now().isoformat(),
+                "timestamp": utc_now().isoformat(),
                 "two_phase_system": True
             }
 
@@ -380,7 +380,7 @@ class LangChainLLMService:
             "error": error_message,
             "message_id": message_id,
             "conversation_id": conversation_id,
-            "timestamp": kr_time_now().isoformat(),
+            "timestamp": utc_now().isoformat(),
             "two_phase_system": True
         }
 
@@ -404,7 +404,7 @@ class LangChainLLMService:
             health_status = {
                 "service": "LangChainLLMServiceV2",
                 "status": "healthy",
-                "timestamp": kr_time_now().isoformat(),
+                "timestamp": utc_now().isoformat(),
                 "version": "2.0"
             }
 
@@ -429,7 +429,7 @@ class LangChainLLMService:
                 "service": "LangChainLLMServiceV2",
                 "status": "error",
                 "error": str(e),
-                "timestamp": kr_time_now().isoformat(),
+                "timestamp": utc_now().isoformat(),
                 "two_phase_system": True
             }
 

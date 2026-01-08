@@ -6,7 +6,7 @@ from datetime import datetime
 from langchain.callbacks.base import AsyncCallbackHandler
 from langchain.schema import LLMResult
 
-from common.utils import kr_time_now
+from common.utils import utc_now
 
 class AnthropicCallbackHandler(AsyncCallbackHandler):
     """실제 스트리밍을 위한 콜백 핸들러"""
@@ -74,7 +74,7 @@ class AnthropicCallbackHandler(AsyncCallbackHandler):
                     "content": token_str,
                     "message_id": self.message_id,
                     "conversation_id": self.conversation_id,
-                    "timestamp": kr_time_now().isoformat()
+                    "timestamp": utc_now().isoformat()
                 })
                 
         except Exception as e:
@@ -92,7 +92,7 @@ class AnthropicCallbackHandler(AsyncCallbackHandler):
             "type": "start",
             "message_id": self.message_id,
             "conversation_id": self.conversation_id,
-            "timestamp": kr_time_now().isoformat()
+            "timestamp": utc_now().isoformat()
         })
     
     async def on_llm_end(self, response: LLMResult, **kwargs) -> None:
@@ -104,7 +104,7 @@ class AnthropicCallbackHandler(AsyncCallbackHandler):
             "type": "end",
             "message_id": self.message_id,
             "conversation_id": self.conversation_id,
-            "timestamp": kr_time_now().isoformat(),
+            "timestamp": utc_now().isoformat(),
             "final_content": self.current_content
         })
     
@@ -128,7 +128,7 @@ class AnthropicCallbackHandler(AsyncCallbackHandler):
             "tool_input": input_str,
             "message_id": self.message_id,
             "conversation_id": self.conversation_id,
-            "timestamp": kr_time_now().isoformat()
+            "timestamp": utc_now().isoformat()
         })
     
     async def on_tool_end(self, output: str, **kwargs) -> None:
@@ -155,7 +155,7 @@ class AnthropicCallbackHandler(AsyncCallbackHandler):
             "tool_result": output[:200] + "..." if len(output) > 200 else output,
             "message_id": self.message_id,
             "conversation_id": self.conversation_id,
-            "timestamp": kr_time_now().isoformat()
+            "timestamp": utc_now().isoformat()
         })
     
     async def on_agent_action(self, action, **kwargs) -> None:
@@ -165,7 +165,7 @@ class AnthropicCallbackHandler(AsyncCallbackHandler):
             "thought": f"Using tool: {action.tool}",
             "message_id": self.message_id,
             "conversation_id": self.conversation_id,
-            "timestamp": kr_time_now().isoformat()
+            "timestamp": utc_now().isoformat()
         })
 
 def get_anthropic_callback_handler(message_id: str, conversation_id : int):

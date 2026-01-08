@@ -6,6 +6,7 @@ from sqlalchemy import select, extract
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from event.models import EventModel, EventSchema
+from common.utils import utc_today
 
 async def get_event_by_id(session: AsyncSession, event_id: int) -> Optional[EventSchema]:
     result = await session.execute(
@@ -92,7 +93,7 @@ async def get_recent_events(session: AsyncSession, limit: int = 5) -> List[Event
     """
     result = await session.execute(
         select(EventModel)
-        .where(EventModel.event_date <= date.today())
+        .where(EventModel.event_date <= utc_today())
         .order_by(EventModel.event_date.desc())
         .limit(limit)
     )
@@ -105,7 +106,7 @@ async def get_upcoming_events(session: AsyncSession, limit: int = 5) -> List[Eve
     """
     result = await session.execute(
         select(EventModel)
-        .where(EventModel.event_date > date.today())
+        .where(EventModel.event_date > utc_today())
         .order_by(EventModel.event_date.asc())
         .limit(limit)
     )

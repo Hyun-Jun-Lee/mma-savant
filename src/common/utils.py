@@ -5,11 +5,17 @@ import os
 from typing import Callable, Dict
 from functools import wraps
 from unidecode import unidecode
-from datetime import datetime, timezone, timedelta
+from datetime import datetime, date, timezone
 
-def kr_time_now() -> datetime:
-    kst = timezone(timedelta(hours=9))
-    return datetime.now(kst).replace(tzinfo=None)
+
+def utc_now() -> datetime:
+    """UTC 기준 현재 시간 (naive datetime for DB compatibility)"""
+    return datetime.now(timezone.utc).replace(tzinfo=None)
+
+
+def utc_today() -> date:
+    """UTC 기준 오늘 날짜"""
+    return datetime.now(timezone.utc).date()
 
 def _calculate_percentage(numerator: int, denominator: int) -> float:
     """

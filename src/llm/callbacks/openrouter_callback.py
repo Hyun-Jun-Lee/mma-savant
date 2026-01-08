@@ -5,7 +5,7 @@ from typing import Dict, Any, List
 from langchain.callbacks.base import AsyncCallbackHandler
 from langchain.schema import LLMResult
 
-from common.utils import kr_time_now
+from common.utils import utc_now
 
 class OpenRouterCallbackHandler(AsyncCallbackHandler):
     """OpenRouter 스트리밍 콜백 핸들러"""
@@ -34,7 +34,7 @@ class OpenRouterCallbackHandler(AsyncCallbackHandler):
                     "message_id": self.message_id,
                     "conversation_id": self.conversation_id,
                     "model": self.model_name,
-                    "timestamp": kr_time_now().isoformat()
+                    "timestamp": utc_now().isoformat()
                 })
         except Exception as e:
             print(f"Error in OpenRouter token streaming: {e}")
@@ -52,7 +52,7 @@ class OpenRouterCallbackHandler(AsyncCallbackHandler):
             "conversation_id": self.conversation_id,
             "model": self.model_name,
             "provider": "openrouter",
-            "timestamp": kr_time_now().isoformat()
+            "timestamp": utc_now().isoformat()
         })
     
     async def on_llm_end(self, response: LLMResult, **kwargs) -> None:
@@ -72,7 +72,7 @@ class OpenRouterCallbackHandler(AsyncCallbackHandler):
             "final_content": self.current_content,
             "usage": usage_info,
             "duration": time.time() - self.start_time if self.start_time else None,
-            "timestamp": kr_time_now().isoformat()
+            "timestamp": utc_now().isoformat()
         })
     
     async def on_tool_start(self, serialized: Dict[str, Any], input_str: str, **kwargs) -> None:
@@ -93,7 +93,7 @@ class OpenRouterCallbackHandler(AsyncCallbackHandler):
             "tool_input": input_str,
             "message_id": self.message_id,
             "conversation_id": self.conversation_id,
-            "timestamp": kr_time_now().isoformat()
+            "timestamp": utc_now().isoformat()
         })
     
     async def on_tool_end(self, output: str, **kwargs) -> None:
@@ -114,7 +114,7 @@ class OpenRouterCallbackHandler(AsyncCallbackHandler):
             "tool_result": output,
             "message_id": self.message_id,
             "conversation_id": self.conversation_id,
-            "timestamp": kr_time_now().isoformat()
+            "timestamp": utc_now().isoformat()
         })
     
     async def on_llm_error(self, error: Exception, **kwargs) -> None:
@@ -138,7 +138,7 @@ class OpenRouterCallbackHandler(AsyncCallbackHandler):
             "message_id": self.message_id,
             "conversation_id": self.conversation_id,
             "model": self.model_name,
-            "timestamp": kr_time_now().isoformat()
+            "timestamp": utc_now().isoformat()
         })
 
 def get_openrouter_callback_handler(message_id: str, conversation_id : int, model_name: str = "unknown"):

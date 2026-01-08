@@ -504,7 +504,7 @@ async def get_oauth_user_profile(session: AsyncSession, user_id: int) -> UserPro
         # 일일 사용량 계산 (날짜가 바뀌었으면 0으로 리셋)
         from datetime import date
         daily_requests = user.daily_requests
-        if user.last_request_date is None or user.last_request_date.date() < date.today():
+        if user.last_request_date is None or user.last_request_date.date() < utc_today():
             daily_requests = 0
 
         remaining_requests = max(0, user.daily_request_limit - daily_requests)

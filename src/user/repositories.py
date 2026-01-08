@@ -1,11 +1,11 @@
 from typing import List, Optional, Tuple
-from datetime import datetime, date
+from datetime import datetime
 
 from sqlalchemy import select, update, func, or_
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from user.models import UserModel, UserSchema, UserProfileUpdate
-from common.utils import kr_time_now
+from common.utils import utc_now, utc_today
 
 async def get_user_by_id(session: AsyncSession, user_id: int) -> Optional[UserSchema]:
     """
@@ -106,7 +106,7 @@ async def update_user_profile(
     if not update_data:
         return await get_user_by_id(session, user_id)
 
-    update_data["updated_at"] = kr_time_now()
+    update_data["updated_at"] = utc_now()
 
     await session.execute(
         update(UserModel)
@@ -123,18 +123,18 @@ async def update_user_usage(session: AsyncSession, user_id: int, increment: int 
     사용자의 사용량을 업데이트합니다.
     새로운 날짜라면 daily_requests를 리셋하고, 같은 날이라면 증가시킵니다.
     """
-    today = date.today()
-    
+    today = utc_today()
+
     # 현재 사용자 정보 조회
     user = await get_user_by_id(session, user_id)
     if not user:
         return None
-    
+
     # 날짜 체크 - 새로운 날이면 daily_requests 리셋
     daily_requests = user.daily_requests
     if user.last_request_date is None or user.last_request_date.date() < today:
         daily_requests = 0
-    
+
     # 사용량 업데이트
     await session.execute(
         update(UserModel)
@@ -142,7 +142,7 @@ async def update_user_usage(session: AsyncSession, user_id: int, increment: int 
         .values(
             total_requests=UserModel.total_requests + increment,
             daily_requests=daily_requests + increment,
-            last_request_date=kr_time_now()
+            last_request_date=utc_now()
         )
     )
     
@@ -160,10 +160,10 @@ async def get_user_usage_stats(session: AsyncSession, user_id: int) -> Optional[
     user = await get_user_by_id(session, user_id)
     if not user:
         return None
-    
-    today = date.today()
+
+    today = utc_today()
     daily_requests = user.daily_requests
-    
+
     # 날짜가 바뀌었다면 daily_requests는 0으로 계산
     if user.last_request_date is None or user.last_request_date.date() < today:
         daily_requests = 0
@@ -202,7 +202,7 @@ async def get_today_total_requests(session: AsyncSession) -> int:
     """
     오늘 총 요청 수를 조회합니다.
     """
-    today = date.today()
+    today = utc_today()
     result = await session.execute(
         select(func.sum(UserModel.daily_requests))
         .where(
@@ -292,7 +292,7 @@ async def update_daily_limit(
     await session.execute(
         update(UserModel)
         .where(UserModel.id == user_id)
-        .values(daily_request_limit=limit, updated_at=kr_time_now())
+        .values(daily_request_limit=limit, updated_at=utc_now())
     )
     await session.flush()
     await session.commit()
@@ -314,7 +314,7 @@ async def update_admin_status(
     await session.execute(
         update(UserModel)
         .where(UserModel.id == user_id)
-        .values(is_admin=is_admin, updated_at=kr_time_now())
+        .values(is_admin=is_admin, updated_at=utc_now())
     )
     await session.flush()
     await session.commit()
@@ -336,7 +336,7 @@ async def update_active_status(
     await session.execute(
         update(UserModel)
         .where(UserModel.id == user_id)
-        .values(is_active=is_active, updated_at=kr_time_now())
+        .values(is_active=is_active, updated_at=utc_now())
     )
     await session.flush()
     await session.commit()

@@ -13,7 +13,7 @@ from database.connection.postgres_conn_test import (
 from fighter.models import FighterModel, FighterSchema, RankingModel, RankingSchema
 from match.models import MatchModel, FighterMatchModel, SigStrMatchStatModel, BasicMatchStatModel
 from event.models import EventModel
-from common.utils import normalize_name
+from common.utils import utc_today
 
 
 @pytest_asyncio.fixture(scope="session", autouse=True)
@@ -536,7 +536,7 @@ async def events_past_and_future(clean_test_session):
     시간 기반 테스트용
     """
     from datetime import timedelta
-    today = date.today()
+    today = utc_today()
     
     # 과거 이벤트들
     past_events = [

@@ -6,7 +6,7 @@ from typing import Dict, Any, List, Union, Optional
 from datetime import datetime
 
 from common.logging_config import get_logger
-from common.utils import remove_timestamps_from_tool_result, kr_time_now
+from common.utils import remove_timestamps_from_tool_result, utc_now
 
 LOGGER = get_logger(__name__)
 
@@ -250,7 +250,7 @@ def create_final_result(
         "tool_results": tool_results,
         "message_id": message_id,
         "conversation_id": conversation_id,
-        "timestamp": kr_time_now().isoformat(),
+        "timestamp": utc_now().isoformat(),
         "execution_time": execution_time,
         "metadata": {
             "content_length": len(content),
@@ -301,7 +301,7 @@ def create_error_response(
         "error": user_friendly_message,
         "message_id": message_id,
         "conversation_id": conversation_id,
-        "timestamp": kr_time_now().isoformat(),
+        "timestamp": utc_now().isoformat(),
         "metadata": {
             "error_type": type(error).__name__,
             "original_error": error_message,
@@ -336,7 +336,7 @@ def create_streaming_chunk(
         "content": content,
         "message_id": message_id,
         "conversation_id": conversation_id,
-        "timestamp": kr_time_now().isoformat(),
+        "timestamp": utc_now().isoformat(),
         "metadata": metadata
     }
 

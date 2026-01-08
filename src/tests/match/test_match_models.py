@@ -6,6 +6,7 @@ import pytest
 from datetime import datetime
 from pydantic import ValidationError
 
+from common.utils import utc_now
 from match.models import (
     MatchModel, MatchSchema,
     FighterMatchModel, FighterMatchSchema,
@@ -55,10 +56,10 @@ class TestMatchSchema:
             "order": 8,
             "is_main_event": True,
             "detail_url": "http://example.com/match/123",
-            "created_at": datetime.now(),
-            "updated_at": datetime.now()
+            "created_at": utc_now(),
+            "updated_at": utc_now()
         }
-        
+
         # When: 스키마 생성
         match_schema = MatchSchema(**match_data)
         

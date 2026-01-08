@@ -7,6 +7,7 @@ import pytest
 from datetime import datetime, timedelta
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from common.utils import utc_now
 from user import services as user_service
 from user import repositories as user_repo
 from user.dto import (
@@ -272,7 +273,7 @@ async def test_get_user_usage_success(clean_test_session: AsyncSession):
         username=username,
         total_requests=50,
         daily_requests=10,
-        last_request_date=datetime.now()
+        last_request_date=utc_now()
     )
 
     # When: 사용량 조회
@@ -298,7 +299,7 @@ async def test_update_user_usage_success(clean_test_session: AsyncSession):
         username=username,
         total_requests=50,
         daily_requests=10,
-        last_request_date=datetime.now()
+        last_request_date=utc_now()
     )
 
     # When: 사용량 업데이트
@@ -321,7 +322,7 @@ async def test_update_user_usage_limit_exceeded(clean_test_session: AsyncSession
         username=username,
         total_requests=150,
         daily_requests=99,  # 기본 제한 100에서 1 남음
-        last_request_date=datetime.now()
+        last_request_date=utc_now()
     )
 
     # When & Then: 제한 초과 시 UserUsageLimitError 발생
@@ -342,7 +343,7 @@ async def test_check_usage_limit_within_limit(clean_test_session: AsyncSession):
         username=username,
         total_requests=50,
         daily_requests=10,
-        last_request_date=datetime.now()
+        last_request_date=utc_now()
     )
 
     # When: 제한 확인
@@ -362,7 +363,7 @@ async def test_check_usage_limit_exceeded(clean_test_session: AsyncSession):
         username=username,
         total_requests=150,
         daily_requests=100,  # 기본 제한 도달
-        last_request_date=datetime.now()
+        last_request_date=utc_now()
     )
 
     # When: 제한 확인

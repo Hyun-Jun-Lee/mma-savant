@@ -6,6 +6,7 @@ from datetime import date
 
 from event import repositories as event_repo
 from event.models import EventSchema
+from common.utils import utc_today
 
 
 # =============================================================================
@@ -211,7 +212,7 @@ async def test_get_recent_events(events_past_and_future, clean_test_session):
     assert isinstance(result, list)
     assert len(result) <= 3
     for event in result:
-        assert event.event_date <= date.today()
+        assert event.event_date <= utc_today()
 
     # 날짜 역순 정렬 확인
     for i in range(len(result) - 1):
@@ -226,7 +227,7 @@ async def test_get_upcoming_events(events_past_and_future, clean_test_session):
     assert isinstance(result, list)
     assert len(result) <= 3
     for event in result:
-        assert event.event_date > date.today()
+        assert event.event_date > utc_today()
 
     # 날짜 오름차순 정렬 확인
     for i in range(len(result) - 1):

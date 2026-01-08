@@ -2,6 +2,7 @@ import pytest
 from datetime import date, datetime
 
 import database
+from common.utils import utc_now
 
 from fighter.models import FighterModel, FighterSchema, RankingModel, RankingSchema
 
@@ -152,8 +153,8 @@ class TestFighterModelTransformers:
         fighter_model = FighterModel.from_schema(original_schema)
         # DB 저장 시뮬레이션 (id와 timestamp 추가)
         fighter_model.id = 99
-        fighter_model.created_at = datetime.now()
-        fighter_model.updated_at = datetime.now()
+        fighter_model.created_at = utc_now()
+        fighter_model.updated_at = utc_now()
         
         converted_schema = fighter_model.to_schema()
         
@@ -239,8 +240,8 @@ class TestRankingModelTransformers:
         ranking_model = RankingModel.from_schema(original_schema)
         # DB 저장 시뮬레이션
         ranking_model.id = 25
-        ranking_model.created_at = datetime.now()
-        ranking_model.updated_at = datetime.now()
+        ranking_model.created_at = utc_now()
+        ranking_model.updated_at = utc_now()
         
         converted_schema = ranking_model.to_schema()
         
@@ -298,10 +299,10 @@ class TestEdgeCases:
             belt=False,
             detail_url=None,
             birthdate=None,
-            created_at=datetime.now(),
-            updated_at=datetime.now()
+            created_at=utc_now(),
+            updated_at=utc_now()
         )
-        
+
         # When: to_schema 메서드 사용
         fighter_schema = fighter_model.to_schema()
         

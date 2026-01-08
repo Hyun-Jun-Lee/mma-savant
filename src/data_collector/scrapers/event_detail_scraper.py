@@ -8,7 +8,7 @@ from bs4 import BeautifulSoup
 
 from match.models import MatchSchema
 from common.models import WeightClassSchema
-from common.utils import kr_time_now
+from common.utils import utc_now
 
 async def scrap_event_detail(crawler_fn: Callable, event_url: str, event_id: int, fighter_name_to_id_map: Dict[str, int]) -> List[Dict]:
     """
@@ -46,7 +46,7 @@ async def scrap_event_detail(crawler_fn: Callable, event_url: str, event_id: int
         kst_date_obj = date_obj + timedelta(days=1)
         
         # Compare with current time
-        current_time = kr_time_now()
+        current_time = utc_now()
         if kst_date_obj > current_time:
             is_future_event = True
         

@@ -9,6 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from user import repositories as user_repo
 from user.models import UserSchema, UserProfileUpdate
+from common.utils import utc_now, utc_today
 
 
 # ===== 기본 사용자 조회 테스트 =====
@@ -263,7 +264,7 @@ async def test_update_user_usage_increment(clean_test_session: AsyncSession):
             password_hash="hash",
             total_requests=10,
             daily_requests=5,
-            last_request_date=datetime.now(),  # 오늘 날짜로 설정해야 daily_requests 유지
+            last_request_date=utc_now(),  # 오늘 날짜로 설정해야 daily_requests 유지
             is_active=True
         )
     )
@@ -289,7 +290,7 @@ async def test_update_user_usage_daily_reset(clean_test_session: AsyncSession):
             password_hash="hash",
             total_requests=50,
             daily_requests=30,
-            last_request_date=datetime.utcnow() - timedelta(days=2),  # 2일 전 (naive UTC)
+            last_request_date=utc_now() - timedelta(days=2),  # 2일 전 (UTC)
             is_active=True
         )
     )
@@ -300,7 +301,7 @@ async def test_update_user_usage_daily_reset(clean_test_session: AsyncSession):
     # Then: daily_requests 리셋되고 새로 증가
     assert updated_user.total_requests == 55  # 50 + 5
     assert updated_user.daily_requests == 5   # 리셋 후 5
-    assert updated_user.last_request_date.date() == date.today()
+    assert updated_user.last_request_date.date() == utc_today()
 
 
 @pytest.mark.asyncio
@@ -314,7 +315,7 @@ async def test_get_user_usage_stats_success(clean_test_session: AsyncSession):
             password_hash="hash",
             total_requests=100,
             daily_requests=20,
-            last_request_date=datetime.now(),
+            last_request_date=utc_now(),
             is_active=True
         )
     )
@@ -342,7 +343,7 @@ async def test_get_user_usage_stats_old_date_reset(clean_test_session: AsyncSess
             password_hash="hash",
             total_requests=200,
             daily_requests=50,
-            last_request_date=datetime.now() - timedelta(days=5),  # 5일 전
+            last_request_date=utc_now() - timedelta(days=5),  # 5일 전
             is_active=True
         )
     )

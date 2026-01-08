@@ -11,7 +11,7 @@ from event.dto import (
     MonthlyCalendarDTO, YearlyCalendarDTO
 )
 from event.exceptions import EventValidationError, EventDateError, EventQueryError
-
+from common.utils import utc_today
 
 # =============================================================================
 # get_events 테스트
@@ -218,7 +218,7 @@ async def test_get_events_calendar_invalid_year(clean_test_session):
     with pytest.raises(EventDateError, match="Year must be between 1993"):
         await event_service.get_events_calendar(clean_test_session, year=1990, month=1)
 
-    current_year = date.today().year
+    current_year = utc_today().year
     with pytest.raises(EventDateError, match="Year must be between 1993"):
         await event_service.get_events_calendar(clean_test_session, year=current_year + 20, month=1)
 
@@ -236,7 +236,7 @@ async def test_get_events_calendar_invalid_month(clean_test_session):
 @pytest.mark.asyncio
 async def test_get_events_calendar_future_date(clean_test_session):
     """미래 날짜로 캘린더 조회"""
-    future_year = date.today().year + 5
+    future_year = utc_today().year + 5
 
     with patch('event.services.event_repo.get_events_by_period', return_value=[]):
         result = await event_service.get_events_calendar(

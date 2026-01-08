@@ -369,7 +369,7 @@ def test_clean_response_content_none_returns_empty():
 # create_final_result 테스트 (4개)
 # ==============================================================================
 
-@patch('llm.stream_processor.kr_time_now')
+@patch('llm.stream_processor.utc_now')
 def test_create_final_result_with_required_fields(mock_time):
     """필수 필드를 포함한 최종 결과 생성"""
     # Given: 필수 파라미터들
@@ -400,7 +400,7 @@ def test_create_final_result_with_required_fields(mock_time):
     assert "metadata" in result
 
 
-@patch('llm.stream_processor.kr_time_now')
+@patch('llm.stream_processor.utc_now')
 def test_create_final_result_includes_user_id_when_provided(mock_time):
     """user_id가 제공되면 포함됨"""
     # Given: user_id를 포함한 파라미터들
@@ -420,7 +420,7 @@ def test_create_final_result_includes_user_id_when_provided(mock_time):
     assert result["user_id"] == 789
 
 
-@patch('llm.stream_processor.kr_time_now')
+@patch('llm.stream_processor.utc_now')
 def test_create_final_result_metadata_includes_correct_counts(mock_time):
     """메타데이터에 올바른 카운트 포함"""
     # Given: 콘텐츠와 tool_results
@@ -443,7 +443,7 @@ def test_create_final_result_metadata_includes_correct_counts(mock_time):
     assert result["metadata"]["has_tools"] is True
 
 
-@patch('llm.stream_processor.kr_time_now')
+@patch('llm.stream_processor.utc_now')
 def test_create_final_result_additional_kwargs_in_metadata(mock_time):
     """추가 kwargs가 메타데이터에 포함됨"""
     # Given: 추가 kwargs
@@ -469,7 +469,7 @@ def test_create_final_result_additional_kwargs_in_metadata(mock_time):
 # create_error_response 테스트 (4개)
 # ==============================================================================
 
-@patch('llm.stream_processor.kr_time_now')
+@patch('llm.stream_processor.utc_now')
 def test_create_error_response_correct_structure(mock_time):
     """올바른 구조의 에러 응답 생성"""
     # Given: 에러와 기본 정보
@@ -494,7 +494,7 @@ def test_create_error_response_correct_structure(mock_time):
     assert result["metadata"]["error_type"] == "ValueError"
 
 
-@patch('llm.stream_processor.kr_time_now')
+@patch('llm.stream_processor.utc_now')
 def test_create_error_response_rate_limit_429_special_message(mock_time):
     """429 에러는 특별한 메시지 반환"""
     # Given: 429를 포함한 에러 메시지
@@ -512,7 +512,7 @@ def test_create_error_response_rate_limit_429_special_message(mock_time):
     assert result["error"] == "API 호출 한도를 초과했습니다. 잠시 후 다시 시도해주세요."
 
 
-@patch('llm.stream_processor.kr_time_now')
+@patch('llm.stream_processor.utc_now')
 def test_create_error_response_rate_limit_error_text_special_message(mock_time):
     """'rate_limit_error' 텍스트를 포함한 에러는 특별한 메시지 반환"""
     # Given: rate_limit_error를 포함한 에러
@@ -530,7 +530,7 @@ def test_create_error_response_rate_limit_error_text_special_message(mock_time):
     assert result["error"] == "API 호출 한도를 초과했습니다. 잠시 후 다시 시도해주세요."
 
 
-@patch('llm.stream_processor.kr_time_now')
+@patch('llm.stream_processor.utc_now')
 def test_create_error_response_context_included_in_metadata(mock_time):
     """context가 메타데이터에 포함됨"""
     # Given: context를 포함한 파라미터
@@ -554,7 +554,7 @@ def test_create_error_response_context_included_in_metadata(mock_time):
 # create_streaming_chunk 테스트 (3개)
 # ==============================================================================
 
-@patch('llm.stream_processor.kr_time_now')
+@patch('llm.stream_processor.utc_now')
 def test_create_streaming_chunk_correct_structure(mock_time):
     """올바른 구조의 스트리밍 청크 생성"""
     # Given: 청크 정보
@@ -580,7 +580,7 @@ def test_create_streaming_chunk_correct_structure(mock_time):
     assert "timestamp" in result
 
 
-@patch('llm.stream_processor.kr_time_now')
+@patch('llm.stream_processor.utc_now')
 def test_create_streaming_chunk_includes_metadata_kwargs(mock_time):
     """메타데이터 kwargs 포함"""
     # Given: 추가 메타데이터
@@ -601,7 +601,7 @@ def test_create_streaming_chunk_includes_metadata_kwargs(mock_time):
     assert result["metadata"]["step_number"] == 1
 
 
-@patch('llm.stream_processor.kr_time_now')
+@patch('llm.stream_processor.utc_now')
 def test_create_streaming_chunk_timestamp_included(mock_time):
     """타임스탬프 포함"""
     # Given: 모킹된 시간
