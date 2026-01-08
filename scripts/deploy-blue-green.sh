@@ -74,6 +74,30 @@ fi
 log_info "Starting infrastructure services (DB, Redis)..."
 docker compose -f $COMPOSE_FILE up -d savant_db redis
 
+# DB/Redis Health Check 대기
+log_info "Waiting for DB and Redis to be healthy..."
+MAX_INFRA_RETRIES=30
+INFRA_RETRY=0
+
+while [ $INFRA_RETRY -lt $MAX_INFRA_RETRIES ]; do
+    DB_STATUS=$(docker inspect --format='{{.State.Health.Status}}' savant_db 2>/dev/null || echo "starting")
+    REDIS_STATUS=$(docker inspect --format='{{.State.Health.Status}}' savant_redis 2>/dev/null || echo "starting")
+
+    if [ "$DB_STATUS" = "healthy" ] && [ "$REDIS_STATUS" = "healthy" ]; then
+        log_success "Infrastructure services are healthy!"
+        break
+    fi
+
+    INFRA_RETRY=$((INFRA_RETRY + 1))
+    log_info "  Retry $INFRA_RETRY/$MAX_INFRA_RETRIES (DB: $DB_STATUS, Redis: $REDIS_STATUS)..."
+    sleep 2
+done
+
+if [ $INFRA_RETRY -ge $MAX_INFRA_RETRIES ]; then
+    log_error "Infrastructure services failed to become healthy"
+    exit 1
+fi
+
 # 2. 이미지 Pull
 log_info "Pulling images..."
 docker pull $REGISTRY/api:$VERSION
@@ -112,33 +136,80 @@ if [ $RETRY -ge $MAX_RETRIES ]; then
     exit 1
 fi
 
-# 5. Nginx 시작
-log_info "Starting Nginx..."
-docker compose -f $COMPOSE_FILE up -d nginx
+# 5. Web Health Check 대기
+log_info "Waiting for web-$NEW to be healthy..."
+MAX_WEB_RETRIES=30
+WEB_RETRY=0
+
+while [ $WEB_RETRY -lt $MAX_WEB_RETRIES ]; do
+    WEB_STATUS=$(docker inspect --format='{{.State.Health.Status}}' web-$NEW 2>/dev/null || echo "starting")
+
+    if [ "$WEB_STATUS" = "healthy" ]; then
+        log_success "Web health check passed!"
+        break
+    fi
+
+    WEB_RETRY=$((WEB_RETRY + 1))
+    log_info "  Retry $WEB_RETRY/$MAX_WEB_RETRIES (status: $WEB_STATUS)..."
+    sleep 2
+done
+
+if [ $WEB_RETRY -ge $MAX_WEB_RETRIES ]; then
+    log_error "Web health check failed after $MAX_WEB_RETRIES attempts"
+    log_warn "Rolling back..."
+    docker compose -f $COMPOSE_FILE --profile $NEW stop
+    exit 1
+fi
+
+# 6. Nginx 시작 (강제 재생성으로 새 설정 적용)
+log_info "Starting Nginx (force recreate)..."
+docker compose -f $COMPOSE_FILE up -d --force-recreate nginx
 
 # Nginx 상태 확인
-sleep 3
+sleep 5
 if docker ps --filter "name=nginx" --filter "status=running" | grep -q nginx; then
     log_success "Nginx started successfully"
 else
     log_error "Nginx failed to start!"
-    docker logs nginx --tail 20
+    docker logs nginx --tail 30
     exit 1
 fi
 
-# 6. 활성 환경 기록
+# Nginx health check 대기
+log_info "Waiting for Nginx to be ready..."
+NGINX_RETRY=0
+MAX_NGINX_RETRIES=10
+
+while [ $NGINX_RETRY -lt $MAX_NGINX_RETRIES ]; do
+    if curl -sf http://localhost/health > /dev/null 2>&1; then
+        log_success "Nginx is responding to health checks!"
+        break
+    fi
+
+    NGINX_RETRY=$((NGINX_RETRY + 1))
+    log_info "  Retry $NGINX_RETRY/$MAX_NGINX_RETRIES..."
+    sleep 2
+done
+
+if [ $NGINX_RETRY -ge $MAX_NGINX_RETRIES ]; then
+    log_error "Nginx health check failed"
+    docker logs nginx --tail 30
+    exit 1
+fi
+
+# 7. 활성 환경 기록
 echo "$NEW" > $ACTIVE_ENV_FILE
 log_success "Active environment updated: $NEW"
 
-# 7. 배포 버전 기록
+# 8. 배포 버전 기록
 echo "$VERSION" > $PROJECT_DIR/.deployed-version
 log_success "Deployed version recorded: $VERSION"
 
-# 8. 구 환경 종료
+# 9. 구 환경 종료
 log_info "Stopping $OLD environment..."
 docker compose -f $COMPOSE_FILE --profile $OLD stop 2>/dev/null || true
 
-# 9. 이전 이미지 정리
+# 10. 이전 이미지 정리
 log_info "Cleaning up old images..."
 docker image prune -f > /dev/null 2>&1 || true
 
