@@ -31,6 +31,7 @@ services:
     environment:
       - DB_HOST=savant_db
       - REDIS_HOST=savant_redis
+    command: ["uv", "run", "uvicorn", "main_api:app", "--host", "0.0.0.0", "--port", "${SERVER_PORT}"]
     networks:
       - savant_network
     healthcheck:
@@ -60,6 +61,7 @@ services:
     environment:
       - DB_HOST=savant_db
       - REDIS_HOST=savant_redis
+    command: ["uv", "run", "uvicorn", "main_api:app", "--host", "0.0.0.0", "--port", "${SERVER_PORT}"]
     networks:
       - savant_network
     healthcheck:
