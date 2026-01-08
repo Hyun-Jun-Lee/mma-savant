@@ -13,6 +13,7 @@ on:
 
 env:
   REGISTRY: ghcr.io
+  # github.repository는 대소문자 포함 가능, Docker는 소문자만 허용
   IMAGE_NAME: ${{ github.repository }}
 
 jobs:
@@ -44,6 +45,10 @@ jobs:
             echo "version=${{ github.ref_name }}" >> $GITHUB_OUTPUT
           fi
 
+      - name: Set lowercase image name
+        id: image
+        run: echo "name=$(echo '${{ github.repository }}' | tr '[:upper:]' '[:lower:]')" >> $GITHUB_OUTPUT
+
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
@@ -58,7 +63,7 @@ jobs:
         id: meta-api
         uses: docker/metadata-action@v5
         with:
-          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/api
+          images: ${{ env.REGISTRY }}/${{ steps.image.outputs.name }}/api
           tags: |
             type=semver,pattern={{version}}
             type=semver,pattern={{major}}.{{minor}}
@@ -68,7 +73,7 @@ jobs:
         id: meta-web
         uses: docker/metadata-action@v5
         with:
-          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/web
+          images: ${{ env.REGISTRY }}/${{ steps.image.outputs.name }}/web
           tags: |
             type=semver,pattern={{version}}
             type=semver,pattern={{major}}.{{minor}}
@@ -116,7 +121,7 @@ jobs:
             set -e
 
             VERSION="${{ needs.build-and-push.outputs.version }}"
-            REGISTRY="ghcr.io/${{ github.repository }}"
+            REGISTRY="ghcr.io/$(echo '${{ github.repository }}' | tr '[:upper:]' '[:lower:]')"
 
             cd ~/mma-savant
 
