@@ -3,6 +3,7 @@
  */
 import { EventEmitter } from 'events'
 import { getAuthToken } from './api'
+import { env } from '@/config/env'
 
 export interface RealSocketEvents {
   connect: () => void
@@ -48,10 +49,7 @@ class RealSocket extends EventEmitter {
       this.conversationId = conversationId || null
       
       // WebSocket URL 구성 (API URL에서 자동 변환: http→ws, https→wss)
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL
-      if (!apiUrl) {
-        throw new Error('NEXT_PUBLIC_API_URL environment variable is not set')
-      }
+      const apiUrl = env.API_BASE_URL
       const wsUrl = apiUrl.replace(/^http/, 'ws')
       const params = new URLSearchParams({
         token: jwtToken

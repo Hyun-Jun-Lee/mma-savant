@@ -2,12 +2,9 @@
  * 인증 API 서비스
  * 회원가입, 로그인 등 인증 관련 API 호출
  */
+import { env } from '@/config/env'
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL
-
-if (!API_BASE_URL) {
-  throw new Error('NEXT_PUBLIC_API_URL environment variable is not set')
-}
+const API_BASE_URL = env.API_BASE_URL
 
 export interface SignupRequest {
   username: string
