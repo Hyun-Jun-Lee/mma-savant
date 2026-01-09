@@ -96,8 +96,7 @@ jobs:
           push: true
           tags: ${{ steps.meta-web.outputs.tags }}
           labels: ${{ steps.meta-web.outputs.labels }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          no-cache: true
           build-args: |
             NEXT_PUBLIC_API_URL=${{ secrets.PROD_API_URL }}
 
