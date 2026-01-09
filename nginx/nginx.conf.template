@@ -15,6 +15,25 @@ http {
     access_log /var/log/nginx/access.log main;
     error_log /var/log/nginx/error.log warn;
 
+    # =============================================================================
+    # Rate Limiting 설정
+    # =============================================================================
+
+    # API 전체: IP당 초당 10개 요청 (10m = 약 160,000개 IP 저장 가능)
+    limit_req_zone $binary_remote_addr zone=api_limit:10m rate=10r/s;
+
+    # 인증 관련: IP당 분당 10개 요청 (무차별 대입 공격 방지)
+    limit_req_zone $binary_remote_addr zone=auth_limit:10m rate=10r/m;
+
+    # WebSocket 연결: IP당 분당 30개 연결
+    limit_req_zone $binary_remote_addr zone=ws_limit:10m rate=30r/m;
+
+    # 일반 페이지: IP당 초당 20개 요청
+    limit_req_zone $binary_remote_addr zone=general_limit:10m rate=20r/s;
+
+    # Rate limit 초과 시 응답 상태 코드
+    limit_req_status 429;
+
     # 성능 설정
     sendfile on;
     tcp_nopush on;
@@ -43,11 +62,68 @@ http {
         listen 80;
         server_name _;
 
-        # 클라이언트 요청 크기 제한
+        # =============================================================================
+        # 보안 헤더 설정
+        # =============================================================================
+
+        # Clickjacking 방지 - iframe 삽입 차단
+        add_header X-Frame-Options "DENY" always;
+
+        # MIME 타입 스니핑 방지
+        add_header X-Content-Type-Options "nosniff" always;
+
+        # XSS 필터 활성화 (레거시 브라우저용)
+        add_header X-XSS-Protection "1; mode=block" always;
+
+        # Referrer 정보 제한
+        add_header Referrer-Policy "strict-origin-when-cross-origin" always;
+
+        # 권한 정책 (카메라, 마이크 등 브라우저 기능 제한)
+        add_header Permissions-Policy "camera=(), microphone=(), geolocation=()" always;
+
+        # Content Security Policy - XSS 및 데이터 인젝션 공격 방지
+        # Note: 'unsafe-inline'은 Next.js/React에서 필요, 'unsafe-eval'은 프로덕션에서 제거 권장
+        add_header Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' data:; connect-src 'self' wss: https:; frame-ancestors 'none';" always;
+
+        # 서버 정보 숨기기
+        server_tokens off;
+
+        # =============================================================================
+        # 클라이언트 요청 제한
+        # =============================================================================
         client_max_body_size 10M;
 
-        # API 라우팅
+        # =============================================================================
+        # 인증 API (엄격한 Rate Limit)
+        # =============================================================================
+        location /api/auth/login {
+            limit_req zone=auth_limit burst=5 nodelay;
+
+            proxy_pass http://api_backend;
+            proxy_http_version 1.1;
+            proxy_set_header Host $host;
+            proxy_set_header X-Real-IP $remote_addr;
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+            proxy_set_header X-Forwarded-Proto $scheme;
+        }
+
+        location /api/auth/signup {
+            limit_req zone=auth_limit burst=3 nodelay;
+
+            proxy_pass http://api_backend;
+            proxy_http_version 1.1;
+            proxy_set_header Host $host;
+            proxy_set_header X-Real-IP $remote_addr;
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+            proxy_set_header X-Forwarded-Proto $scheme;
+        }
+
+        # =============================================================================
+        # API 라우팅 (일반 Rate Limit)
+        # =============================================================================
         location /api {
+            limit_req zone=api_limit burst=20 nodelay;
+
             proxy_pass http://api_backend;
             proxy_http_version 1.1;
             proxy_set_header Host $host;
@@ -61,8 +137,12 @@ http {
             proxy_read_timeout 60s;
         }
 
+        # =============================================================================
         # WebSocket 지원 (채팅 등)
+        # =============================================================================
         location /ws {
+            limit_req zone=ws_limit burst=5 nodelay;
+
             proxy_pass http://api_backend;
             proxy_http_version 1.1;
             proxy_set_header Upgrade $http_upgrade;
