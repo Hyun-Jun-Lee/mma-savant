@@ -4,7 +4,6 @@ MMA Savant FastAPI 애플리케이션
 """
 import os
 from contextlib import asynccontextmanager
-from dotenv import load_dotenv
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -12,18 +11,19 @@ from fastapi.middleware.cors import CORSMiddleware
 from api.main import api_router
 from config import Config
 
-# 환경변수 로딩
-load_dotenv()
-
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """애플리케이션 생명주기 관리"""
     # 시작시 실행
     print("🚀 MMA Savant API starting...")
-    
+
+    # Admin 계정 생성 (필요시)
+    from user.services import create_admin_user_if_needed
+    await create_admin_user_if_needed(Config.ADMIN_USERNAME, Config.ADMIN_PW)
+
     yield
-    
+
     # 종료시 실행
     print("🛑 MMA Savant API shutting down...")
 

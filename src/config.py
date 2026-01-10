@@ -45,6 +45,10 @@ class Config:
     ACCESS_TOKEN_EXPIRE_MINUTES: int = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", 60 * 24))
     TOKEN_ALGORITHM: str = os.getenv("TOKEN_ALGORITHM")
 
+    # Admin 계정 설정 (필수)
+    ADMIN_USERNAME: str = os.getenv("ADMIN_USERNAME")
+    ADMIN_PW: str = os.getenv("ADMIN_PW")
+
     # =============================================================================
     # 운영 설정 (Database, Server, Redis)
     # =============================================================================

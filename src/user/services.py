@@ -705,3 +705,64 @@ async def get_admin_stats(session: AsyncSession) -> AdminStatsResponse:
 
     except Exception as e:
         raise UserQueryError("get_admin_stats", {}, str(e))
+
+
+#############################
+###### STARTUP SERVICES #####
+#############################
+
+async def create_admin_user_if_needed(
+    admin_username: str | None,
+    admin_pw: str | None
+) -> bool:
+    """
+    admin_username, admin_pw가 설정되어 있으면 admin 계정 생성.
+    이미 존재하면 건너뜀.
+
+    Returns:
+        True: 새 admin 생성됨
+        False: 생성 건너뜀 (이미 존재하거나 설정 없음)
+    """
+    if not admin_username or not admin_pw:
+        print("ℹ️  ADMIN_USERNAME/ADMIN_PW not set, skipping admin creation")
+        return False
+
+    from database.connection.postgres_conn import get_async_db_context
+    from user.models import UserModel
+    from sqlalchemy import select
+
+    try:
+        async with get_async_db_context() as session:
+            # 이미 존재하는지 확인
+            result = await session.execute(
+                select(UserModel).where(UserModel.username == admin_username)
+            )
+            existing_user = result.scalar_one_or_none()
+
+            if existing_user:
+                print(f"ℹ️  Admin user '{admin_username}' already exists")
+                return False
+
+            # 비밀번호 해싱
+            password_hash = _hash_password(admin_pw)
+
+            # Admin 사용자 생성
+            admin_user = UserModel(
+                username=admin_username,
+                password_hash=password_hash,
+                is_active=True,
+                is_admin=True,
+                daily_request_limit=10000,
+                total_requests=0,
+                daily_requests=0
+            )
+
+            session.add(admin_user)
+            await session.commit()
+
+            print(f"✅ Admin user '{admin_username}' created successfully")
+            return True
+
+    except Exception as e:
+        print(f"⚠️  Failed to create admin user: {e}")
+        return False
