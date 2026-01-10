@@ -163,6 +163,27 @@ services:
       timeout: 5s
       retries: 5
 
+  # =============================================================================
+  # Flow Serve (Prefect Worker - 수동 관리)
+  # 사용법: docker compose -f docker-compose.prod.yml up -d flow_serve
+  # =============================================================================
+  flow_serve:
+    image: ${REGISTRY}/api:${IMAGE_VERSION:-latest}
+    container_name: flow_serve
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      - DB_HOST=savant_db
+    command: ["uv", "run", "python", "-m", "data_collector.workflows.ufc_stats_flow"]
+    networks:
+      - savant_network
+    depends_on:
+      savant_db:
+        condition: service_healthy
+    profiles:
+      - manual
+
 networks:
   savant_network:
     driver: bridge
