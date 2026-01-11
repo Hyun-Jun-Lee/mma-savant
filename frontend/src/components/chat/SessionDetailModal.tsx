@@ -26,6 +26,7 @@ export function SessionDetailModal({ sessionId, isOpen, onClose, sessionTitle }:
     if (isOpen && sessionId) {
       loadSessionDetails()
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen, sessionId])
 
   const loadSessionDetails = async () => {
