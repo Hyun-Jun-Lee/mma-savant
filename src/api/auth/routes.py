@@ -18,7 +18,7 @@ from user.exceptions import (
     UserAuthenticationError, UserPasswordError
 )
 
-router = APIRouter(prefix="/api/auth", tags=["Authentication"])
+router = APIRouter(prefix="/api/user", tags=["Authentication"])
 
 
 class GoogleTokenRequest(BaseModel):

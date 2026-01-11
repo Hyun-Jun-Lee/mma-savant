@@ -61,7 +61,7 @@ export async function getAuthToken(): Promise<string | null> {
     }
 
     // 백엔드에서 JWT 토큰 생성 요청
-    const response = await fetch(`${API_BASE_URL}/api/auth/google-token`, {
+    const response = await fetch(`${API_BASE_URL}/api/user/google-token`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',

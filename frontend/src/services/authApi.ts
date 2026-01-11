@@ -44,7 +44,7 @@ export const AuthApiService = {
    * 회원가입
    */
   async signup(data: SignupRequest): Promise<AuthResponse> {
-    const response = await fetch(`${API_BASE_URL}/api/auth/signup`, {
+    const response = await fetch(`${API_BASE_URL}/api/user/signup`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -73,7 +73,7 @@ export const AuthApiService = {
    * 로그인
    */
   async login(data: LoginRequest): Promise<AuthResponse> {
-    const response = await fetch(`${API_BASE_URL}/api/auth/login`, {
+    const response = await fetch(`${API_BASE_URL}/api/user/login`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
