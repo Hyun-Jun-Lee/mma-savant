@@ -132,7 +132,7 @@ done
 if [ $RETRY -ge $MAX_RETRIES ]; then
     log_error "Health check failed after $MAX_RETRIES attempts"
     log_warn "Rolling back..."
-    docker compose -f $COMPOSE_FILE --profile $NEW stop
+    docker stop api-$NEW web-$NEW 2>/dev/null || true
     exit 1
 fi
 
@@ -157,7 +157,7 @@ done
 if [ $WEB_RETRY -ge $MAX_WEB_RETRIES ]; then
     log_error "Web health check failed after $MAX_WEB_RETRIES attempts"
     log_warn "Rolling back..."
-    docker compose -f $COMPOSE_FILE --profile $NEW stop
+    docker stop api-$NEW web-$NEW 2>/dev/null || true
     exit 1
 fi
 

@@ -1,4 +1,23 @@
 services:
+  # =============================================================================
+  # Nginx (리버스 프록시) - 프로덕션과 동일한 라우팅 테스트
+  # =============================================================================
+  nginx:
+    image: nginx:alpine
+    container_name: nginx
+    ports:
+      - "80:80"
+    volumes:
+      - ./nginx/nginx.local.conf:/etc/nginx/nginx.conf:ro
+    depends_on:
+      - savant_api
+      - savant_web
+    networks:
+      - savant_network
+
+  # =============================================================================
+  # API Server (FastAPI)
+  # =============================================================================
   savant_api:
     build:
       context: .
@@ -11,27 +30,13 @@ services:
       - DB_HOST=savant_db
       - REDIS_HOST=savant_redis
     ports:
-      - "${SERVER_PORT:-8000}:${SERVER_PORT:-8000}"
+      - "127.0.0.1:${SERVER_PORT:-8000}:${SERVER_PORT:-8000}"
     command: ["sh", "-c", "uv run uvicorn main_api:app --host 0.0.0.0 --port ${SERVER_PORT:-8000}"]
     depends_on:
       - savant_db
       - savant_redis
-
-  flow_serve:
-    build:
-      context: .
-      dockerfile: Dockerfile_serve
-    container_name: flow_serve
-    env_file:
-      - .env
-    environment:
-      - DB_HOST=savant_db
-    command: ["uv", "run", "python", "-m", "data_collector.workflows.ufc_stats_flow"]
-    # 개발 시 소스 코드 마운트 (선택)
-    # volumes:
-    #   - ./src:/app
-    depends_on:
-      - savant_db
+    networks:
+      - savant_network
 
   savant_db:
     image: postgres:16
@@ -50,17 +55,21 @@ services:
     volumes:
       - savant_db:/var/lib/postgresql/data
       - ./init_sqls:/docker-entrypoint-initdb.d
+    networks:
+      - savant_network
 
   savant_redis:
     container_name: savant_redis
     image: redis:8.0-alpine
     command: redis-server --requirepass ${REDIS_PASSWORD}
     ports:
-      - "6379:6379"
+      - "127.0.0.1:6379:6379"
     volumes:
       - savant_redis_data:/data
     environment:
       - REDIS_PASSWORD=${REDIS_PASSWORD}
+    networks:
+      - savant_network
 
   savant_web:
     build:
@@ -70,13 +79,26 @@ services:
     env_file:
       - .env
     environment:
-      - NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL}
+      # nginx를 통해 API 호출 (프로덕션과 동일한 흐름)
+      - NEXT_PUBLIC_API_URL=http://localhost
+      # NextAuth.js 설정
+      - NEXTAUTH_URL=http://localhost
+      - NEXTAUTH_SECRET=${NEXTAUTH_SECRET}
+      # Google OAuth
+      - GOOGLE_CLIENT_ID=${OAUTH_GOOGLE_CLIENT_ID}
+      - GOOGLE_CLIENT_SECRET=${OAUTH_GOOGLE_CLIENT_SECRET}
+    # nginx를 통해 접근하므로 직접 포트 노출은 개발 디버깅용
     ports:
-      - "3000:3000"
-    command: ["npm", "run", "dev"]
+      - "127.0.0.1:3001:3001"
+    command: ["npm", "run", "dev", "--", "-p", "3001"]
     depends_on:
       - savant_api
+    networks:
+      - savant_network
 
+networks:
+  savant_network:
+    driver: bridge
 
 volumes:
   savant_db:
