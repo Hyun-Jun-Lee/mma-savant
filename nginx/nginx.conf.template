@@ -55,7 +55,7 @@ http {
     }
 
     upstream web_backend {
-        server ${ACTIVE_WEB}:3001;
+        server ${ACTIVE_WEB}:3000;
     }
 
     server {
