@@ -63,7 +63,8 @@ if [ -f "$NGINX_TEMPLATE" ]; then
     export ACTIVE_API=api-$NEW
     export ACTIVE_WEB=web-$NEW
     export SERVER_PORT=$(grep -E "^SERVER_PORT=" $PROJECT_DIR/.env | cut -d'=' -f2)
-    envsubst '${ACTIVE_API} ${ACTIVE_WEB} ${SERVER_PORT}' < $NGINX_TEMPLATE > $NGINX_CONF
+    export DOMAIN_NAME=$(grep -E "^DOMAIN_NAME=" $PROJECT_DIR/.env | cut -d'=' -f2 || echo "_")
+    envsubst '${ACTIVE_API} ${ACTIVE_WEB} ${SERVER_PORT} ${DOMAIN_NAME}' < $NGINX_TEMPLATE > $NGINX_CONF
     log_success "Nginx configuration generated for $NEW environment"
 else
     log_error "Nginx template not found at $NGINX_TEMPLATE"
