@@ -55,20 +55,15 @@
    ### Git 명령어
 
    ```bash
-   git tag -a v0.2.0 -m "$(cat <<'EOF'
-   v0.2.0 - 사용자 인증 기능 추가
-
-   ## Features
-   - JWT 기반 사용자 인증 구현
-   - 소셜 로그인 (Google, GitHub) 지원
-
-   ## Bug Fixes
-   - 로그인 타임아웃 문제 해결
-
-   ## Changes
-   - 의존성 업데이트
-   EOF
-   )"
+   git tag -a v0.2.0 \
+     -m "v0.2.0 - 사용자 인증 기능 추가" \
+     -m "## Features" \
+     -m "- JWT 기반 사용자 인증 구현" \
+     -m "- 소셜 로그인 (Google, GitHub) 지원" \
+     -m "## Bug Fixes" \
+     -m "- 로그인 타임아웃 문제 해결" \
+     -m "## Changes" \
+     -m "- 의존성 업데이트"
    ```
 
    **태그 푸시**:
