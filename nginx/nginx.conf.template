@@ -22,8 +22,8 @@ http {
     # API 전체: IP당 초당 10개 요청 (10m = 약 160,000개 IP 저장 가능)
     limit_req_zone $binary_remote_addr zone=api_limit:10m rate=10r/s;
 
-    # 인증 관련: IP당 분당 10개 요청 (무차별 대입 공격 방지)
-    limit_req_zone $binary_remote_addr zone=auth_limit:10m rate=10r/m;
+    # 인증 관련: IP당 분당 30개 요청 (NextAuth.js 세션 체크 포함)
+    limit_req_zone $binary_remote_addr zone=auth_limit:10m rate=30r/m;
 
     # WebSocket 연결: IP당 분당 30개 연결
     limit_req_zone $binary_remote_addr zone=ws_limit:10m rate=30r/m;
