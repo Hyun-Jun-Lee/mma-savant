@@ -22,8 +22,8 @@ http {
     # API 전체: IP당 초당 10개 요청 (10m = 약 160,000개 IP 저장 가능)
     limit_req_zone $binary_remote_addr zone=api_limit:10m rate=10r/s;
 
-    # 인증 관련: IP당 분당 30개 요청 (NextAuth.js 세션 체크 포함)
-    limit_req_zone $binary_remote_addr zone=auth_limit:10m rate=30r/m;
+    # 인증 관련: IP당 분당 20개 요청 (무차별 대입 공격 방지)
+    limit_req_zone $binary_remote_addr zone=auth_limit:10m rate=20r/m;
 
     # WebSocket 연결: IP당 분당 30개 연결
     limit_req_zone $binary_remote_addr zone=ws_limit:10m rate=30r/m;
@@ -156,11 +156,9 @@ http {
         client_max_body_size 10M;
 
         # =============================================================================
-        # NextAuth.js 인증 (Next.js 프론트엔드로 라우팅)
+        # NextAuth.js 인증 (Next.js 프론트엔드로 라우팅 - OAuth 내부 플로우이므로 Rate Limit 없음)
         # =============================================================================
         location /api/auth {
-            limit_req zone=auth_limit burst=10 nodelay;
-
             proxy_pass http://web_backend;
             proxy_http_version 1.1;
             proxy_set_header Host $host;
