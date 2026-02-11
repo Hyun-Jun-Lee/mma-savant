@@ -67,7 +67,7 @@ class Config:
     # API Server Settings
     SERVER_HOST: str = os.getenv("SERVER_HOST", "0.0.0.0")
     SERVER_PORT: int = int(os.getenv("SERVER_PORT", "8000"))
-    CORS_ORIGINS: List[str] = os.getenv("CORS_ORIGINS", "http://localhost:3000").split(",")
+    CORS_ORIGINS: List[str] = os.getenv("CORS_ORIGINS", "http://localhost").split(",")
 
     # =============================================================================
     # LLM 및 Agent 설정
