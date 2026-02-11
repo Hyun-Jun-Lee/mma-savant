@@ -23,11 +23,10 @@ export function ChatContainer() {
   const router = useRouter()
   const [error, setError] = useState<string | null>(null)
 
-  // 컴포넌트 마운트 시 세션 목록 로드 (자동 전환 제거 - 새 대화로 시작)
+  // WebSocket 연결 완료 후 세션 목록 로드 (토큰이 준비된 상태에서 실행)
   useEffect(() => {
     const initializeData = async () => {
       try {
-        // 기존 세션 목록 로드 (사이드바에서 이전 대화 확인용)
         await loadSessions()
       } catch (error) {
         console.error('Failed to load sessions:', error)
@@ -35,10 +34,10 @@ export function ChatContainer() {
       }
     }
 
-    if (user) {
+    if (user && isConnected) {
       initializeData()
     }
-  }, [user, loadSessions])
+  }, [user, isConnected, loadSessions])
 
   const handleSendMessage = async (message: string) => {
     try {
