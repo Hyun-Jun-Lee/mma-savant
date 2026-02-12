@@ -7,7 +7,7 @@ import { useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { useChatStore } from '@/store/chatStore'
 import { ChatApiService } from '@/services/chatApi'
-import { handleApiError } from '@/lib/api'
+import { handleApiError, ApiError } from '@/lib/api'
 import { ChatSession, Message } from '@/types/chat'
 import { ChatSessionResponse } from '@/types/api'
 
@@ -54,8 +54,10 @@ export function useChatSession() {
       return session
     } catch (error) {
       console.error('Failed to create session:', error)
-      alert(`세션 생성 실패: ${handleApiError(error)}`)
-      router.push('/')
+      const isAuthError = error instanceof ApiError && error.status === 401
+      if (isAuthError) {
+        router.push('/')
+      }
       return null
     }
   }, [addSession, setCurrentSession, clearChat, convertApiResponseToSession, router])
@@ -71,8 +73,11 @@ export function useChatSession() {
       setSessions(convertedSessions)
     } catch (error) {
       console.error('Failed to load sessions:', error)
-      alert(`세션 목록 로드 실패: ${handleApiError(error)}`)
-      router.push('/')
+      // 인증 오류(401)만 홈으로 리다이렉트, 그 외는 조용히 실패
+      const isAuthError = error instanceof ApiError && error.status === 401
+      if (isAuthError) {
+        router.push('/')
+      }
     } finally {
       setSessionsLoading(false)
     }
@@ -92,8 +97,10 @@ export function useChatSession() {
       return true
     } catch (error) {
       console.error('Failed to switch session:', error)
-      alert(`세션 전환 실패: ${handleApiError(error)}`)
-      router.push('/')
+      const isAuthError = error instanceof ApiError && error.status === 401
+      if (isAuthError) {
+        router.push('/')
+      }
       return false
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -115,8 +122,10 @@ export function useChatSession() {
       loadMessagesFromHistory(messages)
     } catch (error) {
       console.error('Failed to load chat history:', error)
-      alert(`채팅 히스토리 로드 실패: ${handleApiError(error)}`)
-      router.push('/')
+      const isAuthError = error instanceof ApiError && error.status === 401
+      if (isAuthError) {
+        router.push('/')
+      }
     } finally {
       setHistoryLoading(false)
     }
@@ -138,8 +147,10 @@ export function useChatSession() {
       return true
     } catch (error) {
       console.error('Failed to delete session:', error)
-      alert(`세션 삭제 실패: ${handleApiError(error)}`)
-      router.push('/')
+      const isAuthError = error instanceof ApiError && error.status === 401
+      if (isAuthError) {
+        router.push('/')
+      }
       return false
     }
   }, [removeSession, currentSession, setCurrentSession, clearChat, router])
@@ -156,8 +167,10 @@ export function useChatSession() {
       return true
     } catch (error) {
       console.error('Failed to update session title:', error)
-      alert(`제목 수정 실패: ${handleApiError(error)}`)
-      router.push('/')
+      const isAuthError = error instanceof ApiError && error.status === 401
+      if (isAuthError) {
+        router.push('/')
+      }
       return false
     }
   }, [updateSession, convertApiResponseToSession, router])
