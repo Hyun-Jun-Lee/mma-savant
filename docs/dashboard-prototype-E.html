@@ -240,7 +240,7 @@
       <div class="chart-area"><canvas id="c7"></canvas></div>
     </div>
     <div class="b-card span-2c tall" data-cat="striking" data-d="80">
-      <div class="title">타격 정확도 TOP</div><div class="desc">Sig. Strikes Accuracy Leaders</div>
+      <div class="title">타격 정확도 TOP</div><div class="desc">Attempted vs Landed — Bullet Chart</div>
       <div class="chart-area"><canvas id="c5"></canvas></div>
     </div>
 
@@ -271,7 +271,7 @@
     </div>
 
     <div class="b-card span-2c tall" data-cat="grappling" data-d="0">
-      <div class="title">테이크다운 성공률 TOP</div><div class="desc">TD Accuracy Leaders</div>
+      <div class="title">테이크다운 성공률 TOP</div><div class="desc">Attempted vs Landed — Bullet Chart</div>
       <div class="chart-area"><canvas id="c8"></canvas></div>
     </div>
     <div class="b-card span-2c tall" data-cat="grappling" data-d="80">
@@ -283,7 +283,7 @@
       <div class="chart-area"><canvas id="c10"></canvas></div>
     </div>
     <div class="b-card tall" data-cat="grappling" data-d="220">
-      <div class="title">그라운드 스트라이크</div><div class="desc">Ground Strike Leaders</div>
+      <div class="title">그라운드 스트라이크</div><div class="desc">Attempted vs Landed (Bubble)</div>
       <div class="chart-area"><canvas id="c11"></canvas></div>
     </div>
     <div class="b-card span-2c tall" data-cat="grappling" data-d="280">
@@ -384,8 +384,17 @@ document.getElementById('wc-tabs').addEventListener('click',e=>{const p=e.target
 // 4 Rounds — % bar chart with avg reference line at 2.1R
 new Chart(document.getElementById('c4'),{type:'bar',data:{labels:['R1','R2','R3','R4','R5'],datasets:[{data:[40.1,22.9,27.4,2.9,6.7],backgroundColor:['rgba(239,68,68,0.6)','rgba(245,158,11,0.6)','rgba(16,185,129,0.6)','rgba(6,182,212,0.6)','rgba(139,92,246,0.6)'],borderRadius:5,borderSkipped:false}]},options:{...co,scales:{y:{beginAtZero:true,max:50,...lightGrid,ticks:{callback:v=>v+'%'}},x:noGrid},plugins:{legend:{display:false},tooltip:{callbacks:{label:ctx=>{const counts=[2890,1650,1980,210,484];return ctx.parsed.y+'% ('+counts[ctx.dataIndex].toLocaleString()+'경기)'}}},annotation:{annotations:{avgLine:{type:'line',xMin:1.1,xMax:1.1,borderColor:'rgba(255,255,255,0.35)',borderWidth:1.5,borderDash:[6,4],label:{display:true,content:'평균 2.1R',position:'start',backgroundColor:'rgba(0,0,0,0.6)',color:'#d4d4d8',font:{size:11,weight:500},padding:4}}}}}}});
 
-// 5 Accuracy
-new Chart(document.getElementById('c5'),{type:'bar',data:{labels:['Holloway','Adesanya','Kattar','Volkanovski','Yan','Moreno','Poirier','Aldo'],datasets:[{data:[62.1,58.3,56.7,55.9,54.8,54.2,53.8,53.1],backgroundColor:'rgba(239,68,68,0.5)',borderRadius:3}]},options:{...co,indexAxis:'y',scales:{x:{beginAtZero:true,max:70,...lightGrid,ticks:{callback:v=>v+'%'}},y:noGrid},plugins:{legend:{display:false}}}});
+// 5 Striking Accuracy — Bullet Chart (attempted vs landed overlay)
+const accFighters=['Holloway','Adesanya','Kattar','Volkanovski','Yan','Moreno','Poirier','Aldo'];
+const accAttempted=[3200,2800,2400,2600,2200,1800,2500,2100];
+const accLanded=[1987,1633,1361,1453,1206,976,1345,1115];
+const accPct=[62.1,58.3,56.7,55.9,54.8,54.2,53.8,53.1];
+function accColor(v){return v>=62?'#8b5cf6':v>=55?'#7c3aed':'#6d28d9';}
+new Chart(document.getElementById('c5'),{type:'bar',data:{labels:accFighters,datasets:[
+  {label:'Attempted',data:accAttempted,backgroundColor:'rgba(139,92,246,0.1)',barPercentage:0.85,categoryPercentage:0.9,borderRadius:3,order:1},
+  {label:'Landed',data:accLanded,backgroundColor:accPct.map(v=>accColor(v)),barPercentage:0.45,categoryPercentage:0.9,borderRadius:3,order:0,
+    datalabels:{display:true,anchor:'end',align:'right',color:'#a1a1aa',font:{size:10,weight:600},formatter:(v,ctx)=>accPct[ctx.dataIndex]+'%'}}
+]},options:{...co,indexAxis:'y',scales:{y:{stacked:true,...noGrid},x:{stacked:false,beginAtZero:true,...lightGrid}},plugins:{legend:{display:false},tooltip:{callbacks:{label:ctx=>ctx.dataset.label+': '+ctx.raw.toLocaleString()+(ctx.datasetIndex===1?' ('+accPct[ctx.dataIndex]+'%)':'')}}}}});
 
 // 6 Leaderboard
 new Chart(document.getElementById('c6'),{type:'bar',data:{labels:['Jim Miller','Donald Cerrone','Andrei Arlovski','Rafael dos Anjos','Clay Guida','Demian Maia','Charles Oliveira','Neil Magny','Max Holloway','Alistair Overeem'],datasets:[{label:'Wins',data:[26,23,22,21,20,19,19,19,18,18],backgroundColor:C.map(c=>c+'99'),borderRadius:4}]},options:{...co,indexAxis:'y',scales:{x:{beginAtZero:true,...lightGrid},y:noGrid},plugins:{legend:{display:false}}}});
@@ -396,11 +405,41 @@ new Chart(document.getElementById('c7'),{type:'radar',data:{labels:['Head','Body
 // 13 KO/TKO Artists
 new Chart(document.getElementById('c13'),{type:'bar',data:{labels:['Derrick Lewis','Vitor Belfort','Anderson Silva','Matt Brown','Alistair Overeem','Jeremy Stephens','Thiago Santos','Jairzinho Rozenstruik','Cain Velasquez','Chuck Liddell'],datasets:[{label:'KO',data:[14,9,8,7,8,6,5,6,5,7],backgroundColor:'rgba(239,68,68,0.7)',borderRadius:3},{label:'TKO',data:[7,7,7,8,5,5,7,3,4,1],backgroundColor:'rgba(245,158,11,0.5)',borderRadius:3}]},options:{...co,indexAxis:'y',scales:{x:{beginAtZero:true,...lightGrid,stacked:true},y:{...noGrid,stacked:true}},plugins:{legend:{position:'top'}}}});
 
-// 14 Sig Strikes Per Fight
-new Chart(document.getElementById('c14'),{type:'bar',data:{labels:['Max Holloway','Zhang Weili','Joanna J.','Calvin Kattar','Colby Covington','Cory Sandhagen','Brandon Moreno','Valentina Shevchenko'],datasets:[{data:[7.49,7.12,6.89,6.72,6.54,6.38,6.21,6.05],backgroundColor:'rgba(236,72,153,0.5)',borderRadius:3}]},options:{...co,indexAxis:'y',scales:{x:{beginAtZero:true,...lightGrid,ticks:{callback:v=>v.toFixed(1)+'/min'}},y:noGrid},plugins:{legend:{display:false}}}});
+// 14 Sig Strikes Per Fight — Lollipop Chart (stem + dot)
+const sigData=[
+  {name:'Max Holloway',sig:7.49,fights:32},{name:'Zhang Weili',sig:7.12,fights:14},{name:'Joanna J.',sig:6.89,fights:20},
+  {name:'Calvin Kattar',sig:6.72,fights:16},{name:'Colby Covington',sig:6.54,fights:18},{name:'Cory Sandhagen',sig:6.38,fights:12},
+  {name:'Brandon Moreno',sig:6.21,fights:16},{name:'V. Shevchenko',sig:6.05,fights:18}];
+const sigAvg=sigData.reduce((s,d)=>s+d.sig,0)/sigData.length;
+const lollipopPlugin={id:'lollipopDots',afterDatasetsDraw(chart){
+  if(!chart.canvas.id||chart.canvas.id!=='c14')return;
+  const meta=chart.getDatasetMeta(0);const ctx=chart.ctx;
+  meta.data.forEach((bar,i)=>{
+    const x=bar.x;const y=bar.y;
+    const r=Math.max(6,Math.min(14,sigData[i].fights*0.45));
+    ctx.save();
+    ctx.beginPath();ctx.arc(x,y,r+4,0,Math.PI*2);ctx.fillStyle='rgba(245,158,11,0.12)';ctx.fill();
+    ctx.beginPath();ctx.arc(x,y,r,0,Math.PI*2);ctx.fillStyle='rgba(245,158,11,0.85)';ctx.fill();
+    ctx.fillStyle='#71717a';ctx.font='10px -apple-system,BlinkMacSystemFont,sans-serif';ctx.textAlign='left';ctx.textBaseline='middle';
+    ctx.fillText(sigData[i].fights+'F',x+r+6,y);
+    ctx.restore();
+  });
+}};
+new Chart(document.getElementById('c14'),{type:'bar',data:{labels:sigData.map(d=>d.name),datasets:[
+  {data:sigData.map(d=>d.sig),backgroundColor:'rgba(245,158,11,0.5)',barPercentage:0.06,categoryPercentage:0.9,borderRadius:0}
+]},options:{...co,indexAxis:'y',scales:{x:{beginAtZero:true,...lightGrid,ticks:{callback:v=>v.toFixed(1)+'/min'}},y:noGrid},plugins:{legend:{display:false},annotation:{annotations:{avgLine:{type:'line',xMin:sigAvg,xMax:sigAvg,borderColor:'rgba(255,255,255,0.3)',borderWidth:1.5,borderDash:[6,4],label:{display:true,content:'AVG '+sigAvg.toFixed(1),position:'start',backgroundColor:'rgba(0,0,0,0.6)',color:'#d4d4d8',font:{size:10},padding:3}}}}}},plugins:[lollipopPlugin]});
 
-// 8 TD
-new Chart(document.getElementById('c8'),{type:'bar',data:{labels:['Khabib','Makhachev','Usman','Covington','Muhammad','Dvalishvili','Nickal','Mitchell'],datasets:[{data:[63.2,61.5,57.8,55.4,54.9,52.1,51.8,50.3],backgroundColor:'rgba(6,182,212,0.5)',borderRadius:3}]},options:{...co,indexAxis:'y',scales:{x:{beginAtZero:true,max:70,...lightGrid,ticks:{callback:v=>v+'%'}},y:noGrid},plugins:{legend:{display:false}}}});
+// 8 Takedown Accuracy — Bullet Chart (attempted vs landed overlay)
+const tdFighters=['Khabib','Makhachev','Usman','Covington','Muhammad','Dvalishvili','Nickal','Mitchell'];
+const tdAttempted=[210,185,165,148,138,172,48,52];
+const tdLanded=[133,114,95,82,76,90,25,26];
+const tdPct=[63.2,61.5,57.8,55.4,54.9,52.1,51.8,50.3];
+function tdColor(v){return v>=58?'#10b981':v>=52?'#059669':'#047857';}
+new Chart(document.getElementById('c8'),{type:'bar',data:{labels:tdFighters,datasets:[
+  {label:'Attempted',data:tdAttempted,backgroundColor:'rgba(16,185,129,0.1)',barPercentage:0.85,categoryPercentage:0.9,borderRadius:3,order:1},
+  {label:'Landed',data:tdLanded,backgroundColor:tdPct.map(v=>tdColor(v)),barPercentage:0.45,categoryPercentage:0.9,borderRadius:3,order:0,
+    datalabels:{display:true,anchor:'end',align:'right',color:'#a1a1aa',font:{size:10,weight:600},formatter:(v,ctx)=>tdPct[ctx.dataIndex]+'%'}}
+]},options:{...co,indexAxis:'y',scales:{y:{stacked:true,...noGrid},x:{stacked:false,beginAtZero:true,...lightGrid}},plugins:{legend:{display:false},tooltip:{callbacks:{label:ctx=>ctx.dataset.label+': '+ctx.raw.toLocaleString()+(ctx.datasetIndex===1?' ('+tdPct[ctx.dataIndex]+'%)':'')}}}}});
 
 // 9 Sub tech
 new Chart(document.getElementById('c9'),{type:'bar',data:{labels:['RNC','Guillotine','Armbar','Triangle','D\'Arce','Arm Tri','Kimura','Anaconda'],datasets:[{data:[412,287,256,134,89,78,72,45],backgroundColor:C.map(c=>c+'88'),borderRadius:3}]},options:{...co,indexAxis:'y',scales:{x:{beginAtZero:true,...lightGrid},y:noGrid},plugins:{legend:{display:false}}}});
@@ -408,8 +447,22 @@ new Chart(document.getElementById('c9'),{type:'bar',data:{labels:['RNC','Guillot
 // 10 Control
 new Chart(document.getElementById('c10'),{type:'bar',data:{labels:['HW','WW','LHW','MW','LW','BW','FW','FLW'],datasets:[{data:[142,136,128,119,112,105,98,94],backgroundColor:'rgba(6,182,212,0.5)',borderRadius:5}]},options:{...co,scales:{y:{beginAtZero:true,...lightGrid,ticks:{callback:v=>{const m=Math.floor(v/60);return m+':'+(v%60<10?'0':'')+(v%60);}}},x:noGrid},plugins:{legend:{display:false}}}});
 
-// 11 Ground
-new Chart(document.getElementById('c11'),{type:'bar',data:{labels:['Khabib','Makhachev','Maia','Oliveira','Teixeira','Dvalishvili','Jones','Usman'],datasets:[{data:[389,342,298,276,265,248,234,221],backgroundColor:'rgba(20,184,166,0.5)',borderRadius:3}]},options:{...co,indexAxis:'y',scales:{x:{beginAtZero:true,...lightGrid},y:noGrid},plugins:{legend:{display:false}}}});
+// 11 Ground Strikes — Bubble Chart (attempted vs landed, size=accuracy)
+const gsFighters=[
+  {name:'Khabib',att:420,land:345,acc:82.1},{name:'Makhachev',att:380,land:298,acc:78.4},
+  {name:'Jones',att:250,land:182,acc:72.8},{name:'Maia',att:310,land:228,acc:73.5},
+  {name:'Oliveira',att:290,land:205,acc:70.7},{name:'Teixeira',att:340,land:235,acc:69.1},
+  {name:'Dvalishvili',att:260,land:178,acc:68.5},{name:'Usman',att:230,land:155,acc:67.4}];
+function gsColor(v){return v>=75?'#10b981':v>=65?'#06b6d4':'#8b5cf6';}
+const gsTop3=gsFighters.slice(0,3).map(f=>f.name);
+new Chart(document.getElementById('c11'),{type:'bubble',data:{datasets:[{
+  label:'Fighters',
+  data:gsFighters.map(f=>({x:f.att,y:f.land,r:Math.max(5,Math.min(14,f.acc*0.16))})),
+  backgroundColor:gsFighters.map(f=>gsColor(f.acc)+'88'),
+  borderColor:gsFighters.map(f=>gsColor(f.acc)),
+  borderWidth:1.5,
+  datalabels:{display:ctx=>gsTop3.includes(gsFighters[ctx.dataIndex].name),color:'#d4d4d8',font:{size:9,weight:500},anchor:'end',align:'top',offset:2,formatter:(v,ctx)=>gsFighters[ctx.dataIndex].name}
+}]},options:{...co,scales:{x:{title:{display:true,text:'Attempted',color:'#52525b',font:{size:10}},min:200,max:460,...lightGrid},y:{title:{display:true,text:'Landed',color:'#52525b',font:{size:10}},min:130,max:380,...lightGrid}},plugins:{legend:{display:false},datalabels:{},tooltip:{callbacks:{label:ctx=>{const f=gsFighters[ctx.dataIndex];return f.name+': '+f.att+'시도, '+f.land+'적중 ('+f.acc+'%)'}}},annotation:{annotations:{line100:{type:'line',xMin:200,yMin:200,xMax:380,yMax:380,borderColor:'rgba(255,255,255,0.12)',borderWidth:1,borderDash:[6,4],label:{display:true,content:'100%',position:'end',backgroundColor:'transparent',color:'#52525b',font:{size:9}}},line70:{type:'line',xMin:200,yMin:140,xMax:460,yMax:322,borderColor:'rgba(255,255,255,0.08)',borderWidth:1,borderDash:[4,4],label:{display:true,content:'70%',position:'end',backgroundColor:'transparent',color:'#52525b',font:{size:9}}}}}}}});
 
 // 12 Sub efficiency scatter + avg efficiency reference line + fighter labels
 const subFighters=[

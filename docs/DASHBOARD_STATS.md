@@ -418,9 +418,12 @@ MMA Savant 대시보드에 표시할 통계 자료 목록 및 API 구현 가이�
 
 ### 3-2. 타격 정확도 TOP (Striking Accuracy Leaders)
 
-- **차트 유형**: 수평 바 차트 (정확도 % 표시)
+- **차트 유형**: Bullet Chart (시도 대비 적중 overlay 바)
+  - 넓은 반투명 바: attempted, 좁은 채색 바: landed (barGap으로 겹침)
+  - 오른쪽 label로 accuracy% 표시
+  - Recharts `BarChart`(vertical) — 2개 `Bar` overlay (`barGap={-26}`)
 - **데이터 소스**: `match_statistics.sig_str_landed`, `match_statistics.sig_str_attempted`
-- **설명**: 유효 타격 정확도가 가장 높은 선수
+- **설명**: 유효 타격 정확도가 가장 높은 선수. 시도 대비 적중을 직관적으로 비교
 - **필터**: 최소 5경기 이상
 - **weight_class 필터**: O
 - **참고 쿼리**:
@@ -467,9 +470,13 @@ MMA Savant 대시보드에 표시할 통계 자료 목록 및 API 구현 가이�
 
 ### 3-4. 경기당 유효타격 TOP (Sig. Strikes Per Fight Leaders)
 
-- **차트 유형**: 수평 바 차트
+- **차트 유형**: Lollipop Chart (줄기 + 점)
+  - Bar: 얇은 stem (barSize={3}), Scatter: 끝점 dot
+  - dot 크기로 총 경기수 인코딩 (total_fights × 0.45, 최소 6 최대 14)
+  - ReferenceLine: 평균값 점선
+  - Recharts `ComposedChart`(vertical) — `Bar`(stem) + `Scatter`(dot)
 - **데이터 소스**: `match_statistics.sig_str_landed` + 경기 수
-- **설명**: 경기당 유효타격이 가장 많은 선수. 볼륨 스트라이커 식별 지표
+- **설명**: 경기당 유효타격이 가장 많은 선수. 볼륨 스트라이커 식별 지표. 점 크기로 경기 수도 함께 표현
 - **필터**: 최소 5경기 이상
 - **weight_class 필터**: O
 - **참고 쿼리**:
@@ -521,9 +528,12 @@ MMA Savant 대시보드에 표시할 통계 자료 목록 및 API 구현 가이�
 
 ### 4-1. 테이크다운 성공률 TOP (Takedown Accuracy Leaders)
 
-- **차트 유형**: 수평 바 차트 (성공률 % + 성공/시도 수 표시)
+- **차트 유형**: Bullet Chart (시도 대비 성공 overlay 바)
+  - 넓은 반투명 바: attempted, 좁은 채색 바: landed (barGap으로 겹침)
+  - 오른쪽 label로 td_accuracy% 표시
+  - Recharts `BarChart`(vertical) — 2개 `Bar` overlay (3-2와 동일 패턴, 색상만 green 계열)
 - **데이터 소스**: `match_statistics.td_landed`, `match_statistics.td_attempted`
-- **설명**: 테이크다운 성공률이 가장 높은 선수
+- **설명**: 테이크다운 성공률이 가장 높은 선수. 시도 대비 성공을 직관적으로 비교
 - **필터**: 최소 5경기 이상, 테이크다운 시도 10회 이상
 - **weight_class 필터**: O
 - **참고 쿼리**:
@@ -586,9 +596,13 @@ MMA Savant 대시보드에 표시할 통계 자료 목록 및 API 구현 가이�
 
 ### 4-4. 그라운드 스트라이크 TOP (Ground Strikes Leaders)
 
-- **차트 유형**: 수평 바 차트
-- **데이터 소스**: `strike_detail.ground_strikes_landed`
-- **설명**: 그라운드에서 가장 많은 타격을 가하는 선수
+- **차트 유형**: Scatter Chart (버블)
+  - X축: attempted (시도), Y축: landed (적중), Z축(버블 크기): accuracy
+  - 대각선 ReferenceLine 2개: 100% 기준선, 70% 기준선
+  - 버블 색상: accuracy ≥75 → green, ≥65 → cyan, else → purple
+  - Recharts `ScatterChart` + `ZAxis` + `ReferenceLine`(segment)
+- **데이터 소스**: `strike_detail.ground_strikes_landed`, `strike_detail.ground_strikes_attempts`
+- **설명**: 그라운드 타격의 시도/적중/정확도를 3축으로 시각화
 - **필터**: 최소 5경기 이상
 - **weight_class 필터**: O
 - **참고 쿼리**:
@@ -690,4 +704,4 @@ MMA Savant 대시보드에 표시할 통계 자료 목록 및 API 구현 가이�
 - Recharts 이미 설치됨 — Bar/Line/Pie/Scatter/Radar 차트 사용
 - 레이아웃: **Layout E (Bento Grid)** — `docs/dashboard-prototype-E.html` 참조
 - 필터 바: Overview / Striking / Grappling 탭 전환
-- Recharts 컴포넌트 매핑: 2-2 `ComposedChart`, 2-6 `BarChart`+`ReferenceLine`, 3-1 `RadarChart`, 4-5 `ScatterChart`+`ReferenceLine`
+- Recharts 컴포넌트 매핑: 2-2 `ComposedChart`, 2-5 `BarChart`+`ReferenceLine`, 3-1 `RadarChart`, 3-2 `BarChart`(Bullet), 3-4 `ComposedChart`(Lollipop), 4-1 `BarChart`(Bullet), 4-4 `ScatterChart`(Bubble), 4-5 `ScatterChart`+`ReferenceLine`
