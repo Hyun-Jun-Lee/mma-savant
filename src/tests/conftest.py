@@ -2,9 +2,16 @@
 테스트용 공통 fixture 정의
 모든 테스트에서 사용될 공통 fixture들을 정의
 """
+import sys
+from unittest.mock import MagicMock
+
+# redis 모듈이 설치되지 않은 환경에서도 서비스 테스트 가능하도록 mock 처리
+if "redis" not in sys.modules:
+    sys.modules["redis"] = MagicMock()
+
 import pytest
 import pytest_asyncio
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from typing import List
 
 from database.connection.postgres_conn_test import (
@@ -646,3 +653,248 @@ async def events_for_calendar_test(clean_test_session):
     clean_test_session.add_all(events)
     await clean_test_session.flush()
     return events
+
+
+# =============================================================================
+# Dashboard 테스트용 fixture
+# =============================================================================
+
+@pytest_asyncio.fixture
+async def dashboard_data(clean_test_session):
+    """
+    Dashboard 집계 쿼리 테스트를 위한 종합 데이터 세트
+
+    데이터 구성:
+    - 3명의 파이터 (A, B: 5전 이상, C: 4전 — HAVING >= 5 필터 테스트용)
+    - 7개의 이벤트 (5 past, 2 future)
+    - 9개의 매치: wc=4 (LW) 7개 + wc=5 (WW) 2개
+    - 18개의 fighter_match / match_statistics / strike_detail 기록
+    - 2개의 ranking 기록
+    """
+    session = clean_test_session
+    today = date.today()
+
+    # === Fighters ===
+    fighter_a = FighterModel(name="Alpha Fighter", wins=10, losses=2, draws=0)
+    fighter_b = FighterModel(name="Beta Fighter", wins=8, losses=4, draws=1)
+    fighter_c = FighterModel(name="Gamma Fighter", wins=3, losses=2, draws=0)
+    session.add_all([fighter_a, fighter_b, fighter_c])
+    await session.flush()
+
+    # === Events (5 past + 2 future) ===
+    events = [
+        EventModel(name="UFC Test 301", event_date=today - timedelta(days=400), location="Las Vegas, NV"),
+        EventModel(name="UFC Test 302", event_date=today - timedelta(days=300), location="New York, NY"),
+        EventModel(name="UFC Test 303", event_date=today - timedelta(days=120), location="London, UK"),
+        EventModel(name="UFC Test 304", event_date=today - timedelta(days=60), location="Abu Dhabi, UAE"),
+        EventModel(name="UFC Test 305", event_date=today - timedelta(days=14), location="Miami, FL"),
+        EventModel(name="UFC Test 306", event_date=today + timedelta(days=14), location="Tokyo, Japan"),
+        EventModel(name="UFC Test 307", event_date=today + timedelta(days=45), location="Sydney, Australia"),
+    ]
+    session.add_all(events)
+    await session.flush()
+
+    # === Matches: wc=4 (Lightweight) 7개 + wc=5 (Welterweight) 2개 ===
+    matches = [
+        # --- wc=4 (Lightweight) ---
+        MatchModel(event_id=events[0].id, weight_class_id=4, method="KO-Punch",
+                   result_round=1, time="2:30", order=1, is_main_event=True),
+        MatchModel(event_id=events[1].id, weight_class_id=4, method="TKO-Punches",
+                   result_round=2, time="4:15", order=1, is_main_event=False),
+        MatchModel(event_id=events[2].id, weight_class_id=4, method="SUB-Rear Naked Choke",
+                   result_round=1, time="3:45", order=1, is_main_event=False),
+        MatchModel(event_id=events[3].id, weight_class_id=4, method="U-DEC",
+                   result_round=3, time="15:00", order=1, is_main_event=False),
+        MatchModel(event_id=events[4].id, weight_class_id=4, method="S-DEC",
+                   result_round=3, time="15:00", order=1, is_main_event=False),
+        MatchModel(event_id=events[2].id, weight_class_id=4, method="SUB-Armbar",
+                   result_round=2, time="4:50", order=2, is_main_event=False),
+        MatchModel(event_id=events[3].id, weight_class_id=4, method="M-DEC",
+                   result_round=3, time="15:00", order=2, is_main_event=False),
+        # --- wc=5 (Welterweight) ---
+        MatchModel(event_id=events[4].id, weight_class_id=5, method="KO-Punch",
+                   result_round=1, time="3:10", order=2, is_main_event=False),
+        MatchModel(event_id=events[3].id, weight_class_id=5, method="SUB-Guillotine",
+                   result_round=2, time="4:30", order=3, is_main_event=False),
+    ]
+    session.add_all(matches)
+    await session.flush()
+
+    # === Fighter Matches ===
+    # wc=4: A 5전(전승), B 5전(2승3패), C 4전(전패)
+    # wc=5: A 2전(전승), B 2전(전패)
+    # 합계: A 7전, B 7전, C 4전 (C는 HAVING >= 5 제외)
+    fm_a0 = FighterMatchModel(fighter_id=fighter_a.id, match_id=matches[0].id, result="win")
+    fm_b0 = FighterMatchModel(fighter_id=fighter_b.id, match_id=matches[0].id, result="loss")
+    fm_a1 = FighterMatchModel(fighter_id=fighter_a.id, match_id=matches[1].id, result="win")
+    fm_b1 = FighterMatchModel(fighter_id=fighter_b.id, match_id=matches[1].id, result="loss")
+    fm_a2 = FighterMatchModel(fighter_id=fighter_a.id, match_id=matches[2].id, result="win")
+    fm_b2 = FighterMatchModel(fighter_id=fighter_b.id, match_id=matches[2].id, result="loss")
+    fm_a3 = FighterMatchModel(fighter_id=fighter_a.id, match_id=matches[3].id, result="win")
+    fm_c3 = FighterMatchModel(fighter_id=fighter_c.id, match_id=matches[3].id, result="loss")
+    fm_a4 = FighterMatchModel(fighter_id=fighter_a.id, match_id=matches[4].id, result="win")
+    fm_c4 = FighterMatchModel(fighter_id=fighter_c.id, match_id=matches[4].id, result="loss")
+    fm_b5 = FighterMatchModel(fighter_id=fighter_b.id, match_id=matches[5].id, result="win")
+    fm_c5 = FighterMatchModel(fighter_id=fighter_c.id, match_id=matches[5].id, result="loss")
+    fm_b6 = FighterMatchModel(fighter_id=fighter_b.id, match_id=matches[6].id, result="win")
+    fm_c6 = FighterMatchModel(fighter_id=fighter_c.id, match_id=matches[6].id, result="loss")
+
+    all_fms = [fm_a0, fm_b0, fm_a1, fm_b1, fm_a2, fm_b2, fm_a3, fm_c3, fm_a4, fm_c4, fm_b5, fm_c5, fm_b6, fm_c6]
+    session.add_all(all_fms)
+    await session.flush()
+
+    # --- wc=5 Fighter Matches ---
+    fm_a7 = FighterMatchModel(fighter_id=fighter_a.id, match_id=matches[7].id, result="win")
+    fm_b7 = FighterMatchModel(fighter_id=fighter_b.id, match_id=matches[7].id, result="loss")
+    fm_a8 = FighterMatchModel(fighter_id=fighter_a.id, match_id=matches[8].id, result="win")
+    fm_b8 = FighterMatchModel(fighter_id=fighter_b.id, match_id=matches[8].id, result="loss")
+    session.add_all([fm_a7, fm_b7, fm_a8, fm_b8])
+    await session.flush()
+
+    # === Match Statistics (BasicMatchStatModel) ===
+    basic_stats = [
+        BasicMatchStatModel(fighter_match_id=fm_a0.id, sig_str_landed=50, sig_str_attempted=80,
+                            td_landed=3, td_attempted=5, control_time_seconds=180,
+                            submission_attempts=1, knockdowns=1, total_str_landed=65, total_str_attempted=95, round=1),
+        BasicMatchStatModel(fighter_match_id=fm_a1.id, sig_str_landed=45, sig_str_attempted=70,
+                            td_landed=2, td_attempted=4, control_time_seconds=200,
+                            submission_attempts=2, knockdowns=1, total_str_landed=60, total_str_attempted=85, round=2),
+        BasicMatchStatModel(fighter_match_id=fm_a2.id, sig_str_landed=30, sig_str_attempted=55,
+                            td_landed=4, td_attempted=6, control_time_seconds=300,
+                            submission_attempts=3, knockdowns=0, total_str_landed=40, total_str_attempted=65, round=1),
+        BasicMatchStatModel(fighter_match_id=fm_a3.id, sig_str_landed=60, sig_str_attempted=100,
+                            td_landed=2, td_attempted=3, control_time_seconds=150,
+                            submission_attempts=1, knockdowns=0, total_str_landed=80, total_str_attempted=120, round=3),
+        BasicMatchStatModel(fighter_match_id=fm_a4.id, sig_str_landed=55, sig_str_attempted=90,
+                            td_landed=1, td_attempted=2, control_time_seconds=100,
+                            submission_attempts=0, knockdowns=0, total_str_landed=72, total_str_attempted=108, round=3),
+        BasicMatchStatModel(fighter_match_id=fm_b0.id, sig_str_landed=35, sig_str_attempted=65,
+                            td_landed=1, td_attempted=3, control_time_seconds=60,
+                            submission_attempts=1, knockdowns=0, total_str_landed=48, total_str_attempted=72, round=1),
+        BasicMatchStatModel(fighter_match_id=fm_b1.id, sig_str_landed=40, sig_str_attempted=75,
+                            td_landed=2, td_attempted=4, control_time_seconds=80,
+                            submission_attempts=0, knockdowns=0, total_str_landed=55, total_str_attempted=90, round=2),
+        BasicMatchStatModel(fighter_match_id=fm_b2.id, sig_str_landed=25, sig_str_attempted=50,
+                            td_landed=0, td_attempted=2, control_time_seconds=30,
+                            submission_attempts=1, knockdowns=0, total_str_landed=32, total_str_attempted=58, round=1),
+        BasicMatchStatModel(fighter_match_id=fm_b5.id, sig_str_landed=38, sig_str_attempted=60,
+                            td_landed=3, td_attempted=5, control_time_seconds=250,
+                            submission_attempts=2, knockdowns=0, total_str_landed=50, total_str_attempted=75, round=2),
+        BasicMatchStatModel(fighter_match_id=fm_b6.id, sig_str_landed=48, sig_str_attempted=85,
+                            td_landed=2, td_attempted=3, control_time_seconds=120,
+                            submission_attempts=1, knockdowns=0, total_str_landed=62, total_str_attempted=98, round=3),
+        BasicMatchStatModel(fighter_match_id=fm_c3.id, sig_str_landed=55, sig_str_attempted=95,
+                            td_landed=1, td_attempted=3, control_time_seconds=90,
+                            submission_attempts=1, knockdowns=0, total_str_landed=70, total_str_attempted=110, round=3),
+        BasicMatchStatModel(fighter_match_id=fm_c4.id, sig_str_landed=50, sig_str_attempted=88,
+                            td_landed=2, td_attempted=4, control_time_seconds=80,
+                            submission_attempts=0, knockdowns=0, total_str_landed=65, total_str_attempted=100, round=3),
+        BasicMatchStatModel(fighter_match_id=fm_c5.id, sig_str_landed=20, sig_str_attempted=45,
+                            td_landed=0, td_attempted=2, control_time_seconds=20,
+                            submission_attempts=0, knockdowns=0, total_str_landed=28, total_str_attempted=55, round=2),
+        BasicMatchStatModel(fighter_match_id=fm_c6.id, sig_str_landed=42, sig_str_attempted=78,
+                            td_landed=1, td_attempted=3, control_time_seconds=70,
+                            submission_attempts=0, knockdowns=0, total_str_landed=55, total_str_attempted=90, round=3),
+    ]
+    session.add_all(basic_stats)
+    await session.flush()
+
+    # --- wc=5 Match Statistics ---
+    wc5_basic_stats = [
+        BasicMatchStatModel(fighter_match_id=fm_a7.id, sig_str_landed=40, sig_str_attempted=60,
+                            td_landed=2, td_attempted=3, control_time_seconds=150,
+                            submission_attempts=0, knockdowns=1, total_str_landed=52, total_str_attempted=72, round=1),
+        BasicMatchStatModel(fighter_match_id=fm_b7.id, sig_str_landed=20, sig_str_attempted=40,
+                            td_landed=1, td_attempted=2, control_time_seconds=40,
+                            submission_attempts=0, knockdowns=0, total_str_landed=28, total_str_attempted=48, round=1),
+        BasicMatchStatModel(fighter_match_id=fm_a8.id, sig_str_landed=35, sig_str_attempted=55,
+                            td_landed=3, td_attempted=4, control_time_seconds=250,
+                            submission_attempts=2, knockdowns=0, total_str_landed=45, total_str_attempted=68, round=2),
+        BasicMatchStatModel(fighter_match_id=fm_b8.id, sig_str_landed=22, sig_str_attempted=45,
+                            td_landed=0, td_attempted=2, control_time_seconds=30,
+                            submission_attempts=1, knockdowns=0, total_str_landed=30, total_str_attempted=55, round=2),
+    ]
+    session.add_all(wc5_basic_stats)
+    await session.flush()
+
+    # === Strike Details (SigStrMatchStatModel) ===
+    strike_details = [
+        SigStrMatchStatModel(fighter_match_id=fm_a0.id, head_strikes_landed=25, head_strikes_attempts=40,
+                             body_strikes_landed=15, body_strikes_attempts=25, leg_strikes_landed=5, leg_strikes_attempts=10,
+                             clinch_strikes_landed=3, clinch_strikes_attempts=5, ground_strikes_landed=2, ground_strikes_attempts=5, round=1),
+        SigStrMatchStatModel(fighter_match_id=fm_a1.id, head_strikes_landed=22, head_strikes_attempts=35,
+                             body_strikes_landed=12, body_strikes_attempts=20, leg_strikes_landed=6, leg_strikes_attempts=8,
+                             clinch_strikes_landed=3, clinch_strikes_attempts=5, ground_strikes_landed=2, ground_strikes_attempts=3, round=2),
+        SigStrMatchStatModel(fighter_match_id=fm_a2.id, head_strikes_landed=15, head_strikes_attempts=28,
+                             body_strikes_landed=8, body_strikes_attempts=15, leg_strikes_landed=3, leg_strikes_attempts=5,
+                             clinch_strikes_landed=2, clinch_strikes_attempts=4, ground_strikes_landed=5, ground_strikes_attempts=8, round=1),
+        SigStrMatchStatModel(fighter_match_id=fm_a3.id, head_strikes_landed=30, head_strikes_attempts=50,
+                             body_strikes_landed=18, body_strikes_attempts=30, leg_strikes_landed=7, leg_strikes_attempts=12,
+                             clinch_strikes_landed=3, clinch_strikes_attempts=5, ground_strikes_landed=2, ground_strikes_attempts=3, round=3),
+        SigStrMatchStatModel(fighter_match_id=fm_a4.id, head_strikes_landed=28, head_strikes_attempts=45,
+                             body_strikes_landed=16, body_strikes_attempts=28, leg_strikes_landed=8, leg_strikes_attempts=12,
+                             clinch_strikes_landed=2, clinch_strikes_attempts=3, ground_strikes_landed=1, ground_strikes_attempts=2, round=3),
+        SigStrMatchStatModel(fighter_match_id=fm_b0.id, head_strikes_landed=18, head_strikes_attempts=35,
+                             body_strikes_landed=10, body_strikes_attempts=18, leg_strikes_landed=4, leg_strikes_attempts=7,
+                             clinch_strikes_landed=2, clinch_strikes_attempts=3, ground_strikes_landed=1, ground_strikes_attempts=2, round=1),
+        SigStrMatchStatModel(fighter_match_id=fm_b1.id, head_strikes_landed=20, head_strikes_attempts=38,
+                             body_strikes_landed=12, body_strikes_attempts=22, leg_strikes_landed=5, leg_strikes_attempts=8,
+                             clinch_strikes_landed=2, clinch_strikes_attempts=4, ground_strikes_landed=1, ground_strikes_attempts=3, round=2),
+        SigStrMatchStatModel(fighter_match_id=fm_b2.id, head_strikes_landed=12, head_strikes_attempts=25,
+                             body_strikes_landed=8, body_strikes_attempts=15, leg_strikes_landed=3, leg_strikes_attempts=5,
+                             clinch_strikes_landed=1, clinch_strikes_attempts=3, ground_strikes_landed=1, ground_strikes_attempts=2, round=1),
+        SigStrMatchStatModel(fighter_match_id=fm_b5.id, head_strikes_landed=20, head_strikes_attempts=30,
+                             body_strikes_landed=10, body_strikes_attempts=17, leg_strikes_landed=4, leg_strikes_attempts=6,
+                             clinch_strikes_landed=2, clinch_strikes_attempts=4, ground_strikes_landed=2, ground_strikes_attempts=3, round=2),
+        SigStrMatchStatModel(fighter_match_id=fm_b6.id, head_strikes_landed=24, head_strikes_attempts=42,
+                             body_strikes_landed=14, body_strikes_attempts=25, leg_strikes_landed=6, leg_strikes_attempts=10,
+                             clinch_strikes_landed=2, clinch_strikes_attempts=4, ground_strikes_landed=2, ground_strikes_attempts=4, round=3),
+        SigStrMatchStatModel(fighter_match_id=fm_c3.id, head_strikes_landed=28, head_strikes_attempts=48,
+                             body_strikes_landed=16, body_strikes_attempts=28, leg_strikes_landed=7, leg_strikes_attempts=12,
+                             clinch_strikes_landed=2, clinch_strikes_attempts=4, ground_strikes_landed=2, ground_strikes_attempts=3, round=3),
+        SigStrMatchStatModel(fighter_match_id=fm_c4.id, head_strikes_landed=25, head_strikes_attempts=44,
+                             body_strikes_landed=15, body_strikes_attempts=26, leg_strikes_landed=6, leg_strikes_attempts=11,
+                             clinch_strikes_landed=2, clinch_strikes_attempts=4, ground_strikes_landed=2, ground_strikes_attempts=3, round=3),
+        SigStrMatchStatModel(fighter_match_id=fm_c5.id, head_strikes_landed=10, head_strikes_attempts=22,
+                             body_strikes_landed=6, body_strikes_attempts=13, leg_strikes_landed=2, leg_strikes_attempts=5,
+                             clinch_strikes_landed=1, clinch_strikes_attempts=3, ground_strikes_landed=1, ground_strikes_attempts=2, round=2),
+        SigStrMatchStatModel(fighter_match_id=fm_c6.id, head_strikes_landed=21, head_strikes_attempts=39,
+                             body_strikes_landed=12, body_strikes_attempts=23, leg_strikes_landed=5, leg_strikes_attempts=9,
+                             clinch_strikes_landed=2, clinch_strikes_attempts=4, ground_strikes_landed=2, ground_strikes_attempts=3, round=3),
+    ]
+    session.add_all(strike_details)
+    await session.flush()
+
+    # --- wc=5 Strike Details ---
+    wc5_strike_details = [
+        SigStrMatchStatModel(fighter_match_id=fm_a7.id, head_strikes_landed=20, head_strikes_attempts=30,
+                             body_strikes_landed=12, body_strikes_attempts=18, leg_strikes_landed=4, leg_strikes_attempts=7,
+                             clinch_strikes_landed=2, clinch_strikes_attempts=3, ground_strikes_landed=2, ground_strikes_attempts=2, round=1),
+        SigStrMatchStatModel(fighter_match_id=fm_b7.id, head_strikes_landed=10, head_strikes_attempts=20,
+                             body_strikes_landed=6, body_strikes_attempts=12, leg_strikes_landed=2, leg_strikes_attempts=4,
+                             clinch_strikes_landed=1, clinch_strikes_attempts=2, ground_strikes_landed=1, ground_strikes_attempts=2, round=1),
+        SigStrMatchStatModel(fighter_match_id=fm_a8.id, head_strikes_landed=18, head_strikes_attempts=28,
+                             body_strikes_landed=10, body_strikes_attempts=16, leg_strikes_landed=4, leg_strikes_attempts=6,
+                             clinch_strikes_landed=2, clinch_strikes_attempts=3, ground_strikes_landed=1, ground_strikes_attempts=2, round=2),
+        SigStrMatchStatModel(fighter_match_id=fm_b8.id, head_strikes_landed=12, head_strikes_attempts=24,
+                             body_strikes_landed=6, body_strikes_attempts=12, leg_strikes_landed=2, leg_strikes_attempts=4,
+                             clinch_strikes_landed=1, clinch_strikes_attempts=3, ground_strikes_landed=1, ground_strikes_attempts=2, round=2),
+    ]
+    session.add_all(wc5_strike_details)
+    await session.flush()
+
+    # === Rankings (Lightweight) ===
+    rankings = [
+        RankingModel(fighter_id=fighter_a.id, weight_class_id=4, ranking=1),
+        RankingModel(fighter_id=fighter_b.id, weight_class_id=4, ranking=2),
+    ]
+    session.add_all(rankings)
+    await session.flush()
+
+    return {
+        "fighters": [fighter_a, fighter_b, fighter_c],
+        "events": events,
+        "matches": matches,
+        "fighter_matches": all_fms,
+        "rankings": rankings,
+    }
