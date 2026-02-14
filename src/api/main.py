@@ -8,6 +8,7 @@ from api.user.routes import router as user_router
 from api.chat.routes import router as chat_router
 from api.websocket.routes import router as websocket_router
 from api.admin.routes import router as admin_router
+from api.dashboard.routes import router as dashboard_router
 
 # 메인 API 라우터
 api_router = APIRouter()
@@ -26,3 +27,6 @@ api_router.include_router(websocket_router)
 
 # 관리자 API 등록
 api_router.include_router(admin_router)
+
+# 대시보드 API 등록
+api_router.include_router(dashboard_router)
