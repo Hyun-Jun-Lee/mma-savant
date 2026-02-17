@@ -79,8 +79,10 @@ services:
     env_file:
       - .env
     environment:
-      # nginx를 통해 API 호출 (프로덕션과 동일한 흐름)
+      # 클라이언트 사이드: 브라우저에서 nginx를 통해 API 호출
       - NEXT_PUBLIC_API_URL=http://localhost
+      # 서버 사이드 (ISR): Docker 네트워크 내에서 nginx를 통해 API 호출
+      - BACKEND_URL=http://nginx
       # NextAuth.js 설정
       - NEXTAUTH_URL=http://localhost
       - NEXTAUTH_SECRET=${NEXTAUTH_SECRET}
