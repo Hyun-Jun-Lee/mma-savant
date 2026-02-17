@@ -301,6 +301,27 @@ Chart.defaults.font.family="-apple-system,BlinkMacSystemFont,'Segoe UI',system-u
 Chart.defaults.font.size=11;Chart.defaults.plugins.legend.labels.boxWidth=10;Chart.defaults.plugins.legend.labels.padding=14;
 Chart.defaults.plugins.tooltip.backgroundColor='#18181b';Chart.defaults.plugins.tooltip.borderColor='#27272a';Chart.defaults.plugins.tooltip.borderWidth=1;Chart.defaults.plugins.tooltip.cornerRadius=8;Chart.defaults.plugins.tooltip.padding=10;
 Chart.defaults.animation={duration:900,easing:'easeOutQuart'};
+
+// ── Common Fix: Subtle hover highlight ──
+// Recharts equivalent: cursor={{ fill: 'rgba(255,255,255,0.04)' }}
+// Bar 차트 hover 시 밝은 배경 대신 은은한 row/column 하이라이트 표시
+// afterDatasetsDraw: 바 위에 반투명 하이라이트를 그려야 보임
+const subtleCursor={id:'subtleCursor',afterDatasetsDraw(chart){
+  const els=chart.getActiveElements();
+  if(!els.length)return;
+  const t=chart.config.type;
+  if(t==='doughnut'||t==='radar'||t==='bubble'||t==='scatter')return;
+  const ctx=chart.ctx;const area=chart.chartArea;const el=els[0].element;
+  ctx.save();ctx.fillStyle='rgba(255,255,255,0.06)';
+  if(chart.config.options?.indexAxis==='y'){
+    const h=el.height||16;ctx.fillRect(area.left,el.y-h/2-4,area.right-area.left,h+8);
+  }else{
+    const w=el.width||16;ctx.fillRect(el.x-w/2-4,area.top,w+8,area.bottom-area.top);
+  }
+  ctx.restore();
+}};
+Chart.register(subtleCursor);
+
 const C=['#8b5cf6','#06b6d4','#10b981','#f59e0b','#ef4444','#ec4899','#6366f1','#14b8a6','#f97316','#a855f7','#22d3ee','#84cc16','#e879f9','#fb923c','#34d399'];
 const gridC='rgba(255,255,255,0.03)';
 
@@ -375,14 +396,14 @@ const wcRates={
 const wcColors={finish:'#10b981',ko:'#ef4444',tko:'#f59e0b',sub:'#8b5cf6'};
 const wcDotNames={finish:'피니시율',ko:'KO율',tko:'TKO율',sub:'SUB율'};
 const c3Chart=new Chart(document.getElementById('c3'),{type:'bar',data:{labels:wcLabels,datasets:[
-  {label:'경기 수',data:wcTotal,backgroundColor:'rgba(6,182,212,0.35)',borderRadius:3,yAxisID:'y',order:1},
+  {label:'경기 수',data:wcTotal,backgroundColor:'rgba(6,182,212,0.35)',hoverBackgroundColor:'rgba(6,182,212,0.45)',borderRadius:3,yAxisID:'y',order:1},
   {type:'line',label:wcDotNames.finish,data:wcRates.finish,borderColor:wcColors.finish,backgroundColor:wcColors.finish,pointRadius:7,pointHoverRadius:10,pointBorderColor:'#fff',pointBorderWidth:2,showLine:false,yAxisID:'y1',order:0,
     datalabels:{display:true,color:wcColors.finish,font:{size:10,weight:600},anchor:'end',align:'right',offset:2,formatter:v=>v+'%'}}
 ]},options:{...co,indexAxis:'y',scales:{y:{...noGrid},x:{position:'bottom',...lightGrid,title:{display:true,text:'경기 수',color:'#52525b'}},y1:{position:'top',min:0,max:100,...noGrid,ticks:{callback:v=>v+'%',color:'#71717a',font:{size:10}},title:{display:true,text:'비율(%)',color:'#52525b'},grid:{drawOnChartArea:false}}},plugins:{legend:{display:false},tooltip:{callbacks:{label:ctx=>ctx.dataset.yAxisID==='y1'?ctx.dataset.label+': '+ctx.raw+'%':'경기 수: '+ctx.raw.toLocaleString()}}}}});
 document.getElementById('wc-tabs').addEventListener('click',e=>{const p=e.target.closest('.pill');if(!p)return;p.parentElement.querySelectorAll('.pill').forEach(x=>x.classList.remove('on'));p.classList.add('on');const t=p.dataset.t;const ds=c3Chart.data.datasets[1];ds.data=wcRates[t];ds.label=wcDotNames[t];ds.borderColor=wcColors[t];ds.backgroundColor=wcColors[t];ds.datalabels.color=wcColors[t];c3Chart.update();});
 
 // 4 Rounds — % bar chart with avg reference line at 2.1R
-new Chart(document.getElementById('c4'),{type:'bar',data:{labels:['R1','R2','R3','R4','R5'],datasets:[{data:[40.1,22.9,27.4,2.9,6.7],backgroundColor:['rgba(239,68,68,0.6)','rgba(245,158,11,0.6)','rgba(16,185,129,0.6)','rgba(6,182,212,0.6)','rgba(139,92,246,0.6)'],borderRadius:5,borderSkipped:false}]},options:{...co,scales:{y:{beginAtZero:true,max:50,...lightGrid,ticks:{callback:v=>v+'%'}},x:noGrid},plugins:{legend:{display:false},tooltip:{callbacks:{label:ctx=>{const counts=[2890,1650,1980,210,484];return ctx.parsed.y+'% ('+counts[ctx.dataIndex].toLocaleString()+'경기)'}}},annotation:{annotations:{avgLine:{type:'line',xMin:1.1,xMax:1.1,borderColor:'rgba(255,255,255,0.35)',borderWidth:1.5,borderDash:[6,4],label:{display:true,content:'평균 2.1R',position:'start',backgroundColor:'rgba(0,0,0,0.6)',color:'#d4d4d8',font:{size:11,weight:500},padding:4}}}}}}});
+new Chart(document.getElementById('c4'),{type:'bar',data:{labels:['R1','R2','R3','R4','R5'],datasets:[{data:[40.1,22.9,27.4,2.9,6.7],backgroundColor:['rgba(239,68,68,0.6)','rgba(245,158,11,0.6)','rgba(16,185,129,0.6)','rgba(6,182,212,0.6)','rgba(139,92,246,0.6)'],hoverBackgroundColor:['rgba(239,68,68,0.7)','rgba(245,158,11,0.7)','rgba(16,185,129,0.7)','rgba(6,182,212,0.7)','rgba(139,92,246,0.7)'],borderRadius:5,borderSkipped:false}]},options:{...co,scales:{y:{beginAtZero:true,max:50,...lightGrid,ticks:{callback:v=>v+'%'}},x:noGrid},plugins:{legend:{display:false},tooltip:{callbacks:{label:ctx=>{const counts=[2890,1650,1980,210,484];return ctx.parsed.y+'% ('+counts[ctx.dataIndex].toLocaleString()+'경기)'}}},annotation:{annotations:{avgLine:{type:'line',xMin:1.1,xMax:1.1,borderColor:'rgba(255,255,255,0.35)',borderWidth:1.5,borderDash:[6,4],label:{display:true,content:'평균 2.1R',position:'start',backgroundColor:'rgba(0,0,0,0.6)',color:'#d4d4d8',font:{size:11,weight:500},padding:4}}}}}}});
 
 // 5 Striking Accuracy — Bullet Chart (attempted vs landed overlay)
 const accFighters=['Holloway','Adesanya','Kattar','Volkanovski','Yan','Moreno','Poirier','Aldo'];
@@ -391,19 +412,19 @@ const accLanded=[1987,1633,1361,1453,1206,976,1345,1115];
 const accPct=[62.1,58.3,56.7,55.9,54.8,54.2,53.8,53.1];
 function accColor(v){return v>=62?'#8b5cf6':v>=55?'#7c3aed':'#6d28d9';}
 new Chart(document.getElementById('c5'),{type:'bar',data:{labels:accFighters,datasets:[
-  {label:'Attempted',data:accAttempted,backgroundColor:'rgba(139,92,246,0.1)',barPercentage:0.85,categoryPercentage:0.9,borderRadius:3,order:1},
+  {label:'Attempted',data:accAttempted,backgroundColor:'rgba(139,92,246,0.1)',hoverBackgroundColor:'rgba(139,92,246,0.18)',barPercentage:0.85,categoryPercentage:0.9,borderRadius:3,order:1},
   {label:'Landed',data:accLanded,backgroundColor:accPct.map(v=>accColor(v)),barPercentage:0.45,categoryPercentage:0.9,borderRadius:3,order:0,
     datalabels:{display:true,anchor:'end',align:'right',color:'#a1a1aa',font:{size:10,weight:600},formatter:(v,ctx)=>accPct[ctx.dataIndex]+'%'}}
 ]},options:{...co,indexAxis:'y',scales:{y:{stacked:true,...noGrid},x:{stacked:false,beginAtZero:true,...lightGrid}},plugins:{legend:{display:false},tooltip:{callbacks:{label:ctx=>ctx.dataset.label+': '+ctx.raw.toLocaleString()+(ctx.datasetIndex===1?' ('+accPct[ctx.dataIndex]+'%)':'')}}}}});
 
 // 6 Leaderboard
-new Chart(document.getElementById('c6'),{type:'bar',data:{labels:['Jim Miller','Donald Cerrone','Andrei Arlovski','Rafael dos Anjos','Clay Guida','Demian Maia','Charles Oliveira','Neil Magny','Max Holloway','Alistair Overeem'],datasets:[{label:'Wins',data:[26,23,22,21,20,19,19,19,18,18],backgroundColor:C.map(c=>c+'99'),borderRadius:4}]},options:{...co,indexAxis:'y',scales:{x:{beginAtZero:true,...lightGrid},y:noGrid},plugins:{legend:{display:false}}}});
+new Chart(document.getElementById('c6'),{type:'bar',data:{labels:['Jim Miller','Donald Cerrone','Andrei Arlovski','Rafael dos Anjos','Clay Guida','Demian Maia','Charles Oliveira','Neil Magny','Max Holloway','Alistair Overeem'],datasets:[{label:'Wins',data:[26,23,22,21,20,19,19,19,18,18],backgroundColor:C.map(c=>c+'99'),hoverBackgroundColor:C.map(c=>c+'bb'),borderRadius:4}]},options:{...co,indexAxis:'y',scales:{x:{beginAtZero:true,...lightGrid},y:noGrid},plugins:{legend:{display:false}}}});
 
 // 7 Targets — Radar chart (5 axes)
 new Chart(document.getElementById('c7'),{type:'radar',data:{labels:['Head','Body','Leg','Clinch','Ground'],datasets:[{label:'All Divisions',data:[185200,62400,78600,34200,41800],backgroundColor:'rgba(239,68,68,0.12)',borderColor:'rgba(239,68,68,0.7)',borderWidth:2,pointBackgroundColor:'rgba(239,68,68,0.8)',pointRadius:4,pointHoverRadius:7}]},options:{...co,scales:{r:{beginAtZero:true,grid:{color:gridC},angleLines:{color:'rgba(255,255,255,0.06)'},pointLabels:{color:'#a1a1aa',font:{size:12,weight:500}},ticks:{display:false}}},plugins:{legend:{display:false}}}});
 
 // 13 KO/TKO Artists
-new Chart(document.getElementById('c13'),{type:'bar',data:{labels:['Derrick Lewis','Vitor Belfort','Anderson Silva','Matt Brown','Alistair Overeem','Jeremy Stephens','Thiago Santos','Jairzinho Rozenstruik','Cain Velasquez','Chuck Liddell'],datasets:[{label:'KO',data:[14,9,8,7,8,6,5,6,5,7],backgroundColor:'rgba(239,68,68,0.7)',borderRadius:3},{label:'TKO',data:[7,7,7,8,5,5,7,3,4,1],backgroundColor:'rgba(245,158,11,0.5)',borderRadius:3}]},options:{...co,indexAxis:'y',scales:{x:{beginAtZero:true,...lightGrid,stacked:true},y:{...noGrid,stacked:true}},plugins:{legend:{position:'top'}}}});
+new Chart(document.getElementById('c13'),{type:'bar',data:{labels:['Derrick Lewis','Vitor Belfort','Anderson Silva','Matt Brown','Alistair Overeem','Jeremy Stephens','Thiago Santos','Jairzinho Rozenstruik','Cain Velasquez','Chuck Liddell'],datasets:[{label:'KO',data:[14,9,8,7,8,6,5,6,5,7],backgroundColor:'rgba(239,68,68,0.7)',hoverBackgroundColor:'rgba(239,68,68,0.8)',borderRadius:3},{label:'TKO',data:[7,7,7,8,5,5,7,3,4,1],backgroundColor:'rgba(245,158,11,0.5)',hoverBackgroundColor:'rgba(245,158,11,0.6)',borderRadius:3}]},options:{...co,indexAxis:'y',scales:{x:{beginAtZero:true,...lightGrid,stacked:true},y:{...noGrid,stacked:true}},plugins:{legend:{position:'top'}}}});
 
 // 14 Sig Strikes Per Fight — Lollipop Chart (stem + dot)
 const sigData=[
@@ -426,7 +447,7 @@ const lollipopPlugin={id:'lollipopDots',afterDatasetsDraw(chart){
   });
 }};
 new Chart(document.getElementById('c14'),{type:'bar',data:{labels:sigData.map(d=>d.name),datasets:[
-  {data:sigData.map(d=>d.sig),backgroundColor:'rgba(245,158,11,0.5)',barPercentage:0.06,categoryPercentage:0.9,borderRadius:0}
+  {data:sigData.map(d=>d.sig),backgroundColor:'rgba(245,158,11,0.5)',hoverBackgroundColor:'rgba(245,158,11,0.6)',barPercentage:0.06,categoryPercentage:0.9,borderRadius:0}
 ]},options:{...co,indexAxis:'y',scales:{x:{beginAtZero:true,...lightGrid,ticks:{callback:v=>v.toFixed(1)+'/min'}},y:noGrid},plugins:{legend:{display:false},annotation:{annotations:{avgLine:{type:'line',xMin:sigAvg,xMax:sigAvg,borderColor:'rgba(255,255,255,0.3)',borderWidth:1.5,borderDash:[6,4],label:{display:true,content:'AVG '+sigAvg.toFixed(1),position:'start',backgroundColor:'rgba(0,0,0,0.6)',color:'#d4d4d8',font:{size:10},padding:3}}}}}},plugins:[lollipopPlugin]});
 
 // 8 Takedown Accuracy — Bullet Chart (attempted vs landed overlay)
@@ -436,16 +457,16 @@ const tdLanded=[133,114,95,82,76,90,25,26];
 const tdPct=[63.2,61.5,57.8,55.4,54.9,52.1,51.8,50.3];
 function tdColor(v){return v>=58?'#10b981':v>=52?'#059669':'#047857';}
 new Chart(document.getElementById('c8'),{type:'bar',data:{labels:tdFighters,datasets:[
-  {label:'Attempted',data:tdAttempted,backgroundColor:'rgba(16,185,129,0.1)',barPercentage:0.85,categoryPercentage:0.9,borderRadius:3,order:1},
+  {label:'Attempted',data:tdAttempted,backgroundColor:'rgba(16,185,129,0.1)',hoverBackgroundColor:'rgba(16,185,129,0.18)',barPercentage:0.85,categoryPercentage:0.9,borderRadius:3,order:1},
   {label:'Landed',data:tdLanded,backgroundColor:tdPct.map(v=>tdColor(v)),barPercentage:0.45,categoryPercentage:0.9,borderRadius:3,order:0,
     datalabels:{display:true,anchor:'end',align:'right',color:'#a1a1aa',font:{size:10,weight:600},formatter:(v,ctx)=>tdPct[ctx.dataIndex]+'%'}}
 ]},options:{...co,indexAxis:'y',scales:{y:{stacked:true,...noGrid},x:{stacked:false,beginAtZero:true,...lightGrid}},plugins:{legend:{display:false},tooltip:{callbacks:{label:ctx=>ctx.dataset.label+': '+ctx.raw.toLocaleString()+(ctx.datasetIndex===1?' ('+tdPct[ctx.dataIndex]+'%)':'')}}}}});
 
 // 9 Sub tech
-new Chart(document.getElementById('c9'),{type:'bar',data:{labels:['RNC','Guillotine','Armbar','Triangle','D\'Arce','Arm Tri','Kimura','Anaconda'],datasets:[{data:[412,287,256,134,89,78,72,45],backgroundColor:C.map(c=>c+'88'),borderRadius:3}]},options:{...co,indexAxis:'y',scales:{x:{beginAtZero:true,...lightGrid},y:noGrid},plugins:{legend:{display:false}}}});
+new Chart(document.getElementById('c9'),{type:'bar',data:{labels:['RNC','Guillotine','Armbar','Triangle','D\'Arce','Arm Tri','Kimura','Anaconda'],datasets:[{data:[412,287,256,134,89,78,72,45],backgroundColor:C.map(c=>c+'88'),hoverBackgroundColor:C.map(c=>c+'aa'),borderRadius:3}]},options:{...co,indexAxis:'y',scales:{x:{beginAtZero:true,...lightGrid},y:noGrid},plugins:{legend:{display:false}}}});
 
 // 10 Control
-new Chart(document.getElementById('c10'),{type:'bar',data:{labels:['HW','WW','LHW','MW','LW','BW','FW','FLW'],datasets:[{data:[142,136,128,119,112,105,98,94],backgroundColor:'rgba(6,182,212,0.5)',borderRadius:5}]},options:{...co,scales:{y:{beginAtZero:true,...lightGrid,ticks:{callback:v=>{const m=Math.floor(v/60);return m+':'+(v%60<10?'0':'')+(v%60);}}},x:noGrid},plugins:{legend:{display:false}}}});
+new Chart(document.getElementById('c10'),{type:'bar',data:{labels:['HW','WW','LHW','MW','LW','BW','FW','FLW'],datasets:[{data:[142,136,128,119,112,105,98,94],backgroundColor:'rgba(6,182,212,0.5)',hoverBackgroundColor:'rgba(6,182,212,0.6)',borderRadius:5}]},options:{...co,scales:{y:{beginAtZero:true,...lightGrid,ticks:{callback:v=>{const m=Math.floor(v/60);return m+':'+(v%60<10?'0':'')+(v%60);}}},x:noGrid},plugins:{legend:{display:false}}}});
 
 // 11 Ground Strikes — Bubble Chart (attempted vs landed, size=accuracy)
 const gsFighters=[
