@@ -60,32 +60,37 @@ className="... transition-all duration-300 ease-out hover:scale-[1.01] hover:bor
 3. **Scatter dot**: `finish_count` (= `ko_tko_count + sub_count`) 로 변경
 4. **커스텀 Tooltip**: `short` 제거, 체급 전체 이름 표시, Finishes 아래 KO/TKO · SUB 들여쓰기 표시
 
-### 🔲 1.3 Fight Duration — 평균 종료 시간 (백엔드 필요)
+### ✅ 1.3 Fight Duration — 평균 종료 시간
 
 | 항목 | 상태 |
 |------|------|
 | ✅ **Tooltip cursor** | `cursor={{ fill: 'rgba(255,255,255,0.04)' }}` 적용 완료 |
 | ✅ **그래프 margin** | `margin.top` 5 → 20으로 조정, ReferenceLine 라벨 잘림 해소 |
-| 🔲 **ReferenceLine 라벨** | `Avg R2.3 (3:42)` 형태로 평균 종료 시간 표시 — **백엔드 수정 필요** |
+| ✅ **ReferenceLine 라벨** | `Avg R2.3 (3:42)` 형태로 평균 종료 시간 표시 완료 |
 
-> **백엔드 변경 필요**: `repositories.py`에 평균 종료 시간 계산 쿼리 추가, `dto.py`에 `avg_time` 필드 추가
+**백엔드 변경 완료:**
+- `repositories.py`: `get_fight_duration_avg_time()` 함수 추가 (match.time 문자열 파싱 → 초 단위 평균)
+- `dto.py`: `FightDurationDTO`에 `avg_time_seconds: Optional[int]` 필드 추가
+- `services.py`: `get_overview`에서 `avg_time` 조회 및 DTO 전달
+- 프론트: `FightDurationChart.tsx`에서 `avg_time_seconds` → `M:SS` 포맷 변환 후 ReferenceLine 라벨에 표시
 
-### 🔲 1.4 Leaderboard — UFC 전적만 표시 (데이터 이슈)
+### ✅ 1.4 Leaderboard — UFC Only 토글 필터
 
 | 항목 | 내용 |
 |------|------|
-| **현재 문제** | 체급 필터 없이 전체 조회 시 `fighter.wins` (MMA 전체 커리어 전적) 사용 |
-| **수정 파일** | `src/dashboard/repositories.py` |
+| ~~**현재 문제**~~ | ~~체급 필터 없이 전체 조회 시 `fighter.wins` (MMA 전체 커리어 전적) 사용~~ |
 
-**변경 내용: "All MMA / UFC Only" 토글 필터 추가**
+**완료된 변경 내용: "All MMA / UFC Only" 토글 필터 추가**
 
-| 수정 위치 | 내용 |
-|-----------|------|
-| **프론트: `overview/LeaderboardChart.tsx`** | 기존 PillTabs 옆에 "All MMA / UFC Only" 토글 추가 |
-| **프론트: `services/dashboardApi.ts`** | `getOverview(weightClassId?, ucfOnly?)` 파라미터 추가 |
-| **백엔드: `api/dashboard/routes.py`** | overview 엔드포인트에 `ufc_only: bool = False` 쿼리 파라미터 추가 |
-| **백엔드: `dashboard/services.py`** | `ufc_only` 값에 따라 다른 leaderboard 쿼리 호출 |
-| **백엔드: `dashboard/repositories.py`** | `get_leaderboard_wins`, `get_leaderboard_winrate`에 `ufc_only` 분기 추가 |
+| 수정 위치 | 내용 | 상태 |
+|-----------|------|------|
+| **프론트: `overview/LeaderboardChart.tsx`** | PillTabs 우측에 토글 스위치 추가 | ✅ |
+| **프론트: `services/dashboardApi.ts`** | `getOverview(weightClassId?, ufcOnly?)` 파라미터 추가 | ✅ |
+| **프론트: `hooks/useDashboard.ts`** | `FetchOptions` 인터페이스 + `ufcOnly` 캐시 키 반영 | ✅ |
+| **프론트: `DashboardPage.tsx`** | `ufcOnly` state 관리 + OverviewTab 전달 | ✅ |
+| **백엔드: `api/dashboard/routes.py`** | overview 엔드포인트에 `ufc_only: bool = False` 쿼리 파라미터 추가 | ✅ |
+| **백엔드: `dashboard/services.py`** | `ufc_only` 전달 + 캐시 키 반영 | ✅ |
+| **백엔드: `dashboard/repositories.py`** | `get_leaderboard_wins`, `get_leaderboard_winrate`에 `ufc_only` 분기 추가 | ✅ |
 
 ---
 
@@ -164,7 +169,7 @@ className="... transition-all duration-300 ease-out hover:scale-[1.01] hover:bor
 | 2 | `overview/FinishMethodsChart.tsx` | Tooltip 라벨을 method 이름으로 변경 | ✅ |
 | 3 | `overview/WeightClassActivityChart.tsx` | PillTabs 제거, X축 축약, dot→finish_count, 커스텀 Tooltip | ✅ |
 | 4 | `overview/FightDurationChart.tsx` | cursor 스타일 + margin 조정 | ✅ |
-| 5 | `overview/LeaderboardChart.tsx` | "All MMA / UFC Only" 토글 필터 추가 | 🔲 |
+| 5 | `overview/LeaderboardChart.tsx` | "All MMA / UFC Only" 토글 필터 추가 | ✅ |
 | 6 | `striking/StrikeTargetsChart.tsx` | Radar 숫자 제거, Tooltip 비율 추가 | ✅ |
 | 7 | `striking/StrikingAccuracyChart.tsx` | 바 겹침 수정, cursor 수정 | ✅ |
 | 8 | `striking/KoTkoLeadersChart.tsx` | cursor={false} 적용 | ✅ |
@@ -179,16 +184,16 @@ className="... transition-all duration-300 ease-out hover:scale-[1.01] hover:bor
 | # | 파일 | 수정 내용 | 상태 |
 |---|------|-----------|------|
 | 1 | `src/dashboard/repositories.py` | 최소 경기 수 5 → 10 변경 (6개 쿼리) | ✅ |
-| 2 | `src/dashboard/repositories.py` | Leaderboard: UFC Only 토글 분기 추가 | 🔲 |
-| 3 | `src/dashboard/repositories.py` | FightDuration: 평균 종료 시간 쿼리 추가 | 🔲 |
-| 4 | `src/dashboard/dto.py` | FightDuration DTO에 `avg_time` 필드 추가 | 🔲 |
+| 2 | `src/dashboard/repositories.py` | Leaderboard: UFC Only 토글 분기 추가 | ✅ |
+| 3 | `src/dashboard/repositories.py` | FightDuration: 평균 종료 시간 쿼리 추가 | ✅ |
+| 4 | `src/dashboard/dto.py` | FightDuration DTO에 `avg_time` 필드 추가 | ✅ |
 
 ---
 
-## 미완료 항목 (백엔드 수정 필요)
+## ~~미완료 항목~~ → 모두 완료
 
-1. **Fight Duration avg_time** — 백엔드에 평균 종료 시간 계산 추가 필요
-2. **Leaderboard UFC Only 토글** — 프론트 + 백엔드 모두 수정 필요
+1. ~~**Fight Duration avg_time**~~ ✅ — 백엔드 쿼리 + 프론트 표시 완료
+2. ~~**Leaderboard UFC Only 토글**~~ ✅ — 프론트 + 백엔드 모두 구현 완료
 
 ## 피드백 필요 항목
 
