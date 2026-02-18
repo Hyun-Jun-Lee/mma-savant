@@ -11,9 +11,11 @@ interface OverviewTabProps {
   loading: boolean
   error: string | null
   onRetry: () => void
+  ufcOnly: boolean
+  onUfcOnlyChange: (value: boolean) => void
 }
 
-export function OverviewTab({ data, loading, error, onRetry }: OverviewTabProps) {
+export function OverviewTab({ data, loading, error, onRetry, ufcOnly, onUfcOnlyChange }: OverviewTabProps) {
   return (
     <div className="space-y-4">
       {/* Row 1: Donut + Timeline */}
@@ -74,7 +76,13 @@ export function OverviewTab({ data, loading, error, onRetry }: OverviewTabProps)
         error={error}
         onRetry={onRetry}
       >
-        {data && <LeaderboardChart data={data.leaderboard} />}
+        {data && (
+          <LeaderboardChart
+            data={data.leaderboard}
+            ufcOnly={ufcOnly}
+            onUfcOnlyChange={onUfcOnlyChange}
+          />
+        )}
       </ChartCard>
     </div>
   )

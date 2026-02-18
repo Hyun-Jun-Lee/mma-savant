@@ -36,11 +36,15 @@ function formatSeconds(sec: number) {
   return `${m}:${s.toString().padStart(2, '0')}`
 }
 
+const EXCLUDED_CLASSES = new Set(['Open Weight', 'Catch Weight'])
+
 export function ControlTimeChart({ data }: ControlTimeChartProps) {
-  const chartData = data.map((d) => ({
-    ...d,
-    short: ABBREVIATIONS[d.weight_class] ?? d.weight_class,
-  }))
+  const chartData = data
+    .filter((d) => !EXCLUDED_CLASSES.has(d.weight_class))
+    .map((d) => ({
+      ...d,
+      short: ABBREVIATIONS[d.weight_class] ?? d.weight_class,
+    }))
 
   return (
     <ResponsiveContainer width="100%" height={280}>

@@ -1,5 +1,6 @@
 'use client'
 
+import { useState } from 'react'
 import {
   BarChart,
   Bar,
@@ -10,10 +11,19 @@ import {
   Cell,
   LabelList,
 } from 'recharts'
-import type { StrikingAccuracyFighter } from '@/types/dashboard'
+import { PillTabs } from '../PillTabs'
+import type { MinFightsLeaderboard, StrikingAccuracyFighter } from '@/types/dashboard'
+
+const TABS = [
+  { key: 'min10', label: '10+ Fights' },
+  { key: 'min20', label: '20+ Fights' },
+  { key: 'min30', label: '30+ Fights' },
+] as const
+
+type MinKey = (typeof TABS)[number]['key']
 
 interface StrikingAccuracyChartProps {
-  data: StrikingAccuracyFighter[]
+  data: MinFightsLeaderboard<StrikingAccuracyFighter>
 }
 
 function getColor(accuracy: number) {
@@ -23,9 +33,20 @@ function getColor(accuracy: number) {
 }
 
 export function StrikingAccuracyChart({ data }: StrikingAccuracyChartProps) {
-  const chartData = data.map((d) => ({ ...d, accLabel: `${d.accuracy}%` }))
+  const [activeKey, setActiveKey] = useState<MinKey>('min10')
+  const fighters = data[activeKey]
+  const chartData = fighters.map((d) => ({ ...d, accLabel: `${d.accuracy}%` }))
 
   return (
+    <div>
+      <div className="mb-3">
+        <PillTabs
+          tabs={[...TABS]}
+          activeKey={activeKey}
+          onChange={(k) => setActiveKey(k as MinKey)}
+          size="sm"
+        />
+      </div>
     <ResponsiveContainer width="100%" height={280}>
       <BarChart
         data={chartData}
@@ -85,5 +106,6 @@ export function StrikingAccuracyChart({ data }: StrikingAccuracyChartProps) {
         </Bar>
       </BarChart>
     </ResponsiveContainer>
+    </div>
   )
 }

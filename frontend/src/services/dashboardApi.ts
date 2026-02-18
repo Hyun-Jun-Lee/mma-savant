@@ -16,10 +16,18 @@ function withWeightClass(path: string, weightClassId?: number): string {
   return weightClassId ? `${path}?weight_class_id=${weightClassId}` : path
 }
 
+function buildOverviewPath(weightClassId?: number, ufcOnly?: boolean): string {
+  const params = new URLSearchParams()
+  if (weightClassId) params.set('weight_class_id', weightClassId.toString())
+  if (ufcOnly) params.set('ufc_only', 'true')
+  const qs = params.toString()
+  return qs ? `/api/dashboard/overview?${qs}` : '/api/dashboard/overview'
+}
+
 export const dashboardApi = {
-  getOverview: (weightClassId?: number) =>
+  getOverview: (weightClassId?: number, ufcOnly?: boolean) =>
     dashboardFetch<OverviewResponse>(
-      withWeightClass('/api/dashboard/overview', weightClassId)
+      buildOverviewPath(weightClassId, ufcOnly)
     ),
 
   getStriking: (weightClassId?: number) =>

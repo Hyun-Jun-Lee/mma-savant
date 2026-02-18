@@ -15,11 +15,21 @@ interface FightDurationChartProps {
   data: OverviewResponse['fight_duration']
 }
 
+function formatSeconds(seconds: number): string {
+  const m = Math.floor(seconds / 60)
+  const s = seconds % 60
+  return `${m}:${s.toString().padStart(2, '0')}`
+}
+
 export function FightDurationChart({ data }: FightDurationChartProps) {
   const chartData = data.rounds.map((r) => ({
     ...r,
     label: `R${r.result_round}`,
   }))
+
+  const avgLabel = data.avg_time_seconds
+    ? `Avg ${formatSeconds(data.avg_time_seconds)}`
+    : `Avg R${data.avg_round.toFixed(1)}`
 
   return (
     <ResponsiveContainer width="100%" height={280}>
@@ -62,7 +72,7 @@ export function FightDurationChart({ data }: FightDurationChartProps) {
           stroke="#71717a"
           strokeDasharray="4 4"
           label={{
-            value: `Avg R${data.avg_round.toFixed(1)}`,
+            value: avgLabel,
             fill: '#71717a',
             fontSize: 10,
             position: 'top',

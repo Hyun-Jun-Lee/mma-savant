@@ -31,14 +31,18 @@ interface WeightClassActivityChartProps {
   data: WeightClassActivity[]
 }
 
+const EXCLUDED_CLASSES = new Set(['Open Weight', 'Catch Weight'])
+
 export function WeightClassActivityChart({
   data,
 }: WeightClassActivityChartProps) {
-  const chartData = data.map((d) => ({
-    ...d,
-    short: ABBREVIATIONS[d.weight_class] ?? d.weight_class,
-    finish_count: d.ko_tko_count + d.sub_count,
-  }))
+  const chartData = data
+    .filter((d) => !EXCLUDED_CLASSES.has(d.weight_class))
+    .map((d) => ({
+      ...d,
+      short: ABBREVIATIONS[d.weight_class] ?? d.weight_class,
+      finish_count: d.ko_tko_count + d.sub_count,
+    }))
 
   return (
     <ResponsiveContainer width="100%" height={280}>

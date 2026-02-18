@@ -23,9 +23,11 @@ type LeaderboardKey = (typeof TABS)[number]['key']
 
 interface LeaderboardChartProps {
   data: OverviewResponse['leaderboard']
+  ufcOnly: boolean
+  onUfcOnlyChange: (value: boolean) => void
 }
 
-export function LeaderboardChart({ data }: LeaderboardChartProps) {
+export function LeaderboardChart({ data, ufcOnly, onUfcOnlyChange }: LeaderboardChartProps) {
   const [activeKey, setActiveKey] = useState<LeaderboardKey>('wins')
 
   const fighters = data[activeKey]
@@ -34,13 +36,31 @@ export function LeaderboardChart({ data }: LeaderboardChartProps) {
 
   return (
     <div>
-      <div className="mb-3">
+      <div className="mb-3 flex items-center justify-between gap-3">
         <PillTabs
           tabs={[...TABS]}
           activeKey={activeKey}
           onChange={(k) => setActiveKey(k as LeaderboardKey)}
           size="sm"
         />
+        <button
+          onClick={() => onUfcOnlyChange(!ufcOnly)}
+          className="flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs font-medium transition-colors bg-white/[0.04] hover:bg-white/[0.08]"
+        >
+          <span className={ufcOnly ? 'text-zinc-500' : 'text-white'}>All MMA</span>
+          <div
+            className={`relative h-4 w-7 rounded-full transition-colors ${
+              ufcOnly ? 'bg-amber-500' : 'bg-zinc-600'
+            }`}
+          >
+            <div
+              className={`absolute top-0.5 h-3 w-3 rounded-full bg-white transition-transform ${
+                ufcOnly ? 'translate-x-3.5' : 'translate-x-0.5'
+              }`}
+            />
+          </div>
+          <span className={ufcOnly ? 'text-amber-400' : 'text-zinc-500'}>UFC Only</span>
+        </button>
       </div>
       <ResponsiveContainer width="100%" height={320}>
         <BarChart

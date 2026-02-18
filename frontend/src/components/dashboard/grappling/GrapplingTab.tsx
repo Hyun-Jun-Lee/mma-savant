@@ -20,7 +20,7 @@ export function GrapplingTab({ data, loading, error, onRetry }: GrapplingTabProp
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         <ChartCard
           title="Takedown Accuracy"
-          description="Top fighters by takedown accuracy (min. 5 fights)"
+          description="Top fighters by takedown accuracy"
           tooltip="테이크다운 정확도 상위 파이터입니다. 넓은 바는 시도, 좁은 바는 성공 수이며 오른쪽 %가 정확도입니다."
           loading={loading}
           error={error}

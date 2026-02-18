@@ -29,7 +29,7 @@ export function StrikingTab({ data, loading, error, onRetry }: StrikingTabProps)
         </ChartCard>
         <ChartCard
           title="Striking Accuracy"
-          description="Top fighters by significant strike accuracy (min. 5 fights)"
+          description="Top fighters by significant strike accuracy"
           tooltip="유효 타격 정확도 상위 파이터입니다. 넓은 바는 시도, 좁은 바는 적중 수이며 오른쪽 %가 정확도입니다."
           loading={loading}
           error={error}
@@ -53,7 +53,7 @@ export function StrikingTab({ data, loading, error, onRetry }: StrikingTabProps)
         </ChartCard>
         <ChartCard
           title="Sig. Strikes Per Fight"
-          description="Top fighters by average significant strikes (min. 5 fights)"
+          description="Top fighters by average significant strikes"
           tooltip="경기당 평균 유효 타격 수 상위 파이터입니다. 점선은 전체 평균입니다."
           loading={loading}
           error={error}

@@ -7,6 +7,7 @@ import {
   YAxis,
   ZAxis,
   Tooltip,
+  LabelList,
   ResponsiveContainer,
   ReferenceLine,
 } from 'recharts'
@@ -82,23 +83,35 @@ export function GroundStrikesChart({ data }: GroundStrikesChartProps) {
           strokeDasharray="4 4"
         />
         <Tooltip
-          contentStyle={{
-            backgroundColor: '#18181b',
-            border: '1px solid rgba(255,255,255,0.06)',
-            borderRadius: '8px',
-            fontSize: '12px',
+          content={({ active, payload }) => {
+            if (!active || !payload?.length) return null
+            const d = payload[0]?.payload as { name: string; x: number; y: number; z: number }
+            if (!d) return null
+            return (
+              <div className="rounded-lg border border-white/[0.06] bg-zinc-900 px-3 py-2 text-xs shadow-lg">
+                <p className="mb-1 font-medium text-zinc-200">{d.name}</p>
+                <p className="text-zinc-400">Attempted: {d.x}</p>
+                <p className="text-zinc-400">Landed: {d.y}</p>
+                <p className="text-zinc-400">Accuracy: {d.z.toFixed(1)}%</p>
+              </div>
+            )
           }}
-          itemStyle={{ color: '#e4e4e7' }}
-          labelStyle={{ color: '#a1a1aa' }}
-          formatter={(value: number, name: string) => {
-            if (name === 'Accuracy') return [`${value.toFixed(1)}%`, name]
-            return [value, name]
-          }}
-          labelFormatter={(_, payload) =>
-            payload?.[0]?.payload?.name ?? ''
-          }
         />
-        <Scatter data={scatterData} fill="#10b981" fillOpacity={0.6} />
+        <Scatter data={scatterData} fill="#10b981" fillOpacity={0.6}>
+          <LabelList
+            dataKey="name"
+            position="top"
+            fill="#a1a1aa"
+            fontSize={10}
+            content={({ index, x, y, value }) =>
+              index === 0 ? (
+                <text x={x as number} y={(y as number) - 8} textAnchor="middle" fill="#e4e4e7" fontSize={10}>
+                  {value}
+                </text>
+              ) : null
+            }
+          />
+        </Scatter>
       </ScatterChart>
     </ResponsiveContainer>
   )

@@ -91,6 +91,7 @@ export interface OverviewResponse {
   fight_duration: {
     rounds: FightDurationRound[]
     avg_round: number
+    avg_time_seconds: number | null
   }
 }
 
@@ -118,11 +119,17 @@ export interface SigStrikesLeader {
   total_fights: number
 }
 
+export interface MinFightsLeaderboard<T> {
+  min10: T[]
+  min20: T[]
+  min30: T[]
+}
+
 export interface StrikingResponse {
   strike_targets: StrikeTarget[]
-  striking_accuracy: StrikingAccuracyFighter[]
+  striking_accuracy: MinFightsLeaderboard<StrikingAccuracyFighter>
   ko_tko_leaders: KoTkoLeader[]
-  sig_strikes_per_fight: SigStrikesLeader[]
+  sig_strikes_per_fight: MinFightsLeaderboard<SigStrikesLeader>
 }
 
 // ── Grappling ──
@@ -158,7 +165,7 @@ export interface SubmissionEfficiencyFighter {
 }
 
 export interface GrapplingResponse {
-  takedown_accuracy: TakedownLeader[]
+  takedown_accuracy: MinFightsLeaderboard<TakedownLeader>
   submission_techniques: SubmissionTechnique[]
   control_time: ControlTimeByClass[]
   ground_strikes: GroundStrikesLeader[]

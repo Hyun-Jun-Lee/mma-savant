@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { useSearchParams, useRouter, usePathname } from 'next/navigation'
 import { useDashboard } from '@/hooks/useDashboard'
 import { PillTabs } from './PillTabs'
@@ -31,6 +31,7 @@ export function DashboardPageClient({
   const router = useRouter()
   const pathname = usePathname()
   const { state, fetchTab } = useDashboard()
+  const [ufcOnly, setUfcOnly] = useState(true)
 
   const activeTab = (searchParams.get('tab') as TabKey) || 'home'
   const weightClassId = searchParams.get('weight_class')
@@ -66,9 +67,19 @@ export function DashboardPageClient({
   // 탭 전환 시 데이터 fetch
   useEffect(() => {
     if (activeTab !== 'home') {
-      fetchTab(activeTab, weightClassId)
+      const hasData = !!state[activeTab].data
+      fetchTab(activeTab, weightClassId,
+        activeTab === 'overview' ? { ufcOnly, silent: hasData } : undefined
+      )
     }
-  }, [activeTab, weightClassId, fetchTab])
+  }, [activeTab, weightClassId, ufcOnly, fetchTab]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  const handleUfcOnlyChange = useCallback(
+    (value: boolean) => {
+      setUfcOnly(value)
+    },
+    []
+  )
 
   const showFilter = activeTab !== 'home'
 
@@ -104,7 +115,9 @@ export function DashboardPageClient({
             data={state.overview.data}
             loading={state.overview.loading}
             error={state.overview.error}
-            onRetry={() => fetchTab('overview', weightClassId)}
+            onRetry={() => fetchTab('overview', weightClassId, { ufcOnly })}
+            ufcOnly={ufcOnly}
+            onUfcOnlyChange={handleUfcOnlyChange}
           />
         )}
         {activeTab === 'striking' && (

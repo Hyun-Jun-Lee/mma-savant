@@ -1,5 +1,6 @@
 'use client'
 
+import { useState } from 'react'
 import {
   ComposedChart,
   Bar,
@@ -10,30 +11,51 @@ import {
   ReferenceLine,
   ResponsiveContainer,
 } from 'recharts'
-import type { SigStrikesLeader } from '@/types/dashboard'
+import { PillTabs } from '../PillTabs'
+import type { MinFightsLeaderboard, SigStrikesLeader } from '@/types/dashboard'
+
+const TABS = [
+  { key: 'min10', label: '10+ Fights' },
+  { key: 'min20', label: '20+ Fights' },
+  { key: 'min30', label: '30+ Fights' },
+] as const
+
+type MinKey = (typeof TABS)[number]['key']
 
 interface SigStrikesChartProps {
-  data: SigStrikesLeader[]
+  data: MinFightsLeaderboard<SigStrikesLeader>
 }
 
 export function SigStrikesChart({ data }: SigStrikesChartProps) {
+  const [activeKey, setActiveKey] = useState<MinKey>('min10')
+  const fighters = data[activeKey]
+
   const avg =
-    data.length > 0
-      ? data.reduce((sum, d) => sum + d.sig_str_per_fight, 0) / data.length
+    fighters.length > 0
+      ? fighters.reduce((sum, d) => sum + d.sig_str_per_fight, 0) / fighters.length
       : 0
 
   // dot 크기를 경기 수에 비례
-  const scatterData = data.map((d) => ({
+  const scatterData = fighters.map((d) => ({
     ...d,
     dotSize: Math.max(30, Math.min(120, d.total_fights * 4)),
   }))
 
   return (
+    <div>
+      <div className="mb-3">
+        <PillTabs
+          tabs={[...TABS]}
+          activeKey={activeKey}
+          onChange={(k) => setActiveKey(k as MinKey)}
+          size="sm"
+        />
+      </div>
     <ResponsiveContainer width="100%" height={280}>
       <ComposedChart
         data={scatterData}
         layout="vertical"
-        margin={{ top: 5, right: 40, left: 10, bottom: 0 }}
+        margin={{ top: 20, right: 40, left: 10, bottom: 0 }}
       >
         <XAxis
           type="number"
@@ -50,17 +72,15 @@ export function SigStrikesChart({ data }: SigStrikesChartProps) {
           width={100}
         />
         <Tooltip
-          contentStyle={{
-            backgroundColor: '#18181b',
-            border: '1px solid rgba(255,255,255,0.06)',
-            borderRadius: '8px',
-            fontSize: '12px',
-          }}
-          itemStyle={{ color: '#e4e4e7' }}
-          labelStyle={{ color: '#a1a1aa' }}
-          formatter={(value: number, name: string) => {
-            if (name === 'Sig/Fight') return [value.toFixed(1), name]
-            return [value, name]
+          content={({ active, payload, label }) => {
+            if (!active || !payload?.length) return null
+            const val = payload[0]?.value as number
+            return (
+              <div className="rounded-lg border border-white/[0.06] bg-zinc-900 px-3 py-2 text-xs shadow-lg">
+                <p className="mb-1 font-medium text-zinc-200">{label}</p>
+                <p className="text-zinc-400">Sig/Fight: {val?.toFixed(1)}</p>
+              </div>
+            )
           }}
         />
         <ReferenceLine
@@ -71,7 +91,7 @@ export function SigStrikesChart({ data }: SigStrikesChartProps) {
             value: `Avg ${avg.toFixed(1)}`,
             fill: '#71717a',
             fontSize: 10,
-            position: 'top',
+            position: 'insideBottomRight',
           }}
         />
         {/* Stem (thin bar) */}
@@ -90,5 +110,6 @@ export function SigStrikesChart({ data }: SigStrikesChartProps) {
         />
       </ComposedChart>
     </ResponsiveContainer>
+    </div>
   )
 }

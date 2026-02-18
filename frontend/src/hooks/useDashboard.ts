@@ -28,11 +28,10 @@ const initialTabState = <T>(): TabState<T> => ({
   error: null,
 })
 
-const fetchers = {
-  overview: dashboardApi.getOverview,
-  striking: dashboardApi.getStriking,
-  grappling: dashboardApi.getGrappling,
-} as const
+interface FetchOptions {
+  ufcOnly?: boolean
+  silent?: boolean
+}
 
 export function useDashboard() {
   const [state, setState] = useState<DashboardState>({
@@ -45,28 +44,39 @@ export function useDashboard() {
   const stateRef = useRef(state)
   stateRef.current = state
 
-  const lastWeightClassRef = useRef<Record<TabKey, number | undefined>>({
+  const lastParamsRef = useRef<Record<TabKey, string | undefined>>({
     overview: undefined,
     striking: undefined,
     grappling: undefined,
   })
 
   const fetchTab = useCallback(
-    async (tab: TabKey, weightClassId?: number) => {
+    async (tab: TabKey, weightClassId?: number, options?: FetchOptions) => {
       const cached = stateRef.current[tab]
-      const lastWc = lastWeightClassRef.current[tab]
+      const paramsKey = `${weightClassId ?? 'all'}:${options?.ufcOnly ?? false}`
+      const lastParams = lastParamsRef.current[tab]
 
-      // 이미 데이터가 있고 체급 필터가 동일하면 스킵
-      if (cached.data && lastWc === weightClassId) return
+      // 이미 데이터가 있고 파라미터가 동일하면 스킵
+      if (cached.data && lastParams === paramsKey) return
 
-      setState((prev) => ({
-        ...prev,
-        [tab]: { ...prev[tab], loading: true, error: null },
-      }))
+      // silent: 기존 데이터 유지한 채 백그라운드로 fetch (로딩 스켈레톤 없음)
+      if (!options?.silent) {
+        setState((prev) => ({
+          ...prev,
+          [tab]: { ...prev[tab], loading: true, error: null },
+        }))
+      }
 
       try {
-        const data = await fetchers[tab](weightClassId)
-        lastWeightClassRef.current[tab] = weightClassId
+        let data
+        if (tab === 'overview') {
+          data = await dashboardApi.getOverview(weightClassId, options?.ufcOnly)
+        } else if (tab === 'striking') {
+          data = await dashboardApi.getStriking(weightClassId)
+        } else {
+          data = await dashboardApi.getGrappling(weightClassId)
+        }
+        lastParamsRef.current[tab] = paramsKey
         setState((prev) => ({
           ...prev,
           [tab]: { data, loading: false, error: null },
@@ -86,7 +96,7 @@ export function useDashboard() {
   )
 
   const invalidateTab = useCallback((tab: TabKey) => {
-    lastWeightClassRef.current[tab] = undefined
+    lastParamsRef.current[tab] = undefined
     setState((prev) => ({
       ...prev,
       [tab]: initialTabState(),
