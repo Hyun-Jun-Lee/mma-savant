@@ -76,11 +76,10 @@ async def test_get_rankings(clean_test_session, dashboard_data):
 
 @pytest.mark.asyncio
 async def test_get_finish_methods(clean_test_session, dashboard_data):
-    """전체 9매치: KO=2, TKO=1, SUB=3, U-DEC=1, S-DEC=1, M-DEC=1"""
+    """전체 9매치: KO/TKO=3, SUB=3, U-DEC=1, S-DEC=1, M-DEC=1"""
     result = await dashboard_repo.get_finish_methods(clean_test_session)
     categories = {r["method_category"]: r["count"] for r in result}
-    assert categories["KO"] == 2
-    assert categories["TKO"] == 1
+    assert categories["KO/TKO"] == 3
     assert categories["SUB"] == 3
     assert categories["U-DEC"] == 1
     assert categories["S-DEC"] == 1
@@ -94,7 +93,7 @@ async def test_get_finish_methods_with_weight_class(clean_test_session, dashboar
     total = sum(r["count"] for r in result)
     assert total == 7
     categories = {r["method_category"]: r["count"] for r in result}
-    assert categories["KO"] == 1
+    assert categories["KO/TKO"] == 2
     assert categories["SUB"] == 2
 
 
@@ -113,15 +112,14 @@ async def test_get_weight_class_activity(clean_test_session, dashboard_data):
 
     lw = wc_map["lightweight"]
     assert lw["total_fights"] == 7
-    assert lw["ko_count"] == 1
-    assert lw["tko_count"] == 1
+    assert lw["ko_tko_count"] == 2
     assert lw["sub_count"] == 2
     assert float(lw["finish_rate"]) == approx(57.1, abs=0.1)
-    assert float(lw["ko_rate"]) == approx(14.3, abs=0.1)
+    assert float(lw["ko_tko_rate"]) == approx(28.6, abs=0.1)
 
     ww = wc_map["welterweight"]
     assert ww["total_fights"] == 2
-    assert ww["ko_count"] == 1
+    assert ww["ko_tko_count"] == 1
     assert ww["sub_count"] == 1
     assert float(ww["finish_rate"]) == approx(100.0, abs=0.1)
 
@@ -245,7 +243,7 @@ async def test_get_strike_targets_no_match(clean_test_session, dashboard_data):
 @pytest.mark.asyncio
 async def test_get_striking_accuracy(clean_test_session, dashboard_data):
     """HAVING >= 5전: A(7전 61.8%), B(7전 54.3%), C(4전) 제외"""
-    result = await dashboard_repo.get_striking_accuracy(clean_test_session)
+    result = await dashboard_repo.get_striking_accuracy(clean_test_session, min_fights=5)
     assert len(result) == 2
     assert result[0]["name"] == "Alpha Fighter"
     assert float(result[0]["accuracy"]) == approx(61.8, abs=0.1)
@@ -257,19 +255,17 @@ async def test_get_striking_accuracy(clean_test_session, dashboard_data):
 
 @pytest.mark.asyncio
 async def test_get_ko_tko_leaders(clean_test_session, dashboard_data):
-    """A: KO=2(match 0,7) + TKO=1(match 1) = 3"""
+    """A: KO/TKO 승리 = match 0, 1, 7 → 3"""
     result = await dashboard_repo.get_ko_tko_leaders(clean_test_session)
     assert len(result) == 1
     assert result[0]["name"] == "Alpha Fighter"
-    assert result[0]["ko_finishes"] == 2
-    assert result[0]["tko_finishes"] == 1
-    assert result[0]["total_ko_tko"] == 3
+    assert result[0]["ko_tko_finishes"] == 3
 
 
 @pytest.mark.asyncio
 async def test_get_sig_strikes_per_fight(clean_test_session, dashboard_data):
     """HAVING >= 5전: A(315/7=45.0), B(228/7=32.57)"""
-    result = await dashboard_repo.get_sig_strikes_per_fight(clean_test_session)
+    result = await dashboard_repo.get_sig_strikes_per_fight(clean_test_session, min_fights=5)
     assert len(result) == 2
     assert result[0]["name"] == "Alpha Fighter"
     assert float(result[0]["sig_str_per_fight"]) == approx(45.0, abs=0.1)
@@ -284,7 +280,7 @@ async def test_get_sig_strikes_per_fight(clean_test_session, dashboard_data):
 @pytest.mark.asyncio
 async def test_get_takedown_accuracy(clean_test_session, dashboard_data):
     """HAVING >= 5전 AND td_attempted >= 10: A(17/27=63.0%), B(9/21=42.9%)"""
-    result = await dashboard_repo.get_takedown_accuracy(clean_test_session)
+    result = await dashboard_repo.get_takedown_accuracy(clean_test_session, min_fights=5)
     assert len(result) == 2
     assert result[0]["name"] == "Alpha Fighter"
     assert result[0]["total_td_landed"] == 17
@@ -333,7 +329,7 @@ async def test_get_control_time(clean_test_session, dashboard_data):
 @pytest.mark.asyncio
 async def test_get_ground_strikes(clean_test_session, dashboard_data):
     """HAVING >= 5전: A(15/25=60.0%), B(9/18=50.0%)"""
-    result = await dashboard_repo.get_ground_strikes(clean_test_session)
+    result = await dashboard_repo.get_ground_strikes(clean_test_session, min_fights=5)
     assert len(result) == 2
     assert result[0]["name"] == "Alpha Fighter"
     assert result[0]["total_ground_landed"] == 15
@@ -346,7 +342,7 @@ async def test_get_ground_strikes(clean_test_session, dashboard_data):
 @pytest.mark.asyncio
 async def test_get_submission_efficiency_fighters(clean_test_session, dashboard_data):
     """HAVING sub_attempts >= 5 AND >= 5전: A(9시도 2성공), B(6시도 1성공)"""
-    result = await dashboard_repo.get_submission_efficiency_fighters(clean_test_session)
+    result = await dashboard_repo.get_submission_efficiency_fighters(clean_test_session, min_fights=5)
     assert len(result) == 2
     fighters = {r["name"]: r for r in result}
     assert fighters["Alpha Fighter"]["total_sub_attempts"] == 9
@@ -358,7 +354,7 @@ async def test_get_submission_efficiency_fighters(clean_test_session, dashboard_
 @pytest.mark.asyncio
 async def test_get_submission_efficiency_avg_ratio(clean_test_session, dashboard_data):
     """전체: 3성공/15시도 = 0.200"""
-    result = await dashboard_repo.get_submission_efficiency_avg_ratio(clean_test_session)
+    result = await dashboard_repo.get_submission_efficiency_avg_ratio(clean_test_session, min_fights=5)
     assert isinstance(result, float)
     assert result == approx(0.200, abs=0.01)
 
@@ -367,7 +363,7 @@ async def test_get_submission_efficiency_avg_ratio(clean_test_session, dashboard
 async def test_get_submission_efficiency_avg_ratio_with_filter(clean_test_session, dashboard_data):
     """wc=4: 2성공/12시도 = 0.167 (전체 0.200과 다름)"""
     result = await dashboard_repo.get_submission_efficiency_avg_ratio(
-        clean_test_session, weight_class_id=4
+        clean_test_session, weight_class_id=4, min_fights=5
     )
     assert result == approx(0.167, abs=0.01)
 

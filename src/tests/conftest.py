@@ -697,9 +697,9 @@ async def dashboard_data(clean_test_session):
     # === Matches: wc=4 (Lightweight) 7개 + wc=5 (Welterweight) 2개 ===
     matches = [
         # --- wc=4 (Lightweight) ---
-        MatchModel(event_id=events[0].id, weight_class_id=4, method="KO-Punch",
+        MatchModel(event_id=events[0].id, weight_class_id=4, method="KO/TKO-Punch",
                    result_round=1, time="2:30", order=1, is_main_event=True),
-        MatchModel(event_id=events[1].id, weight_class_id=4, method="TKO-Punches",
+        MatchModel(event_id=events[1].id, weight_class_id=4, method="KO/TKO-Punches",
                    result_round=2, time="4:15", order=1, is_main_event=False),
         MatchModel(event_id=events[2].id, weight_class_id=4, method="SUB-Rear Naked Choke",
                    result_round=1, time="3:45", order=1, is_main_event=False),
@@ -712,7 +712,7 @@ async def dashboard_data(clean_test_session):
         MatchModel(event_id=events[3].id, weight_class_id=4, method="M-DEC",
                    result_round=3, time="15:00", order=2, is_main_event=False),
         # --- wc=5 (Welterweight) ---
-        MatchModel(event_id=events[4].id, weight_class_id=5, method="KO-Punch",
+        MatchModel(event_id=events[4].id, weight_class_id=5, method="KO/TKO-Punch",
                    result_round=1, time="3:10", order=2, is_main_event=False),
         MatchModel(event_id=events[3].id, weight_class_id=5, method="SUB-Guillotine",
                    result_round=2, time="4:30", order=3, is_main_event=False),

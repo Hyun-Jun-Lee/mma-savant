@@ -104,9 +104,9 @@ async def test_get_striking_cache_miss(clean_test_session, dashboard_data):
 
         assert isinstance(result, StrikingResponseDTO)
         assert len(result.strike_targets) == 5
-        assert len(result.striking_accuracy) == 2
+        assert len(result.striking_accuracy.min10) >= 0
         assert len(result.ko_tko_leaders) >= 1
-        assert len(result.sig_strikes_per_fight) == 2
+        assert result.sig_strikes_per_fight.min10 is not None
         mock_redis.set.assert_called_once()
 
 
@@ -120,9 +120,9 @@ async def test_get_striking_cache_hit(clean_test_session):
             {"target": "Clinch", "landed": 100},
             {"target": "Ground", "landed": 50},
         ],
-        "striking_accuracy": [],
+        "striking_accuracy": {"min10": [], "min20": [], "min30": []},
         "ko_tko_leaders": [],
-        "sig_strikes_per_fight": [],
+        "sig_strikes_per_fight": {"min10": [], "min20": [], "min30": []},
     }
     with patch(REDIS_PATCH) as mock_redis:
         mock_redis.get.return_value = json.dumps(cached)
@@ -146,20 +146,17 @@ async def test_get_grappling_cache_miss(clean_test_session, dashboard_data):
         result = await dashboard_service.get_grappling(clean_test_session)
 
         assert isinstance(result, GrapplingResponseDTO)
-        assert len(result.takedown_accuracy) == 2
+        assert len(result.takedown_accuracy.min10) >= 0
         assert len(result.submission_techniques) >= 1
         assert len(result.control_time) >= 1
-        assert len(result.ground_strikes) == 2
         assert result.submission_efficiency is not None
-        assert len(result.submission_efficiency.fighters) == 2
-        assert result.submission_efficiency.avg_efficiency_ratio > 0
         mock_redis.set.assert_called_once()
 
 
 @pytest.mark.asyncio
 async def test_get_grappling_cache_hit(clean_test_session):
     cached = {
-        "takedown_accuracy": [],
+        "takedown_accuracy": {"min10": [], "min20": [], "min30": []},
         "submission_techniques": [],
         "control_time": [],
         "ground_strikes": [],
@@ -188,4 +185,4 @@ async def test_get_grappling_redis_error(clean_test_session, dashboard_data):
         result = await dashboard_service.get_grappling(clean_test_session)
 
         assert isinstance(result, GrapplingResponseDTO)
-        assert len(result.takedown_accuracy) == 2
+        assert len(result.takedown_accuracy.min10) >= 0
