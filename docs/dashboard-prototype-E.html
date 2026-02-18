@@ -1,0 +1,504 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MMA Savant Dashboard - Layout E: Bento Grid</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0/dist/chartjs-plugin-datalabels.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-annotation@3.1.0/dist/chartjs-plugin-annotation.min.js"></script>
+<style>
+  *{margin:0;padding:0;box-sizing:border-box;}
+  :root{
+    --bg:#050507;--surface:rgba(255,255,255,0.03);--surface-hover:rgba(255,255,255,0.06);
+    --border:rgba(255,255,255,0.06);--border-hover:rgba(255,255,255,0.14);
+    --text:#f4f4f5;--text-dim:#a1a1aa;--text-muted:#52525b;
+    --purple:#8b5cf6;--cyan:#06b6d4;--green:#10b981;--amber:#f59e0b;--red:#ef4444;--pink:#ec4899;
+  }
+  body{
+    font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-serif;
+    background:var(--bg);color:var(--text);min-height:100vh;overflow-x:hidden;
+  }
+  /* Ambient background blobs */
+  .ambient{position:fixed;inset:0;pointer-events:none;z-index:0;overflow:hidden;}
+  .blob{position:absolute;border-radius:50%;filter:blur(120px);opacity:0.12;animation:float 20s ease-in-out infinite;}
+  .blob-1{width:600px;height:600px;background:var(--purple);top:-200px;left:-100px;animation-delay:0s;}
+  .blob-2{width:500px;height:500px;background:var(--cyan);bottom:-150px;right:-100px;animation-delay:-7s;}
+  .blob-3{width:400px;height:400px;background:var(--pink);top:40%;left:50%;animation-delay:-14s;}
+  @keyframes float{0%,100%{transform:translate(0,0) scale(1);}33%{transform:translate(30px,-40px) scale(1.05);}66%{transform:translate(-20px,30px) scale(0.95);};}
+
+  ::-webkit-scrollbar{width:6px;}::-webkit-scrollbar-track{background:transparent;}
+  ::-webkit-scrollbar-thumb{background:#27272a;border-radius:3px;}
+
+  .wrap{max-width:1280px;margin:0 auto;padding:32px 32px 80px;position:relative;z-index:1;}
+
+  /* Header */
+  .header{display:flex;align-items:center;justify-content:space-between;margin-bottom:32px;}
+  .logo{font-size:22px;font-weight:700;letter-spacing:-0.5px;}
+  .logo span{background:linear-gradient(135deg,var(--purple),var(--cyan));-webkit-background-clip:text;-webkit-text-fill-color:transparent;}
+  .header-right{display:flex;align-items:center;gap:12px;}
+  .tag{font-size:11px;color:var(--text-muted);border:1px solid var(--border);border-radius:20px;padding:4px 14px;background:var(--surface);}
+
+  /* Filter bar */
+  .filter-bar{
+    display:flex;align-items:center;gap:8px;margin-bottom:24px;
+    background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:6px 8px;width:fit-content;
+  }
+  .filter-btn{
+    padding:7px 18px;font-size:12px;font-weight:500;border-radius:8px;cursor:pointer;
+    color:var(--text-muted);transition:all 0.25s;border:none;background:transparent;
+  }
+  .filter-btn.active{background:rgba(255,255,255,0.08);color:var(--text);box-shadow:0 1px 4px rgba(0,0,0,0.3);}
+  .filter-btn:hover:not(.active){color:var(--text-dim);}
+
+  /* Summary row */
+  .summary-row{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:24px;}
+  .s-card{
+    background:var(--surface);border:1px solid var(--border);border-radius:14px;
+    padding:18px 20px;transition:all 0.35s cubic-bezier(0.4,0,0.2,1);
+    opacity:0;transform:translateY(16px);
+  }
+  .s-card.show{opacity:1;transform:translateY(0);}
+  .s-card:hover{background:var(--surface-hover);border-color:var(--border-hover);transform:translateY(-3px);box-shadow:0 12px 40px rgba(0,0,0,0.3);}
+  .s-label{font-size:12px;color:var(--text-muted);margin-bottom:6px;display:flex;align-items:center;gap:6px;}
+  .s-dot{width:6px;height:6px;border-radius:50%;}
+  .s-val{font-size:26px;font-weight:700;letter-spacing:-1px;}
+  .s-sub{font-size:11px;color:var(--text-muted);margin-top:2px;}
+
+  /* ═══ BENTO GRID ═══ */
+  .bento{display:grid;grid-template-columns:repeat(4,1fr);grid-auto-rows:minmax(180px,auto);gap:12px;}
+  .b-card{
+    background:var(--surface);border:1px solid var(--border);border-radius:14px;
+    padding:22px;overflow:hidden;position:relative;
+    transition:all 0.4s cubic-bezier(0.4,0,0.2,1);
+    opacity:0;transform:translateY(20px) scale(0.98);
+  }
+  .b-card.show{opacity:1;transform:translateY(0) scale(1);}
+  .b-card:hover{
+    border-color:var(--border-hover);background:var(--surface-hover);
+    box-shadow:0 0 0 1px rgba(139,92,246,0.06),0 16px 50px rgba(0,0,0,0.3);
+    transform:translateY(-2px) scale(1);
+  }
+  /* Glow on hover */
+  .b-card::after{
+    content:'';position:absolute;inset:0;border-radius:14px;opacity:0;
+    transition:opacity 0.4s;pointer-events:none;
+    background:radial-gradient(400px circle at var(--mx,50%) var(--my,50%),rgba(139,92,246,0.06),transparent 60%);
+  }
+  .b-card:hover::after{opacity:1;}
+
+  .b-card .title{font-size:14px;font-weight:600;margin-bottom:2px;}
+  .b-card .desc{font-size:11px;color:var(--text-muted);margin-bottom:14px;}
+  .b-card .chart-area{position:relative;width:100%;flex:1;min-height:0;}
+
+  /* Span helpers */
+  .span-2c{grid-column:span 2;} .span-3c{grid-column:span 3;} .span-4c{grid-column:span 4;}
+  .span-2r{grid-row:span 2;}
+
+  /* Card internal layouts */
+  .b-card.tall{display:flex;flex-direction:column;min-height:380px;}
+  .b-card.tall .chart-area{flex:1;}
+  .b-card.wide{min-height:320px;display:flex;flex-direction:column;}
+  .b-card.wide .chart-area{flex:1;}
+
+  /* Rankings table */
+  .rank-tbl{width:100%;border-collapse:collapse;font-size:13px;}
+  .rank-tbl th{text-align:left;font-size:10px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.5px;padding:6px 10px;border-bottom:1px solid var(--border);}
+  .rank-tbl td{padding:8px 10px;border-bottom:1px solid rgba(255,255,255,0.02);}
+  .rank-tbl tr{transition:background 0.2s;}.rank-tbl tr:hover td{background:rgba(255,255,255,0.02);}
+  .rk{display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;border-radius:6px;font-size:10px;font-weight:700;}
+  .rk.c{background:rgba(245,158,11,0.15);color:var(--amber);}.rk.n{background:rgba(255,255,255,0.04);color:var(--text-dim);}
+  .wr{font-weight:500;font-size:12px;}
+
+  /* Tab pills inside card */
+  .pill-tabs{display:flex;gap:2px;background:rgba(255,255,255,0.04);border-radius:7px;padding:2px;width:fit-content;margin-bottom:12px;}
+  .pill{padding:5px 14px;font-size:11px;font-weight:500;border-radius:5px;cursor:pointer;color:var(--text-muted);transition:all 0.2s;}
+  .pill.on{background:rgba(255,255,255,0.08);color:var(--text);}
+
+  .dropdown{
+    padding:4px 10px;font-size:11px;background:rgba(255,255,255,0.04);
+    color:var(--text-dim);border:1px solid var(--border);border-radius:6px;outline:none;cursor:pointer;
+  }
+  .dropdown option{background:#18181b;}
+
+  /* ═══ SECTION DIVIDERS ═══ */
+  .section-divider{
+    grid-column:span 4;display:flex;align-items:center;gap:16px;
+    padding:32px 0 8px;min-height:auto;
+    opacity:0;transform:translateY(12px);
+    transition:all 0.5s cubic-bezier(0.16,1,0.3,1);
+  }
+  .section-divider.show{opacity:1;transform:translateY(0);}
+  .section-divider .sec-icon{
+    width:32px;height:32px;border-radius:8px;display:flex;align-items:center;justify-content:center;
+    font-size:15px;flex-shrink:0;
+  }
+  .section-divider .sec-title{font-size:15px;font-weight:600;letter-spacing:-0.3px;}
+  .section-divider .sec-line{flex:1;height:1px;background:linear-gradient(90deg,var(--border-hover),transparent);}
+  .section-divider .sec-count{font-size:11px;color:var(--text-muted);background:var(--surface);border:1px solid var(--border);border-radius:20px;padding:3px 12px;}
+
+  /* Responsive */
+  @media(max-width:1024px){
+    .bento{grid-template-columns:repeat(2,1fr);}
+    .span-3c,.span-4c{grid-column:span 2;}
+    .section-divider{grid-column:span 2;}
+  }
+  @media(max-width:640px){
+    .bento,.summary-row{grid-template-columns:1fr;}
+    .span-2c,.span-3c,.span-4c{grid-column:span 1;}
+    .section-divider{grid-column:span 1;}
+    .wrap{padding:16px 16px 60px;}
+  }
+</style>
+</head>
+<body>
+<div class="ambient"><div class="blob blob-1"></div><div class="blob blob-2"></div><div class="blob blob-3"></div></div>
+
+<div class="wrap">
+  <!-- Header -->
+  <div class="header">
+    <div class="logo">MMA <span>Savant</span></div>
+    <div class="header-right"><div class="tag">Layout E &mdash; Bento Grid</div></div>
+  </div>
+
+  <!-- Filter bar: Overview / Striking / Grappling -->
+  <div class="filter-bar">
+    <button class="filter-btn active" data-f="overview">Overview</button>
+    <button class="filter-btn" data-f="striking">Striking</button>
+    <button class="filter-btn" data-f="grappling">Grappling</button>
+  </div>
+
+  <!-- Summary -->
+  <div class="summary-row">
+    <div class="s-card"><div class="s-label"><div class="s-dot" style="background:var(--purple);"></div>Fighters</div><div class="s-val" data-c="3892">0</div><div class="s-sub">Active roster & alumni</div></div>
+    <div class="s-card"><div class="s-label"><div class="s-dot" style="background:var(--cyan);"></div>Matches</div><div class="s-val" data-c="7214">0</div><div class="s-sub">Total recorded bouts</div></div>
+    <div class="s-card"><div class="s-label"><div class="s-dot" style="background:var(--green);"></div>Events</div><div class="s-val" data-c="742">0</div><div class="s-sub">Since UFC 1 (1993)</div></div>
+    <div class="s-card"><div class="s-label"><div class="s-dot" style="background:var(--amber);"></div>Champions</div><div class="s-val" data-c="12">0</div><div class="s-sub">Current title holders</div></div>
+  </div>
+
+  <!-- Bento Grid -->
+  <div class="bento">
+
+    <!-- ═══════════ OVERVIEW SECTION ═══════════ -->
+    <!-- Row 1: Finish donut (2c) + Events area (2c) -->
+    <div class="b-card span-2c tall" data-cat="overview" data-d="0">
+      <div class="title">피니시 방법 분포</div><div class="desc">Finish Method Breakdown</div>
+      <div class="chart-area"><canvas id="c1"></canvas></div>
+    </div>
+    <div class="b-card span-2c tall" data-cat="overview" data-d="80">
+      <div class="title">연도별 이벤트 추이</div><div class="desc">UFC Growth Timeline</div>
+      <div class="chart-area"><canvas id="c2"></canvas></div>
+    </div>
+
+    <!-- Row 2: Weight class (3c) + Rounds (1c) -->
+    <div class="b-card span-3c tall" data-cat="overview" data-d="160">
+      <div style="display:flex;align-items:center;gap:10px;">
+        <div class="title" style="margin-bottom:0;">체급별 경기 수 & 피니시율</div>
+        <div class="pill-tabs" id="wc-tabs"><div class="pill on" data-t="finish">피니시율</div><div class="pill" data-t="ko">KO</div><div class="pill" data-t="tko">TKO</div><div class="pill" data-t="sub">SUB</div></div>
+      </div>
+      <div class="desc">Weight Class Activity — 바: 경기 수 · 점: 선택 비율(%)</div>
+      <div class="chart-area"><canvas id="c3"></canvas></div>
+    </div>
+    <div class="b-card tall" data-cat="overview" data-d="220">
+      <div class="title">종료 라운드</div><div class="desc">Round Distribution — 평균 2.1R</div>
+      <div class="chart-area"><canvas id="c4"></canvas></div>
+    </div>
+
+    <!-- Row 3: Leaderboard (4c full width) -->
+    <div class="b-card span-4c wide" data-cat="overview" data-d="280">
+      <div style="display:flex;align-items:center;gap:10px;">
+        <div class="title" style="margin-bottom:0;">최다승 & 최고 승률 TOP 10</div>
+        <div class="pill-tabs"><div class="pill on" data-t="w">최다승</div><div class="pill" data-t="r">최고 승률</div></div>
+        <select class="dropdown" id="mf" style="display:none;"><option>10경기 이상</option><option>20경기 이상</option><option>30경기 이상</option></select>
+      </div>
+      <div class="desc">Fighter Leaderboard</div>
+      <div class="chart-area"><canvas id="c6"></canvas></div>
+    </div>
+
+    <!-- Row 4: Rankings table (4c full width) -->
+    <div class="b-card span-4c" data-cat="overview" data-d="360" style="min-height:auto;">
+      <div style="display:flex;align-items:center;gap:12px;margin-bottom:14px;">
+        <div class="title" style="margin-bottom:0;">체급별 챔피언 & 랭킹</div>
+        <select class="dropdown"><option>Lightweight</option><option>Welterweight</option><option>Middleweight</option><option>Heavyweight</option></select>
+      </div>
+      <table class="rank-tbl">
+        <thead><tr><th style="width:44px;">Rank</th><th>Fighter</th><th>Record</th><th style="text-align:right;">Win %</th></tr></thead>
+        <tbody id="rtb"></tbody>
+      </table>
+    </div>
+
+    <!-- ═══════════ STRIKING SECTION ═══════════ -->
+    <div class="section-divider" data-cat="overview" data-d="420">
+      <div class="sec-icon" style="background:rgba(239,68,68,0.1);color:var(--red);">&#9889;</div>
+      <div class="sec-title">Striking</div>
+      <div class="sec-line"></div>
+      <div class="sec-count">4 Stats</div>
+    </div>
+
+    <div class="b-card span-2c tall" data-cat="striking" data-d="0">
+      <div class="title">타격 부위별 분포</div><div class="desc">Strike Target Radar</div>
+      <div class="chart-area"><canvas id="c7"></canvas></div>
+    </div>
+    <div class="b-card span-2c tall" data-cat="striking" data-d="80">
+      <div class="title">타격 정확도 TOP</div><div class="desc">Attempted vs Landed — Bullet Chart</div>
+      <div class="chart-area"><canvas id="c5"></canvas></div>
+    </div>
+
+    <!-- Striking Row 2: KO/TKO Artists (2c) + Sig Strikes Per Fight (2c) -->
+    <div class="b-card span-2c tall" data-cat="striking" data-d="160">
+      <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+        <div class="title" style="margin-bottom:0;">KO/TKO 피니시 TOP</div>
+        <select class="dropdown wc-filter"><option>전체</option><option>Flyweight</option><option>Bantamweight</option><option>Featherweight</option><option>Lightweight</option><option>Welterweight</option><option>Middleweight</option><option>Light Heavyweight</option><option>Heavyweight</option></select>
+      </div>
+      <div class="desc">KO/TKO Finish Leaders</div>
+      <div class="chart-area"><canvas id="c13"></canvas></div>
+    </div>
+    <div class="b-card span-2c tall" data-cat="striking" data-d="240">
+      <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+        <div class="title" style="margin-bottom:0;">경기당 유효타격 TOP</div>
+        <select class="dropdown wc-filter"><option>전체</option><option>Flyweight</option><option>Bantamweight</option><option>Featherweight</option><option>Lightweight</option><option>Welterweight</option><option>Middleweight</option><option>Light Heavyweight</option><option>Heavyweight</option></select>
+      </div>
+      <div class="desc">Sig. Strikes Per Fight Leaders</div>
+      <div class="chart-area"><canvas id="c14"></canvas></div>
+    </div>
+
+    <!-- ═══════════ GRAPPLING SECTION ═══════════ -->
+    <div class="section-divider" data-cat="overview" data-d="480">
+      <div class="sec-icon" style="background:rgba(6,182,212,0.1);color:var(--cyan);">&#9878;</div>
+      <div class="sec-title">Grappling</div>
+      <div class="sec-line"></div>
+      <div class="sec-count">5 Stats</div>
+    </div>
+
+    <div class="b-card span-2c tall" data-cat="grappling" data-d="0">
+      <div class="title">테이크다운 성공률 TOP</div><div class="desc">Attempted vs Landed — Bullet Chart</div>
+      <div class="chart-area"><canvas id="c8"></canvas></div>
+    </div>
+    <div class="b-card span-2c tall" data-cat="grappling" data-d="80">
+      <div class="title">서브미션 기술 분포</div><div class="desc">Technique Breakdown</div>
+      <div class="chart-area"><canvas id="c9"></canvas></div>
+    </div>
+    <div class="b-card tall" data-cat="grappling" data-d="160">
+      <div class="title">체급별 컨트롤 타임</div><div class="desc">Avg Control Time</div>
+      <div class="chart-area"><canvas id="c10"></canvas></div>
+    </div>
+    <div class="b-card tall" data-cat="grappling" data-d="220">
+      <div class="title">그라운드 스트라이크</div><div class="desc">Attempted vs Landed (Bubble)</div>
+      <div class="chart-area"><canvas id="c11"></canvas></div>
+    </div>
+    <div class="b-card span-2c tall" data-cat="grappling" data-d="280">
+      <div class="title">서브미션 효율성</div><div class="desc">Attempts vs Finishes — 기준선: 평균 효율</div>
+      <div class="chart-area"><canvas id="c12"></canvas></div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+// ── Globals ──
+Chart.defaults.color='#71717a';Chart.defaults.borderColor='rgba(255,255,255,0.04)';
+Chart.defaults.font.family="-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-serif";
+Chart.defaults.font.size=11;Chart.defaults.plugins.legend.labels.boxWidth=10;Chart.defaults.plugins.legend.labels.padding=14;
+Chart.defaults.plugins.tooltip.backgroundColor='#18181b';Chart.defaults.plugins.tooltip.borderColor='#27272a';Chart.defaults.plugins.tooltip.borderWidth=1;Chart.defaults.plugins.tooltip.cornerRadius=8;Chart.defaults.plugins.tooltip.padding=10;
+Chart.defaults.animation={duration:900,easing:'easeOutQuart'};
+
+// ── Common Fix: Subtle hover highlight ──
+// Recharts equivalent: cursor={{ fill: 'rgba(255,255,255,0.04)' }}
+// Bar 차트 hover 시 밝은 배경 대신 은은한 row/column 하이라이트 표시
+// afterDatasetsDraw: 바 위에 반투명 하이라이트를 그려야 보임
+const subtleCursor={id:'subtleCursor',afterDatasetsDraw(chart){
+  const els=chart.getActiveElements();
+  if(!els.length)return;
+  const t=chart.config.type;
+  if(t==='doughnut'||t==='radar'||t==='bubble'||t==='scatter')return;
+  const ctx=chart.ctx;const area=chart.chartArea;const el=els[0].element;
+  ctx.save();ctx.fillStyle='rgba(255,255,255,0.06)';
+  if(chart.config.options?.indexAxis==='y'){
+    const h=el.height||16;ctx.fillRect(area.left,el.y-h/2-4,area.right-area.left,h+8);
+  }else{
+    const w=el.width||16;ctx.fillRect(el.x-w/2-4,area.top,w+8,area.bottom-area.top);
+  }
+  ctx.restore();
+}};
+Chart.register(subtleCursor);
+
+const C=['#8b5cf6','#06b6d4','#10b981','#f59e0b','#ef4444','#ec4899','#6366f1','#14b8a6','#f97316','#a855f7','#22d3ee','#84cc16','#e879f9','#fb923c','#34d399'];
+const gridC='rgba(255,255,255,0.03)';
+
+// ── Count up ──
+function countUp(el,t,d=1400){const s=performance.now();(function f(n){const p=Math.min((n-s)/d,1);const e=1-Math.pow(1-p,4);el.textContent=Math.round(t*e).toLocaleString();if(p<1)requestAnimationFrame(f);})(s);}
+document.querySelectorAll('[data-c]').forEach(el=>countUp(el,+el.dataset.c));
+
+// ── Reveal ──
+const obs=new IntersectionObserver(es=>{es.forEach(e=>{if(e.isIntersecting){const d=+e.target.dataset.d||0;setTimeout(()=>{e.target.style.transition='opacity 0.7s cubic-bezier(0.16,1,0.3,1),transform 0.7s cubic-bezier(0.16,1,0.3,1)';e.target.classList.add('show');},d);obs.unobserve(e.target);}});},{threshold:0.1,rootMargin:'0px 0px -30px'});
+document.querySelectorAll('.b-card,.s-card,.section-divider').forEach(c=>obs.observe(c));
+
+// ── Mouse glow ──
+document.querySelectorAll('.b-card').forEach(card=>{
+  card.addEventListener('mousemove',e=>{const r=card.getBoundingClientRect();card.style.setProperty('--mx',(e.clientX-r.left)+'px');card.style.setProperty('--my',(e.clientY-r.top)+'px');});
+});
+
+// ── Filter ──
+document.querySelectorAll('.filter-btn').forEach(btn=>{
+  btn.addEventListener('click',()=>{
+    document.querySelectorAll('.filter-btn').forEach(b=>b.classList.remove('active'));btn.classList.add('active');
+    const f=btn.dataset.f;
+    document.querySelectorAll('.b-card,.section-divider').forEach(c=>{
+      const cat=c.dataset.cat;
+      let show=false;
+      if(f==='overview'){
+        // Overview: show everything (overview cards + section dividers + striking + grappling)
+        show=true;
+      }else if(f==='striking'){
+        show=(cat==='striking');
+      }else if(f==='grappling'){
+        show=(cat==='grappling');
+      }
+      if(show){
+        c.style.display='';
+        c.classList.remove('show');
+        setTimeout(()=>{c.style.transition='opacity 0.5s,transform 0.5s';c.classList.add('show');},+c.dataset.d||0);
+      }else{
+        c.style.display='none';
+      }
+    });
+    // Summary row only visible in overview
+    document.querySelector('.summary-row').style.display=(f==='overview')?'':'none';
+  });
+});
+
+// ── Pill tabs (leaderboard) ──
+document.querySelectorAll('.pill').forEach(p=>{p.addEventListener('click',()=>{
+  p.parentElement.querySelectorAll('.pill').forEach(x=>x.classList.remove('on'));p.classList.add('on');
+  document.getElementById('mf').style.display=p.dataset.t==='r'?'inline':'none';
+});});
+
+// ═══ CHARTS ═══
+Chart.register(ChartDataLabels);
+const co={responsive:true,maintainAspectRatio:false,plugins:{datalabels:{display:false}}};
+const noGrid={grid:{display:false}};const lightGrid={grid:{color:gridC}};
+
+// 1 Finish donut
+new Chart(document.getElementById('c1'),{type:'doughnut',data:{labels:['TKO','U-DEC','SUB','KO','S-DEC','M-DEC','Other'],datasets:[{data:[2847,2103,1456,892,634,312,97],backgroundColor:C,borderWidth:0,hoverBorderWidth:2,hoverBorderColor:'#fff'}]},options:{...co,cutout:'65%',plugins:{legend:{position:'right'}}}});
+
+// 2 Events area
+new Chart(document.getElementById('c2'),{type:'line',data:{labels:['10','11','12','13','14','15','16','17','18','19','20','21','22','23','24','25'],datasets:[{data:[24,27,32,36,40,42,44,42,44,42,30,42,44,43,42,10],borderColor:'#8b5cf6',backgroundColor:'rgba(139,92,246,0.08)',fill:true,tension:0.4,pointRadius:2,pointHoverRadius:5,borderWidth:2}]},options:{...co,scales:{y:{beginAtZero:true,...lightGrid},x:noGrid},plugins:{legend:{display:false}}}});
+
+// 3 Weight class — Bar (total fights) + Dot (selected rate %)
+const wcLabels=['LW','WW','BW','MW','FW','HW','FLW','LHW','W.SW','W.BW','W.FLW'];
+const wcTotal=[1120,1050,980,900,870,780,520,500,384,260,256];
+const wcRates={
+  finish:[50.0,48.0,54.0,51.0,53.0,75.0,48.0,61.9,50.0,51.9,46.9],
+  ko:[15.0,14.4,13.5,16.1,13.2,30.0,11.9,30.8,12.5,12.7,10.5],
+  tko:[20.0,19.2,21.6,20.2,21.1,30.0,24.0,30.8,25.0,25.4,21.1],
+  sub:[15.0,14.4,18.9,14.1,18.6,15.0,24.0,15.2,25.0,25.8,21.5]
+};
+const wcColors={finish:'#10b981',ko:'#ef4444',tko:'#f59e0b',sub:'#8b5cf6'};
+const wcDotNames={finish:'피니시율',ko:'KO율',tko:'TKO율',sub:'SUB율'};
+const c3Chart=new Chart(document.getElementById('c3'),{type:'bar',data:{labels:wcLabels,datasets:[
+  {label:'경기 수',data:wcTotal,backgroundColor:'rgba(6,182,212,0.35)',hoverBackgroundColor:'rgba(6,182,212,0.45)',borderRadius:3,yAxisID:'y',order:1},
+  {type:'line',label:wcDotNames.finish,data:wcRates.finish,borderColor:wcColors.finish,backgroundColor:wcColors.finish,pointRadius:7,pointHoverRadius:10,pointBorderColor:'#fff',pointBorderWidth:2,showLine:false,yAxisID:'y1',order:0,
+    datalabels:{display:true,color:wcColors.finish,font:{size:10,weight:600},anchor:'end',align:'right',offset:2,formatter:v=>v+'%'}}
+]},options:{...co,indexAxis:'y',scales:{y:{...noGrid},x:{position:'bottom',...lightGrid,title:{display:true,text:'경기 수',color:'#52525b'}},y1:{position:'top',min:0,max:100,...noGrid,ticks:{callback:v=>v+'%',color:'#71717a',font:{size:10}},title:{display:true,text:'비율(%)',color:'#52525b'},grid:{drawOnChartArea:false}}},plugins:{legend:{display:false},tooltip:{callbacks:{label:ctx=>ctx.dataset.yAxisID==='y1'?ctx.dataset.label+': '+ctx.raw+'%':'경기 수: '+ctx.raw.toLocaleString()}}}}});
+document.getElementById('wc-tabs').addEventListener('click',e=>{const p=e.target.closest('.pill');if(!p)return;p.parentElement.querySelectorAll('.pill').forEach(x=>x.classList.remove('on'));p.classList.add('on');const t=p.dataset.t;const ds=c3Chart.data.datasets[1];ds.data=wcRates[t];ds.label=wcDotNames[t];ds.borderColor=wcColors[t];ds.backgroundColor=wcColors[t];ds.datalabels.color=wcColors[t];c3Chart.update();});
+
+// 4 Rounds — % bar chart with avg reference line at 2.1R
+new Chart(document.getElementById('c4'),{type:'bar',data:{labels:['R1','R2','R3','R4','R5'],datasets:[{data:[40.1,22.9,27.4,2.9,6.7],backgroundColor:['rgba(239,68,68,0.6)','rgba(245,158,11,0.6)','rgba(16,185,129,0.6)','rgba(6,182,212,0.6)','rgba(139,92,246,0.6)'],hoverBackgroundColor:['rgba(239,68,68,0.7)','rgba(245,158,11,0.7)','rgba(16,185,129,0.7)','rgba(6,182,212,0.7)','rgba(139,92,246,0.7)'],borderRadius:5,borderSkipped:false}]},options:{...co,scales:{y:{beginAtZero:true,max:50,...lightGrid,ticks:{callback:v=>v+'%'}},x:noGrid},plugins:{legend:{display:false},tooltip:{callbacks:{label:ctx=>{const counts=[2890,1650,1980,210,484];return ctx.parsed.y+'% ('+counts[ctx.dataIndex].toLocaleString()+'경기)'}}},annotation:{annotations:{avgLine:{type:'line',xMin:1.1,xMax:1.1,borderColor:'rgba(255,255,255,0.35)',borderWidth:1.5,borderDash:[6,4],label:{display:true,content:'평균 2.1R',position:'start',backgroundColor:'rgba(0,0,0,0.6)',color:'#d4d4d8',font:{size:11,weight:500},padding:4}}}}}}});
+
+// 5 Striking Accuracy — Bullet Chart (attempted vs landed overlay)
+const accFighters=['Holloway','Adesanya','Kattar','Volkanovski','Yan','Moreno','Poirier','Aldo'];
+const accAttempted=[3200,2800,2400,2600,2200,1800,2500,2100];
+const accLanded=[1987,1633,1361,1453,1206,976,1345,1115];
+const accPct=[62.1,58.3,56.7,55.9,54.8,54.2,53.8,53.1];
+function accColor(v){return v>=62?'#8b5cf6':v>=55?'#7c3aed':'#6d28d9';}
+new Chart(document.getElementById('c5'),{type:'bar',data:{labels:accFighters,datasets:[
+  {label:'Attempted',data:accAttempted,backgroundColor:'rgba(139,92,246,0.1)',hoverBackgroundColor:'rgba(139,92,246,0.18)',barPercentage:0.85,categoryPercentage:0.9,borderRadius:3,order:1},
+  {label:'Landed',data:accLanded,backgroundColor:accPct.map(v=>accColor(v)),barPercentage:0.45,categoryPercentage:0.9,borderRadius:3,order:0,
+    datalabels:{display:true,anchor:'end',align:'right',color:'#a1a1aa',font:{size:10,weight:600},formatter:(v,ctx)=>accPct[ctx.dataIndex]+'%'}}
+]},options:{...co,indexAxis:'y',scales:{y:{stacked:true,...noGrid},x:{stacked:false,beginAtZero:true,...lightGrid}},plugins:{legend:{display:false},tooltip:{callbacks:{label:ctx=>ctx.dataset.label+': '+ctx.raw.toLocaleString()+(ctx.datasetIndex===1?' ('+accPct[ctx.dataIndex]+'%)':'')}}}}});
+
+// 6 Leaderboard
+new Chart(document.getElementById('c6'),{type:'bar',data:{labels:['Jim Miller','Donald Cerrone','Andrei Arlovski','Rafael dos Anjos','Clay Guida','Demian Maia','Charles Oliveira','Neil Magny','Max Holloway','Alistair Overeem'],datasets:[{label:'Wins',data:[26,23,22,21,20,19,19,19,18,18],backgroundColor:C.map(c=>c+'99'),hoverBackgroundColor:C.map(c=>c+'bb'),borderRadius:4}]},options:{...co,indexAxis:'y',scales:{x:{beginAtZero:true,...lightGrid},y:noGrid},plugins:{legend:{display:false}}}});
+
+// 7 Targets — Radar chart (5 axes)
+new Chart(document.getElementById('c7'),{type:'radar',data:{labels:['Head','Body','Leg','Clinch','Ground'],datasets:[{label:'All Divisions',data:[185200,62400,78600,34200,41800],backgroundColor:'rgba(239,68,68,0.12)',borderColor:'rgba(239,68,68,0.7)',borderWidth:2,pointBackgroundColor:'rgba(239,68,68,0.8)',pointRadius:4,pointHoverRadius:7}]},options:{...co,scales:{r:{beginAtZero:true,grid:{color:gridC},angleLines:{color:'rgba(255,255,255,0.06)'},pointLabels:{color:'#a1a1aa',font:{size:12,weight:500}},ticks:{display:false}}},plugins:{legend:{display:false}}}});
+
+// 13 KO/TKO Artists
+new Chart(document.getElementById('c13'),{type:'bar',data:{labels:['Derrick Lewis','Vitor Belfort','Anderson Silva','Matt Brown','Alistair Overeem','Jeremy Stephens','Thiago Santos','Jairzinho Rozenstruik','Cain Velasquez','Chuck Liddell'],datasets:[{label:'KO',data:[14,9,8,7,8,6,5,6,5,7],backgroundColor:'rgba(239,68,68,0.7)',hoverBackgroundColor:'rgba(239,68,68,0.8)',borderRadius:3},{label:'TKO',data:[7,7,7,8,5,5,7,3,4,1],backgroundColor:'rgba(245,158,11,0.5)',hoverBackgroundColor:'rgba(245,158,11,0.6)',borderRadius:3}]},options:{...co,indexAxis:'y',scales:{x:{beginAtZero:true,...lightGrid,stacked:true},y:{...noGrid,stacked:true}},plugins:{legend:{position:'top'}}}});
+
+// 14 Sig Strikes Per Fight — Lollipop Chart (stem + dot)
+const sigData=[
+  {name:'Max Holloway',sig:7.49,fights:32},{name:'Zhang Weili',sig:7.12,fights:14},{name:'Joanna J.',sig:6.89,fights:20},
+  {name:'Calvin Kattar',sig:6.72,fights:16},{name:'Colby Covington',sig:6.54,fights:18},{name:'Cory Sandhagen',sig:6.38,fights:12},
+  {name:'Brandon Moreno',sig:6.21,fights:16},{name:'V. Shevchenko',sig:6.05,fights:18}];
+const sigAvg=sigData.reduce((s,d)=>s+d.sig,0)/sigData.length;
+const lollipopPlugin={id:'lollipopDots',afterDatasetsDraw(chart){
+  if(!chart.canvas.id||chart.canvas.id!=='c14')return;
+  const meta=chart.getDatasetMeta(0);const ctx=chart.ctx;
+  meta.data.forEach((bar,i)=>{
+    const x=bar.x;const y=bar.y;
+    const r=Math.max(6,Math.min(14,sigData[i].fights*0.45));
+    ctx.save();
+    ctx.beginPath();ctx.arc(x,y,r+4,0,Math.PI*2);ctx.fillStyle='rgba(245,158,11,0.12)';ctx.fill();
+    ctx.beginPath();ctx.arc(x,y,r,0,Math.PI*2);ctx.fillStyle='rgba(245,158,11,0.85)';ctx.fill();
+    ctx.fillStyle='#71717a';ctx.font='10px -apple-system,BlinkMacSystemFont,sans-serif';ctx.textAlign='left';ctx.textBaseline='middle';
+    ctx.fillText(sigData[i].fights+'F',x+r+6,y);
+    ctx.restore();
+  });
+}};
+new Chart(document.getElementById('c14'),{type:'bar',data:{labels:sigData.map(d=>d.name),datasets:[
+  {data:sigData.map(d=>d.sig),backgroundColor:'rgba(245,158,11,0.5)',hoverBackgroundColor:'rgba(245,158,11,0.6)',barPercentage:0.06,categoryPercentage:0.9,borderRadius:0}
+]},options:{...co,indexAxis:'y',scales:{x:{beginAtZero:true,...lightGrid,ticks:{callback:v=>v.toFixed(1)+'/min'}},y:noGrid},plugins:{legend:{display:false},annotation:{annotations:{avgLine:{type:'line',xMin:sigAvg,xMax:sigAvg,borderColor:'rgba(255,255,255,0.3)',borderWidth:1.5,borderDash:[6,4],label:{display:true,content:'AVG '+sigAvg.toFixed(1),position:'start',backgroundColor:'rgba(0,0,0,0.6)',color:'#d4d4d8',font:{size:10},padding:3}}}}}},plugins:[lollipopPlugin]});
+
+// 8 Takedown Accuracy — Bullet Chart (attempted vs landed overlay)
+const tdFighters=['Khabib','Makhachev','Usman','Covington','Muhammad','Dvalishvili','Nickal','Mitchell'];
+const tdAttempted=[210,185,165,148,138,172,48,52];
+const tdLanded=[133,114,95,82,76,90,25,26];
+const tdPct=[63.2,61.5,57.8,55.4,54.9,52.1,51.8,50.3];
+function tdColor(v){return v>=58?'#10b981':v>=52?'#059669':'#047857';}
+new Chart(document.getElementById('c8'),{type:'bar',data:{labels:tdFighters,datasets:[
+  {label:'Attempted',data:tdAttempted,backgroundColor:'rgba(16,185,129,0.1)',hoverBackgroundColor:'rgba(16,185,129,0.18)',barPercentage:0.85,categoryPercentage:0.9,borderRadius:3,order:1},
+  {label:'Landed',data:tdLanded,backgroundColor:tdPct.map(v=>tdColor(v)),barPercentage:0.45,categoryPercentage:0.9,borderRadius:3,order:0,
+    datalabels:{display:true,anchor:'end',align:'right',color:'#a1a1aa',font:{size:10,weight:600},formatter:(v,ctx)=>tdPct[ctx.dataIndex]+'%'}}
+]},options:{...co,indexAxis:'y',scales:{y:{stacked:true,...noGrid},x:{stacked:false,beginAtZero:true,...lightGrid}},plugins:{legend:{display:false},tooltip:{callbacks:{label:ctx=>ctx.dataset.label+': '+ctx.raw.toLocaleString()+(ctx.datasetIndex===1?' ('+tdPct[ctx.dataIndex]+'%)':'')}}}}});
+
+// 9 Sub tech
+new Chart(document.getElementById('c9'),{type:'bar',data:{labels:['RNC','Guillotine','Armbar','Triangle','D\'Arce','Arm Tri','Kimura','Anaconda'],datasets:[{data:[412,287,256,134,89,78,72,45],backgroundColor:C.map(c=>c+'88'),hoverBackgroundColor:C.map(c=>c+'aa'),borderRadius:3}]},options:{...co,indexAxis:'y',scales:{x:{beginAtZero:true,...lightGrid},y:noGrid},plugins:{legend:{display:false}}}});
+
+// 10 Control
+new Chart(document.getElementById('c10'),{type:'bar',data:{labels:['HW','WW','LHW','MW','LW','BW','FW','FLW'],datasets:[{data:[142,136,128,119,112,105,98,94],backgroundColor:'rgba(6,182,212,0.5)',hoverBackgroundColor:'rgba(6,182,212,0.6)',borderRadius:5}]},options:{...co,scales:{y:{beginAtZero:true,...lightGrid,ticks:{callback:v=>{const m=Math.floor(v/60);return m+':'+(v%60<10?'0':'')+(v%60);}}},x:noGrid},plugins:{legend:{display:false}}}});
+
+// 11 Ground Strikes — Bubble Chart (attempted vs landed, size=accuracy)
+const gsFighters=[
+  {name:'Khabib',att:420,land:345,acc:82.1},{name:'Makhachev',att:380,land:298,acc:78.4},
+  {name:'Jones',att:250,land:182,acc:72.8},{name:'Maia',att:310,land:228,acc:73.5},
+  {name:'Oliveira',att:290,land:205,acc:70.7},{name:'Teixeira',att:340,land:235,acc:69.1},
+  {name:'Dvalishvili',att:260,land:178,acc:68.5},{name:'Usman',att:230,land:155,acc:67.4}];
+function gsColor(v){return v>=75?'#10b981':v>=65?'#06b6d4':'#8b5cf6';}
+const gsTop3=gsFighters.slice(0,3).map(f=>f.name);
+new Chart(document.getElementById('c11'),{type:'bubble',data:{datasets:[{
+  label:'Fighters',
+  data:gsFighters.map(f=>({x:f.att,y:f.land,r:Math.max(5,Math.min(14,f.acc*0.16))})),
+  backgroundColor:gsFighters.map(f=>gsColor(f.acc)+'88'),
+  borderColor:gsFighters.map(f=>gsColor(f.acc)),
+  borderWidth:1.5,
+  datalabels:{display:ctx=>gsTop3.includes(gsFighters[ctx.dataIndex].name),color:'#d4d4d8',font:{size:9,weight:500},anchor:'end',align:'top',offset:2,formatter:(v,ctx)=>gsFighters[ctx.dataIndex].name}
+}]},options:{...co,scales:{x:{title:{display:true,text:'Attempted',color:'#52525b',font:{size:10}},min:200,max:460,...lightGrid},y:{title:{display:true,text:'Landed',color:'#52525b',font:{size:10}},min:130,max:380,...lightGrid}},plugins:{legend:{display:false},datalabels:{},tooltip:{callbacks:{label:ctx=>{const f=gsFighters[ctx.dataIndex];return f.name+': '+f.att+'시도, '+f.land+'적중 ('+f.acc+'%)'}}},annotation:{annotations:{line100:{type:'line',xMin:200,yMin:200,xMax:380,yMax:380,borderColor:'rgba(255,255,255,0.12)',borderWidth:1,borderDash:[6,4],label:{display:true,content:'100%',position:'end',backgroundColor:'transparent',color:'#52525b',font:{size:9}}},line70:{type:'line',xMin:200,yMin:140,xMax:460,yMax:322,borderColor:'rgba(255,255,255,0.08)',borderWidth:1,borderDash:[4,4],label:{display:true,content:'70%',position:'end',backgroundColor:'transparent',color:'#52525b',font:{size:9}}}}}}}});
+
+// 12 Sub efficiency scatter + avg efficiency reference line + fighter labels
+const subFighters=[
+{x:42,y:8,name:'C. Oliveira'},{x:35,y:7,name:'Makhachev'},{x:38,y:5,name:'Ortega'},{x:31,y:6,name:'D. Maia'},{x:28,y:4,name:'R. Gracie'},
+{x:18,y:5,name:'Burns'},{x:22,y:3,name:'Ferguson'},{x:26,y:4,name:'Werdum'},{x:15,y:3,name:'Aldo'},{x:19,y:2,name:'Volkanovski'},
+{x:12,y:4,name:'Yan'},{x:24,y:3,name:'Dariush'},{x:16,y:2,name:'Holloway'},{x:9,y:3,name:'Moreno'},{x:33,y:4,name:'Diaz'},
+{x:20,y:2,name:'Poirier'},{x:8,y:0,name:'Fiziev'},{x:5,y:0,name:'Pereira'},{x:11,y:1,name:'Strickland'}
+];
+const subTop5=subFighters.slice(0,5).map(f=>f.name);
+new Chart(document.getElementById('c12'),{type:'scatter',data:{datasets:[{type:'line',label:'Avg Efficiency',data:[{x:0,y:0},{x:45,y:8}],borderColor:'rgba(255,255,255,0.15)',borderWidth:1,borderDash:[6,4],pointRadius:0,showLine:true,order:1,datalabels:{display:false}},{label:'Fighters',data:subFighters,backgroundColor:'rgba(139,92,246,0.4)',borderColor:'rgba(139,92,246,0.7)',pointRadius:6,pointHoverRadius:9,order:0,datalabels:{display:ctx=>subTop5.includes(ctx.dataset.data[ctx.dataIndex].name),color:'#d4d4d8',font:{size:10,weight:500},anchor:'end',align:'top',offset:4,formatter:(v)=>v.name}}]},options:{...co,scales:{x:{title:{display:true,text:'Sub Attempts',color:'#52525b'},min:0,max:48,...lightGrid},y:{title:{display:true,text:'Sub Finishes',color:'#52525b'},beginAtZero:true,max:10,...lightGrid}},plugins:{legend:{display:false},datalabels:{},tooltip:{callbacks:{label:ctx=>{const d=ctx.raw;return d.name?d.name+': '+d.x+'시도, '+d.y+'피니시':''}}}}}});
+
+// Rankings
+const rk=[{r:'C',n:'Islam Makhachev',rc:'26-1-0',w:96.3},{r:1,n:'Arman Tsarukyan',rc:'22-3-0',w:88.0},{r:2,n:'Charles Oliveira',rc:'34-10-0',w:77.3},{r:3,n:'Justin Gaethje',rc:'25-5-0',w:83.3},{r:4,n:'Dustin Poirier',rc:'30-9-0',w:76.9},{r:5,n:'Michael Chandler',rc:'23-8-0',w:74.2},{r:6,n:'Beneil Dariush',rc:'22-6-1',w:75.9},{r:7,n:'Mateusz Gamrot',rc:'24-3-0',w:88.9},{r:8,n:'Rafael Fiziev',rc:'13-2-0',w:86.7},{r:9,n:'Dan Hooker',rc:'24-12-0',w:66.7},{r:10,n:'Paddy Pimblett',rc:'22-3-0',w:88.0}];
+const tb=document.getElementById('rtb');
+rk.forEach(r=>{const tr=document.createElement('tr');const ch=r.r==='C';tr.innerHTML=`<td><span class="rk ${ch?'c':'n'}">${ch?'&#9813;':r.r}</span></td><td style="font-weight:500;">${r.n}</td><td style="color:var(--text-muted);font-size:12px;">${r.rc}</td><td class="wr" style="text-align:right;color:${r.w>=85?'#10b981':r.w>=75?'#f59e0b':'#a1a1aa'}">${r.w}%</td>`;tb.appendChild(tr);});
+</script>
+</body>
+</html>

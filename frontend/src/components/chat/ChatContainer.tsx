@@ -9,10 +9,7 @@ import { useAuth } from "@/hooks/useAuth"
 import { useSocket } from "@/hooks/useSocket"
 import { useChatSession } from "@/hooks/useChatSession"
 import { useUser } from "@/hooks/useUser"
-import { Button } from "@/components/ui/button"
-import { UserProfile } from "@/components/auth/UserProfile"
-import { ArrowLeft, MessageSquare, User } from "lucide-react"
-import { useRouter } from "next/navigation"
+import { User } from "lucide-react"
 
 export function ChatContainer() {
   const { addMessage, isLoading } = useChatStore()
@@ -20,7 +17,6 @@ export function ChatContainer() {
   const { isConnected, sendMessage } = useSocket()
   const { loadSessions } = useChatSession()
   const { incrementUsage } = useUser()
-  const router = useRouter()
   const [error, setError] = useState<string | null>(null)
 
   // WebSocket 연결 완료 후 세션 목록 로드 (토큰이 준비된 상태에서 실행)
@@ -68,55 +64,13 @@ export function ChatContainer() {
 
 
   return (
-    <div className="relative flex h-screen w-full flex-col overflow-hidden bg-gradient-to-br from-zinc-900 via-gray-900 to-slate-900">
+    <div className="relative flex h-[calc(100vh-3.5rem)] w-full flex-col overflow-hidden bg-gradient-to-br from-zinc-900 via-gray-900 to-slate-900">
       {/* 배경 패턴 */}
       <div className="fixed inset-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-gray-700/20 via-transparent to-transparent pointer-events-none" />
       <div className="fixed inset-0 bg-grid-white/[0.02] bg-[size:50px_50px] pointer-events-none" />
 
-      {/* 상단 헤더 */}
-      <header className="flex-shrink-0 border-b border-solid border-white/10 px-4 sm:px-10 py-3 relative z-10">
-        <div className="mx-auto flex max-w-7xl items-center justify-between whitespace-nowrap">
-          <div className="flex items-center gap-4 text-white">
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => router.push("/")}
-              className="text-zinc-400 hover:text-white hover:bg-white/10 border border-white/10 backdrop-blur-sm"
-            >
-              <ArrowLeft className="w-4 h-4 mr-2" />
-              Home
-            </Button>
-
-            <div className="flex items-center gap-3">
-              <div className="w-6 h-6">
-                <MessageSquare className="w-6 h-6 text-white" />
-              </div>
-              <h2 className="text-white text-lg font-bold leading-tight tracking-[-0.015em]">
-                MMA Savant
-              </h2>
-
-              {/* 연결 상태 표시 */}
-              <div className="flex items-center gap-2 px-3 py-1.5 bg-white/5 backdrop-blur-sm rounded-full border border-white/10">
-                {isConnected ? (
-                  <div className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse" />
-                ) : (
-                  <div className="w-2 h-2 bg-red-500 rounded-full" />
-                )}
-                <span className={`text-xs font-medium ${isConnected ? 'text-emerald-400' : 'text-red-400'}`}>
-                  {isConnected ? 'Connected' : 'Disconnected'}
-                </span>
-              </div>
-            </div>
-          </div>
-
-          <div className="flex items-center gap-2">
-            <UserProfile />
-          </div>
-        </div>
-      </header>
-
       {/* 상단 입력 영역 */}
-      <div className="flex-shrink-0 bg-gradient-to-br from-zinc-900 via-gray-900 to-slate-900 backdrop-blur-sm p-4 sm:px-10 border-b border-solid border-white/10 relative z-10">
+      <div className="flex-shrink-0 backdrop-blur-sm p-4 sm:px-10 border-b border-solid border-white/10 relative z-10">
         <div className="mx-auto flex max-w-7xl items-center gap-3">
           <div className="h-10 w-10 shrink-0 rounded-full bg-white/10 backdrop-blur-sm border border-white/20 flex items-center justify-center">
             <User className="w-5 h-5 text-white" />
@@ -127,6 +81,13 @@ export function ChatContainer() {
               disabled={isLoading}
               placeholder="궁금한 MMA 데이터를 질문해보세요..."
             />
+          </div>
+          {/* 연결 상태 */}
+          <div className="flex shrink-0 items-center gap-1.5 rounded-full border border-white/10 bg-white/5 px-2.5 py-1">
+            <div className={`h-1.5 w-1.5 rounded-full ${isConnected ? 'bg-emerald-500 animate-pulse' : 'bg-red-500'}`} />
+            <span className={`text-[11px] font-medium ${isConnected ? 'text-emerald-400' : 'text-red-400'}`}>
+              {isConnected ? 'Connected' : 'Disconnected'}
+            </span>
           </div>
         </div>
       </div>

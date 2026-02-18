@@ -89,6 +89,9 @@ services:
     restart: unless-stopped
     env_file:
       - .env
+    environment:
+      # 서버 사이드 (ISR/SSR): Docker 내부 네트워크에서 nginx를 통해 API 호출
+      - BACKEND_URL=http://nginx
     networks:
       - savant_network
     healthcheck:
@@ -110,6 +113,9 @@ services:
     restart: unless-stopped
     env_file:
       - .env
+    environment:
+      # 서버 사이드 (ISR/SSR): Docker 내부 네트워크에서 nginx를 통해 API 호출
+      - BACKEND_URL=http://nginx
     networks:
       - savant_network
     healthcheck:
