@@ -9,7 +9,7 @@ import { HomeTab } from './home/HomeTab'
 import { OverviewTab } from './overview/OverviewTab'
 import { StrikingTab } from './striking/StrikingTab'
 import { GrapplingTab } from './grappling/GrapplingTab'
-import type { HomeResponse } from '@/types/dashboard'
+import { Skeleton } from '@/components/ui/skeleton'
 
 const TABS = [
   { key: 'home', label: 'Home' },
@@ -20,13 +20,7 @@ const TABS = [
 
 type TabKey = (typeof TABS)[number]['key']
 
-interface DashboardPageClientProps {
-  initialHomeData: HomeResponse | null
-}
-
-export function DashboardPageClient({
-  initialHomeData,
-}: DashboardPageClientProps) {
+export function DashboardPageClient() {
   const searchParams = useSearchParams()
   const router = useRouter()
   const pathname = usePathname()
@@ -66,7 +60,9 @@ export function DashboardPageClient({
 
   // 탭 전환 시 데이터 fetch
   useEffect(() => {
-    if (activeTab !== 'home') {
+    if (activeTab === 'home') {
+      fetchTab('home')
+    } else {
       const hasData = !!state[activeTab].data
       fetchTab(activeTab, weightClassId,
         activeTab === 'overview' ? { ufcOnly, silent: hasData } : undefined
@@ -102,13 +98,26 @@ export function DashboardPageClient({
 
       {/* Tab Content */}
       <div className="animate-fade-in">
-        {activeTab === 'home' && initialHomeData && (
-          <HomeTab data={initialHomeData} />
+        {activeTab === 'home' && state.home.loading && (
+          <div className="space-y-4">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+              {[1, 2, 3].map((i) => (
+                <Skeleton key={i} className="h-24 bg-white/[0.06]" />
+              ))}
+            </div>
+            <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+              <Skeleton className="h-64 bg-white/[0.06]" />
+              <Skeleton className="h-64 bg-white/[0.06]" />
+            </div>
+          </div>
         )}
-        {activeTab === 'home' && !initialHomeData && (
+        {activeTab === 'home' && state.home.error && (
           <div className="py-20 text-center text-sm text-zinc-500">
             데이터를 불러올 수 없습니다. 백엔드 서버를 확인해주세요.
           </div>
+        )}
+        {activeTab === 'home' && state.home.data && (
+          <HomeTab data={state.home.data} />
         )}
         {activeTab === 'overview' && (
           <OverviewTab

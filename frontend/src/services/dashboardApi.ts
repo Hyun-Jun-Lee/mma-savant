@@ -1,4 +1,5 @@
 import type {
+  HomeResponse,
   OverviewResponse,
   StrikingResponse,
   GrapplingResponse,
@@ -25,6 +26,8 @@ function buildOverviewPath(weightClassId?: number, ufcOnly?: boolean): string {
 }
 
 export const dashboardApi = {
+  getHome: () => dashboardFetch<HomeResponse>('/api/dashboard/home'),
+
   getOverview: (weightClassId?: number, ufcOnly?: boolean) =>
     dashboardFetch<OverviewResponse>(
       buildOverviewPath(weightClassId, ufcOnly)
