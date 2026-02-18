@@ -77,12 +77,10 @@ class FinishMethodDTO(BaseModel):
 class WeightClassActivityDTO(BaseModel):
     weight_class: str
     total_fights: int
-    ko_count: int
-    tko_count: int
+    ko_tko_count: int
     sub_count: int
     finish_rate: float
-    ko_rate: float
-    tko_rate: float
+    ko_tko_rate: float
     sub_rate: float
 
     model_config = ConfigDict(from_attributes=True)
@@ -125,6 +123,7 @@ class FightDurationRoundDTO(BaseModel):
 class FightDurationDTO(BaseModel):
     rounds: List[FightDurationRoundDTO]
     avg_round: float
+    avg_time_seconds: Optional[int] = None
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -159,9 +158,7 @@ class StrikingAccuracyDTO(BaseModel):
 
 class KoTkoLeaderDTO(BaseModel):
     name: str
-    ko_finishes: int
-    tko_finishes: int
-    total_ko_tko: int
+    ko_tko_finishes: int
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -174,11 +171,27 @@ class SigStrikesPerFightDTO(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
+class StrikingAccuracyLeaderboardDTO(BaseModel):
+    min10: List[StrikingAccuracyDTO]
+    min20: List[StrikingAccuracyDTO]
+    min30: List[StrikingAccuracyDTO]
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class SigStrikesLeaderboardDTO(BaseModel):
+    min10: List[SigStrikesPerFightDTO]
+    min20: List[SigStrikesPerFightDTO]
+    min30: List[SigStrikesPerFightDTO]
+
+    model_config = ConfigDict(from_attributes=True)
+
+
 class StrikingResponseDTO(BaseModel):
     strike_targets: List[StrikeTargetDTO]
-    striking_accuracy: List[StrikingAccuracyDTO]
+    striking_accuracy: StrikingAccuracyLeaderboardDTO
     ko_tko_leaders: List[KoTkoLeaderDTO]
-    sig_strikes_per_fight: List[SigStrikesPerFightDTO]
+    sig_strikes_per_fight: SigStrikesLeaderboardDTO
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -233,8 +246,16 @@ class SubmissionEfficiencyDTO(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
+class TakedownLeaderboardDTO(BaseModel):
+    min10: List[TakedownAccuracyDTO]
+    min20: List[TakedownAccuracyDTO]
+    min30: List[TakedownAccuracyDTO]
+
+    model_config = ConfigDict(from_attributes=True)
+
+
 class GrapplingResponseDTO(BaseModel):
-    takedown_accuracy: List[TakedownAccuracyDTO]
+    takedown_accuracy: TakedownLeaderboardDTO
     submission_techniques: List[SubmissionTechniqueDTO]
     control_time: List[ControlTimeDTO]
     ground_strikes: List[GroundStrikesDTO]

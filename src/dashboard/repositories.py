@@ -105,8 +105,7 @@ async def get_finish_methods(
     result = await session.execute(text(f"""
         SELECT
             CASE
-                WHEN method LIKE 'KO-%' THEN 'KO'
-                WHEN method LIKE 'TKO-%' THEN 'TKO'
+                WHEN method LIKE 'KO/TKO%' THEN 'KO/TKO'
                 WHEN method LIKE 'SUB-%' THEN 'SUB'
                 WHEN method LIKE 'U-DEC%' THEN 'U-DEC'
                 WHEN method LIKE 'S-DEC%' THEN 'S-DEC'
@@ -128,14 +127,12 @@ async def get_weight_class_activity(session: AsyncSession) -> List[Dict[str, Any
         SELECT
             wc.name AS weight_class,
             COUNT(*) AS total_fights,
-            COUNT(CASE WHEN m.method LIKE 'KO-%' THEN 1 END) AS ko_count,
-            COUNT(CASE WHEN m.method LIKE 'TKO-%' THEN 1 END) AS tko_count,
+            COUNT(CASE WHEN m.method LIKE 'KO/TKO%' THEN 1 END) AS ko_tko_count,
             COUNT(CASE WHEN m.method LIKE 'SUB-%' THEN 1 END) AS sub_count,
             ROUND(
-                COUNT(CASE WHEN m.method LIKE 'KO-%' OR m.method LIKE 'TKO-%' OR m.method LIKE 'SUB-%' THEN 1 END) * 100.0 / COUNT(*), 1
+                COUNT(CASE WHEN m.method LIKE 'KO/TKO%' OR m.method LIKE 'SUB-%' THEN 1 END) * 100.0 / COUNT(*), 1
             ) AS finish_rate,
-            ROUND(COUNT(CASE WHEN m.method LIKE 'KO-%' THEN 1 END) * 100.0 / COUNT(*), 1) AS ko_rate,
-            ROUND(COUNT(CASE WHEN m.method LIKE 'TKO-%' THEN 1 END) * 100.0 / COUNT(*), 1) AS tko_rate,
+            ROUND(COUNT(CASE WHEN m.method LIKE 'KO/TKO%' THEN 1 END) * 100.0 / COUNT(*), 1) AS ko_tko_rate,
             ROUND(COUNT(CASE WHEN m.method LIKE 'SUB-%' THEN 1 END) * 100.0 / COUNT(*), 1) AS sub_rate
         FROM match m
         JOIN weight_class wc ON m.weight_class_id = wc.id
@@ -160,7 +157,10 @@ async def get_events_timeline(session: AsyncSession) -> List[Dict[str, Any]]:
 
 
 async def get_leaderboard_wins(
-    session: AsyncSession, weight_class_id: Optional[int] = None
+    session: AsyncSession,
+    weight_class_id: Optional[int] = None,
+    limit: int = 10,
+    ufc_only: bool = False,
 ) -> List[Dict[str, Any]]:
     if weight_class_id is not None:
         result = await session.execute(text("""
@@ -179,16 +179,33 @@ async def get_leaderboard_wins(
             WHERE m.weight_class_id = :weight_class_id
             GROUP BY f.id, f.name
             ORDER BY wins DESC
-            LIMIT 10
-        """), {"weight_class_id": weight_class_id})
+            LIMIT :limit
+        """), {"weight_class_id": weight_class_id, "limit": limit})
+    elif ufc_only:
+        result = await session.execute(text("""
+            SELECT
+                f.name,
+                COUNT(CASE WHEN fm.result = 'win' THEN 1 END) AS wins,
+                COUNT(CASE WHEN fm.result = 'loss' THEN 1 END) AS losses,
+                COUNT(CASE WHEN fm.result = 'draw' THEN 1 END) AS draws,
+                ROUND(
+                    COUNT(CASE WHEN fm.result = 'win' THEN 1 END) * 100.0 /
+                    NULLIF(COUNT(*), 0), 1
+                ) AS win_rate
+            FROM fighter f
+            JOIN fighter_match fm ON f.id = fm.fighter_id
+            GROUP BY f.id, f.name
+            ORDER BY wins DESC
+            LIMIT :limit
+        """), {"limit": limit})
     else:
         result = await session.execute(text("""
             SELECT name, wins, losses, draws,
                 ROUND(wins * 100.0 / NULLIF(wins + losses + draws, 0), 1) AS win_rate
             FROM fighter
             ORDER BY wins DESC
-            LIMIT 10
-        """))
+            LIMIT :limit
+        """), {"limit": limit})
     return [dict(row) for row in result.mappings().all()]
 
 
@@ -196,6 +213,8 @@ async def get_leaderboard_winrate(
     session: AsyncSession,
     min_fights: int,
     weight_class_id: Optional[int] = None,
+    limit: int = 10,
+    ufc_only: bool = False,
 ) -> List[Dict[str, Any]]:
     if weight_class_id is not None:
         result = await session.execute(text("""
@@ -215,8 +234,26 @@ async def get_leaderboard_winrate(
             GROUP BY f.id, f.name
             HAVING COUNT(*) >= :min_fights
             ORDER BY win_rate DESC
-            LIMIT 10
-        """), {"weight_class_id": weight_class_id, "min_fights": min_fights})
+            LIMIT :limit
+        """), {"weight_class_id": weight_class_id, "min_fights": min_fights, "limit": limit})
+    elif ufc_only:
+        result = await session.execute(text("""
+            SELECT
+                f.name,
+                COUNT(CASE WHEN fm.result = 'win' THEN 1 END) AS wins,
+                COUNT(CASE WHEN fm.result = 'loss' THEN 1 END) AS losses,
+                COUNT(CASE WHEN fm.result = 'draw' THEN 1 END) AS draws,
+                ROUND(
+                    COUNT(CASE WHEN fm.result = 'win' THEN 1 END) * 100.0 /
+                    NULLIF(COUNT(*), 0), 1
+                ) AS win_rate
+            FROM fighter f
+            JOIN fighter_match fm ON f.id = fm.fighter_id
+            GROUP BY f.id, f.name
+            HAVING COUNT(*) >= :min_fights
+            ORDER BY win_rate DESC
+            LIMIT :limit
+        """), {"min_fights": min_fights, "limit": limit})
     else:
         result = await session.execute(text("""
             SELECT
@@ -225,8 +262,8 @@ async def get_leaderboard_winrate(
             FROM fighter
             WHERE (wins + losses + draws) >= :min_fights
             ORDER BY win_rate DESC
-            LIMIT 10
-        """), {"min_fights": min_fights})
+            LIMIT :limit
+        """), {"min_fights": min_fights, "limit": limit})
     return [dict(row) for row in result.mappings().all()]
 
 
@@ -246,6 +283,24 @@ async def get_fight_duration_rounds(
         ORDER BY result_round
     """), params)
     return [dict(row) for row in result.mappings().all()]
+
+
+async def get_fight_duration_avg_time(
+    session: AsyncSession, weight_class_id: Optional[int] = None
+) -> Optional[int]:
+    """평균 종료 시간(초) 계산. match.time은 'M:SS' 문자열."""
+    wc_clause, params = _wc_filter(weight_class_id, "weight_class_id")
+    result = await session.execute(text(f"""
+        SELECT ROUND(AVG(
+            CAST(SPLIT_PART(time, ':', 1) AS INTEGER) * 60 +
+            CAST(SPLIT_PART(time, ':', 2) AS INTEGER)
+        ))::int AS avg_time_seconds
+        FROM match
+        WHERE time IS NOT NULL AND result_round IS NOT NULL
+            {wc_clause}
+    """), params)
+    row = result.mappings().one()
+    return row["avg_time_seconds"]
 
 
 async def get_fight_duration_avg_round(
@@ -297,9 +352,11 @@ async def get_strike_targets(
 
 
 async def get_striking_accuracy(
-    session: AsyncSession, weight_class_id: Optional[int] = None
+    session: AsyncSession, weight_class_id: Optional[int] = None, min_fights: int = 10, limit: int = 10
 ) -> List[Dict[str, Any]]:
     wc_clause, params = _wc_filter(weight_class_id)
+    params["min_fights"] = min_fights
+    params["limit"] = limit
     if not wc_clause:
         where_clause = ""
     else:
@@ -316,40 +373,41 @@ async def get_striking_accuracy(
         JOIN match m ON fm.match_id = m.id
         {where_clause}
         GROUP BY f.id, f.name
-        HAVING COUNT(DISTINCT fm.match_id) >= 5 AND SUM(ms.sig_str_attempted) > 0
+        HAVING COUNT(DISTINCT fm.match_id) >= :min_fights AND SUM(ms.sig_str_attempted) > 0
         ORDER BY accuracy DESC
-        LIMIT 10
+        LIMIT :limit
     """), params)
     return [dict(row) for row in result.mappings().all()]
 
 
 async def get_ko_tko_leaders(
-    session: AsyncSession, weight_class_id: Optional[int] = None
+    session: AsyncSession, weight_class_id: Optional[int] = None, limit: int = 10
 ) -> List[Dict[str, Any]]:
     wc_clause, params = _wc_filter(weight_class_id)
+    params["limit"] = limit
     result = await session.execute(text(f"""
         SELECT
             f.name,
-            COUNT(CASE WHEN m.method LIKE 'KO-%' THEN 1 END) AS ko_finishes,
-            COUNT(CASE WHEN m.method LIKE 'TKO-%' THEN 1 END) AS tko_finishes,
-            COUNT(*) AS total_ko_tko
+            COUNT(*) AS ko_tko_finishes
         FROM fighter_match fm
         JOIN fighter f ON fm.fighter_id = f.id
         JOIN match m ON fm.match_id = m.id
         WHERE fm.result = 'win'
-            AND (m.method LIKE 'KO-%' OR m.method LIKE 'TKO-%')
+            AND m.method LIKE 'KO/TKO%'
             {wc_clause}
         GROUP BY f.id, f.name
-        ORDER BY total_ko_tko DESC
-        LIMIT 10
+        ORDER BY ko_tko_finishes DESC
+        LIMIT :limit
     """), params)
     return [dict(row) for row in result.mappings().all()]
 
 
 async def get_sig_strikes_per_fight(
-    session: AsyncSession, weight_class_id: Optional[int] = None
+    session: AsyncSession, weight_class_id: Optional[int] = None, min_fights: int = 10, limit: int = 10
 ) -> List[Dict[str, Any]]:
     wc_clause, params = _wc_filter(weight_class_id)
+    params["min_fights"] = min_fights
+    params["limit"] = limit
     if not wc_clause:
         where_clause = ""
     else:
@@ -365,9 +423,9 @@ async def get_sig_strikes_per_fight(
         JOIN match m ON fm.match_id = m.id
         {where_clause}
         GROUP BY f.id, f.name
-        HAVING COUNT(DISTINCT fm.match_id) >= 5
+        HAVING COUNT(DISTINCT fm.match_id) >= :min_fights
         ORDER BY sig_str_per_fight DESC
-        LIMIT 10
+        LIMIT :limit
     """), params)
     return [dict(row) for row in result.mappings().all()]
 
@@ -377,9 +435,11 @@ async def get_sig_strikes_per_fight(
 # ===========================
 
 async def get_takedown_accuracy(
-    session: AsyncSession, weight_class_id: Optional[int] = None
+    session: AsyncSession, weight_class_id: Optional[int] = None, min_fights: int = 10, limit: int = 10
 ) -> List[Dict[str, Any]]:
     wc_clause, params = _wc_filter(weight_class_id)
+    params["min_fights"] = min_fights
+    params["limit"] = limit
     if not wc_clause:
         where_clause = ""
     else:
@@ -396,17 +456,18 @@ async def get_takedown_accuracy(
         JOIN match m ON fm.match_id = m.id
         {where_clause}
         GROUP BY f.id, f.name
-        HAVING COUNT(DISTINCT fm.match_id) >= 5 AND SUM(ms.td_attempted) >= 10
+        HAVING COUNT(DISTINCT fm.match_id) >= :min_fights AND SUM(ms.td_attempted) >= :min_fights
         ORDER BY td_accuracy DESC
-        LIMIT 10
+        LIMIT :limit
     """), params)
     return [dict(row) for row in result.mappings().all()]
 
 
 async def get_submission_techniques(
-    session: AsyncSession, weight_class_id: Optional[int] = None
+    session: AsyncSession, weight_class_id: Optional[int] = None, limit: int = 10
 ) -> List[Dict[str, Any]]:
     wc_clause, params = _wc_filter(weight_class_id)
+    params["limit"] = limit
     result = await session.execute(text(f"""
         SELECT
             REPLACE(m.method, 'SUB-', '') AS technique,
@@ -416,7 +477,7 @@ async def get_submission_techniques(
             {wc_clause}
         GROUP BY technique
         ORDER BY count DESC
-        LIMIT 10
+        LIMIT :limit
     """), params)
     return [dict(row) for row in result.mappings().all()]
 
@@ -439,9 +500,11 @@ async def get_control_time(session: AsyncSession) -> List[Dict[str, Any]]:
 
 
 async def get_ground_strikes(
-    session: AsyncSession, weight_class_id: Optional[int] = None
+    session: AsyncSession, weight_class_id: Optional[int] = None, min_fights: int = 10, limit: int = 10
 ) -> List[Dict[str, Any]]:
     wc_clause, params = _wc_filter(weight_class_id)
+    params["min_fights"] = min_fights
+    params["limit"] = limit
     if not wc_clause:
         where_clause = ""
     else:
@@ -458,17 +521,19 @@ async def get_ground_strikes(
         JOIN match m ON fm.match_id = m.id
         {where_clause}
         GROUP BY f.id, f.name
-        HAVING COUNT(DISTINCT fm.match_id) >= 5 AND SUM(sd.ground_strikes_attempts) > 0
+        HAVING COUNT(DISTINCT fm.match_id) >= :min_fights AND SUM(sd.ground_strikes_attempts) > 0
         ORDER BY total_ground_landed DESC
-        LIMIT 10
+        LIMIT :limit
     """), params)
     return [dict(row) for row in result.mappings().all()]
 
 
 async def get_submission_efficiency_fighters(
-    session: AsyncSession, weight_class_id: Optional[int] = None
+    session: AsyncSession, weight_class_id: Optional[int] = None, min_fights: int = 10, limit: int = 10
 ) -> List[Dict[str, Any]]:
     wc_clause, params = _wc_filter(weight_class_id)
+    params["min_fights"] = min_fights
+    params["limit"] = limit
     if not wc_clause:
         where_clause = ""
     else:
@@ -484,17 +549,19 @@ async def get_submission_efficiency_fighters(
         JOIN match m ON fm.match_id = m.id
         {where_clause}
         GROUP BY f.id, f.name
-        HAVING SUM(ms.submission_attempts) >= 5
-            AND COUNT(DISTINCT fm.match_id) >= 5
+        HAVING SUM(ms.submission_attempts) >= :min_fights
+            AND COUNT(DISTINCT fm.match_id) >= :min_fights
         ORDER BY sub_finishes DESC
+        LIMIT :limit
     """), params)
     return [dict(row) for row in result.mappings().all()]
 
 
 async def get_submission_efficiency_avg_ratio(
-    session: AsyncSession, weight_class_id: Optional[int] = None
+    session: AsyncSession, weight_class_id: Optional[int] = None, min_fights: int = 10
 ) -> float:
     wc_clause, params = _wc_filter(weight_class_id)
+    params["min_fights"] = min_fights
     if not wc_clause:
         where_clause = ""
     else:
@@ -514,8 +581,8 @@ async def get_submission_efficiency_avg_ratio(
             JOIN match m ON fm.match_id = m.id
             {where_clause}
             GROUP BY f.id, f.name
-            HAVING SUM(ms.submission_attempts) >= 5
-                AND COUNT(DISTINCT fm.match_id) >= 5
+            HAVING SUM(ms.submission_attempts) >= :min_fights
+                AND COUNT(DISTINCT fm.match_id) >= :min_fights
         ) sub
     """), params)
     row = result.mappings().one()
