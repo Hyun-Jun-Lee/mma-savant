@@ -10,12 +10,21 @@ MMA Savant 대시보드에 표시할 통계 자료 목록 및 API 구현 가이�
 
 ### 엔드포인트 (탭별 Aggregate)
 
-| Tab | Endpoint | 설명 | weight_class_id |
-|-----|----------|------|:---:|
-| Home | `GET /api/dashboard/home` | 요약 카드 + 최근/향후 이벤트 + 랭킹 | X |
-| Overview | `GET /api/dashboard/overview?weight_class_id=` | 피니시·체급·이벤트·리더보드·라운드 | O (일부) |
-| Striking | `GET /api/dashboard/striking?weight_class_id=` | 타격 부위·정확도·KO/TKO·경기당 유효타격 | O |
-| Grappling | `GET /api/dashboard/grappling?weight_class_id=` | 테이크다운·서브미션·컨트롤타임·그라운드 | O (일부) |
+| Tab | Endpoint | 설명 | 추가 파라미터 |
+|-----|----------|------|-------------|
+| Home | `GET /api/dashboard/home` | 요약 카드 + 최근/향후 이벤트 + 랭킹 | — |
+| Overview | `GET /api/dashboard/overview` | 피니시·체급·이벤트·리더보드·라운드 | `weight_class_id`, `ufc_only` |
+| Striking | `GET /api/dashboard/striking` | 타격 부위·정확도·KO/TKO·경기당 유효타격 | `weight_class_id`, `min_fights`, `limit` |
+| Grappling | `GET /api/dashboard/grappling` | 테이크다운·서브미션·컨트롤타임·그라운드 | `weight_class_id`, `min_fights`, `limit` |
+
+### 공통 파라미터
+
+| 파라미터 | 타입 | 기본값 | 설명 |
+|----------|------|--------|------|
+| `weight_class_id` | int? | None | 체급 필터. 미전송 시 전체 |
+| `ufc_only` | bool | false | Leaderboard: UFC 전적만 집계 (Overview 전용) |
+| `min_fights` | int | 10 | 최소 경기 수 필터 (Striking/Grappling) |
+| `limit` | int | 10 | TOP N 반환 수 (Striking/Grappling) |
 
 ### 공통 규칙
 
@@ -23,9 +32,22 @@ MMA Savant 대시보드에 표시할 통계 자료 목록 및 API 구현 가이�
 - `?weight_class_id=3` 전송 시 해당 체급만 집계, 미전송 시 전체
 - 탭 내 일부 차트는 필터 무시 (모든 체급 비교가 목적인 차트)
 
+**min_fights 필터 (최소 경기 수)**
+- 백엔드: 3가지 기준(10/20/30)으로 각각 쿼리하여 `{min10, min20, min30}` 구조로 한 번에 반환
+- 프론트엔드: PillTabs(`10+ Fights` / `20+ Fights` / `30+ Fights`)로 클라이언트 전환 (API 재요청 없음)
+- 적용 차트: 3-2 타격 정확도, 3-4 경기당 유효타격, 4-1 테이크다운 성공률
+
+**ufc_only 필터 (UFC Only 토글)**
+- `ufc_only=true`: `fighter_match` 테이블 기반 집계 (UFC 경기만 포함)
+- `ufc_only=false` (기본값): `fighter` 테이블 직접 조회 (MMA 전체 커리어 전적)
+- 프론트엔드: 토글 스위치(All MMA ↔ UFC Only)로 전환, 기본값 **UFC Only**
+
 **TOP N (리더보드 계열) 처리**
 - 항상 **10건** 반환 — 프론트엔드에서 기본 5건만 표시, "더보기" 클릭 시 나머지 5건 노출
 - 별도 API 재요청 없이 클라이언트 측에서 처리
+
+**Open Weight / Catch Weight 제외**
+- 체급 비교 차트(2-2 Weight Class Activity, 4-3 Control Time)에서 프론트엔드 필터링으로 제외
 
 ---
 
@@ -177,7 +199,7 @@ MMA Savant 대시보드에 표시할 통계 자료 목록 및 API 구현 가이�
 
 ## Tab 2: Overview
 
-- **Endpoint**: `GET /api/dashboard/overview?weight_class_id=`
+- **Endpoint**: `GET /api/dashboard/overview?weight_class_id=&ufc_only=`
 - **포함 항목**: 5개 (피니시 분포, 체급별 활동, 이벤트 추이, 리더보드, 종료 라운드)
 
 ### 2-1. 피니시 방법 분포 (Finish Method Breakdown)
@@ -210,11 +232,12 @@ MMA Savant 대시보드에 표시할 통계 자료 목록 및 API 구현 가이�
 ### 2-2. 체급별 경기 수 & 피니시 분포 (Weight Class Activity)
 
 - **차트 유형**: ComposedChart — 수평 바(경기 수) + 도트(비율 %)
-  - Recharts `ComposedChart` + `Bar` + `Line`(dot only) 조합
-  - 탭: 피니시율 / KO율 / TKO율 / SUB율 전환 (프론트엔드 처리)
+  - Recharts `ComposedChart` + `Bar` + `Scatter` 조합
+  - 커스텀 Tooltip으로 Total Fights, Finishes(%), KO/TKO, SUB 상세 표시
 - **데이터 소스**: `match` + `weight_class` 조인
 - **설명**: 어떤 체급이 가장 활발하고 액션이 많은지 비교. KO/TKO/SUB 비율까지 한눈에 파악
 - **weight_class 필터**: X — 모든 체급 비교가 목적
+- **프론트엔드 필터**: Open Weight, Catch Weight 제외
 - **참고 쿼리**:
   ```sql
   SELECT
@@ -260,9 +283,14 @@ MMA Savant 대시보드에 표시할 통계 자료 목록 및 API 구현 가이�
 - **설명**: 역대 최고의 선수를 한눈에 확인
 - **인터랙션** (프론트엔드):
   - 탭: 최다승 / 최고승률 전환
-  - 최고승률 탭에 최소 경기 수 드롭다운: `10경기 이상` | `20경기 이상` | `30경기 이상`
+  - 최고승률 탭에 최소 경기 수 PillTabs: `10+ Fights` | `20+ Fights` | `30+ Fights`
+  - 토글 스위치: `All MMA` ↔ `UFC Only` (기본값: UFC Only)
   - "더보기" 버튼: 10건 중 나머지 5건 표시
-- **weight_class 필터**: O — 전체(default)는 `fighter` 테이블 직접 조회, 체급 필터 시 `fighter_match → match` JOIN
+- **weight_class 필터**: O
+- **ufc_only 필터**: O — 3가지 분기:
+  - `weight_class_id` 있음 → `fighter_match → match` JOIN (이미 UFC only)
+  - `ufc_only=true` (기본) → `fighter_match` JOIN (weight_class 없이)
+  - `ufc_only=false` → `fighter` 테이블 직접 조회 (MMA 전체 커리어)
 - **응답에 4세트 포함**: wins + winrate_min10 + winrate_min20 + winrate_min30
 - **참고 쿼리**:
   ```sql
@@ -322,10 +350,10 @@ MMA Savant 대시보드에 표시할 통계 자료 목록 및 API 구현 가이�
 
 ### 2-5. 경기 종료 라운드 분포 (Fight Duration Analysis)
 
-- **차트 유형**: 세로 바 차트 + ReferenceLine(평균 라운드)
+- **차트 유형**: 세로 바 차트 + ReferenceLine(평균 종료 시간)
   - X축: R1~R5 (이산값)
   - Y축: 비율(%) — 각 바에 비율(%)과 건수를 툴팁으로 표시
-  - ReferenceLine: 평균 종료 라운드 (점선)
+  - ReferenceLine: 평균 종료 시간 (점선, `Avg M:SS` 형식)
   - Recharts `BarChart` + `ReferenceLine` 조합
 - **데이터 소스**: `match.result_round`, `match.time`
 - **설명**: "평균적으로 UFC 경기는 몇 라운드에서 끝나는가"
@@ -348,6 +376,15 @@ MMA Savant 대시보드에 표시할 통계 자료 목록 및 API 구현 가이�
   FROM match
   WHERE result_round IS NOT NULL
     AND (:weight_class_id IS NULL OR weight_class_id = :weight_class_id);
+
+  -- 평균 종료 시간 (초 단위, ReferenceLine 라벨용)
+  SELECT ROUND(AVG(
+    CAST(SPLIT_PART(time, ':', 1) AS INTEGER) * 60 +
+    CAST(SPLIT_PART(time, ':', 2) AS INTEGER)
+  ))::int AS avg_time_seconds
+  FROM match
+  WHERE time IS NOT NULL AND result_round IS NOT NULL
+    AND (:weight_class_id IS NULL OR weight_class_id = :weight_class_id);
   ```
 
 ### Overview 응답 구조
@@ -361,8 +398,8 @@ MMA Savant 대시보드에 표시할 통계 자료 목록 및 API 구현 가이�
     {
       "weight_class": "Lightweight",
       "total_fights": 1120,
-      "ko_count": 168, "tko_count": 224, "sub_count": 168,
-      "finish_rate": 50.0, "ko_rate": 15.0, "tko_rate": 20.0, "sub_rate": 15.0
+      "ko_tko_count": 392, "sub_count": 168,
+      "finish_rate": 50.0, "ko_tko_rate": 35.0, "sub_rate": 15.0
     }
   ],
   "events_timeline": [
@@ -382,7 +419,8 @@ MMA Savant 대시보드에 표시할 통계 자료 목록 및 API 구현 가이�
     "rounds": [
       { "result_round": 1, "fight_count": 2890, "percentage": 40.1 }
     ],
-    "avg_round": 2.1
+    "avg_round": 2.1,
+    "avg_time_seconds": 402
   }
 }
 ```
@@ -391,7 +429,7 @@ MMA Savant 대시보드에 표시할 통계 자료 목록 및 API 구현 가이�
 
 ## Tab 3: Striking
 
-- **Endpoint**: `GET /api/dashboard/striking?weight_class_id=`
+- **Endpoint**: `GET /api/dashboard/striking?weight_class_id=&min_fights=10&limit=10`
 - **포함 항목**: 4개 (타격 부위, 타격 정확도, KO/TKO TOP, 경기당 유효타격)
 
 ### 3-1. 타격 부위별 분포 (Strike Target Distribution)
@@ -424,7 +462,7 @@ MMA Savant 대시보드에 표시할 통계 자료 목록 및 API 구현 가이�
   - Recharts `BarChart`(vertical) — 2개 `Bar` overlay (`barGap={-26}`)
 - **데이터 소스**: `match_statistics.sig_str_landed`, `match_statistics.sig_str_attempted`
 - **설명**: 유효 타격 정확도가 가장 높은 선수. 시도 대비 적중을 직관적으로 비교
-- **필터**: 최소 5경기 이상
+- **min_fights 필터**: 10/20/30 PillTabs (백엔드에서 3세트 반환, 프론트 전환)
 - **weight_class 필터**: O
 - **참고 쿼리**:
   ```sql
@@ -446,7 +484,7 @@ MMA Savant 대시보드에 표시할 통계 자료 목록 및 API 구현 가이�
 
 ### 3-3. KO/TKO 피니시 TOP (KO/TKO Finish Leaders)
 
-- **차트 유형**: 수평 스택 바 차트 (KO / TKO 구분)
+- **차트 유형**: 수평 바 차트
 - **데이터 소스**: `match.method` + `fighter_match.result`
 - **설명**: KO/TKO 피니시를 가장 많이 기록한 선수
 - **weight_class 필터**: O
@@ -472,12 +510,12 @@ MMA Savant 대시보드에 표시할 통계 자료 목록 및 API 구현 가이�
 
 - **차트 유형**: Lollipop Chart (줄기 + 점)
   - Bar: 얇은 stem (barSize={3}), Scatter: 끝점 dot
-  - dot 크기로 총 경기수 인코딩 (total_fights × 0.45, 최소 6 최대 14)
-  - ReferenceLine: 평균값 점선
+  - ReferenceLine: 평균값 점선 (라벨: `insideBottomRight`로 최상위 선수와 겹침 방지)
+  - 커스텀 Tooltip: `Sig/Fight: value` 단일 항목만 표시
   - Recharts `ComposedChart`(vertical) — `Bar`(stem) + `Scatter`(dot)
 - **데이터 소스**: `match_statistics.sig_str_landed` + 경기 수
-- **설명**: 경기당 유효타격이 가장 많은 선수. 볼륨 스트라이커 식별 지표. 점 크기로 경기 수도 함께 표현
-- **필터**: 최소 5경기 이상
+- **설명**: 경기당 유효타격이 가장 많은 선수. 볼륨 스트라이커 식별 지표
+- **min_fights 필터**: 10/20/30 PillTabs (백엔드에서 3세트 반환, 프론트 전환)
 - **weight_class 필터**: O
 - **참고 쿼리**:
   ```sql
@@ -507,15 +545,23 @@ MMA Savant 대시보드에 표시할 통계 자료 목록 및 API 구현 가이�
     { "target": "Clinch", "landed": 34200 },
     { "target": "Ground", "landed": 41800 }
   ],
-  "striking_accuracy": [
-    { "name": "Holloway", "total_sig_landed": 3245, "total_sig_attempted": 5226, "accuracy": 62.1 }
-  ],
+  "striking_accuracy": {
+    "min10": [
+      { "name": "Holloway", "total_sig_landed": 3245, "total_sig_attempted": 5226, "accuracy": 62.1 }
+    ],
+    "min20": [],
+    "min30": []
+  },
   "ko_tko_leaders": [
-    { "name": "Derrick Lewis", "ko_finishes": 14, "tko_finishes": 7, "total_ko_tko": 21 }
+    { "name": "Derrick Lewis", "ko_tko_finishes": 21 }
   ],
-  "sig_strikes_per_fight": [
-    { "name": "Max Holloway", "sig_str_per_fight": 7.49, "total_fights": 30 }
-  ]
+  "sig_strikes_per_fight": {
+    "min10": [
+      { "name": "Max Holloway", "sig_str_per_fight": 7.49, "total_fights": 30 }
+    ],
+    "min20": [],
+    "min30": []
+  }
 }
 ```
 
@@ -523,7 +569,7 @@ MMA Savant 대시보드에 표시할 통계 자료 목록 및 API 구현 가이�
 
 ## Tab 4: Grappling
 
-- **Endpoint**: `GET /api/dashboard/grappling?weight_class_id=`
+- **Endpoint**: `GET /api/dashboard/grappling?weight_class_id=&min_fights=10&limit=10`
 - **포함 항목**: 5개 (테이크다운, 서브미션 기술, 컨트롤 타임, 그라운드 스트라이크, 서브미션 효율)
 
 ### 4-1. 테이크다운 성공률 TOP (Takedown Accuracy Leaders)
@@ -534,7 +580,8 @@ MMA Savant 대시보드에 표시할 통계 자료 목록 및 API 구현 가이�
   - Recharts `BarChart`(vertical) — 2개 `Bar` overlay (3-2와 동일 패턴, 색상만 green 계열)
 - **데이터 소스**: `match_statistics.td_landed`, `match_statistics.td_attempted`
 - **설명**: 테이크다운 성공률이 가장 높은 선수. 시도 대비 성공을 직관적으로 비교
-- **필터**: 최소 5경기 이상, 테이크다운 시도 10회 이상
+- **min_fights 필터**: 10/20/30 PillTabs (백엔드에서 3세트 반환, 프론트 전환)
+- **추가 조건**: 테이크다운 시도 10회 이상
 - **weight_class 필터**: O
 - **참고 쿼리**:
   ```sql
@@ -575,10 +622,11 @@ MMA Savant 대시보드에 표시할 통계 자료 목록 및 API 구현 가이�
 
 ### 4-3. 체급별 평균 컨트롤 타임 (Control Time by Weight Class)
 
-- **차트 유형**: 바 차트 (체급별 평균 초 단위, mm:ss로 표시)
+- **차트 유형**: 바 차트 (체급별 평균 초 단위, M:SS로 표시)
 - **데이터 소스**: `match_statistics.control_time_seconds` + `weight_class`
 - **설명**: 어떤 체급에서 그라운드 컨트롤이 가장 많이 발생하는지
 - **weight_class 필터**: X — 모든 체급 비교가 목적
+- **프론트엔드 필터**: Open Weight, Catch Weight 제외
 - **참고 쿼리**:
   ```sql
   SELECT
@@ -628,11 +676,11 @@ MMA Savant 대시보드에 표시할 통계 자료 목록 및 API 구현 가이�
 - **차트 유형**: 산점도 + 대각선 기준선 + 선수 라벨
   - X축: 서브미션 시도 수, Y축: 서브미션 피니시 수
   - 대각선 ReferenceLine: 전체 평균 효율(피니시/시도) 비율
-  - TOP 5 선수는 이름 라벨 표시, 나머지는 hover 툴팁
-  - Recharts `ScatterChart` + `ReferenceLine` 조합
+  - TOP 1 선수만 이름 라벨 표시, 나머지는 hover 툴팁
+  - Recharts `ScatterChart` + `ReferenceLine`(segment) + `Label` 조합
 - **데이터 소스**: `match_statistics.submission_attempts` + `match.method LIKE 'SUB-%'`
 - **설명**: 서브미션을 많이 시도하는 선수가 실제로 피니시도 많이 하는가?
-- **필터**: 서브미션 시도 5회 이상, 최소 5경기 이상
+- **필터**: 서브미션 시도 5회 이상, 최소 경기 수 `min_fights` 적용 (기본 10)
 - **weight_class 필터**: O
 - **참고 쿼리**:
   ```sql
@@ -663,9 +711,13 @@ MMA Savant 대시보드에 표시할 통계 자료 목록 및 API 구현 가이�
 
 ```json
 {
-  "takedown_accuracy": [
-    { "name": "Khabib", "total_td_landed": 82, "total_td_attempted": 130, "td_accuracy": 63.2 }
-  ],
+  "takedown_accuracy": {
+    "min10": [
+      { "name": "Khabib", "total_td_landed": 82, "total_td_attempted": 130, "td_accuracy": 63.2 }
+    ],
+    "min20": [],
+    "min30": []
+  },
   "submission_techniques": [
     { "technique": "Rear Naked Choke", "count": 412 }
   ],
@@ -692,16 +744,34 @@ MMA Savant 대시보드에 표시할 통계 자료 목록 및 API 구현 가이�
 
 - **파일 구조**: `src/dashboard/` (dto.py, repositories.py, services.py, exceptions.py) + `src/api/dashboard/routes.py`
 - **패턴**: Repository → Service → Router (기존 프로젝트 컨벤션)
-- **Redis 캐싱**: TTL 7일 (데이터 변동이 적으므로 긴 TTL 적용). 캐시 키에 `weight_class_id` 포함
-- **최소 경기 수**: 5경기 통일 (3-2 타격 정확도, 4-1 테이크다운, 4-4 그라운드 스트라이크, 4-5 서브미션 효율, 3-4 경기당 유효타격)
+- **Redis 캐싱**: TTL 7일. 캐시 키 패턴: `dashboard:{tab}:{weight_class_id|all}` (overview는 `:ufc` 접미사 추가)
+- **최소 경기 수**: 기본값 10경기. PillTabs 대상 차트는 10/20/30으로 3세트 반환
 - **TOP N 항목**: 항상 10건 반환 (프론트엔드에서 5/10 전환)
 - **weight_class 필터 무시 항목**: 2-2 체급별 활동, 2-3 이벤트 추이, 4-3 컨트롤 타임
 - **Rankings**: Home 응답에 전체 체급 랭킹 포함 (프론트엔드 드롭다운으로 체급 전환, API 재요청 없음)
-- **Leaderboard**: overview 응답에 4세트 포함 (wins, winrate_min10, winrate_min20, winrate_min30)
+- **Leaderboard**: overview 응답에 4세트 포함 (wins, winrate_min10, winrate_min20, winrate_min30) + `ufc_only` 파라미터
 
 ### 프론트엔드
 
-- Recharts 이미 설치됨 — Bar/Line/Pie/Scatter/Radar 차트 사용
+- Recharts — Bar/Line/Pie/Scatter/Radar/Composed 차트 사용
 - 레이아웃: **Layout E (Bento Grid)** — `docs/dashboard-prototype-E.html` 참조
-- 필터 바: Overview / Striking / Grappling 탭 전환
-- Recharts 컴포넌트 매핑: 2-2 `ComposedChart`, 2-5 `BarChart`+`ReferenceLine`, 3-1 `RadarChart`, 3-2 `BarChart`(Bullet), 3-4 `ComposedChart`(Lollipop), 4-1 `BarChart`(Bullet), 4-4 `ScatterChart`(Bubble), 4-5 `ScatterChart`+`ReferenceLine`
+- 탭 전환: Home / Overview / Striking / Grappling (PillTabs)
+- 체급 필터: WeightClassFilter 드롭다운 (Overview/Striking/Grappling 탭)
+- **PillTabs (min_fights)**: `10+ Fights` / `20+ Fights` / `30+ Fights` — API 재요청 없이 프론트 전환
+- **UFC Only 토글**: Leaderboard 차트에 `All MMA ↔ UFC Only` 스위치 (기본값: UFC Only, API 재호출)
+- **Silent fetch**: 토글 변경 시 기존 데이터를 유지하면서 백그라운드 리패치 (로딩 스켈레톤 미표시)
+- **Open Weight 제외**: Weight Class Activity, Control Time 차트에서 프론트엔드 필터링
+- Recharts 컴포넌트 매핑:
+  - 2-1 `PieChart` (도넛)
+  - 2-2 `ComposedChart` (`Bar` + `Scatter`)
+  - 2-3 `AreaChart`
+  - 2-4 `BarChart` (Leaderboard)
+  - 2-5 `BarChart` + `ReferenceLine`
+  - 3-1 `RadarChart`
+  - 3-2 `BarChart` (Bullet, 2-Bar overlay)
+  - 3-3 `BarChart` (수평)
+  - 3-4 `ComposedChart` (Lollipop, `Bar`+`Scatter`)
+  - 4-1 `BarChart` (Bullet, 2-Bar overlay)
+  - 4-3 `BarChart` (M:SS 포맷)
+  - 4-4 `ScatterChart` (Bubble)
+  - 4-5 `ScatterChart` + `ReferenceLine`(segment)
