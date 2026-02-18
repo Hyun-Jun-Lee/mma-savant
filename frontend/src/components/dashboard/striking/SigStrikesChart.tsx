@@ -92,6 +92,7 @@ export function SigStrikesChart({ data }: SigStrikesChartProps) {
             fill: '#71717a',
             fontSize: 10,
             position: 'insideBottomRight',
+            dx: 8,
           }}
         />
         {/* Stem (thin bar) */}
