@@ -1,10 +1,9 @@
 'use client'
 
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect } from 'react'
 import { useSearchParams, useRouter, usePathname } from 'next/navigation'
 import { useDashboard } from '@/hooks/useDashboard'
 import { PillTabs } from './PillTabs'
-import { WeightClassFilter } from './WeightClassFilter'
 import { HomeTab } from './home/HomeTab'
 import { OverviewTab } from './overview/OverviewTab'
 import { StrikingTab } from './striking/StrikingTab'
@@ -31,19 +30,14 @@ export function DashboardPageClient({
   const router = useRouter()
   const pathname = usePathname()
   const { state, fetchTab } = useDashboard()
-  const [ufcOnly, setUfcOnly] = useState(true)
 
   const activeTab = (searchParams.get('tab') as TabKey) || 'home'
-  const weightClassId = searchParams.get('weight_class')
-    ? Number(searchParams.get('weight_class'))
-    : undefined
 
   const setTab = useCallback(
     (tab: string) => {
       const params = new URLSearchParams(searchParams.toString())
       if (tab === 'home') {
         params.delete('tab')
-        params.delete('weight_class')
       } else {
         params.set('tab', tab)
       }
@@ -53,51 +47,22 @@ export function DashboardPageClient({
     [searchParams, router, pathname]
   )
 
-  const setWeightClass = useCallback(
-    (id?: number) => {
-      const params = new URLSearchParams(searchParams.toString())
-      if (id === undefined) params.delete('weight_class')
-      else params.set('weight_class', id.toString())
-      const qs = params.toString()
-      router.push(qs ? `${pathname}?${qs}` : pathname, { scroll: false })
-    },
-    [searchParams, router, pathname]
-  )
-
-  // 탭 전환 시 데이터 fetch
+  // Fetch tab data on tab switch
   useEffect(() => {
     if (activeTab !== 'home') {
-      const hasData = !!state[activeTab].data
-      fetchTab(activeTab, weightClassId,
-        activeTab === 'overview' ? { ufcOnly, silent: hasData } : undefined
-      )
+      fetchTab(activeTab)
     }
-  }, [activeTab, weightClassId, ufcOnly, fetchTab]) // eslint-disable-line react-hooks/exhaustive-deps
-
-  const handleUfcOnlyChange = useCallback(
-    (value: boolean) => {
-      setUfcOnly(value)
-    },
-    []
-  )
-
-  const showFilter = activeTab !== 'home'
+  }, [activeTab, fetchTab]) // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
     <div className="mx-auto max-w-7xl px-4 py-6">
-      {/* Tab Bar + Filter */}
+      {/* Tab Bar */}
       <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
         <PillTabs
           tabs={[...TABS]}
           activeKey={activeTab}
           onChange={setTab}
         />
-        {showFilter && (
-          <WeightClassFilter
-            value={weightClassId}
-            onChange={setWeightClass}
-          />
-        )}
       </div>
 
       {/* Tab Content */}
@@ -115,9 +80,7 @@ export function DashboardPageClient({
             data={state.overview.data}
             loading={state.overview.loading}
             error={state.overview.error}
-            onRetry={() => fetchTab('overview', weightClassId, { ufcOnly })}
-            ufcOnly={ufcOnly}
-            onUfcOnlyChange={handleUfcOnlyChange}
+            onRetry={() => fetchTab('overview')}
           />
         )}
         {activeTab === 'striking' && (
@@ -125,7 +88,7 @@ export function DashboardPageClient({
             data={state.striking.data}
             loading={state.striking.loading}
             error={state.striking.error}
-            onRetry={() => fetchTab('striking', weightClassId)}
+            onRetry={() => fetchTab('striking')}
           />
         )}
         {activeTab === 'grappling' && (
@@ -133,7 +96,7 @@ export function DashboardPageClient({
             data={state.grappling.data}
             loading={state.grappling.loading}
             error={state.grappling.error}
-            onRetry={() => fetchTab('grappling', weightClassId)}
+            onRetry={() => fetchTab('grappling')}
           />
         )}
       </div>
