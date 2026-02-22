@@ -8,6 +8,8 @@ import { WeightClassActivityChart } from './WeightClassActivityChart'
 import { EventsTimelineChart } from './EventsTimelineChart'
 import { LeaderboardChart } from './LeaderboardChart'
 import { FightDurationChart } from './FightDurationChart'
+import { FinishRateTrendChart } from './FinishRateTrendChart'
+import { PhysiqueComparisonChart } from './PhysiqueComparisonChart'
 import type { OverviewResponse } from '@/types/dashboard'
 
 interface OverviewTabProps {
@@ -36,6 +38,16 @@ export function OverviewTab({ data, loading, error, onRetry }: OverviewTabProps)
   } = useChartFilter({
     initialData: data?.fight_duration,
     fetchFn: chartApi.getFightDuration,
+  })
+
+  const {
+    data: finishRateTrend,
+    loading: frtLoading,
+    weightClassId: frtWc,
+    setWeightClassId: setFrtWc,
+  } = useChartFilter({
+    initialData: data?.finish_rate_trend,
+    fetchFn: chartApi.getFinishRateTrend,
   })
 
   return (
@@ -99,7 +111,36 @@ export function OverviewTab({ data, loading, error, onRetry }: OverviewTabProps)
         </ChartCard>
       </div>
 
-      {/* Row 3: Leaderboard (full width) */}
+      {/* Row 3: Finish Rate Trend + Physique Comparison */}
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+        <ChartCard
+          title="Finish Rate Trend"
+          description="Year-over-year finish method rates"
+          tooltip="연도별 KO, TKO, 서브미션, 판정 비율 추이를 보여줍니다."
+          headerRight={<WeightClassFilter value={frtWc} onChange={setFrtWc} />}
+          loading={!data && loading}
+          error={error}
+          onRetry={onRetry}
+        >
+          {frtLoading ? (
+            <Skeleton className="h-[280px] bg-white/[0.06]" />
+          ) : (
+            finishRateTrend && <FinishRateTrendChart data={finishRateTrend} />
+          )}
+        </ChartCard>
+        <ChartCard
+          title="Physique Comparison"
+          description="Average height and reach by division"
+          tooltip="체급별 평균 키와 리치를 비교합니다."
+          loading={loading}
+          error={error}
+          onRetry={onRetry}
+        >
+          {data && <PhysiqueComparisonChart data={data.physique_comparison} />}
+        </ChartCard>
+      </div>
+
+      {/* Row 4: Leaderboard (full width) */}
       <LeaderboardChart
         initialData={data?.leaderboard}
         parentLoading={loading}

@@ -3,14 +3,26 @@ import type {
   StrikingResponse,
   GrapplingResponse,
   FinishMethod,
+  FinishRateTrend,
+  PhysiqueComparison,
   StrikeTarget,
   KoTkoLeader,
+  KnockdownLeader,
   StrikingAccuracyFighter,
   SigStrikesLeader,
+  SigStrikesByWeightClass,
+  RoundStrikeTrend,
+  StrikeExchange,
+  StanceWinrate,
   TakedownLeader,
   SubmissionTechnique,
   GroundStrikesLeader,
   MinFightsLeaderboard,
+  CategoryLeader,
+  TdAttemptsLeaderboard,
+  TdSubCorrelation,
+  TdByWeightClass,
+  TdDefenseLeader,
 } from '@/types/dashboard'
 
 const BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8002'
@@ -68,6 +80,12 @@ function buildChartParams(params: {
 }
 
 export const chartApi = {
+  // Home
+  getCategoryLeaders: () =>
+    dashboardFetch<CategoryLeader[]>(
+      '/api/dashboard/chart/category-leaders'
+    ),
+
   // Overview
   getFinishMethods: (wc?: number) =>
     dashboardFetch<FinishMethod[]>(
@@ -82,6 +100,16 @@ export const chartApi = {
   getLeaderboard: (wc?: number, ufcOnly?: boolean) =>
     dashboardFetch<OverviewResponse['leaderboard']>(
       `/api/dashboard/chart/leaderboard${buildChartParams({ weightClassId: wc, ufcOnly })}`
+    ),
+
+  getFinishRateTrend: (wc?: number) =>
+    dashboardFetch<FinishRateTrend[]>(
+      `/api/dashboard/chart/finish-rate-trend${buildChartParams({ weightClassId: wc })}`
+    ),
+
+  getPhysiqueComparison: () =>
+    dashboardFetch<PhysiqueComparison[]>(
+      '/api/dashboard/chart/physique-comparison'
     ),
 
   // Striking
@@ -105,6 +133,31 @@ export const chartApi = {
       `/api/dashboard/chart/sig-strikes${buildChartParams({ weightClassId: wc })}`
     ),
 
+  getKnockdownLeaders: (wc?: number) =>
+    dashboardFetch<KnockdownLeader[]>(
+      `/api/dashboard/chart/knockdown-leaders${buildChartParams({ weightClassId: wc })}`
+    ),
+
+  getSigStrikesByWc: () =>
+    dashboardFetch<SigStrikesByWeightClass[]>(
+      '/api/dashboard/chart/sig-strikes-by-weight-class'
+    ),
+
+  getRoundStrikeTrend: (wc?: number) =>
+    dashboardFetch<RoundStrikeTrend[]>(
+      `/api/dashboard/chart/round-strike-trend${buildChartParams({ weightClassId: wc })}`
+    ),
+
+  getStrikeExchange: (wc?: number) =>
+    dashboardFetch<MinFightsLeaderboard<StrikeExchange>>(
+      `/api/dashboard/chart/strike-exchange-ratio${buildChartParams({ weightClassId: wc })}`
+    ),
+
+  getStanceWinrate: (wc?: number) =>
+    dashboardFetch<StanceWinrate[]>(
+      `/api/dashboard/chart/stance-winrate${buildChartParams({ weightClassId: wc })}`
+    ),
+
   // Grappling
   getTakedownAccuracy: (wc?: number) =>
     dashboardFetch<MinFightsLeaderboard<TakedownLeader>>(
@@ -124,5 +177,25 @@ export const chartApi = {
   getSubEfficiency: (wc?: number) =>
     dashboardFetch<GrapplingResponse['submission_efficiency']>(
       `/api/dashboard/chart/submission-efficiency${buildChartParams({ weightClassId: wc })}`
+    ),
+
+  getTdAttemptsLeaders: (wc?: number) =>
+    dashboardFetch<TdAttemptsLeaderboard>(
+      `/api/dashboard/chart/td-attempts-leaders${buildChartParams({ weightClassId: wc })}`
+    ),
+
+  getTdSubCorrelation: (wc?: number) =>
+    dashboardFetch<TdSubCorrelation>(
+      `/api/dashboard/chart/td-sub-correlation${buildChartParams({ weightClassId: wc })}`
+    ),
+
+  getTdByWeightClass: () =>
+    dashboardFetch<TdByWeightClass[]>(
+      '/api/dashboard/chart/td-by-weight-class'
+    ),
+
+  getTdDefenseLeaders: (wc?: number) =>
+    dashboardFetch<MinFightsLeaderboard<TdDefenseLeader>>(
+      `/api/dashboard/chart/td-defense-leaders${buildChartParams({ weightClassId: wc })}`
     ),
 }

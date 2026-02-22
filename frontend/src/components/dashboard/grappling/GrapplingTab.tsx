@@ -8,6 +8,10 @@ import { SubmissionTechChart } from './SubmissionTechChart'
 import { ControlTimeChart } from './ControlTimeChart'
 import { GroundStrikesChart } from './GroundStrikesChart'
 import { SubmissionEfficiencyChart } from './SubmissionEfficiencyChart'
+import { TdAttemptsChart } from './TdAttemptsChart'
+import { TdSubCorrelationChart } from './TdSubCorrelationChart'
+import { TdByWeightClassChart } from './TdByWeightClassChart'
+import { TdDefenseChart } from './TdDefenseChart'
 import type { GrapplingResponse } from '@/types/dashboard'
 
 interface GrapplingTabProps {
@@ -56,6 +60,36 @@ export function GrapplingTab({ data, loading, error, onRetry }: GrapplingTabProp
   } = useChartFilter({
     initialData: data?.submission_efficiency,
     fetchFn: chartApi.getSubEfficiency,
+  })
+
+  const {
+    data: tdAttemptsLeaders,
+    loading: taLoading,
+    weightClassId: taWc,
+    setWeightClassId: setTaWc,
+  } = useChartFilter({
+    initialData: data?.td_attempts_leaders,
+    fetchFn: chartApi.getTdAttemptsLeaders,
+  })
+
+  const {
+    data: tdSubCorrelation,
+    loading: tscLoading,
+    weightClassId: tscWc,
+    setWeightClassId: setTscWc,
+  } = useChartFilter({
+    initialData: data?.td_sub_correlation,
+    fetchFn: chartApi.getTdSubCorrelation,
+  })
+
+  const {
+    data: tdDefenseLeaders,
+    loading: tddLoading,
+    weightClassId: tddWc,
+    setWeightClassId: setTddWc,
+  } = useChartFilter({
+    initialData: data?.td_defense_leaders,
+    fetchFn: chartApi.getTdDefenseLeaders,
   })
 
   return (
@@ -135,6 +169,69 @@ export function GrapplingTab({ data, loading, error, onRetry }: GrapplingTabProp
           ) : (
             subEfficiency && <SubmissionEfficiencyChart data={subEfficiency} />
           )}
+        </ChartCard>
+      </div>
+
+      {/* Row 3: TD Attempts Leaders + TD Defense */}
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+        <ChartCard
+          title="TD Attempts Leaders"
+          description="Top fighters by takedown attempts per fight"
+          tooltip="경기당 테이크다운 시도 횟수 상위 파이터입니다. 점선은 전체 평균입니다."
+          headerRight={<WeightClassFilter value={taWc} onChange={setTaWc} />}
+          loading={!data && loading}
+          error={error}
+          onRetry={onRetry}
+        >
+          {taLoading ? (
+            <Skeleton className="h-[280px] bg-white/[0.06]" />
+          ) : (
+            tdAttemptsLeaders && <TdAttemptsChart data={tdAttemptsLeaders} />
+          )}
+        </ChartCard>
+        <ChartCard
+          title="TD Defense Leaders"
+          description="Top fighters by takedown defense rate"
+          tooltip="테이크다운 방어율 상위 파이터입니다. 상대의 테이크다운 시도 중 방어 성공 비율을 보여줍니다."
+          headerRight={<WeightClassFilter value={tddWc} onChange={setTddWc} />}
+          loading={!data && loading}
+          error={error}
+          onRetry={onRetry}
+        >
+          {tddLoading ? (
+            <Skeleton className="h-[280px] bg-white/[0.06]" />
+          ) : (
+            tdDefenseLeaders && <TdDefenseChart data={tdDefenseLeaders} />
+          )}
+        </ChartCard>
+      </div>
+
+      {/* Row 4: TD-Sub Correlation + TD by Weight Class */}
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+        <ChartCard
+          title="TD-Submission Correlation"
+          description="Takedown landed vs submission finishes"
+          tooltip="테이크다운 성공 수와 서브미션 피니시 수의 상관관계를 산점도로 보여줍니다. 점선은 전체 평균입니다."
+          headerRight={<WeightClassFilter value={tscWc} onChange={setTscWc} />}
+          loading={!data && loading}
+          error={error}
+          onRetry={onRetry}
+        >
+          {tscLoading ? (
+            <Skeleton className="h-[280px] bg-white/[0.06]" />
+          ) : (
+            tdSubCorrelation && <TdSubCorrelationChart data={tdSubCorrelation} />
+          )}
+        </ChartCard>
+        <ChartCard
+          title="Takedowns by Weight Class"
+          description="Average takedown attempts and landed per fight"
+          tooltip="체급별 경기당 평균 테이크다운 시도 및 성공 수를 비교합니다."
+          loading={loading}
+          error={error}
+          onRetry={onRetry}
+        >
+          {data && <TdByWeightClassChart data={data.td_by_weight_class} />}
         </ChartCard>
       </div>
     </div>
