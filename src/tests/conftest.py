@@ -675,9 +675,12 @@ async def dashboard_data(clean_test_session):
     today = date.today()
 
     # === Fighters ===
-    fighter_a = FighterModel(name="Alpha Fighter", wins=10, losses=2, draws=0)
-    fighter_b = FighterModel(name="Beta Fighter", wins=8, losses=4, draws=1)
-    fighter_c = FighterModel(name="Gamma Fighter", wins=3, losses=2, draws=0)
+    fighter_a = FighterModel(name="Alpha Fighter", wins=10, losses=2, draws=0,
+                              stance="Orthodox", height_cm=180.0, reach_cm=185.0)
+    fighter_b = FighterModel(name="Beta Fighter", wins=8, losses=4, draws=1,
+                              stance="Southpaw", height_cm=175.0, reach_cm=178.0)
+    fighter_c = FighterModel(name="Gamma Fighter", wins=3, losses=2, draws=0,
+                              stance="Orthodox", height_cm=170.0, reach_cm=173.0)
     session.add_all([fighter_a, fighter_b, fighter_c])
     await session.flush()
 
@@ -881,6 +884,69 @@ async def dashboard_data(clean_test_session):
                              clinch_strikes_landed=1, clinch_strikes_attempts=3, ground_strikes_landed=1, ground_strikes_attempts=2, round=2),
     ]
     session.add_all(wc5_strike_details)
+    await session.flush()
+
+    # === Extra matches: A,B를 11전으로 만들어 HAVING >= 10 충족 ===
+    # 모두 DEC 판정이므로 기존 KO/TKO, SUB 카운트에 영향 없음
+    extra_matches = [
+        MatchModel(event_id=events[0].id, weight_class_id=4, method="U-DEC",
+                   result_round=3, time="15:00", order=3, is_main_event=False),
+        MatchModel(event_id=events[1].id, weight_class_id=4, method="S-DEC",
+                   result_round=3, time="15:00", order=3, is_main_event=False),
+        MatchModel(event_id=events[2].id, weight_class_id=4, method="U-DEC",
+                   result_round=3, time="15:00", order=3, is_main_event=False),
+        MatchModel(event_id=events[3].id, weight_class_id=5, method="M-DEC",
+                   result_round=3, time="15:00", order=4, is_main_event=False),
+    ]
+    session.add_all(extra_matches)
+    await session.flush()
+
+    extra_fms_a = []
+    extra_fms_b = []
+    for em in extra_matches:
+        fm_ea = FighterMatchModel(fighter_id=fighter_a.id, match_id=em.id, result="win")
+        fm_eb = FighterMatchModel(fighter_id=fighter_b.id, match_id=em.id, result="loss")
+        extra_fms_a.append(fm_ea)
+        extra_fms_b.append(fm_eb)
+    session.add_all(extra_fms_a + extra_fms_b)
+    await session.flush()
+
+    extra_basic_stats = []
+    for fm_ea, fm_eb in zip(extra_fms_a, extra_fms_b):
+        extra_basic_stats.extend([
+            BasicMatchStatModel(
+                fighter_match_id=fm_ea.id, sig_str_landed=40, sig_str_attempted=70,
+                td_landed=2, td_attempted=3, control_time_seconds=120,
+                submission_attempts=1, knockdowns=0,
+                total_str_landed=52, total_str_attempted=82, round=3),
+            BasicMatchStatModel(
+                fighter_match_id=fm_eb.id, sig_str_landed=25, sig_str_attempted=50,
+                td_landed=1, td_attempted=2, control_time_seconds=50,
+                submission_attempts=0, knockdowns=0,
+                total_str_landed=35, total_str_attempted=60, round=3),
+        ])
+    session.add_all(extra_basic_stats)
+    await session.flush()
+
+    extra_strike_details = []
+    for fm_ea, fm_eb in zip(extra_fms_a, extra_fms_b):
+        extra_strike_details.extend([
+            SigStrMatchStatModel(
+                fighter_match_id=fm_ea.id,
+                head_strikes_landed=20, head_strikes_attempts=35,
+                body_strikes_landed=12, body_strikes_attempts=20,
+                leg_strikes_landed=5, leg_strikes_attempts=8,
+                clinch_strikes_landed=2, clinch_strikes_attempts=3,
+                ground_strikes_landed=1, ground_strikes_attempts=4, round=3),
+            SigStrMatchStatModel(
+                fighter_match_id=fm_eb.id,
+                head_strikes_landed=12, head_strikes_attempts=25,
+                body_strikes_landed=8, body_strikes_attempts=15,
+                leg_strikes_landed=3, leg_strikes_attempts=5,
+                clinch_strikes_landed=1, clinch_strikes_attempts=2,
+                ground_strikes_landed=1, ground_strikes_attempts=3, round=3),
+        ])
+    session.add_all(extra_strike_details)
     await session.flush()
 
     # === Rankings (Lightweight) ===
