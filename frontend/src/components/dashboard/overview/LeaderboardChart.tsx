@@ -19,8 +19,8 @@ import type { OverviewResponse } from '@/types/dashboard'
 const TABS = [
   { key: 'wins', label: 'Most Wins' },
   { key: 'winrate_min10', label: 'Win Rate (10+)' },
+  { key: 'winrate_min15', label: 'Win Rate (15+)' },
   { key: 'winrate_min20', label: 'Win Rate (20+)' },
-  { key: 'winrate_min30', label: 'Win Rate (30+)' },
 ] as const
 
 type LeaderboardKey = (typeof TABS)[number]['key']
@@ -81,7 +81,7 @@ export function LeaderboardChart({
     <ChartCard
       title="Leaderboard"
       description="Top fighters by wins and win rate"
-      tooltip="총 승수 또는 승률 기준 상위 파이터를 보여줍니다. 최소 경기 수(10/20/30)로 필터링할 수 있습니다."
+      tooltip="총 승수 또는 승률 기준 상위 파이터를 보여줍니다. 최소 경기 수(10/15/20)로 필터링할 수 있습니다."
       headerRight={
         <WeightClassFilter value={weightClassId} onChange={setWeightClassId} />
       }
