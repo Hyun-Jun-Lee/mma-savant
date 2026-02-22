@@ -56,11 +56,22 @@ class DivisionRankingDTO(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
+class CategoryLeaderDTO(BaseModel):
+    category: str
+    label: str
+    name: str
+    value: float
+    unit: str
+
+    model_config = ConfigDict(from_attributes=True)
+
+
 class HomeResponseDTO(BaseModel):
     summary: SummaryDTO
     recent_events: List[RecentEventDTO]
     upcoming_events: List[UpcomingEventDTO]
     rankings: List[DivisionRankingDTO]
+    category_leaders: List[CategoryLeaderDTO] = []
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -106,8 +117,8 @@ class LeaderboardFighterDTO(BaseModel):
 class LeaderboardDTO(BaseModel):
     wins: List[LeaderboardFighterDTO]
     winrate_min10: List[LeaderboardFighterDTO]
+    winrate_min15: List[LeaderboardFighterDTO]
     winrate_min20: List[LeaderboardFighterDTO]
-    winrate_min30: List[LeaderboardFighterDTO]
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -128,12 +139,34 @@ class FightDurationDTO(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
+class FinishRateTrendDTO(BaseModel):
+    year: int
+    total_fights: int
+    ko_tko_rate: float
+    sub_rate: float
+    dec_rate: float
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class PhysiqueComparisonDTO(BaseModel):
+    weight_class: str
+    avg_height_cm: float
+    avg_reach_cm: float
+    avg_reach_advantage: float
+    fighter_count: int
+
+    model_config = ConfigDict(from_attributes=True)
+
+
 class OverviewResponseDTO(BaseModel):
     finish_methods: List[FinishMethodDTO]
     weight_class_activity: List[WeightClassActivityDTO]
     events_timeline: List[EventTimelineDTO]
     leaderboard: LeaderboardDTO
     fight_duration: FightDurationDTO
+    finish_rate_trend: List[FinishRateTrendDTO] = []
+    physique_comparison: List[PhysiqueComparisonDTO] = []
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -173,16 +206,73 @@ class SigStrikesPerFightDTO(BaseModel):
 
 class StrikingAccuracyLeaderboardDTO(BaseModel):
     min10: List[StrikingAccuracyDTO]
+    min15: List[StrikingAccuracyDTO]
     min20: List[StrikingAccuracyDTO]
-    min30: List[StrikingAccuracyDTO]
 
     model_config = ConfigDict(from_attributes=True)
 
 
 class SigStrikesLeaderboardDTO(BaseModel):
     min10: List[SigStrikesPerFightDTO]
+    min15: List[SigStrikesPerFightDTO]
     min20: List[SigStrikesPerFightDTO]
-    min30: List[SigStrikesPerFightDTO]
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class KnockdownLeaderDTO(BaseModel):
+    name: str
+    total_knockdowns: int
+    total_fights: int
+    kd_per_fight: float
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class SigStrikesByWeightClassDTO(BaseModel):
+    weight_class: str
+    avg_sig_str_per_fight: float
+    total_fights: int
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class RoundStrikeTrendDTO(BaseModel):
+    round: int
+    avg_total_strikes: float
+    avg_head: float
+    avg_body: float
+    avg_leg: float
+    avg_clinch: float
+    avg_ground: float
+    sample_count: int
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class StrikeExchangeDTO(BaseModel):
+    name: str
+    total_fights: int
+    sig_landed_per_fight: float
+    sig_absorbed_per_fight: float
+    differential_per_fight: float
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class StrikeExchangeLeaderboardDTO(BaseModel):
+    min10: List[StrikeExchangeDTO]
+    min15: List[StrikeExchangeDTO]
+    min20: List[StrikeExchangeDTO]
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class StanceWinrateDTO(BaseModel):
+    winner_stance: str
+    loser_stance: str
+    wins: int
+    win_rate: float
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -192,6 +282,11 @@ class StrikingResponseDTO(BaseModel):
     striking_accuracy: StrikingAccuracyLeaderboardDTO
     ko_tko_leaders: List[KoTkoLeaderDTO]
     sig_strikes_per_fight: SigStrikesLeaderboardDTO
+    knockdown_leaders: List[KnockdownLeaderDTO] = []
+    sig_strikes_by_weight_class: List[SigStrikesByWeightClassDTO] = []
+    round_strike_trend: List[RoundStrikeTrendDTO] = []
+    strike_exchange: StrikeExchangeLeaderboardDTO = None
+    stance_winrate: List[StanceWinrateDTO] = []
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -248,8 +343,71 @@ class SubmissionEfficiencyDTO(BaseModel):
 
 class TakedownLeaderboardDTO(BaseModel):
     min10: List[TakedownAccuracyDTO]
+    min15: List[TakedownAccuracyDTO]
     min20: List[TakedownAccuracyDTO]
-    min30: List[TakedownAccuracyDTO]
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class TdAttemptsLeaderDTO(BaseModel):
+    name: str
+    td_attempts_per_fight: float
+    total_td_attempted: int
+    total_td_landed: int
+    total_fights: int
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class TdAttemptsLeaderboardDTO(BaseModel):
+    min10: List[TdAttemptsLeaderDTO]
+    min15: List[TdAttemptsLeaderDTO]
+    min20: List[TdAttemptsLeaderDTO]
+    avg_td_attempts: float
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class TdSubCorrelationFighterDTO(BaseModel):
+    name: str
+    total_td_landed: int
+    sub_finishes: int
+    total_fights: int
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class TdSubCorrelationDTO(BaseModel):
+    fighters: List[TdSubCorrelationFighterDTO]
+    avg_td: float
+    avg_sub: float
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class TdByWeightClassDTO(BaseModel):
+    weight_class: str
+    avg_td_attempts_per_fight: float
+    avg_td_landed_per_fight: float
+    total_fights: int
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class TdDefenseLeaderDTO(BaseModel):
+    name: str
+    opp_td_attempted: int
+    opp_td_landed: int
+    td_defended: int
+    td_defense_rate: float
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class TdDefenseLeaderboardDTO(BaseModel):
+    min10: List[TdDefenseLeaderDTO]
+    min15: List[TdDefenseLeaderDTO]
+    min20: List[TdDefenseLeaderDTO]
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -260,5 +418,9 @@ class GrapplingResponseDTO(BaseModel):
     control_time: List[ControlTimeDTO]
     ground_strikes: List[GroundStrikesDTO]
     submission_efficiency: SubmissionEfficiencyDTO
+    td_attempts_leaders: TdAttemptsLeaderboardDTO = None
+    td_sub_correlation: TdSubCorrelationDTO = None
+    td_by_weight_class: List[TdByWeightClassDTO] = []
+    td_defense_leaders: TdDefenseLeaderboardDTO = None
 
     model_config = ConfigDict(from_attributes=True)

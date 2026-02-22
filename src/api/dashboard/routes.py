@@ -24,6 +24,18 @@ from dashboard.dto import (
     SubmissionTechniqueDTO,
     GroundStrikesDTO,
     SubmissionEfficiencyDTO,
+    CategoryLeaderDTO,
+    FinishRateTrendDTO,
+    PhysiqueComparisonDTO,
+    KnockdownLeaderDTO,
+    SigStrikesByWeightClassDTO,
+    RoundStrikeTrendDTO,
+    StrikeExchangeLeaderboardDTO,
+    StanceWinrateDTO,
+    TdAttemptsLeaderboardDTO,
+    TdSubCorrelationDTO,
+    TdByWeightClassDTO,
+    TdDefenseLeaderboardDTO,
 )
 from dashboard.exceptions import DashboardQueryError
 
@@ -281,6 +293,193 @@ async def get_chart_submission_efficiency(
     """서브미션 효율 (Grappling)"""
     try:
         return await dashboard_service.get_chart_submission_efficiency(db, weight_class_id, min_fights, limit)
+    except DashboardQueryError as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=e.message,
+        )
+
+
+# ===========================
+# Chart-level endpoints (V2)
+# ===========================
+
+@router.get("/chart/category-leaders", response_model=List[CategoryLeaderDTO])
+async def get_chart_category_leaders(
+    db: AsyncSession = Depends(get_async_db),
+):
+    """분야별 1등 선수 카드 (Home)"""
+    try:
+        return await dashboard_service.get_chart_category_leaders(db)
+    except DashboardQueryError as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=e.message,
+        )
+
+
+@router.get("/chart/finish-rate-trend", response_model=List[FinishRateTrendDTO])
+async def get_chart_finish_rate_trend(
+    weight_class_id: Optional[int] = None,
+    db: AsyncSession = Depends(get_async_db),
+):
+    """연도별 피니시율 추이 (Overview)"""
+    try:
+        return await dashboard_service.get_chart_finish_rate_trend(db, weight_class_id)
+    except DashboardQueryError as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=e.message,
+        )
+
+
+@router.get("/chart/physique-comparison", response_model=List[PhysiqueComparisonDTO])
+async def get_chart_physique_comparison(
+    db: AsyncSession = Depends(get_async_db),
+):
+    """체급별 키-리치 비교 (Overview)"""
+    try:
+        return await dashboard_service.get_chart_physique_comparison(db)
+    except DashboardQueryError as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=e.message,
+        )
+
+
+@router.get("/chart/knockdown-leaders", response_model=List[KnockdownLeaderDTO])
+async def get_chart_knockdown_leaders(
+    weight_class_id: Optional[int] = None,
+    limit: int = 10,
+    db: AsyncSession = Depends(get_async_db),
+):
+    """넉다운 리더 TOP (Striking)"""
+    try:
+        return await dashboard_service.get_chart_knockdown_leaders(db, weight_class_id, limit)
+    except DashboardQueryError as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=e.message,
+        )
+
+
+@router.get("/chart/sig-strikes-by-weight-class", response_model=List[SigStrikesByWeightClassDTO])
+async def get_chart_sig_strikes_by_wc(
+    db: AsyncSession = Depends(get_async_db),
+):
+    """체급별 경기당 평균 유효타격 (Striking)"""
+    try:
+        return await dashboard_service.get_chart_sig_strikes_by_wc(db)
+    except DashboardQueryError as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=e.message,
+        )
+
+
+@router.get("/chart/round-strike-trend", response_model=List[RoundStrikeTrendDTO])
+async def get_chart_round_strike_trend(
+    weight_class_id: Optional[int] = None,
+    db: AsyncSession = Depends(get_async_db),
+):
+    """라운드별 타격 강도 변화 (Striking)"""
+    try:
+        return await dashboard_service.get_chart_round_strike_trend(db, weight_class_id)
+    except DashboardQueryError as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=e.message,
+        )
+
+
+@router.get("/chart/strike-exchange-ratio", response_model=StrikeExchangeLeaderboardDTO)
+async def get_chart_strike_exchange(
+    weight_class_id: Optional[int] = None,
+    min_fights: int = 10,
+    limit: int = 10,
+    db: AsyncSession = Depends(get_async_db),
+):
+    """공방 효율 리더보드 (Striking)"""
+    try:
+        return await dashboard_service.get_chart_strike_exchange(db, weight_class_id, min_fights, limit)
+    except DashboardQueryError as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=e.message,
+        )
+
+
+@router.get("/chart/stance-winrate", response_model=List[StanceWinrateDTO])
+async def get_chart_stance_winrate(
+    weight_class_id: Optional[int] = None,
+    db: AsyncSession = Depends(get_async_db),
+):
+    """스탠스별 승률 (Striking)"""
+    try:
+        return await dashboard_service.get_chart_stance_winrate(db, weight_class_id)
+    except DashboardQueryError as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=e.message,
+        )
+
+
+@router.get("/chart/td-attempts-leaders", response_model=TdAttemptsLeaderboardDTO)
+async def get_chart_td_attempts_leaders(
+    weight_class_id: Optional[int] = None,
+    min_fights: int = 10,
+    limit: int = 10,
+    db: AsyncSession = Depends(get_async_db),
+):
+    """경기당 테이크다운 시도 리더보드 (Grappling)"""
+    try:
+        return await dashboard_service.get_chart_td_attempts_leaders(db, weight_class_id, min_fights, limit)
+    except DashboardQueryError as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=e.message,
+        )
+
+
+@router.get("/chart/td-sub-correlation", response_model=TdSubCorrelationDTO)
+async def get_chart_td_sub_correlation(
+    weight_class_id: Optional[int] = None,
+    db: AsyncSession = Depends(get_async_db),
+):
+    """테이크다운-서브미션 상관관계 (Grappling)"""
+    try:
+        return await dashboard_service.get_chart_td_sub_correlation(db, weight_class_id)
+    except DashboardQueryError as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=e.message,
+        )
+
+
+@router.get("/chart/td-by-weight-class", response_model=List[TdByWeightClassDTO])
+async def get_chart_td_by_weight_class(
+    db: AsyncSession = Depends(get_async_db),
+):
+    """체급별 경기당 평균 테이크다운 (Grappling)"""
+    try:
+        return await dashboard_service.get_chart_td_by_weight_class(db)
+    except DashboardQueryError as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=e.message,
+        )
+
+
+@router.get("/chart/td-defense-leaders", response_model=TdDefenseLeaderboardDTO)
+async def get_chart_td_defense_leaders(
+    weight_class_id: Optional[int] = None,
+    min_fights: int = 10,
+    limit: int = 10,
+    db: AsyncSession = Depends(get_async_db),
+):
+    """테이크다운 디펜스 리더보드 (Grappling)"""
+    try:
+        return await dashboard_service.get_chart_td_defense_leaders(db, weight_class_id, min_fights, limit)
     except DashboardQueryError as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
