@@ -3,12 +3,13 @@
 import { useCallback, useRef, useState } from 'react'
 import { dashboardApi } from '@/services/dashboardApi'
 import type {
+  HomeResponse,
   OverviewResponse,
   StrikingResponse,
   GrapplingResponse,
 } from '@/types/dashboard'
 
-type TabKey = 'overview' | 'striking' | 'grappling'
+type TabKey = 'home' | 'overview' | 'striking' | 'grappling'
 
 interface TabState<T> {
   data: T | null
@@ -17,6 +18,7 @@ interface TabState<T> {
 }
 
 interface DashboardState {
+  home: TabState<HomeResponse>
   overview: TabState<OverviewResponse>
   striking: TabState<StrikingResponse>
   grappling: TabState<GrapplingResponse>
@@ -35,6 +37,7 @@ interface FetchOptions {
 
 export function useDashboard() {
   const [state, setState] = useState<DashboardState>({
+    home: initialTabState(),
     overview: initialTabState(),
     striking: initialTabState(),
     grappling: initialTabState(),
@@ -45,6 +48,7 @@ export function useDashboard() {
   stateRef.current = state
 
   const lastParamsRef = useRef<Record<TabKey, string | undefined>>({
+    home: undefined,
     overview: undefined,
     striking: undefined,
     grappling: undefined,
@@ -69,7 +73,9 @@ export function useDashboard() {
 
       try {
         let data
-        if (tab === 'overview') {
+        if (tab === 'home') {
+          data = await dashboardApi.getHome()
+        } else if (tab === 'overview') {
           data = await dashboardApi.getOverview(weightClassId, options?.ufcOnly)
         } else if (tab === 'striking') {
           data = await dashboardApi.getStriking(weightClassId)

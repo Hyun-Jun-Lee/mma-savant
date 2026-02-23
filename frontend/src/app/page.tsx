@@ -1,23 +1,6 @@
 import { Suspense } from 'react'
 import { DashboardPageClient } from '@/components/dashboard/DashboardPage'
 import { Skeleton } from '@/components/ui/skeleton'
-import type { HomeResponse } from '@/types/dashboard'
-
-export const revalidate = 300
-
-async function getHomeData(): Promise<HomeResponse | null> {
-  try {
-    const backendUrl = process.env.BACKEND_URL || 'http://localhost:8002'
-    const res = await fetch(`${backendUrl}/api/dashboard/home`, {
-      next: { revalidate: 300 },
-    })
-    if (!res.ok) return null
-    return res.json()
-  } catch {
-    // 빌드 시점에 백엔드가 미실행일 수 있음 — 런타임에 재시도
-    return null
-  }
-}
 
 function DashboardSkeleton() {
   return (
@@ -36,11 +19,10 @@ function DashboardSkeleton() {
   )
 }
 
-export default async function DashboardPage() {
-  const homeData = await getHomeData()
+export default function DashboardPage() {
   return (
     <Suspense fallback={<DashboardSkeleton />}>
-      <DashboardPageClient initialHomeData={homeData} />
+      <DashboardPageClient />
     </Suspense>
   )
 }
