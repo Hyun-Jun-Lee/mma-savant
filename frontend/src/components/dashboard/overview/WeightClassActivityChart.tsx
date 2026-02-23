@@ -12,32 +12,32 @@ import {
 import type { WeightClassActivity } from '@/types/dashboard'
 
 const ABBREVIATIONS: Record<string, string> = {
-  Strawweight: 'Straw',
-  Flyweight: 'Fly',
-  Bantamweight: 'Bantam',
-  Featherweight: 'Feather',
-  Lightweight: 'Light',
-  Welterweight: 'Welter',
-  Middleweight: 'Middle',
-  'Light Heavyweight': 'LHW',
-  Heavyweight: 'Heavy',
-  "Women's Strawweight": 'W.Straw',
-  "Women's Flyweight": 'W.Fly',
-  "Women's Bantamweight": 'W.Bantam',
-  "Women's Featherweight": 'W.Feather',
+  strawweight: 'Straw',
+  flyweight: 'Fly',
+  bantamweight: 'Bantam',
+  featherweight: 'Feather',
+  lightweight: 'Light',
+  welterweight: 'Welter',
+  middleweight: 'Middle',
+  'light heavyweight': 'LHW',
+  heavyweight: 'Heavy',
+  "women's strawweight": 'W.Straw',
+  "women's flyweight": 'W.Fly',
+  "women's bantamweight": 'W.Bantam',
+  "women's featherweight": 'W.Feather',
 }
 
 interface WeightClassActivityChartProps {
   data: WeightClassActivity[]
 }
 
-const EXCLUDED_CLASSES = new Set(['Open Weight', 'Catch Weight'])
+const EXCLUDED_CLASSES = new Set(['open weight', 'catch weight'])
 
 export function WeightClassActivityChart({
   data,
 }: WeightClassActivityChartProps) {
   const chartData = data
-    .filter((d) => !EXCLUDED_CLASSES.has(d.weight_class))
+    .filter((d) => !EXCLUDED_CLASSES.has(d.weight_class.toLowerCase()))
     .map((d) => ({
       ...d,
       short: ABBREVIATIONS[d.weight_class] ?? d.weight_class,

@@ -16,8 +16,8 @@ import type { MinFightsLeaderboard, SigStrikesLeader } from '@/types/dashboard'
 
 const TABS = [
   { key: 'min10', label: '10+ Fights' },
+  { key: 'min15', label: '15+ Fights' },
   { key: 'min20', label: '20+ Fights' },
-  { key: 'min30', label: '30+ Fights' },
 ] as const
 
 type MinKey = (typeof TABS)[number]['key']
@@ -92,6 +92,7 @@ export function SigStrikesChart({ data }: SigStrikesChartProps) {
             fill: '#71717a',
             fontSize: 10,
             position: 'insideBottomRight',
+            dx: 8,
           }}
         />
         {/* Stem (thin bar) */}

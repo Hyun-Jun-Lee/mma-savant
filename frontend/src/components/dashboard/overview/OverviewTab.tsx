@@ -1,9 +1,15 @@
 import { ChartCard } from '../ChartCard'
+import { WeightClassFilter } from '../WeightClassFilter'
+import { Skeleton } from '@/components/ui/skeleton'
+import { useChartFilter } from '@/hooks/useChartFilter'
+import { chartApi } from '@/services/dashboardApi'
 import { FinishMethodsChart } from './FinishMethodsChart'
 import { WeightClassActivityChart } from './WeightClassActivityChart'
 import { EventsTimelineChart } from './EventsTimelineChart'
 import { LeaderboardChart } from './LeaderboardChart'
 import { FightDurationChart } from './FightDurationChart'
+import { FinishRateTrendChart } from './FinishRateTrendChart'
+import { PhysiqueComparisonChart } from './PhysiqueComparisonChart'
 import type { OverviewResponse } from '@/types/dashboard'
 
 interface OverviewTabProps {
@@ -11,11 +17,39 @@ interface OverviewTabProps {
   loading: boolean
   error: string | null
   onRetry: () => void
-  ufcOnly: boolean
-  onUfcOnlyChange: (value: boolean) => void
 }
 
-export function OverviewTab({ data, loading, error, onRetry, ufcOnly, onUfcOnlyChange }: OverviewTabProps) {
+export function OverviewTab({ data, loading, error, onRetry }: OverviewTabProps) {
+  const {
+    data: finishMethods,
+    loading: fmLoading,
+    weightClassId: fmWc,
+    setWeightClassId: setFmWc,
+  } = useChartFilter({
+    initialData: data?.finish_methods,
+    fetchFn: chartApi.getFinishMethods,
+  })
+
+  const {
+    data: fightDuration,
+    loading: fdLoading,
+    weightClassId: fdWc,
+    setWeightClassId: setFdWc,
+  } = useChartFilter({
+    initialData: data?.fight_duration,
+    fetchFn: chartApi.getFightDuration,
+  })
+
+  const {
+    data: finishRateTrend,
+    loading: frtLoading,
+    weightClassId: frtWc,
+    setWeightClassId: setFrtWc,
+  } = useChartFilter({
+    initialData: data?.finish_rate_trend,
+    fetchFn: chartApi.getFinishRateTrend,
+  })
+
   return (
     <div className="space-y-4">
       {/* Row 1: Donut + Timeline */}
@@ -24,11 +58,16 @@ export function OverviewTab({ data, loading, error, onRetry, ufcOnly, onUfcOnlyC
           title="Finish Methods"
           description="Distribution of fight outcomes"
           tooltip="KO/TKO, Submission, Decision 등 경기 종료 방식의 비율을 도넛 차트로 보여줍니다."
-          loading={loading}
+          headerRight={<WeightClassFilter value={fmWc} onChange={setFmWc} />}
+          loading={!data && loading}
           error={error}
           onRetry={onRetry}
         >
-          {data && <FinishMethodsChart data={data.finish_methods} />}
+          {fmLoading ? (
+            <Skeleton className="h-[280px] bg-white/[0.06]" />
+          ) : (
+            finishMethods && <FinishMethodsChart data={finishMethods} />
+          )}
         </ChartCard>
         <ChartCard
           title="Events Timeline"
@@ -59,31 +98,55 @@ export function OverviewTab({ data, loading, error, onRetry, ufcOnly, onUfcOnlyC
           title="Fight Duration"
           description="Finish round distribution"
           tooltip="경기가 몇 라운드에서 끝나는지 분포를 보여줍니다. 점선은 평균 종료 라운드입니다."
+          headerRight={<WeightClassFilter value={fdWc} onChange={setFdWc} />}
+          loading={!data && loading}
+          error={error}
+          onRetry={onRetry}
+        >
+          {fdLoading ? (
+            <Skeleton className="h-[280px] bg-white/[0.06]" />
+          ) : (
+            fightDuration && <FightDurationChart data={fightDuration} />
+          )}
+        </ChartCard>
+      </div>
+
+      {/* Row 3: Finish Rate Trend + Physique Comparison */}
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+        <ChartCard
+          title="Finish Rate Trend"
+          description="Year-over-year finish method rates"
+          tooltip="연도별 KO, TKO, 서브미션, 판정 비율 추이를 보여줍니다."
+          headerRight={<WeightClassFilter value={frtWc} onChange={setFrtWc} />}
+          loading={!data && loading}
+          error={error}
+          onRetry={onRetry}
+        >
+          {frtLoading ? (
+            <Skeleton className="h-[280px] bg-white/[0.06]" />
+          ) : (
+            finishRateTrend && <FinishRateTrendChart data={finishRateTrend} />
+          )}
+        </ChartCard>
+        <ChartCard
+          title="Physique Comparison"
+          description="Average height and reach by division"
+          tooltip="체급별 평균 키와 리치를 비교합니다."
           loading={loading}
           error={error}
           onRetry={onRetry}
         >
-          {data && <FightDurationChart data={data.fight_duration} />}
+          {data && <PhysiqueComparisonChart data={data.physique_comparison} />}
         </ChartCard>
       </div>
 
-      {/* Row 3: Leaderboard (full width) */}
-      <ChartCard
-        title="Leaderboard"
-        description="Top fighters by wins and win rate"
-        tooltip="총 승수 또는 승률 기준 상위 파이터를 보여줍니다. 최소 경기 수(10/20/30)로 필터링할 수 있습니다."
-        loading={loading}
+      {/* Row 4: Leaderboard (full width) */}
+      <LeaderboardChart
+        initialData={data?.leaderboard}
+        parentLoading={loading}
         error={error}
         onRetry={onRetry}
-      >
-        {data && (
-          <LeaderboardChart
-            data={data.leaderboard}
-            ufcOnly={ufcOnly}
-            onUfcOnlyChange={onUfcOnlyChange}
-          />
-        )}
-      </ChartCard>
+      />
     </div>
   )
 }
