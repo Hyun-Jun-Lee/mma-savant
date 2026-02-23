@@ -43,9 +43,7 @@ export function DashboardPageClient() {
 
   // Fetch tab data on tab switch
   useEffect(() => {
-    if (activeTab !== 'home') {
-      fetchTab(activeTab)
-    }
+    fetchTab(activeTab)
   }, [activeTab, fetchTab]) // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
