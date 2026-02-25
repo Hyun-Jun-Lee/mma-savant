@@ -55,6 +55,7 @@ dependencies = [
     "fsspec==2025.3.0",
     "googleapis-common-protos==1.70.0",
     "graphviz==0.20.3",
+    "geopy>=2.4.0",
     "greenlet==3.2.3",
     "griffe==1.6.0",
     "grpcio==1.73.1",

@@ -37,8 +37,10 @@ async def save_fighters(session, fighters: List[FighterSchema]):
         existing_model = existing_model_query.scalar_one_or_none()
 
         if existing_model:
-            # 업데이트
+            # 업데이트 (None 값은 기존 값 유지 — 별도 스크립트로 채운 nationality 등 보호)
             for key, value in fighter.model_dump(exclude={'id', 'created_at', 'updated_at'}).items():
+                if value is None and getattr(existing_model, key, None) is not None:
+                    continue
                 setattr(existing_model, key, value)
         else:
             # 새로 생성
@@ -60,9 +62,11 @@ async def save_events(session, events: List[EventSchema]):
         )
         existing_model = existing_model_query.scalar_one_or_none()
         
-        if existing_model:            
-            # 업데이트
+        if existing_model:
+            # 업데이트 (None 값은 기존 값 유지 — 별도 스크립트로 채운 latitude/longitude 등 보호)
             for key, value in event.model_dump(exclude={'id', 'created_at', 'updated_at'}).items():
+                if value is None and getattr(existing_model, key, None) is not None:
+                    continue
                 setattr(existing_model, key, value)
         else:
             # 새로 생성
