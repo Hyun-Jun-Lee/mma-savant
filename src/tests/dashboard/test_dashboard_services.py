@@ -26,15 +26,12 @@ from dashboard.dto import (
     SubmissionEfficiencyDTO,
     CategoryLeaderDTO,
     FinishRateTrendDTO,
-    PhysiqueComparisonDTO,
     KnockdownLeaderDTO,
     SigStrikesByWeightClassDTO,
-    RoundStrikeTrendDTO,
     StrikeExchangeLeaderboardDTO,
     StanceWinrateDTO,
     TdAttemptsLeaderboardDTO,
     TdSubCorrelationDTO,
-    TdByWeightClassDTO,
     TdDefenseLeaderboardDTO,
 )
 
@@ -691,40 +688,6 @@ async def test_get_chart_finish_rate_trend_cache_hit(clean_test_session):
 
 
 # =============================================================================
-# Chart: Physique Comparison
-# =============================================================================
-
-@pytest.mark.asyncio
-async def test_get_chart_physique_comparison_cache_miss(clean_test_session, dashboard_data):
-    with patch(REDIS_PATCH) as mock_redis:
-        mock_redis.get.return_value = None
-
-        result = await dashboard_service.get_chart_physique_comparison(clean_test_session)
-
-        assert isinstance(result, list)
-        assert len(result) >= 1
-        assert all(isinstance(item, PhysiqueComparisonDTO) for item in result)
-        assert result[0].avg_height_cm > 0
-        mock_redis.set.assert_called_once()
-
-
-@pytest.mark.asyncio
-async def test_get_chart_physique_comparison_cache_hit(clean_test_session):
-    cached = {"items": [
-        {"weight_class": "Welterweight", "avg_height_cm": 180.5, "avg_reach_cm": 185.0, "avg_reach_advantage": 4.5, "fighter_count": 50},
-    ]}
-    with patch(REDIS_PATCH) as mock_redis:
-        mock_redis.get.return_value = json.dumps(cached)
-
-        result = await dashboard_service.get_chart_physique_comparison(clean_test_session)
-
-        assert len(result) == 1
-        assert result[0].weight_class == "Welterweight"
-        assert result[0].avg_height_cm == 180.5
-        mock_redis.set.assert_not_called()
-
-
-# =============================================================================
 # Chart: Knockdown Leaders
 # =============================================================================
 
@@ -787,39 +750,6 @@ async def test_get_chart_sig_strikes_by_wc_cache_hit(clean_test_session):
         assert len(result) == 1
         assert result[0].weight_class == "Lightweight"
         assert result[0].avg_sig_str_per_fight == 8.5
-        mock_redis.set.assert_not_called()
-
-
-# =============================================================================
-# Chart: Round Strike Trend
-# =============================================================================
-
-@pytest.mark.asyncio
-async def test_get_chart_round_strike_trend_cache_miss(clean_test_session, dashboard_data):
-    with patch(REDIS_PATCH) as mock_redis:
-        mock_redis.get.return_value = None
-
-        result = await dashboard_service.get_chart_round_strike_trend(clean_test_session)
-
-        assert isinstance(result, list)
-        assert len(result) >= 1
-        assert all(isinstance(item, RoundStrikeTrendDTO) for item in result)
-        mock_redis.set.assert_called_once()
-
-
-@pytest.mark.asyncio
-async def test_get_chart_round_strike_trend_cache_hit(clean_test_session):
-    cached = {"items": [
-        {"round": 1, "avg_total_strikes": 50.5, "avg_head": 30.0, "avg_body": 10.0, "avg_leg": 5.0, "avg_clinch": 3.0, "avg_ground": 2.5, "sample_count": 100},
-    ]}
-    with patch(REDIS_PATCH) as mock_redis:
-        mock_redis.get.return_value = json.dumps(cached)
-
-        result = await dashboard_service.get_chart_round_strike_trend(clean_test_session)
-
-        assert len(result) == 1
-        assert result[0].round == 1
-        assert result[0].avg_total_strikes == 50.5
         mock_redis.set.assert_not_called()
 
 
@@ -965,39 +895,6 @@ async def test_get_chart_td_sub_correlation_cache_hit(clean_test_session):
         assert len(result.fighters) == 1
         assert result.avg_td == 4.5
         assert result.avg_sub == 0.8
-        mock_redis.set.assert_not_called()
-
-
-# =============================================================================
-# Chart: TD by Weight Class
-# =============================================================================
-
-@pytest.mark.asyncio
-async def test_get_chart_td_by_weight_class_cache_miss(clean_test_session, dashboard_data):
-    with patch(REDIS_PATCH) as mock_redis:
-        mock_redis.get.return_value = None
-
-        result = await dashboard_service.get_chart_td_by_weight_class(clean_test_session)
-
-        assert isinstance(result, list)
-        assert len(result) >= 1
-        assert all(isinstance(item, TdByWeightClassDTO) for item in result)
-        mock_redis.set.assert_called_once()
-
-
-@pytest.mark.asyncio
-async def test_get_chart_td_by_weight_class_cache_hit(clean_test_session):
-    cached = {"items": [
-        {"weight_class": "Lightweight", "avg_td_attempts_per_fight": 5.5, "avg_td_landed_per_fight": 2.8, "total_fights": 200},
-    ]}
-    with patch(REDIS_PATCH) as mock_redis:
-        mock_redis.get.return_value = json.dumps(cached)
-
-        result = await dashboard_service.get_chart_td_by_weight_class(clean_test_session)
-
-        assert len(result) == 1
-        assert result[0].weight_class == "Lightweight"
-        assert result[0].avg_td_attempts_per_fight == 5.5
         mock_redis.set.assert_not_called()
 
 

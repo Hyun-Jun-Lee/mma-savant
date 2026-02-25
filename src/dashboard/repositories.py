@@ -94,6 +94,28 @@ async def get_rankings(session: AsyncSession) -> List[Dict[str, Any]]:
     return [dict(row) for row in result.mappings().all()]
 
 
+async def get_event_map(session: AsyncSession) -> List[Dict[str, Any]]:
+    result = await session.execute(text("""
+        SELECT
+            location,
+            latitude,
+            longitude,
+            COUNT(*) AS event_count,
+            MAX(event_date) AS last_event_date,
+            (
+                SELECT e2.name FROM event e2
+                WHERE e2.location = e.location
+                ORDER BY e2.event_date DESC
+                LIMIT 1
+            ) AS last_event_name
+        FROM event e
+        WHERE latitude IS NOT NULL AND longitude IS NOT NULL
+        GROUP BY location, latitude, longitude
+        ORDER BY event_count DESC
+    """))
+    return [dict(row) for row in result.mappings().all()]
+
+
 # ===========================
 # Tab 2: Overview
 # ===========================
@@ -676,23 +698,32 @@ async def get_finish_rate_trend(
     return [dict(row) for row in result.mappings().all()]
 
 
-async def get_physique_comparison(session: AsyncSession) -> List[Dict[str, Any]]:
-    result = await session.execute(text("""
-        SELECT
-            wc.name AS weight_class,
-            ROUND(AVG(f.height_cm)::numeric, 1) AS avg_height_cm,
-            ROUND(AVG(f.reach_cm)::numeric, 1) AS avg_reach_cm,
-            ROUND(AVG(f.reach_cm - f.height_cm)::numeric, 1) AS avg_reach_advantage,
-            COUNT(DISTINCT f.id) AS fighter_count
-        FROM fighter f
-        JOIN fighter_match fm ON f.id = fm.fighter_id
-        JOIN match m ON fm.match_id = m.id
-        JOIN weight_class wc ON m.weight_class_id = wc.id
-        WHERE f.height_cm IS NOT NULL
-            AND f.reach_cm IS NOT NULL
-        GROUP BY wc.id, wc.name
-        ORDER BY AVG(f.weight_kg) ASC
-    """))
+async def get_nationality_distribution(
+    session: AsyncSession, weight_class_id: Optional[int] = None
+) -> List[Dict[str, Any]]:
+    if weight_class_id is not None:
+        result = await session.execute(text("""
+            SELECT
+                f.nationality,
+                COUNT(DISTINCT f.id) AS fighter_count
+            FROM fighter f
+            JOIN fighter_match fm ON f.id = fm.fighter_id
+            JOIN match m ON fm.match_id = m.id
+            WHERE f.nationality IS NOT NULL
+                AND m.weight_class_id = :weight_class_id
+            GROUP BY f.nationality
+            ORDER BY fighter_count DESC
+        """), {"weight_class_id": weight_class_id})
+    else:
+        result = await session.execute(text("""
+            SELECT
+                f.nationality,
+                COUNT(*) AS fighter_count
+            FROM fighter f
+            WHERE f.nationality IS NOT NULL
+            GROUP BY f.nationality
+            ORDER BY fighter_count DESC
+        """))
     return [dict(row) for row in result.mappings().all()]
 
 
@@ -740,32 +771,6 @@ async def get_sig_strikes_by_weight_class(session: AsyncSession) -> List[Dict[st
         GROUP BY wc.id, wc.name
         ORDER BY avg_sig_str_per_fight DESC
     """))
-    return [dict(row) for row in result.mappings().all()]
-
-
-async def get_round_strike_trend(
-    session: AsyncSession, weight_class_id: Optional[int] = None
-) -> List[Dict[str, Any]]:
-    wc_clause, params = _wc_filter(weight_class_id)
-    result = await session.execute(text(f"""
-        SELECT
-            sd.round,
-            ROUND(AVG(sd.head_strikes_landed + sd.body_strikes_landed + sd.leg_strikes_landed
-                      + sd.clinch_strikes_landed + sd.ground_strikes_landed)::numeric, 1) AS avg_total_strikes,
-            ROUND(AVG(sd.head_strikes_landed)::numeric, 1) AS avg_head,
-            ROUND(AVG(sd.body_strikes_landed)::numeric, 1) AS avg_body,
-            ROUND(AVG(sd.leg_strikes_landed)::numeric, 1) AS avg_leg,
-            ROUND(AVG(sd.clinch_strikes_landed)::numeric, 1) AS avg_clinch,
-            ROUND(AVG(sd.ground_strikes_landed)::numeric, 1) AS avg_ground,
-            COUNT(*) AS sample_count
-        FROM strike_detail sd
-        JOIN fighter_match fm ON sd.fighter_match_id = fm.id
-        JOIN match m ON fm.match_id = m.id
-        WHERE sd.round > 0
-            {wc_clause}
-        GROUP BY sd.round
-        ORDER BY sd.round
-    """), params)
     return [dict(row) for row in result.mappings().all()]
 
 
@@ -925,27 +930,6 @@ async def get_td_sub_correlation(
         "avg_td": round(avg_td, 1),
         "avg_sub": round(avg_sub, 1),
     }
-
-
-async def get_td_by_weight_class(session: AsyncSession) -> List[Dict[str, Any]]:
-    result = await session.execute(text("""
-        SELECT
-            wc.name AS weight_class,
-            ROUND(
-                SUM(ms.td_attempted)::numeric / COUNT(DISTINCT fm.match_id), 2
-            ) AS avg_td_attempts_per_fight,
-            ROUND(
-                SUM(ms.td_landed)::numeric / COUNT(DISTINCT fm.match_id), 2
-            ) AS avg_td_landed_per_fight,
-            COUNT(DISTINCT fm.match_id) AS total_fights
-        FROM match_statistics ms
-        JOIN fighter_match fm ON ms.fighter_match_id = fm.id
-        JOIN match m ON fm.match_id = m.id
-        JOIN weight_class wc ON m.weight_class_id = wc.id
-        GROUP BY wc.id, wc.name
-        ORDER BY avg_td_attempts_per_fight DESC
-    """))
-    return [dict(row) for row in result.mappings().all()]
 
 
 async def get_td_defense_leaders(

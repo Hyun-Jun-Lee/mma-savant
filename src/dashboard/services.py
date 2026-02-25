@@ -14,15 +14,16 @@ from dashboard import repositories as dashboard_repo
 from dashboard.dto import (
     HomeResponseDTO, SummaryDTO, RecentEventDTO, UpcomingEventDTO,
     DivisionRankingDTO, RankingFighterDTO, CategoryLeaderDTO,
+    EventMapDTO,
     OverviewResponseDTO, FinishMethodDTO, WeightClassActivityDTO,
     EventTimelineDTO, LeaderboardDTO, LeaderboardFighterDTO,
     FightDurationDTO, FightDurationRoundDTO,
-    FinishRateTrendDTO, PhysiqueComparisonDTO,
+    FinishRateTrendDTO, NationalityDistributionDTO,
     StrikingResponseDTO, StrikeTargetDTO, StrikingAccuracyDTO,
     StrikingAccuracyLeaderboardDTO, SigStrikesLeaderboardDTO,
     KoTkoLeaderDTO, SigStrikesPerFightDTO,
     KnockdownLeaderDTO, SigStrikesByWeightClassDTO,
-    RoundStrikeTrendDTO, StrikeExchangeDTO, StrikeExchangeLeaderboardDTO,
+    StrikeExchangeDTO, StrikeExchangeLeaderboardDTO,
     StanceWinrateDTO,
     GrapplingResponseDTO, TakedownAccuracyDTO, TakedownLeaderboardDTO,
     SubmissionTechniqueDTO,
@@ -30,7 +31,6 @@ from dashboard.dto import (
     SubmissionEfficiencyFighterDTO,
     TdAttemptsLeaderDTO, TdAttemptsLeaderboardDTO,
     TdSubCorrelationDTO, TdSubCorrelationFighterDTO,
-    TdByWeightClassDTO,
     TdDefenseLeaderDTO, TdDefenseLeaderboardDTO,
 )
 from dashboard.exceptions import DashboardQueryError
@@ -40,6 +40,14 @@ logger = logging.getLogger(__name__)
 
 # Redis 캐싱 설정
 CACHE_TTL = 60 * 60 * 24 * 7  # 7일
+
+
+def invalidate_all_cache() -> int:
+    """dashboard:* 패턴의 캐시를 모두 삭제. 삭제된 키 수 반환."""
+    keys = redis_client.keys("dashboard:*")
+    if not keys:
+        return 0
+    return redis_client.delete(*keys)
 
 
 def _cache_key(
@@ -132,6 +140,14 @@ async def get_home(session: AsyncSession) -> HomeResponseDTO:
     cache_key = _cache_key("home")
     cached = _get_cached(cache_key)
     if cached:
+        if "event_map" not in cached:
+            # Stale cache from before event_map was added
+            try:
+                redis_client.delete(cache_key)
+            except Exception:
+                pass
+            cached = None
+    if cached:
         result = _parse_cached(cache_key, HomeResponseDTO, cached)
         if result:
             return result
@@ -142,6 +158,7 @@ async def get_home(session: AsyncSession) -> HomeResponseDTO:
         upcoming_events_data = await dashboard_repo.get_upcoming_events(session)
         rankings_data = await dashboard_repo.get_rankings(session)
         category_leaders = await get_chart_category_leaders(session)
+        event_map = await get_chart_event_map(session)
 
         # rankings를 체급별로 그룹핑
         divisions = defaultdict(list)
@@ -172,6 +189,7 @@ async def get_home(session: AsyncSession) -> HomeResponseDTO:
             upcoming_events=[UpcomingEventDTO(**e) for e in upcoming_events_data],
             rankings=rankings,
             category_leaders=category_leaders,
+            event_map=event_map,
         )
 
         _set_cache(cache_key, response.model_dump())
@@ -486,6 +504,45 @@ async def get_chart_category_leaders(
         raise DashboardQueryError("get_chart_category_leaders", str(e))
 
 
+async def get_chart_event_map(
+    session: AsyncSession,
+) -> List[EventMapDTO]:
+    cache_key = _chart_cache_key("event-map")
+    cached = _get_cached(cache_key)
+    if cached:
+        parsed = _parse_cached_list(cache_key, EventMapDTO, cached)
+        if parsed is not None:
+            return parsed
+
+    try:
+        data = await dashboard_repo.get_event_map(session)
+        result = [EventMapDTO(**r) for r in data]
+        _set_cache(cache_key, {"items": [item.model_dump() for item in result]})
+        return result
+    except Exception as e:
+        raise DashboardQueryError("get_chart_event_map", str(e))
+
+
+async def get_chart_nationality_distribution(
+    session: AsyncSession,
+    weight_class_id: Optional[int] = None,
+) -> List[NationalityDistributionDTO]:
+    cache_key = _chart_cache_key("nationality", weight_class_id)
+    cached = _get_cached(cache_key)
+    if cached:
+        parsed = _parse_cached_list(cache_key, NationalityDistributionDTO, cached)
+        if parsed is not None:
+            return parsed
+
+    try:
+        data = await dashboard_repo.get_nationality_distribution(session, weight_class_id)
+        result = [NationalityDistributionDTO(**r) for r in data]
+        _set_cache(cache_key, {"items": [item.model_dump() for item in result]})
+        return result
+    except Exception as e:
+        raise DashboardQueryError("get_chart_nationality_distribution", str(e))
+
+
 # --- Overview Charts (new) ---
 
 async def get_chart_finish_rate_trend(
@@ -506,25 +563,6 @@ async def get_chart_finish_rate_trend(
         return result
     except Exception as e:
         raise DashboardQueryError("get_chart_finish_rate_trend", str(e))
-
-
-async def get_chart_physique_comparison(
-    session: AsyncSession,
-) -> List[PhysiqueComparisonDTO]:
-    cache_key = _chart_cache_key("physique_comparison")
-    cached = _get_cached(cache_key)
-    if cached:
-        parsed = _parse_cached_list(cache_key, PhysiqueComparisonDTO, cached)
-        if parsed is not None:
-            return parsed
-
-    try:
-        data = await dashboard_repo.get_physique_comparison(session)
-        result = [PhysiqueComparisonDTO(**r) for r in data]
-        _set_cache(cache_key, {"items": [item.model_dump() for item in result]})
-        return result
-    except Exception as e:
-        raise DashboardQueryError("get_chart_physique_comparison", str(e))
 
 
 # --- Striking Charts (new) ---
@@ -567,26 +605,6 @@ async def get_chart_sig_strikes_by_wc(
         return result
     except Exception as e:
         raise DashboardQueryError("get_chart_sig_strikes_by_wc", str(e))
-
-
-async def get_chart_round_strike_trend(
-    session: AsyncSession,
-    weight_class_id: Optional[int] = None,
-) -> List[RoundStrikeTrendDTO]:
-    cache_key = _chart_cache_key("round_strike_trend", weight_class_id)
-    cached = _get_cached(cache_key)
-    if cached:
-        parsed = _parse_cached_list(cache_key, RoundStrikeTrendDTO, cached)
-        if parsed is not None:
-            return parsed
-
-    try:
-        data = await dashboard_repo.get_round_strike_trend(session, weight_class_id)
-        result = [RoundStrikeTrendDTO(**r) for r in data]
-        _set_cache(cache_key, {"items": [item.model_dump() for item in result]})
-        return result
-    except Exception as e:
-        raise DashboardQueryError("get_chart_round_strike_trend", str(e))
 
 
 async def get_chart_strike_exchange(
@@ -694,25 +712,6 @@ async def get_chart_td_sub_correlation(
         raise DashboardQueryError("get_chart_td_sub_correlation", str(e))
 
 
-async def get_chart_td_by_weight_class(
-    session: AsyncSession,
-) -> List[TdByWeightClassDTO]:
-    cache_key = _chart_cache_key("td_by_wc")
-    cached = _get_cached(cache_key)
-    if cached:
-        parsed = _parse_cached_list(cache_key, TdByWeightClassDTO, cached)
-        if parsed is not None:
-            return parsed
-
-    try:
-        data = await dashboard_repo.get_td_by_weight_class(session)
-        result = [TdByWeightClassDTO(**r) for r in data]
-        _set_cache(cache_key, {"items": [item.model_dump() for item in result]})
-        return result
-    except Exception as e:
-        raise DashboardQueryError("get_chart_td_by_weight_class", str(e))
-
-
 async def get_chart_td_defense_leaders(
     session: AsyncSession,
     weight_class_id: Optional[int] = None,
@@ -754,6 +753,14 @@ async def get_overview(
     cache_key = _cache_key("overview", weight_class_id, ufc_only=ufc_only)
     cached = _get_cached(cache_key)
     if cached:
+        if "nationality_distribution" not in cached:
+            # Stale cache from before nationality_distribution was added
+            try:
+                redis_client.delete(cache_key)
+            except Exception:
+                pass
+            cached = None
+    if cached:
         result = _parse_cached(cache_key, OverviewResponseDTO, cached)
         if result:
             return result
@@ -765,7 +772,7 @@ async def get_overview(
         leaderboard = await get_chart_leaderboard(session, weight_class_id, ufc_only)
         fight_duration = await get_chart_fight_duration(session, weight_class_id)
         finish_rate_trend = await get_chart_finish_rate_trend(session, weight_class_id)
-        physique_comparison = await get_chart_physique_comparison(session)
+        nationality_distribution = await get_chart_nationality_distribution(session, weight_class_id)
 
         response = OverviewResponseDTO(
             finish_methods=finish_methods,
@@ -774,7 +781,7 @@ async def get_overview(
             leaderboard=leaderboard,
             fight_duration=fight_duration,
             finish_rate_trend=finish_rate_trend,
-            physique_comparison=physique_comparison,
+            nationality_distribution=nationality_distribution,
         )
 
         _set_cache(cache_key, response.model_dump())
@@ -805,7 +812,6 @@ async def get_striking(
         sig_strikes = await get_chart_sig_strikes(session, weight_class_id, min_fights, limit)
         knockdown_leaders = await get_chart_knockdown_leaders(session, weight_class_id, limit)
         sig_strikes_by_wc = await get_chart_sig_strikes_by_wc(session)
-        round_strike_trend = await get_chart_round_strike_trend(session, weight_class_id)
         strike_exchange = await get_chart_strike_exchange(session, weight_class_id, min_fights, limit)
         stance_winrate = await get_chart_stance_winrate(session, weight_class_id)
 
@@ -816,7 +822,6 @@ async def get_striking(
             sig_strikes_per_fight=sig_strikes,
             knockdown_leaders=knockdown_leaders,
             sig_strikes_by_weight_class=sig_strikes_by_wc,
-            round_strike_trend=round_strike_trend,
             strike_exchange=strike_exchange,
             stance_winrate=stance_winrate,
         )
@@ -850,7 +855,6 @@ async def get_grappling(
         submission_efficiency = await get_chart_submission_efficiency(session, weight_class_id, min_fights, limit)
         td_attempts_leaders = await get_chart_td_attempts_leaders(session, weight_class_id, min_fights, limit)
         td_sub_correlation = await get_chart_td_sub_correlation(session, weight_class_id)
-        td_by_weight_class = await get_chart_td_by_weight_class(session)
         td_defense_leaders = await get_chart_td_defense_leaders(session, weight_class_id, min_fights, limit)
 
         response = GrapplingResponseDTO(
@@ -861,7 +865,6 @@ async def get_grappling(
             submission_efficiency=submission_efficiency,
             td_attempts_leaders=td_attempts_leaders,
             td_sub_correlation=td_sub_correlation,
-            td_by_weight_class=td_by_weight_class,
             td_defense_leaders=td_defense_leaders,
         )
 
