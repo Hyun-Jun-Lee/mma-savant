@@ -5,14 +5,12 @@ import type {
   GrapplingResponse,
   FinishMethod,
   FinishRateTrend,
-  PhysiqueComparison,
   StrikeTarget,
   KoTkoLeader,
   KnockdownLeader,
   StrikingAccuracyFighter,
   SigStrikesLeader,
   SigStrikesByWeightClass,
-  RoundStrikeTrend,
   StrikeExchange,
   StanceWinrate,
   TakedownLeader,
@@ -20,9 +18,10 @@ import type {
   GroundStrikesLeader,
   MinFightsLeaderboard,
   CategoryLeader,
+  EventMapLocation,
+  NationalityDistribution,
   TdAttemptsLeaderboard,
   TdSubCorrelation,
-  TdByWeightClass,
   TdDefenseLeader,
 } from '@/types/dashboard'
 
@@ -89,7 +88,17 @@ export const chartApi = {
       '/api/dashboard/chart/category-leaders'
     ),
 
+  getEventMap: () =>
+    dashboardFetch<EventMapLocation[]>(
+      '/api/dashboard/chart/event-map'
+    ),
+
   // Overview
+  getNationalityDistribution: (wc?: number) =>
+    dashboardFetch<NationalityDistribution[]>(
+      `/api/dashboard/chart/nationality-distribution${buildChartParams({ weightClassId: wc })}`
+    ),
+
   getFinishMethods: (wc?: number) =>
     dashboardFetch<FinishMethod[]>(
       `/api/dashboard/chart/finish-methods${buildChartParams({ weightClassId: wc })}`
@@ -108,11 +117,6 @@ export const chartApi = {
   getFinishRateTrend: (wc?: number) =>
     dashboardFetch<FinishRateTrend[]>(
       `/api/dashboard/chart/finish-rate-trend${buildChartParams({ weightClassId: wc })}`
-    ),
-
-  getPhysiqueComparison: () =>
-    dashboardFetch<PhysiqueComparison[]>(
-      '/api/dashboard/chart/physique-comparison'
     ),
 
   // Striking
@@ -144,11 +148,6 @@ export const chartApi = {
   getSigStrikesByWc: () =>
     dashboardFetch<SigStrikesByWeightClass[]>(
       '/api/dashboard/chart/sig-strikes-by-weight-class'
-    ),
-
-  getRoundStrikeTrend: (wc?: number) =>
-    dashboardFetch<RoundStrikeTrend[]>(
-      `/api/dashboard/chart/round-strike-trend${buildChartParams({ weightClassId: wc })}`
     ),
 
   getStrikeExchange: (wc?: number) =>
@@ -190,11 +189,6 @@ export const chartApi = {
   getTdSubCorrelation: (wc?: number) =>
     dashboardFetch<TdSubCorrelation>(
       `/api/dashboard/chart/td-sub-correlation${buildChartParams({ weightClassId: wc })}`
-    ),
-
-  getTdByWeightClass: () =>
-    dashboardFetch<TdByWeightClass[]>(
-      '/api/dashboard/chart/td-by-weight-class'
     ),
 
   getTdDefenseLeaders: (wc?: number) =>

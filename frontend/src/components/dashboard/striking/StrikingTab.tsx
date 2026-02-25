@@ -9,7 +9,6 @@ import { KoTkoLeadersChart } from './KoTkoLeadersChart'
 import { SigStrikesChart } from './SigStrikesChart'
 import { KnockdownLeadersChart } from './KnockdownLeadersChart'
 import { SigStrikesByWcChart } from './SigStrikesByWcChart'
-import { RoundStrikeTrendChart } from './RoundStrikeTrendChart'
 import { StrikeExchangeChart } from './StrikeExchangeChart'
 import { StanceWinrateChart } from './StanceWinrateChart'
 import type { StrikingResponse } from '@/types/dashboard'
@@ -70,16 +69,6 @@ export function StrikingTab({ data, loading, error, onRetry }: StrikingTabProps)
   } = useChartFilter({
     initialData: data?.knockdown_leaders,
     fetchFn: chartApi.getKnockdownLeaders,
-  })
-
-  const {
-    data: roundStrikeTrend,
-    loading: rstLoading,
-    weightClassId: rstWc,
-    setWeightClassId: setRstWc,
-  } = useChartFilter({
-    initialData: data?.round_strike_trend,
-    fetchFn: chartApi.getRoundStrikeTrend,
   })
 
   const {
@@ -201,23 +190,8 @@ export function StrikingTab({ data, loading, error, onRetry }: StrikingTabProps)
         </ChartCard>
       </div>
 
-      {/* Row 4: Round Strike Trend + Strike Exchange + Stance Winrate */}
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
-        <ChartCard
-          title="Round Strike Trend"
-          description="Strike volume by round and body area"
-          tooltip="라운드별 부위별 평균 타격 수 변화를 보여줍니다."
-          headerRight={<WeightClassFilter value={rstWc} onChange={setRstWc} />}
-          loading={!data && loading}
-          error={error}
-          onRetry={onRetry}
-        >
-          {rstLoading ? (
-            <Skeleton className="h-[280px] bg-white/[0.06]" />
-          ) : (
-            roundStrikeTrend && <RoundStrikeTrendChart data={roundStrikeTrend} />
-          )}
-        </ChartCard>
+      {/* Row 4: Strike Exchange + Stance Winrate */}
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         <ChartCard
           title="Strike Exchange"
           description="Striking differential per fight"

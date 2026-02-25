@@ -1,7 +1,9 @@
 import { Users, Swords, Calendar } from 'lucide-react'
 import { StatCard } from '../StatCard'
+import { ChartCard } from '../ChartCard'
 import { RecentEvents } from './RecentEvents'
 import { UpcomingEvents } from './UpcomingEvents'
+import { EventMapChart } from './EventMapChart'
 import { RankingsTable } from './RankingsTable'
 import type { HomeResponse } from '@/types/dashboard'
 
@@ -10,7 +12,7 @@ interface HomeTabProps {
 }
 
 export function HomeTab({ data }: HomeTabProps) {
-  const { summary, recent_events, upcoming_events, rankings } = data
+  const { summary, recent_events, upcoming_events, rankings, event_map } = data
 
   return (
     <div className="space-y-6">
@@ -25,6 +27,17 @@ export function HomeTab({ data }: HomeTabProps) {
         <RecentEvents events={recent_events} />
         <UpcomingEvents events={upcoming_events} />
       </div>
+
+      {/* Event Location Map */}
+      {event_map && event_map.length > 0 && (
+        <ChartCard
+          title="Event Locations"
+          description="UFC events around the world"
+          tooltip="전 세계 UFC 대회 개최지를 지도에 표시합니다. 마커 크기는 이벤트 횟수에 비례합니다."
+        >
+          <EventMapChart data={event_map} />
+        </ChartCard>
+      )}
 
       {/* Rankings */}
       <RankingsTable rankings={rankings} />

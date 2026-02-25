@@ -10,7 +10,6 @@ import { GroundStrikesChart } from './GroundStrikesChart'
 import { SubmissionEfficiencyChart } from './SubmissionEfficiencyChart'
 import { TdAttemptsChart } from './TdAttemptsChart'
 import { TdSubCorrelationChart } from './TdSubCorrelationChart'
-import { TdByWeightClassChart } from './TdByWeightClassChart'
 import { TdDefenseChart } from './TdDefenseChart'
 import type { GrapplingResponse } from '@/types/dashboard'
 
@@ -206,34 +205,22 @@ export function GrapplingTab({ data, loading, error, onRetry }: GrapplingTabProp
         </ChartCard>
       </div>
 
-      {/* Row 4: TD-Sub Correlation + TD by Weight Class */}
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-        <ChartCard
-          title="TD-Submission Correlation"
-          description="Takedown landed vs submission finishes"
-          tooltip="테이크다운 성공 수와 서브미션 피니시 수의 상관관계를 산점도로 보여줍니다. 점선은 전체 평균입니다."
-          headerRight={<WeightClassFilter value={tscWc} onChange={setTscWc} />}
-          loading={!data && loading}
-          error={error}
-          onRetry={onRetry}
-        >
-          {tscLoading ? (
-            <Skeleton className="h-[280px] bg-white/[0.06]" />
-          ) : (
-            tdSubCorrelation && <TdSubCorrelationChart data={tdSubCorrelation} />
-          )}
-        </ChartCard>
-        <ChartCard
-          title="Takedowns by Weight Class"
-          description="Average takedown attempts and landed per fight"
-          tooltip="체급별 경기당 평균 테이크다운 시도 및 성공 수를 비교합니다."
-          loading={loading}
-          error={error}
-          onRetry={onRetry}
-        >
-          {data && <TdByWeightClassChart data={data.td_by_weight_class} />}
-        </ChartCard>
-      </div>
+      {/* Row 4: TD-Sub Correlation */}
+      <ChartCard
+        title="TD-Submission Correlation"
+        description="Takedown landed vs submission finishes"
+        tooltip="테이크다운 성공 수와 서브미션 피니시 수의 상관관계를 산점도로 보여줍니다. 점선은 전체 평균입니다."
+        headerRight={<WeightClassFilter value={tscWc} onChange={setTscWc} />}
+        loading={!data && loading}
+        error={error}
+        onRetry={onRetry}
+      >
+        {tscLoading ? (
+          <Skeleton className="h-[280px] bg-white/[0.06]" />
+        ) : (
+          tdSubCorrelation && <TdSubCorrelationChart data={tdSubCorrelation} />
+        )}
+      </ChartCard>
     </div>
   )
 }

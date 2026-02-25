@@ -44,12 +44,22 @@ export interface CategoryLeader {
   unit: string
 }
 
+export interface EventMapLocation {
+  location: string
+  latitude: number
+  longitude: number
+  event_count: number
+  last_event_date: string | null
+  last_event_name: string | null
+}
+
 export interface HomeResponse {
   summary: DashboardSummary
   recent_events: RecentEvent[]
   upcoming_events: UpcomingEvent[]
   rankings: WeightClassRanking[]
   category_leaders: CategoryLeader[]
+  event_map: EventMapLocation[]
 }
 
 // ── Overview ──
@@ -95,11 +105,8 @@ export interface FinishRateTrend {
   dec_rate: number
 }
 
-export interface PhysiqueComparison {
-  weight_class: string
-  avg_height_cm: number
-  avg_reach_cm: number
-  avg_reach_advantage: number
+export interface NationalityDistribution {
+  nationality: string
   fighter_count: number
 }
 
@@ -119,7 +126,7 @@ export interface OverviewResponse {
     avg_time_seconds: number | null
   }
   finish_rate_trend: FinishRateTrend[]
-  physique_comparison: PhysiqueComparison[]
+  nationality_distribution: NationalityDistribution[]
 }
 
 // ── Striking ──
@@ -165,17 +172,6 @@ export interface SigStrikesByWeightClass {
   total_fights: number
 }
 
-export interface RoundStrikeTrend {
-  round: number
-  avg_total_strikes: number
-  avg_head: number
-  avg_body: number
-  avg_leg: number
-  avg_clinch: number
-  avg_ground: number
-  sample_count: number
-}
-
 export interface StrikeExchange {
   name: string
   total_fights: number
@@ -198,7 +194,6 @@ export interface StrikingResponse {
   sig_strikes_per_fight: MinFightsLeaderboard<SigStrikesLeader>
   knockdown_leaders: KnockdownLeader[]
   sig_strikes_by_weight_class: SigStrikesByWeightClass[]
-  round_strike_trend: RoundStrikeTrend[]
   strike_exchange: MinFightsLeaderboard<StrikeExchange>
   stance_winrate: StanceWinrate[]
 }
@@ -260,13 +255,6 @@ export interface TdSubCorrelation {
   avg_sub: number
 }
 
-export interface TdByWeightClass {
-  weight_class: string
-  avg_td_attempts_per_fight: number
-  avg_td_landed_per_fight: number
-  total_fights: number
-}
-
 export interface TdDefenseLeader {
   name: string
   opp_td_attempted: number
@@ -286,6 +274,5 @@ export interface GrapplingResponse {
   }
   td_attempts_leaders: TdAttemptsLeaderboard
   td_sub_correlation: TdSubCorrelation
-  td_by_weight_class: TdByWeightClass[]
   td_defense_leaders: MinFightsLeaderboard<TdDefenseLeader>
 }
