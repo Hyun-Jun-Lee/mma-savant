@@ -31,7 +31,9 @@ services:
       - REDIS_HOST=savant_redis
     ports:
       - "127.0.0.1:${SERVER_PORT:-8000}:${SERVER_PORT:-8000}"
-    command: ["sh", "-c", "uv run uvicorn main_api:app --host 0.0.0.0 --port ${SERVER_PORT:-8000}"]
+    volumes:
+      - ./src:/app
+    command: ["sh", "-c", "uv run uvicorn main_api:app --host 0.0.0.0 --port ${SERVER_PORT:-8000} --reload"]
     depends_on:
       - savant_db
       - savant_redis
@@ -76,6 +78,9 @@ services:
       context: ./frontend
       dockerfile: Dockerfile
     container_name: savant_web
+    volumes:
+      - ./frontend/src:/app/src
+      - ./frontend/public:/app/public
     env_file:
       - .env
     environment:
