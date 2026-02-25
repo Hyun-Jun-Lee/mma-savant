@@ -24,6 +24,7 @@ class FighterSchema(BaseSchema):
     belt: bool = False
     birthdate: Optional[date] = None
     detail_url: Optional[str] = None
+    nationality: Optional[str] = None
 
     wins: int = 0
     losses: int = 0
@@ -57,6 +58,7 @@ class FighterModel(BaseModel):
     birthdate = Column(String)
     belt = Column(Boolean, default=False)
     detail_url = Column(String)
+    nationality = Column(String)
 
     wins = Column(Integer, default=0)
     losses = Column(Integer, default=0)
@@ -83,7 +85,8 @@ class FighterModel(BaseModel):
             draws=fighter.draws,
             belt=fighter.belt,
             detail_url=fighter.detail_url,
-            birthdate=fighter.birthdate
+            birthdate=fighter.birthdate,
+            nationality=fighter.nationality,
         )   
         
     def to_schema(self) -> FighterSchema:
@@ -105,6 +108,7 @@ class FighterModel(BaseModel):
             belt=self.belt,
             detail_url=self.detail_url,
             birthdate=self.birthdate,
+            nationality=self.nationality,
             created_at=self.created_at,
             updated_at=self.updated_at,
         )
