@@ -17,16 +17,9 @@ env:
   IMAGE_NAME: ${{ github.repository }}
 
 jobs:
-  # 기존 CI 워크플로우 실행
-  ci:
-    name: Run CI
-    uses: ./.github/workflows/ci.yml
-    secrets: inherit
-
   # Docker 이미지 빌드 및 푸시
   build-and-push:
     name: Build and Push Images
-    needs: ci
     runs-on: ubuntu-latest
     permissions:
       contents: read
