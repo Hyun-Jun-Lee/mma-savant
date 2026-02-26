@@ -41,6 +41,7 @@ psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$TEST_DB_NAME" <<-
         birthdate VARCHAR,
         belt BOOLEAN DEFAULT FALSE,
         detail_url VARCHAR,
+        nationality VARCHAR,
         wins INTEGER DEFAULT 0,
         losses INTEGER DEFAULT 0,
         draws INTEGER DEFAULT 0,
@@ -63,6 +64,8 @@ psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$TEST_DB_NAME" <<-
         location VARCHAR,
         event_date DATE,
         url VARCHAR,
+        latitude FLOAT,
+        longitude FLOAT,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     );
