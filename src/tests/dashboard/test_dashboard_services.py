@@ -57,8 +57,8 @@ async def test_get_home_cache_miss(clean_test_session, dashboard_data):
         assert len(result.upcoming_events) == 2
         assert len(result.rankings) >= 1
         assert len(result.category_leaders) >= 1
-        # 캐시 저장 호출 확인 (home + category_leaders)
-        assert mock_redis.set.call_count == 2
+        # 캐시 저장 호출 확인 (home + category_leaders + event_map)
+        assert mock_redis.set.call_count == 3
 
 
 @pytest.mark.asyncio
@@ -68,6 +68,8 @@ async def test_get_home_cache_hit(clean_test_session):
         "recent_events": [],
         "upcoming_events": [],
         "rankings": [],
+        "category_leaders": [],
+        "event_map": [],
     }
     with patch(REDIS_PATCH) as mock_redis:
         mock_redis.get.return_value = json.dumps(cached)
