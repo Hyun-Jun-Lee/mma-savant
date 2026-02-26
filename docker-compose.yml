@@ -33,7 +33,7 @@ services:
       - "127.0.0.1:${SERVER_PORT:-8000}:${SERVER_PORT:-8000}"
     volumes:
       - ./src:/app
-    command: ["sh", "-c", "uv run uvicorn main_api:app --host 0.0.0.0 --port ${SERVER_PORT:-8000} --reload"]
+    command: ["sh", "-c", "uv run uvicorn main_api:app --host 0.0.0.0 --port ${SERVER_PORT:-8000} --reload --reload-exclude '.venv'"]
     depends_on:
       - savant_db
       - savant_redis
