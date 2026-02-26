@@ -53,6 +53,11 @@ export interface EventMapLocation {
   last_event_name: string | null
 }
 
+export interface NationalityDistribution {
+  nationality: string
+  fighter_count: number
+}
+
 export interface HomeResponse {
   summary: DashboardSummary
   recent_events: RecentEvent[]
@@ -60,6 +65,7 @@ export interface HomeResponse {
   rankings: WeightClassRanking[]
   category_leaders: CategoryLeader[]
   event_map: EventMapLocation[]
+  nationality_distribution: NationalityDistribution[]
 }
 
 // ── Overview ──
@@ -91,6 +97,14 @@ export interface LeaderboardFighter {
   win_rate: number
 }
 
+export interface WinStreakFighter {
+  name: string
+  win_streak: number
+  wins: number
+  losses: number
+  draws: number
+}
+
 export interface FightDurationRound {
   result_round: number
   fight_count: number
@@ -105,11 +119,6 @@ export interface FinishRateTrend {
   dec_rate: number
 }
 
-export interface NationalityDistribution {
-  nationality: string
-  fighter_count: number
-}
-
 export interface OverviewResponse {
   finish_methods: FinishMethod[]
   weight_class_activity: WeightClassActivity[]
@@ -119,6 +128,7 @@ export interface OverviewResponse {
     winrate_min10: LeaderboardFighter[]
     winrate_min15: LeaderboardFighter[]
     winrate_min20: LeaderboardFighter[]
+    win_streak: WinStreakFighter[]
   }
   fight_duration: {
     rounds: FightDurationRound[]
@@ -126,7 +136,6 @@ export interface OverviewResponse {
     avg_time_seconds: number | null
   }
   finish_rate_trend: FinishRateTrend[]
-  nationality_distribution: NationalityDistribution[]
 }
 
 // ── Striking ──

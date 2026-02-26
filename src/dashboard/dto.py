@@ -77,6 +77,13 @@ class EventMapDTO(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
+class NationalityDistributionDTO(BaseModel):
+    nationality: str
+    fighter_count: int
+
+    model_config = ConfigDict(from_attributes=True)
+
+
 class HomeResponseDTO(BaseModel):
     summary: SummaryDTO
     recent_events: List[RecentEventDTO]
@@ -84,6 +91,7 @@ class HomeResponseDTO(BaseModel):
     rankings: List[DivisionRankingDTO]
     category_leaders: List[CategoryLeaderDTO] = []
     event_map: List[EventMapDTO] = []
+    nationality_distribution: List[NationalityDistributionDTO] = []
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -126,11 +134,22 @@ class LeaderboardFighterDTO(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
+class WinStreakFighterDTO(BaseModel):
+    name: str
+    win_streak: int
+    wins: int
+    losses: int
+    draws: int
+
+    model_config = ConfigDict(from_attributes=True)
+
+
 class LeaderboardDTO(BaseModel):
     wins: List[LeaderboardFighterDTO]
     winrate_min10: List[LeaderboardFighterDTO]
     winrate_min15: List[LeaderboardFighterDTO]
     winrate_min20: List[LeaderboardFighterDTO]
+    win_streak: List[WinStreakFighterDTO] = []
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -161,13 +180,6 @@ class FinishRateTrendDTO(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
-class NationalityDistributionDTO(BaseModel):
-    nationality: str
-    fighter_count: int
-
-    model_config = ConfigDict(from_attributes=True)
-
-
 class OverviewResponseDTO(BaseModel):
     finish_methods: List[FinishMethodDTO]
     weight_class_activity: List[WeightClassActivityDTO]
@@ -175,7 +187,6 @@ class OverviewResponseDTO(BaseModel):
     leaderboard: LeaderboardDTO
     fight_duration: FightDurationDTO
     finish_rate_trend: List[FinishRateTrendDTO] = []
-    nationality_distribution: List[NationalityDistributionDTO] = []
 
     model_config = ConfigDict(from_attributes=True)
 

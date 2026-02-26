@@ -289,6 +289,53 @@ async def get_leaderboard_winrate(
     return [dict(row) for row in result.mappings().all()]
 
 
+async def get_win_streak_leaders(
+    session: AsyncSession,
+    weight_class_id: Optional[int] = None,
+    limit: int = 10,
+) -> List[Dict[str, Any]]:
+    """현재 연승 중인 선수 TOP N (최근 경기부터 역순으로 연승 계산)"""
+    wc_clause, params = _wc_filter(weight_class_id)
+    params["limit"] = limit
+    result = await session.execute(text(f"""
+        WITH ordered_fights AS (
+            SELECT
+                f.id AS fighter_id,
+                f.name,
+                f.wins, f.losses, f.draws,
+                fm.result,
+                ROW_NUMBER() OVER (
+                    PARTITION BY f.id ORDER BY e.event_date DESC, m.id DESC
+                ) AS rn
+            FROM fighter f
+            JOIN fighter_match fm ON f.id = fm.fighter_id
+            JOIN match m ON fm.match_id = m.id
+            JOIN event e ON m.event_id = e.id
+            WHERE fm.result IN ('win', 'loss')
+                AND e.event_date IS NOT NULL
+                {wc_clause}
+        ),
+        first_loss AS (
+            SELECT fighter_id, MIN(rn) AS first_loss_rn
+            FROM ordered_fights
+            WHERE result = 'loss'
+            GROUP BY fighter_id
+        )
+        SELECT
+            o.name,
+            o.wins, o.losses, o.draws,
+            COUNT(*) AS win_streak
+        FROM ordered_fights o
+        LEFT JOIN first_loss fl ON o.fighter_id = fl.fighter_id
+        WHERE o.result = 'win'
+            AND o.rn < COALESCE(fl.first_loss_rn, 999999)
+        GROUP BY o.fighter_id, o.name, o.wins, o.losses, o.draws
+        ORDER BY win_streak DESC
+        LIMIT :limit
+    """), params)
+    return [dict(row) for row in result.mappings().all()]
+
+
 async def get_fight_duration_rounds(
     session: AsyncSession, weight_class_id: Optional[int] = None
 ) -> List[Dict[str, Any]]:

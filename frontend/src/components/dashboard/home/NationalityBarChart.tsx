@@ -18,7 +18,7 @@ interface NationalityBarChartProps {
 const BAR_COLOR = '#a855f7'
 const BAR_COLOR_OTHERS = '#52525b'
 
-export function NationalityTreemapChart({ data }: NationalityBarChartProps) {
+export function NationalityBarChart({ data }: NationalityBarChartProps) {
   const top15 = data.slice(0, 15)
   const othersCount = data
     .slice(15)

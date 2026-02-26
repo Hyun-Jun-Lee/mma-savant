@@ -16,7 +16,7 @@ from dashboard.dto import (
     DivisionRankingDTO, RankingFighterDTO, CategoryLeaderDTO,
     EventMapDTO,
     OverviewResponseDTO, FinishMethodDTO, WeightClassActivityDTO,
-    EventTimelineDTO, LeaderboardDTO, LeaderboardFighterDTO,
+    EventTimelineDTO, LeaderboardDTO, LeaderboardFighterDTO, WinStreakFighterDTO,
     FightDurationDTO, FightDurationRoundDTO,
     FinishRateTrendDTO, NationalityDistributionDTO,
     StrikingResponseDTO, StrikeTargetDTO, StrikingAccuracyDTO,
@@ -140,8 +140,7 @@ async def get_home(session: AsyncSession) -> HomeResponseDTO:
     cache_key = _cache_key("home")
     cached = _get_cached(cache_key)
     if cached:
-        if "event_map" not in cached:
-            # Stale cache from before event_map was added
+        if "event_map" not in cached or "nationality_distribution" not in cached:
             try:
                 redis_client.delete(cache_key)
             except Exception:
@@ -159,6 +158,7 @@ async def get_home(session: AsyncSession) -> HomeResponseDTO:
         rankings_data = await dashboard_repo.get_rankings(session)
         category_leaders = await get_chart_category_leaders(session)
         event_map = await get_chart_event_map(session)
+        nationality_distribution = await get_chart_nationality_distribution(session)
 
         # rankings를 체급별로 그룹핑
         divisions = defaultdict(list)
@@ -190,6 +190,7 @@ async def get_home(session: AsyncSession) -> HomeResponseDTO:
             rankings=rankings,
             category_leaders=category_leaders,
             event_map=event_map,
+            nationality_distribution=nationality_distribution,
         )
 
         _set_cache(cache_key, response.model_dump())
@@ -260,6 +261,13 @@ async def get_chart_leaderboard(
     cache_key = _chart_cache_key("leaderboard", weight_class_id, ufc_only=ufc_only)
     cached = _get_cached(cache_key)
     if cached:
+        if "win_streak" not in cached:
+            try:
+                redis_client.delete(cache_key)
+            except Exception:
+                pass
+            cached = None
+    if cached:
         parsed = _parse_cached(cache_key, LeaderboardDTO, cached)
         if parsed is not None:
             return parsed
@@ -269,12 +277,14 @@ async def get_chart_leaderboard(
         winrate10_data = await dashboard_repo.get_leaderboard_winrate(session, 10, weight_class_id, ufc_only=ufc_only)
         winrate15_data = await dashboard_repo.get_leaderboard_winrate(session, 15, weight_class_id, ufc_only=ufc_only)
         winrate20_data = await dashboard_repo.get_leaderboard_winrate(session, 20, weight_class_id, ufc_only=ufc_only)
+        win_streak_data = await dashboard_repo.get_win_streak_leaders(session, weight_class_id)
 
         result = LeaderboardDTO(
             wins=[LeaderboardFighterDTO(**r) for r in wins_data],
             winrate_min10=[LeaderboardFighterDTO(**r) for r in winrate10_data],
             winrate_min15=[LeaderboardFighterDTO(**r) for r in winrate15_data],
             winrate_min20=[LeaderboardFighterDTO(**r) for r in winrate20_data],
+            win_streak=[WinStreakFighterDTO(**r) for r in win_streak_data],
         )
         _set_cache(cache_key, result.model_dump())
         return result
@@ -753,8 +763,9 @@ async def get_overview(
     cache_key = _cache_key("overview", weight_class_id, ufc_only=ufc_only)
     cached = _get_cached(cache_key)
     if cached:
-        if "nationality_distribution" not in cached:
-            # Stale cache from before nationality_distribution was added
+        # stale 캐시 감지: win_streak 필드가 leaderboard에 없으면 캐시 무효화
+        lb = cached.get("leaderboard", {})
+        if "win_streak" not in lb:
             try:
                 redis_client.delete(cache_key)
             except Exception:
@@ -772,7 +783,6 @@ async def get_overview(
         leaderboard = await get_chart_leaderboard(session, weight_class_id, ufc_only)
         fight_duration = await get_chart_fight_duration(session, weight_class_id)
         finish_rate_trend = await get_chart_finish_rate_trend(session, weight_class_id)
-        nationality_distribution = await get_chart_nationality_distribution(session, weight_class_id)
 
         response = OverviewResponseDTO(
             finish_methods=finish_methods,
@@ -781,7 +791,6 @@ async def get_overview(
             leaderboard=leaderboard,
             fight_duration=fight_duration,
             finish_rate_trend=finish_rate_trend,
-            nationality_distribution=nationality_distribution,
         )
 
         _set_cache(cache_key, response.model_dump())

@@ -4,6 +4,7 @@ import { ChartCard } from '../ChartCard'
 import { RecentEvents } from './RecentEvents'
 import { UpcomingEvents } from './UpcomingEvents'
 import { EventMapChart } from './EventMapChart'
+import { NationalityBarChart } from './NationalityBarChart'
 import { RankingsTable } from './RankingsTable'
 import type { HomeResponse } from '@/types/dashboard'
 
@@ -12,7 +13,7 @@ interface HomeTabProps {
 }
 
 export function HomeTab({ data }: HomeTabProps) {
-  const { summary, recent_events, upcoming_events, rankings, event_map } = data
+  const { summary, recent_events, upcoming_events, rankings, event_map, nationality_distribution } = data
 
   return (
     <div className="space-y-6">
@@ -36,6 +37,17 @@ export function HomeTab({ data }: HomeTabProps) {
           tooltip="전 세계 UFC 대회 개최지를 지도에 표시합니다. 마커 크기는 이벤트 횟수에 비례합니다."
         >
           <EventMapChart data={event_map} />
+        </ChartCard>
+      )}
+
+      {/* Nationality Distribution */}
+      {nationality_distribution && nationality_distribution.length > 0 && (
+        <ChartCard
+          title="Nationality Distribution"
+          description="Fighter count by nationality (Top 15 + Others)"
+          tooltip="UFC 선수들의 국적 분포를 보여줍니다. 막대 길이가 선수 수에 비례합니다."
+        >
+          <NationalityBarChart data={nationality_distribution} />
         </ChartCard>
       )}
 

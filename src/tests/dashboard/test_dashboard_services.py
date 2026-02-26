@@ -57,8 +57,8 @@ async def test_get_home_cache_miss(clean_test_session, dashboard_data):
         assert len(result.upcoming_events) == 2
         assert len(result.rankings) >= 1
         assert len(result.category_leaders) >= 1
-        # 캐시 저장 호출 확인 (home + category_leaders + event_map)
-        assert mock_redis.set.call_count == 3
+        # 캐시 저장 호출 확인 (home + category_leaders + event_map + nationality)
+        assert mock_redis.set.call_count == 4
 
 
 @pytest.mark.asyncio
@@ -70,6 +70,7 @@ async def test_get_home_cache_hit(clean_test_session):
         "rankings": [],
         "category_leaders": [],
         "event_map": [],
+        "nationality_distribution": [],
     }
     with patch(REDIS_PATCH) as mock_redis:
         mock_redis.get.return_value = json.dumps(cached)
@@ -311,6 +312,7 @@ async def test_get_chart_leaderboard_cache_hit(clean_test_session):
         "winrate_min10": [],
         "winrate_min15": [],
         "winrate_min20": [],
+        "win_streak": [{"name": "Test", "win_streak": 5, "wins": 10, "losses": 1, "draws": 0}],
     }
     with patch(REDIS_PATCH) as mock_redis:
         mock_redis.get.return_value = json.dumps(cached)

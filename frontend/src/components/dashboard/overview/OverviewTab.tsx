@@ -9,7 +9,6 @@ import { EventsTimelineChart } from './EventsTimelineChart'
 import { LeaderboardChart } from './LeaderboardChart'
 import { FightDurationChart } from './FightDurationChart'
 import { FinishRateTrendChart } from './FinishRateTrendChart'
-import { NationalityTreemapChart } from './NationalityTreemapChart'
 import type { OverviewResponse } from '@/types/dashboard'
 
 interface OverviewTabProps {
@@ -48,16 +47,6 @@ export function OverviewTab({ data, loading, error, onRetry }: OverviewTabProps)
   } = useChartFilter({
     initialData: data?.finish_rate_trend,
     fetchFn: chartApi.getFinishRateTrend,
-  })
-
-  const {
-    data: nationalityDist,
-    loading: ndLoading,
-    weightClassId: ndWc,
-    setWeightClassId: setNdWc,
-  } = useChartFilter({
-    initialData: data?.nationality_distribution,
-    fetchFn: chartApi.getNationalityDistribution,
   })
 
   return (
@@ -138,26 +127,7 @@ export function OverviewTab({ data, loading, error, onRetry }: OverviewTabProps)
         )}
       </ChartCard>
 
-      {/* Row 4: Nationality Distribution */}
-      <ChartCard
-        title="Nationality Distribution"
-        description="Fighter count by nationality (Top 15 + Others)"
-        tooltip="UFC 선수들의 국적 분포를 Treemap으로 보여줍니다. 블록 크기가 선수 수에 비례합니다."
-        headerRight={<WeightClassFilter value={ndWc} onChange={setNdWc} />}
-        loading={!data && loading}
-        error={error}
-        onRetry={onRetry}
-      >
-        {ndLoading ? (
-          <Skeleton className="h-[320px] bg-white/[0.06]" />
-        ) : (
-          nationalityDist && nationalityDist.length > 0 && (
-            <NationalityTreemapChart data={nationalityDist} />
-          )
-        )}
-      </ChartCard>
-
-      {/* Row 5: Leaderboard (full width) */}
+      {/* Row 4: Leaderboard (full width) */}
       <LeaderboardChart
         initialData={data?.leaderboard}
         parentLoading={loading}

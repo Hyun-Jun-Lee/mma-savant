@@ -21,6 +21,7 @@ const TABS = [
   { key: 'winrate_min10', label: 'Win Rate (10+)' },
   { key: 'winrate_min15', label: 'Win Rate (15+)' },
   { key: 'winrate_min20', label: 'Win Rate (20+)' },
+  { key: 'win_streak', label: 'Win Streak' },
 ] as const
 
 type LeaderboardKey = (typeof TABS)[number]['key']
@@ -74,8 +75,9 @@ export function LeaderboardChart({
   const displayData = localData ?? initialData
 
   const fighters = displayData?.[activeKey]
-  const isWinRate = activeKey !== 'wins'
-  const dataKey = isWinRate ? 'win_rate' : 'wins'
+  const isWinStreak = activeKey === 'win_streak'
+  const isWinRate = !isWinStreak && activeKey !== 'wins'
+  const dataKey = isWinStreak ? 'win_streak' : isWinRate ? 'win_rate' : 'wins'
 
   return (
     <ChartCard
@@ -136,7 +138,7 @@ export function LeaderboardChart({
                   axisLine={false}
                   tickLine={false}
                   domain={isWinRate ? [0, 100] : undefined}
-                  tickFormatter={isWinRate ? (v) => `${v}%` : undefined}
+                  tickFormatter={isWinRate ? (v) => `${v}%` : isWinStreak ? (v) => `${v}W` : undefined}
                 />
                 <YAxis
                   dataKey="name"
@@ -156,7 +158,11 @@ export function LeaderboardChart({
                   itemStyle={{ color: '#e4e4e7' }}
                   labelStyle={{ color: '#a1a1aa' }}
                   formatter={(value: number) =>
-                    isWinRate ? `${value.toFixed(1)}%` : value
+                    isWinRate
+                      ? `${value.toFixed(1)}%`
+                      : isWinStreak
+                        ? `${value} wins`
+                        : value
                   }
                 />
                 <Bar
@@ -164,7 +170,7 @@ export function LeaderboardChart({
                   fill="#8b5cf6"
                   radius={[0, 4, 4, 0]}
                   barSize={16}
-                  name={isWinRate ? 'Win Rate' : 'Wins'}
+                  name={isWinStreak ? 'Win Streak' : isWinRate ? 'Win Rate' : 'Wins'}
                 />
               </BarChart>
             </ResponsiveContainer>
