@@ -182,6 +182,8 @@ services:
       - .env
     environment:
       - DB_HOST=savant_db
+      - PREFECT_API_URL=${PREFECT_API_URL}
+      - PREFECT_API_KEY=${PREFECT_API_KEY}
     command: ["uv", "run", "python", "-m", "data_collector.workflows.ufc_stats_flow"]
     networks:
       - savant_network
