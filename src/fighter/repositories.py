@@ -1,9 +1,12 @@
 from typing import List, Optional, Dict, Literal
 
-from sqlalchemy import select, delete, or_
+from sqlalchemy import select, delete, or_, text
+from sqlalchemy.orm import aliased
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from fighter.models import FighterModel, RankingModel, FighterSchema, RankingSchema
+from match.models import FighterMatchModel, MatchModel, BasicMatchStatModel, SigStrMatchStatModel
+from event.models import EventModel
 from common.utils import normalize_name
 
 async def get_all_fighter(
@@ -177,3 +180,112 @@ async def get_ranked_fighters_by_weight_class(
         }
         for fighter, ranking in rows
     ]
+
+
+# ===========================
+# Fighter Detail queries
+# ===========================
+
+async def get_fight_history(session: AsyncSession, fighter_id: int) -> list[dict]:
+    """
+    파이터의 전체 경기 이력을 단일 쿼리로 조회합니다.
+    상대 선수, 이벤트 정보를 JOIN으로 한번에 가져옵니다.
+    """
+    opp_fm = aliased(FighterMatchModel)
+    opp_f = aliased(FighterModel)
+
+    stmt = (
+        select(
+            FighterMatchModel.id.label("fighter_match_id"),
+            FighterMatchModel.match_id,
+            FighterMatchModel.result,
+            MatchModel.method,
+            MatchModel.result_round,
+            MatchModel.time,
+            MatchModel.is_main_event,
+            MatchModel.weight_class_id,
+            EventModel.name.label("event_name"),
+            EventModel.event_date,
+            opp_f.id.label("opponent_id"),
+            opp_f.name.label("opponent_name"),
+            opp_f.nationality.label("opponent_nationality"),
+        )
+        .join(MatchModel, MatchModel.id == FighterMatchModel.match_id)
+        .outerjoin(EventModel, EventModel.id == MatchModel.event_id)
+        .outerjoin(
+            opp_fm,
+            (opp_fm.match_id == FighterMatchModel.match_id) & (opp_fm.fighter_id != fighter_id),
+        )
+        .outerjoin(opp_f, opp_f.id == opp_fm.fighter_id)
+        .where(FighterMatchModel.fighter_id == fighter_id)
+        .order_by(EventModel.event_date.desc().nullslast())
+    )
+
+    result = await session.execute(stmt)
+    rows = result.mappings().all()
+    return [dict(row) for row in rows]
+
+
+async def get_per_match_stats(session: AsyncSession, fighter_match_ids: list[int]) -> dict[int, dict]:
+    """
+    여러 fighter_match_id에 대한 경기별 스탯을 배치 조회합니다.
+    round=0 (전체 합산) 행만 가져옵니다.
+    """
+    if not fighter_match_ids:
+        return {}
+
+    # basic stats 배치 조회
+    basic_result = await session.execute(
+        select(BasicMatchStatModel).where(
+            BasicMatchStatModel.fighter_match_id.in_(fighter_match_ids),
+            BasicMatchStatModel.round == 0,
+        )
+    )
+    basic_rows = basic_result.scalars().all()
+
+    # sig_str stats 배치 조회
+    sig_str_result = await session.execute(
+        select(SigStrMatchStatModel).where(
+            SigStrMatchStatModel.fighter_match_id.in_(fighter_match_ids),
+            SigStrMatchStatModel.round == 0,
+        )
+    )
+    sig_str_rows = sig_str_result.scalars().all()
+
+    # {fm_id: {"basic": ..., "sig_str": ...}} 조합
+    stats_map: dict[int, dict] = {}
+    for row in basic_rows:
+        fm_id = row.fighter_match_id
+        if fm_id not in stats_map:
+            stats_map[fm_id] = {}
+        stats_map[fm_id]["basic"] = row.to_schema()
+
+    for row in sig_str_rows:
+        fm_id = row.fighter_match_id
+        if fm_id not in stats_map:
+            stats_map[fm_id] = {}
+        stats_map[fm_id]["sig_str"] = row.to_schema()
+
+    return stats_map
+
+
+async def get_finish_breakdown(session: AsyncSession, fighter_id: int) -> dict:
+    """
+    파이터의 승리 방법별 집계를 단일 쿼리로 조회합니다.
+    """
+    stmt = text("""
+        SELECT
+            COUNT(*) FILTER (WHERE m.method ILIKE '%%ko%%' OR m.method ILIKE '%%tko%%') AS ko_tko,
+            COUNT(*) FILTER (WHERE m.method ILIKE '%%sub%%') AS submission,
+            COUNT(*) FILTER (WHERE m.method ILIKE '%%dec%%') AS decision
+        FROM fighter_match fm
+        JOIN "match" m ON m.id = fm.match_id
+        WHERE fm.fighter_id = :fighter_id AND fm.result = 'Win'
+    """)
+    result = await session.execute(stmt, {"fighter_id": fighter_id})
+    row = result.mappings().one()
+    return {
+        "ko_tko": row["ko_tko"] or 0,
+        "submission": row["submission"] or 0,
+        "decision": row["decision"] or 0,
+    }
