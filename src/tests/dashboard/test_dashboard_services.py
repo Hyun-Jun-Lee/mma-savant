@@ -308,11 +308,11 @@ async def test_get_chart_leaderboard_cache_miss(clean_test_session, dashboard_da
 @pytest.mark.asyncio
 async def test_get_chart_leaderboard_cache_hit(clean_test_session):
     cached = {
-        "wins": [{"name": "Test", "wins": 10, "losses": 1, "draws": 0, "win_rate": 90.9}],
+        "wins": [{"fighter_id": 1, "name": "Test", "wins": 10, "losses": 1, "draws": 0, "win_rate": 90.9}],
         "winrate_min10": [],
         "winrate_min15": [],
         "winrate_min20": [],
-        "win_streak": [{"name": "Test", "win_streak": 5, "wins": 10, "losses": 1, "draws": 0}],
+        "win_streak": [{"fighter_id": 1, "name": "Test", "win_streak": 5, "wins": 10, "losses": 1, "draws": 0}],
     }
     with patch(REDIS_PATCH) as mock_redis:
         mock_redis.get.return_value = json.dumps(cached)
@@ -399,7 +399,7 @@ async def test_get_chart_striking_accuracy_cache_miss(clean_test_session, dashbo
 @pytest.mark.asyncio
 async def test_get_chart_striking_accuracy_cache_hit(clean_test_session):
     cached = {
-        "min10": [{"name": "A", "total_sig_landed": 100, "total_sig_attempted": 150, "accuracy": 66.7}],
+        "min10": [{"fighter_id": 1, "name": "A", "total_sig_landed": 100, "total_sig_attempted": 150, "accuracy": 66.7}],
         "min15": [],
         "min20": [],
     }
@@ -436,7 +436,7 @@ async def test_get_chart_ko_tko_leaders_cache_miss(clean_test_session, dashboard
 @pytest.mark.asyncio
 async def test_get_chart_ko_tko_leaders_cache_hit(clean_test_session):
     cached = {"items": [
-        {"name": "Test Fighter", "ko_tko_finishes": 15},
+        {"fighter_id": 1, "name": "Test Fighter", "ko_tko_finishes": 15},
     ]}
     with patch(REDIS_PATCH) as mock_redis:
         mock_redis.get.return_value = json.dumps(cached)
@@ -469,7 +469,7 @@ async def test_get_chart_sig_strikes_cache_miss(clean_test_session, dashboard_da
 @pytest.mark.asyncio
 async def test_get_chart_sig_strikes_cache_hit(clean_test_session):
     cached = {
-        "min10": [{"name": "A", "sig_str_per_fight": 8.5, "total_fights": 15}],
+        "min10": [{"fighter_id": 1, "name": "A", "sig_str_per_fight": 8.5, "total_fights": 15}],
         "min15": [],
         "min20": [],
     }
@@ -505,7 +505,7 @@ async def test_get_chart_takedown_accuracy_cache_miss(clean_test_session, dashbo
 @pytest.mark.asyncio
 async def test_get_chart_takedown_accuracy_cache_hit(clean_test_session):
     cached = {
-        "min10": [{"name": "A", "total_td_landed": 50, "total_td_attempted": 80, "td_accuracy": 62.5}],
+        "min10": [{"fighter_id": 1, "name": "A", "total_td_landed": 50, "total_td_attempted": 80, "td_accuracy": 62.5}],
         "min15": [],
         "min20": [],
     }
@@ -574,7 +574,7 @@ async def test_get_chart_ground_strikes_cache_miss(clean_test_session, dashboard
 @pytest.mark.asyncio
 async def test_get_chart_ground_strikes_cache_hit(clean_test_session):
     cached = {"items": [
-        {"name": "A", "total_ground_landed": 200, "total_ground_attempted": 350, "accuracy": 57.1},
+        {"fighter_id": 1, "name": "A", "total_ground_landed": 200, "total_ground_attempted": 350, "accuracy": 57.1},
     ]}
     with patch(REDIS_PATCH) as mock_redis:
         mock_redis.get.return_value = json.dumps(cached)
@@ -608,7 +608,7 @@ async def test_get_chart_submission_efficiency_cache_miss(clean_test_session, da
 async def test_get_chart_submission_efficiency_cache_hit(clean_test_session):
     cached = {
         "fighters": [
-            {"name": "A", "total_sub_attempts": 20, "sub_finishes": 12},
+            {"fighter_id": 1, "name": "A", "total_sub_attempts": 20, "sub_finishes": 12},
         ],
         "avg_efficiency_ratio": 0.45,
     }
@@ -643,7 +643,7 @@ async def test_get_chart_category_leaders_cache_miss(clean_test_session, dashboa
 @pytest.mark.asyncio
 async def test_get_chart_category_leaders_cache_hit(clean_test_session):
     cached = {"items": [
-        {"category": "striking", "label": "Sig Strikes/Fight", "name": "Test", "value": 10.5, "unit": "strikes"},
+        {"category": "striking", "label": "Sig Strikes/Fight", "fighter_id": 1, "name": "Test", "value": 10.5, "unit": "strikes"},
     ]}
     with patch(REDIS_PATCH) as mock_redis:
         mock_redis.get.return_value = json.dumps(cached)
@@ -711,7 +711,7 @@ async def test_get_chart_knockdown_leaders_cache_miss(clean_test_session, dashbo
 @pytest.mark.asyncio
 async def test_get_chart_knockdown_leaders_cache_hit(clean_test_session):
     cached = {"items": [
-        {"name": "Test Fighter", "total_knockdowns": 25, "total_fights": 15, "kd_per_fight": 1.67},
+        {"fighter_id": 1, "name": "Test Fighter", "total_knockdowns": 25, "total_fights": 15, "kd_per_fight": 1.67},
     ]}
     with patch(REDIS_PATCH) as mock_redis:
         mock_redis.get.return_value = json.dumps(cached)
@@ -777,7 +777,7 @@ async def test_get_chart_strike_exchange_cache_miss(clean_test_session, dashboar
 @pytest.mark.asyncio
 async def test_get_chart_strike_exchange_cache_hit(clean_test_session):
     cached = {
-        "min10": [{"name": "A", "total_fights": 15, "sig_landed_per_fight": 8.5, "sig_absorbed_per_fight": 5.0, "differential_per_fight": 3.5}],
+        "min10": [{"fighter_id": 1, "name": "A", "total_fights": 15, "sig_landed_per_fight": 8.5, "sig_absorbed_per_fight": 5.0, "differential_per_fight": 3.5}],
         "min15": [],
         "min20": [],
     }
@@ -846,7 +846,7 @@ async def test_get_chart_td_attempts_leaders_cache_miss(clean_test_session, dash
 @pytest.mark.asyncio
 async def test_get_chart_td_attempts_leaders_cache_hit(clean_test_session):
     cached = {
-        "min10": [{"name": "A", "td_attempts_per_fight": 5.5, "total_td_attempted": 55, "total_td_landed": 30, "total_fights": 10}],
+        "min10": [{"fighter_id": 1, "name": "A", "td_attempts_per_fight": 5.5, "total_td_attempted": 55, "total_td_landed": 30, "total_fights": 10}],
         "min15": [],
         "min20": [],
         "avg_td_attempts": 3.2,
@@ -885,7 +885,7 @@ async def test_get_chart_td_sub_correlation_cache_miss(clean_test_session, dashb
 async def test_get_chart_td_sub_correlation_cache_hit(clean_test_session):
     cached = {
         "fighters": [
-            {"name": "A", "total_td_landed": 50, "sub_finishes": 5, "total_fights": 10},
+            {"fighter_id": 1, "name": "A", "total_td_landed": 50, "sub_finishes": 5, "total_fights": 10},
         ],
         "avg_td": 4.5,
         "avg_sub": 0.8,
@@ -922,7 +922,7 @@ async def test_get_chart_td_defense_leaders_cache_miss(clean_test_session, dashb
 @pytest.mark.asyncio
 async def test_get_chart_td_defense_leaders_cache_hit(clean_test_session):
     cached = {
-        "min10": [{"name": "A", "opp_td_attempted": 50, "opp_td_landed": 10, "td_defended": 40, "td_defense_rate": 80.0}],
+        "min10": [{"fighter_id": 1, "name": "A", "opp_td_attempted": 50, "opp_td_landed": 10, "td_defended": 40, "td_defense_rate": 80.0}],
         "min15": [],
         "min20": [],
     }

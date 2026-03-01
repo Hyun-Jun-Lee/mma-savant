@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { useRouter } from 'next/navigation'
 import {
   BarChart,
   Bar,
@@ -25,8 +26,29 @@ interface TdDefenseChartProps {
 }
 
 export function TdDefenseChart({ data }: TdDefenseChartProps) {
+  const router = useRouter()
   const [activeKey, setActiveKey] = useState<MinKey>('min10')
   const fighters = data[activeKey]
+
+  const FighterTick = ({ x, y, payload }: any) => {
+    const item = fighters.find((d: any) => d.name === payload.value)
+    return (
+      <g transform={`translate(${x},${y})`}>
+        <text
+          x={-4}
+          y={0}
+          dy={4}
+          textAnchor="end"
+          fill="#a1a1aa"
+          fontSize={11}
+          style={{ cursor: 'pointer' }}
+          onClick={() => item && router.push(`/fighters/${item.fighter_id}`)}
+        >
+          {payload.value}
+        </text>
+      </g>
+    )
+  }
 
   return (
     <div>
@@ -55,7 +77,7 @@ export function TdDefenseChart({ data }: TdDefenseChartProps) {
           <YAxis
             dataKey="name"
             type="category"
-            tick={{ fill: '#a1a1aa', fontSize: 11 }}
+            tick={<FighterTick />}
             axisLine={false}
             tickLine={false}
             width={100}

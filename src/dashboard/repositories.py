@@ -84,6 +84,7 @@ async def get_rankings(session: AsyncSession) -> List[Dict[str, Any]]:
             wc.id AS weight_class_id,
             wc.name AS weight_class,
             r.ranking,
+            f.id AS fighter_id,
             f.name AS fighter_name,
             f.wins, f.losses, f.draws
         FROM ranking r
@@ -187,6 +188,7 @@ async def get_leaderboard_wins(
     if weight_class_id is not None:
         result = await session.execute(text("""
             SELECT
+                f.id AS fighter_id,
                 f.name,
                 COUNT(CASE WHEN fm.result = 'win' THEN 1 END) AS wins,
                 COUNT(CASE WHEN fm.result = 'loss' THEN 1 END) AS losses,
@@ -206,6 +208,7 @@ async def get_leaderboard_wins(
     elif ufc_only:
         result = await session.execute(text("""
             SELECT
+                f.id AS fighter_id,
                 f.name,
                 COUNT(CASE WHEN fm.result = 'win' THEN 1 END) AS wins,
                 COUNT(CASE WHEN fm.result = 'loss' THEN 1 END) AS losses,
@@ -222,7 +225,7 @@ async def get_leaderboard_wins(
         """), {"limit": limit})
     else:
         result = await session.execute(text("""
-            SELECT name, wins, losses, draws,
+            SELECT id AS fighter_id, name, wins, losses, draws,
                 ROUND(wins * 100.0 / NULLIF(wins + losses + draws, 0), 1) AS win_rate
             FROM fighter
             ORDER BY wins DESC
@@ -241,6 +244,7 @@ async def get_leaderboard_winrate(
     if weight_class_id is not None:
         result = await session.execute(text("""
             SELECT
+                f.id AS fighter_id,
                 f.name,
                 COUNT(CASE WHEN fm.result = 'win' THEN 1 END) AS wins,
                 COUNT(CASE WHEN fm.result = 'loss' THEN 1 END) AS losses,
@@ -261,6 +265,7 @@ async def get_leaderboard_winrate(
     elif ufc_only:
         result = await session.execute(text("""
             SELECT
+                f.id AS fighter_id,
                 f.name,
                 COUNT(CASE WHEN fm.result = 'win' THEN 1 END) AS wins,
                 COUNT(CASE WHEN fm.result = 'loss' THEN 1 END) AS losses,
@@ -279,7 +284,7 @@ async def get_leaderboard_winrate(
     else:
         result = await session.execute(text("""
             SELECT
-                name, wins, losses, draws,
+                id AS fighter_id, name, wins, losses, draws,
                 ROUND(wins * 100.0 / NULLIF(wins + losses + draws, 0), 1) AS win_rate
             FROM fighter
             WHERE (wins + losses + draws) >= :min_fights
@@ -322,6 +327,7 @@ async def get_win_streak_leaders(
             GROUP BY fighter_id
         )
         SELECT
+            o.fighter_id,
             o.name,
             o.wins, o.losses, o.draws,
             COUNT(*) AS win_streak
@@ -432,6 +438,7 @@ async def get_striking_accuracy(
         where_clause = f"WHERE {wc_clause.lstrip('AND ')}"
     result = await session.execute(text(f"""
         SELECT
+            f.id AS fighter_id,
             f.name,
             SUM(ms.sig_str_landed) AS total_sig_landed,
             SUM(ms.sig_str_attempted) AS total_sig_attempted,
@@ -456,6 +463,7 @@ async def get_ko_tko_leaders(
     params["limit"] = limit
     result = await session.execute(text(f"""
         SELECT
+            f.id AS fighter_id,
             f.name,
             COUNT(*) AS ko_tko_finishes
         FROM fighter_match fm
@@ -483,6 +491,7 @@ async def get_sig_strikes_per_fight(
         where_clause = f"WHERE {wc_clause.lstrip('AND ')}"
     result = await session.execute(text(f"""
         SELECT
+            f.id AS fighter_id,
             f.name,
             ROUND(SUM(ms.sig_str_landed)::numeric / COUNT(DISTINCT fm.match_id), 2) AS sig_str_per_fight,
             COUNT(DISTINCT fm.match_id) AS total_fights
@@ -515,6 +524,7 @@ async def get_takedown_accuracy(
         where_clause = f"WHERE {wc_clause.lstrip('AND ')}"
     result = await session.execute(text(f"""
         SELECT
+            f.id AS fighter_id,
             f.name,
             SUM(ms.td_landed) AS total_td_landed,
             SUM(ms.td_attempted) AS total_td_attempted,
@@ -580,6 +590,7 @@ async def get_ground_strikes(
         where_clause = f"WHERE {wc_clause.lstrip('AND ')}"
     result = await session.execute(text(f"""
         SELECT
+            f.id AS fighter_id,
             f.name,
             SUM(sd.ground_strikes_landed) AS total_ground_landed,
             SUM(sd.ground_strikes_attempts) AS total_ground_attempted,
@@ -609,6 +620,7 @@ async def get_submission_efficiency_fighters(
         where_clause = f"WHERE {wc_clause.lstrip('AND ')}"
     result = await session.execute(text(f"""
         SELECT
+            f.id AS fighter_id,
             f.name,
             SUM(ms.submission_attempts) AS total_sub_attempts,
             COUNT(CASE WHEN m.method LIKE 'SUB-%' AND fm.result = 'win' THEN 1 END) AS sub_finishes
@@ -635,19 +647,19 @@ async def get_category_leaders(session: AsyncSession) -> List[Dict[str, Any]]:
     result = await session.execute(text("""
         WITH
         most_wins AS (
-            SELECT 'most_wins' AS category, '최다승' AS label, f.name,
+            SELECT 'most_wins' AS category, '최다승' AS label, f.id AS fighter_id, f.name,
                    f.wins::numeric AS value, 'wins' AS unit
             FROM fighter f ORDER BY f.wins DESC LIMIT 1
         ),
         best_winrate AS (
-            SELECT 'best_winrate' AS category, '최고 승률' AS label, f.name,
+            SELECT 'best_winrate' AS category, '최고 승률' AS label, f.id AS fighter_id, f.name,
                    ROUND(f.wins * 100.0 / NULLIF(f.wins + f.losses + f.draws, 0), 1) AS value, '%' AS unit
             FROM fighter f
             WHERE (f.wins + f.losses + f.draws) >= 10
             ORDER BY value DESC LIMIT 1
         ),
         most_ko_tko AS (
-            SELECT 'most_ko_tko' AS category, 'KO/TKO 최다' AS label, f.name,
+            SELECT 'most_ko_tko' AS category, 'KO/TKO 최다' AS label, f.id AS fighter_id, f.name,
                    COUNT(*)::numeric AS value, 'finishes' AS unit
             FROM fighter_match fm
             JOIN fighter f ON fm.fighter_id = f.id
@@ -656,7 +668,7 @@ async def get_category_leaders(session: AsyncSession) -> List[Dict[str, Any]]:
             GROUP BY f.id, f.name ORDER BY value DESC LIMIT 1
         ),
         most_submissions AS (
-            SELECT 'most_submissions' AS category, '서브미션 최다' AS label, f.name,
+            SELECT 'most_submissions' AS category, '서브미션 최다' AS label, f.id AS fighter_id, f.name,
                    COUNT(*)::numeric AS value, 'finishes' AS unit
             FROM fighter_match fm
             JOIN fighter f ON fm.fighter_id = f.id
@@ -665,7 +677,7 @@ async def get_category_leaders(session: AsyncSession) -> List[Dict[str, Any]]:
             GROUP BY f.id, f.name ORDER BY value DESC LIMIT 1
         ),
         best_striking_acc AS (
-            SELECT 'best_striking_acc' AS category, '타격 정확도' AS label, f.name,
+            SELECT 'best_striking_acc' AS category, '타격 정확도' AS label, f.id AS fighter_id, f.name,
                    ROUND(SUM(ms.sig_str_landed) * 100.0 / NULLIF(SUM(ms.sig_str_attempted), 0), 1) AS value,
                    '%' AS unit
             FROM match_statistics ms
@@ -676,7 +688,7 @@ async def get_category_leaders(session: AsyncSession) -> List[Dict[str, Any]]:
             ORDER BY value DESC LIMIT 1
         ),
         most_sig_str AS (
-            SELECT 'most_sig_str' AS category, '경기당 유효타격' AS label, f.name,
+            SELECT 'most_sig_str' AS category, '경기당 유효타격' AS label, f.id AS fighter_id, f.name,
                    ROUND(SUM(ms.sig_str_landed)::numeric / COUNT(DISTINCT fm.match_id), 2) AS value,
                    'per fight' AS unit
             FROM match_statistics ms
@@ -687,7 +699,7 @@ async def get_category_leaders(session: AsyncSession) -> List[Dict[str, Any]]:
             ORDER BY value DESC LIMIT 1
         ),
         best_td_acc AS (
-            SELECT 'best_td_acc' AS category, '테이크다운 성공률' AS label, f.name,
+            SELECT 'best_td_acc' AS category, '테이크다운 성공률' AS label, f.id AS fighter_id, f.name,
                    ROUND(SUM(ms.td_landed) * 100.0 / NULLIF(SUM(ms.td_attempted), 0), 1) AS value,
                    '%' AS unit
             FROM match_statistics ms
@@ -698,7 +710,7 @@ async def get_category_leaders(session: AsyncSession) -> List[Dict[str, Any]]:
             ORDER BY value DESC LIMIT 1
         ),
         most_knockdowns AS (
-            SELECT 'most_knockdowns' AS category, '넉다운 최다' AS label, f.name,
+            SELECT 'most_knockdowns' AS category, '넉다운 최다' AS label, f.id AS fighter_id, f.name,
                    SUM(ms.knockdowns)::numeric AS value, 'knockdowns' AS unit
             FROM match_statistics ms
             JOIN fighter_match fm ON ms.fighter_match_id = fm.id
@@ -785,6 +797,7 @@ async def get_knockdown_leaders(
     params["limit"] = limit
     result = await session.execute(text(f"""
         SELECT
+            f.id AS fighter_id,
             f.name,
             SUM(ms.knockdowns) AS total_knockdowns,
             COUNT(DISTINCT fm.match_id) AS total_fights,
@@ -832,6 +845,7 @@ async def get_strike_exchange_ratio(
     params["limit"] = limit
     result = await session.execute(text(f"""
         SELECT
+            f.id AS fighter_id,
             f.name,
             COUNT(DISTINCT fm_mine.match_id) AS total_fights,
             ROUND(SUM(ms_mine.sig_str_landed)::numeric / COUNT(DISTINCT fm_mine.match_id), 2) AS sig_landed_per_fight,
@@ -904,6 +918,7 @@ async def get_td_attempts_leaders(
 
     leaders_result = await session.execute(text(f"""
         SELECT
+            f.id AS fighter_id,
             f.name,
             ROUND(SUM(ms.td_attempted)::numeric / COUNT(DISTINCT fm.match_id), 2) AS td_attempts_per_fight,
             SUM(ms.td_attempted) AS total_td_attempted,
@@ -952,6 +967,7 @@ async def get_td_sub_correlation(
     params["limit"] = limit
     fighters_result = await session.execute(text(f"""
         SELECT
+            f.id AS fighter_id,
             f.name,
             SUM(ms.td_landed) AS total_td_landed,
             COUNT(CASE WHEN m.method LIKE 'SUB-%' AND fm.result = 'win' THEN 1 END) AS sub_finishes,
@@ -990,6 +1006,7 @@ async def get_td_defense_leaders(
     params["limit"] = limit
     result = await session.execute(text(f"""
         SELECT
+            f.id AS fighter_id,
             f.name,
             SUM(ms_opp.td_attempted) AS opp_td_attempted,
             SUM(ms_opp.td_landed) AS opp_td_landed,

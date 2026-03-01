@@ -1,6 +1,7 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
+import { useRouter } from 'next/navigation'
 import {
   BarChart,
   Bar,
@@ -41,6 +42,7 @@ export function LeaderboardChart({
   error,
   onRetry,
 }: LeaderboardChartProps) {
+  const router = useRouter()
   const [activeKey, setActiveKey] = useState<LeaderboardKey>('wins')
   const [weightClassId, setWeightClassId] = useState<number | undefined>()
   const [ufcOnly, setUfcOnly] = useState(true)
@@ -78,6 +80,40 @@ export function LeaderboardChart({
   const isWinStreak = activeKey === 'win_streak'
   const isWinRate = !isWinStreak && activeKey !== 'wins'
   const dataKey = isWinStreak ? 'win_streak' : isWinRate ? 'win_rate' : 'wins'
+
+  /* eslint-disable @typescript-eslint/no-explicit-any */
+  const FighterTick = useCallback(
+    (props: any) => {
+      const { x, y, payload } = props
+      const fighter = fighters?.find((f: any) => f.name === payload.value)
+      return (
+        <g transform={`translate(${x},${y})`}>
+          <text
+            x={-4}
+            y={0}
+            dy={4}
+            textAnchor="end"
+            fill="#a1a1aa"
+            fontSize={11}
+            style={{ cursor: 'pointer' }}
+            onClick={() =>
+              fighter && router.push(`/fighters/${fighter.fighter_id}`)
+            }
+            onMouseEnter={(e) => {
+              e.currentTarget.setAttribute('fill', '#60a5fa')
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.setAttribute('fill', '#a1a1aa')
+            }}
+          >
+            {payload.value}
+          </text>
+        </g>
+      )
+    },
+    [fighters, router]
+  )
+  /* eslint-enable @typescript-eslint/no-explicit-any */
 
   return (
     <ChartCard
@@ -143,7 +179,7 @@ export function LeaderboardChart({
                 <YAxis
                   dataKey="name"
                   type="category"
-                  tick={{ fill: '#a1a1aa', fontSize: 11 }}
+                  tick={FighterTick}
                   axisLine={false}
                   tickLine={false}
                   width={120}

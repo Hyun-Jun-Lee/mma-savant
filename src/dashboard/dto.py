@@ -40,6 +40,7 @@ class UpcomingEventDTO(BaseModel):
 
 class RankingFighterDTO(BaseModel):
     ranking: int
+    fighter_id: int
     fighter_name: str
     wins: int
     losses: int
@@ -59,6 +60,7 @@ class DivisionRankingDTO(BaseModel):
 class CategoryLeaderDTO(BaseModel):
     category: str
     label: str
+    fighter_id: int
     name: str
     value: float
     unit: str
@@ -125,6 +127,7 @@ class EventTimelineDTO(BaseModel):
 
 
 class LeaderboardFighterDTO(BaseModel):
+    fighter_id: int
     name: str
     wins: int
     losses: int
@@ -135,6 +138,7 @@ class LeaderboardFighterDTO(BaseModel):
 
 
 class WinStreakFighterDTO(BaseModel):
+    fighter_id: int
     name: str
     win_streak: int
     wins: int
@@ -201,6 +205,7 @@ class StrikeTargetDTO(BaseModel):
 
 
 class StrikingAccuracyDTO(BaseModel):
+    fighter_id: int
     name: str
     total_sig_landed: int
     total_sig_attempted: int
@@ -210,6 +215,7 @@ class StrikingAccuracyDTO(BaseModel):
 
 
 class KoTkoLeaderDTO(BaseModel):
+    fighter_id: int
     name: str
     ko_tko_finishes: int
 
@@ -217,6 +223,7 @@ class KoTkoLeaderDTO(BaseModel):
 
 
 class SigStrikesPerFightDTO(BaseModel):
+    fighter_id: int
     name: str
     sig_str_per_fight: float
     total_fights: int
@@ -241,6 +248,7 @@ class SigStrikesLeaderboardDTO(BaseModel):
 
 
 class KnockdownLeaderDTO(BaseModel):
+    fighter_id: int
     name: str
     total_knockdowns: int
     total_fights: int
@@ -258,6 +266,7 @@ class SigStrikesByWeightClassDTO(BaseModel):
 
 
 class StrikeExchangeDTO(BaseModel):
+    fighter_id: int
     name: str
     total_fights: int
     sig_landed_per_fight: float
@@ -300,6 +309,7 @@ class StrikingResponseDTO(BaseModel):
 # ===== Tab 4: Grappling =====
 
 class TakedownAccuracyDTO(BaseModel):
+    fighter_id: int
     name: str
     total_td_landed: int
     total_td_attempted: int
@@ -324,6 +334,7 @@ class ControlTimeDTO(BaseModel):
 
 
 class GroundStrikesDTO(BaseModel):
+    fighter_id: int
     name: str
     total_ground_landed: int
     total_ground_attempted: int
@@ -333,6 +344,7 @@ class GroundStrikesDTO(BaseModel):
 
 
 class SubmissionEfficiencyFighterDTO(BaseModel):
+    fighter_id: int
     name: str
     total_sub_attempts: int
     sub_finishes: int
@@ -356,6 +368,7 @@ class TakedownLeaderboardDTO(BaseModel):
 
 
 class TdAttemptsLeaderDTO(BaseModel):
+    fighter_id: int
     name: str
     td_attempts_per_fight: float
     total_td_attempted: int
@@ -375,6 +388,7 @@ class TdAttemptsLeaderboardDTO(BaseModel):
 
 
 class TdSubCorrelationFighterDTO(BaseModel):
+    fighter_id: int
     name: str
     total_td_landed: int
     sub_finishes: int
@@ -392,6 +406,7 @@ class TdSubCorrelationDTO(BaseModel):
 
 
 class TdDefenseLeaderDTO(BaseModel):
+    fighter_id: int
     name: str
     opp_td_attempted: int
     opp_td_landed: int

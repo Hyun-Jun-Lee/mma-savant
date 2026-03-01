@@ -1,5 +1,6 @@
 'use client'
 
+import Link from 'next/link'
 import { Trophy, Target, Swords, Shield, Flame, Crosshair, HandMetal, Zap } from 'lucide-react'
 import type { CategoryLeader } from '@/types/dashboard'
 
@@ -50,7 +51,12 @@ export function CategoryLeadersCard({ data }: CategoryLeadersCardProps) {
               </span>
             </div>
             <p className="truncate text-sm font-semibold text-zinc-100">
-              {leader.name}
+              <Link
+                href={`/fighters/${leader.fighter_id}`}
+                className="hover:text-blue-400 hover:underline transition-colors"
+              >
+                {leader.name}
+              </Link>
             </p>
             <p className={`mt-0.5 text-lg font-bold ${colorClass}`}>
               {typeof leader.value === 'number' && leader.value % 1 !== 0

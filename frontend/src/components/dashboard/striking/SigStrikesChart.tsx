@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { useRouter } from 'next/navigation'
 import {
   ComposedChart,
   Bar,
@@ -27,6 +28,7 @@ interface SigStrikesChartProps {
 }
 
 export function SigStrikesChart({ data }: SigStrikesChartProps) {
+  const router = useRouter()
   const [activeKey, setActiveKey] = useState<MinKey>('min10')
   const fighters = data[activeKey]
 
@@ -34,6 +36,26 @@ export function SigStrikesChart({ data }: SigStrikesChartProps) {
     fighters.length > 0
       ? fighters.reduce((sum, d) => sum + d.sig_str_per_fight, 0) / fighters.length
       : 0
+
+  const FighterTick = ({ x, y, payload }: any) => {
+    const item = fighters.find((d) => d.name === payload.value)
+    return (
+      <g transform={`translate(${x},${y})`}>
+        <text
+          x={-4}
+          y={0}
+          dy={4}
+          textAnchor="end"
+          fill="#a1a1aa"
+          fontSize={11}
+          style={{ cursor: 'pointer' }}
+          onClick={() => item && router.push(`/fighters/${item.fighter_id}`)}
+        >
+          {payload.value}
+        </text>
+      </g>
+    )
+  }
 
   // dot 크기를 경기 수에 비례
   const scatterData = fighters.map((d) => ({
@@ -66,7 +88,7 @@ export function SigStrikesChart({ data }: SigStrikesChartProps) {
         <YAxis
           dataKey="name"
           type="category"
-          tick={{ fill: '#a1a1aa', fontSize: 11 }}
+          tick={<FighterTick />}
           axisLine={false}
           tickLine={false}
           width={100}

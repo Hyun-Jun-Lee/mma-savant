@@ -1,5 +1,6 @@
 'use client'
 
+import { useRouter } from 'next/navigation'
 import {
   ScatterChart,
   Scatter,
@@ -24,6 +25,7 @@ const QUADRANT_LABELS = [
 ] as const
 
 export function TdSubCorrelationChart({ data }: TdSubCorrelationChartProps) {
+  const router = useRouter()
   const { fighters, avg_td, avg_sub } = data
 
   const scatterData = fighters.map((f) => ({
@@ -31,6 +33,7 @@ export function TdSubCorrelationChart({ data }: TdSubCorrelationChartProps) {
     y: f.sub_finishes,
     name: f.name,
     fights: f.total_fights,
+    fighter_id: f.fighter_id,
   }))
 
   // 사분면별 대표 선수 (중심에서 가장 먼 선수) 인덱스 계산
@@ -126,7 +129,15 @@ export function TdSubCorrelationChart({ data }: TdSubCorrelationChartProps) {
               )
             }}
           />
-          <Scatter data={scatterData} fill="#8b5cf6" fillOpacity={0.6}>
+          <Scatter
+            data={scatterData}
+            fill="#8b5cf6"
+            fillOpacity={0.6}
+            cursor="pointer"
+            onClick={(point: any) => {
+              if (point?.fighter_id) router.push(`/fighters/${point.fighter_id}`)
+            }}
+          >
             <LabelList
               dataKey="name"
               position="top"

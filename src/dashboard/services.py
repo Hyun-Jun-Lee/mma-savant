@@ -168,6 +168,7 @@ async def get_home(session: AsyncSession) -> HomeResponseDTO:
             division_names[wc_id] = row["weight_class"]
             divisions[wc_id].append(RankingFighterDTO(
                 ranking=row["ranking"],
+                fighter_id=row["fighter_id"],
                 fighter_name=row["fighter_name"],
                 wins=row["wins"],
                 losses=row["losses"],

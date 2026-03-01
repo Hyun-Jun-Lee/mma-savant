@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import Link from 'next/link'
 import {
   Select,
   SelectContent,
@@ -83,7 +84,12 @@ export function RankingsTable({ rankings }: RankingsTableProps) {
                   )}
                 </td>
                 <td className="py-2 pr-4 font-medium text-zinc-200">
-                  {f.fighter_name}
+                  <Link
+                    href={`/fighters/${f.fighter_id}`}
+                    className="hover:text-blue-400 hover:underline transition-colors"
+                  >
+                    {f.fighter_name}
+                  </Link>
                 </td>
                 <td className="py-2 pr-4 text-right text-zinc-300">{f.wins}</td>
                 <td className="py-2 pr-4 text-right text-zinc-400">{f.losses}</td>

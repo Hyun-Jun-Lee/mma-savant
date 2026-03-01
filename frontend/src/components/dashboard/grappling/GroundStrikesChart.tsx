@@ -1,5 +1,6 @@
 'use client'
 
+import { useRouter } from 'next/navigation'
 import {
   ScatterChart,
   Scatter,
@@ -18,11 +19,14 @@ interface GroundStrikesChartProps {
 }
 
 export function GroundStrikesChart({ data }: GroundStrikesChartProps) {
+  const router = useRouter()
+
   const scatterData = data.map((d) => ({
     x: d.total_ground_attempted,
     y: d.total_ground_landed,
     z: d.accuracy,
     name: d.name,
+    fighter_id: d.fighter_id,
   }))
 
   const maxVal = Math.max(
@@ -97,7 +101,15 @@ export function GroundStrikesChart({ data }: GroundStrikesChartProps) {
             )
           }}
         />
-        <Scatter data={scatterData} fill="#10b981" fillOpacity={0.6}>
+        <Scatter
+          data={scatterData}
+          fill="#10b981"
+          fillOpacity={0.6}
+          cursor="pointer"
+          onClick={(point: any) => {
+            if (point?.fighter_id) router.push(`/fighters/${point.fighter_id}`)
+          }}
+        >
           <LabelList
             dataKey="name"
             position="top"

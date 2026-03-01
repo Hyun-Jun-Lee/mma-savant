@@ -1,5 +1,6 @@
 'use client'
 
+import { useRouter } from 'next/navigation'
 import {
   BarChart,
   Bar,
@@ -16,6 +17,28 @@ interface KoTkoLeadersChartProps {
 }
 
 export function KoTkoLeadersChart({ data }: KoTkoLeadersChartProps) {
+  const router = useRouter()
+
+  const FighterTick = ({ x, y, payload }: any) => {
+    const item = data.find((d) => d.name === payload.value)
+    return (
+      <g transform={`translate(${x},${y})`}>
+        <text
+          x={-4}
+          y={0}
+          dy={4}
+          textAnchor="end"
+          fill="#a1a1aa"
+          fontSize={11}
+          style={{ cursor: 'pointer' }}
+          onClick={() => item && router.push(`/fighters/${item.fighter_id}`)}
+        >
+          {payload.value}
+        </text>
+      </g>
+    )
+  }
+
   return (
     <ResponsiveContainer width="100%" height={280}>
       <BarChart
@@ -32,7 +55,7 @@ export function KoTkoLeadersChart({ data }: KoTkoLeadersChartProps) {
         <YAxis
           dataKey="name"
           type="category"
-          tick={{ fill: '#a1a1aa', fontSize: 11 }}
+          tick={<FighterTick />}
           axisLine={false}
           tickLine={false}
           width={100}

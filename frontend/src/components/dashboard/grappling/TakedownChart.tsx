@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { useRouter } from 'next/navigation'
 import {
   BarChart,
   Bar,
@@ -33,9 +34,30 @@ function getColor(accuracy: number) {
 }
 
 export function TakedownChart({ data }: TakedownChartProps) {
+  const router = useRouter()
   const [activeKey, setActiveKey] = useState<MinKey>('min10')
   const fighters = data[activeKey]
   const chartData = fighters.map((d) => ({ ...d, accLabel: `${d.td_accuracy}%` }))
+
+  const FighterTick = ({ x, y, payload }: any) => {
+    const item = chartData.find((d: any) => d.name === payload.value)
+    return (
+      <g transform={`translate(${x},${y})`}>
+        <text
+          x={-4}
+          y={0}
+          dy={4}
+          textAnchor="end"
+          fill="#a1a1aa"
+          fontSize={11}
+          style={{ cursor: 'pointer' }}
+          onClick={() => item && router.push(`/fighters/${item.fighter_id}`)}
+        >
+          {payload.value}
+        </text>
+      </g>
+    )
+  }
 
   return (
     <div>
@@ -63,7 +85,7 @@ export function TakedownChart({ data }: TakedownChartProps) {
         <YAxis
           dataKey="name"
           type="category"
-          tick={{ fill: '#a1a1aa', fontSize: 11 }}
+          tick={<FighterTick />}
           axisLine={false}
           tickLine={false}
           width={100}

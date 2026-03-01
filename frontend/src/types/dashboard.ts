@@ -24,6 +24,7 @@ export interface UpcomingEvent {
 
 export interface RankingFighter {
   ranking: number // 0 = 챔피언
+  fighter_id: number
   fighter_name: string
   wins: number
   losses: number
@@ -39,6 +40,7 @@ export interface WeightClassRanking {
 export interface CategoryLeader {
   category: string
   label: string
+  fighter_id: number
   name: string
   value: number
   unit: string
@@ -90,6 +92,7 @@ export interface EventTimeline {
 }
 
 export interface LeaderboardFighter {
+  fighter_id: number
   name: string
   wins: number
   losses: number
@@ -98,6 +101,7 @@ export interface LeaderboardFighter {
 }
 
 export interface WinStreakFighter {
+  fighter_id: number
   name: string
   win_streak: number
   wins: number
@@ -145,6 +149,7 @@ export interface StrikeTarget {
 }
 
 export interface StrikingAccuracyFighter {
+  fighter_id: number
   name: string
   total_sig_landed: number
   total_sig_attempted: number
@@ -152,11 +157,13 @@ export interface StrikingAccuracyFighter {
 }
 
 export interface KoTkoLeader {
+  fighter_id: number
   name: string
   ko_tko_finishes: number
 }
 
 export interface SigStrikesLeader {
+  fighter_id: number
   name: string
   sig_str_per_fight: number
   total_fights: number
@@ -169,6 +176,7 @@ export interface MinFightsLeaderboard<T> {
 }
 
 export interface KnockdownLeader {
+  fighter_id: number
   name: string
   total_knockdowns: number
   total_fights: number
@@ -182,6 +190,7 @@ export interface SigStrikesByWeightClass {
 }
 
 export interface StrikeExchange {
+  fighter_id: number
   name: string
   total_fights: number
   sig_landed_per_fight: number
@@ -209,6 +218,7 @@ export interface StrikingResponse {
 
 // ── Grappling ──
 export interface TakedownLeader {
+  fighter_id: number
   name: string
   total_td_landed: number
   total_td_attempted: number
@@ -227,6 +237,7 @@ export interface ControlTimeByClass {
 }
 
 export interface GroundStrikesLeader {
+  fighter_id: number
   name: string
   total_ground_landed: number
   total_ground_attempted: number
@@ -234,12 +245,14 @@ export interface GroundStrikesLeader {
 }
 
 export interface SubmissionEfficiencyFighter {
+  fighter_id: number
   name: string
   total_sub_attempts: number
   sub_finishes: number
 }
 
 export interface TdAttemptsLeader {
+  fighter_id: number
   name: string
   td_attempts_per_fight: number
   total_td_attempted: number
@@ -252,6 +265,7 @@ export interface TdAttemptsLeaderboard extends MinFightsLeaderboard<TdAttemptsLe
 }
 
 export interface TdSubCorrelationFighter {
+  fighter_id: number
   name: string
   total_td_landed: number
   sub_finishes: number
@@ -265,6 +279,7 @@ export interface TdSubCorrelation {
 }
 
 export interface TdDefenseLeader {
+  fighter_id: number
   name: string
   opp_td_attempted: number
   opp_td_landed: number

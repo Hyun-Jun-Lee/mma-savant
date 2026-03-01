@@ -1,5 +1,6 @@
 'use client'
 
+import { useRouter } from 'next/navigation'
 import {
   ScatterChart,
   Scatter,
@@ -20,12 +21,14 @@ interface SubmissionEfficiencyChartProps {
 export function SubmissionEfficiencyChart({
   data,
 }: SubmissionEfficiencyChartProps) {
+  const router = useRouter()
   const { fighters, avg_efficiency_ratio } = data
 
   const scatterData = fighters.map((f) => ({
     x: f.total_sub_attempts,
     y: f.sub_finishes,
     name: f.name,
+    fighter_id: f.fighter_id,
   }))
 
   const maxAttempts = Math.max(...fighters.map((f) => f.total_sub_attempts), 1)
@@ -95,7 +98,15 @@ export function SubmissionEfficiencyChart({
             )
           }}
         />
-        <Scatter data={scatterData} fill="#8b5cf6" fillOpacity={0.7}>
+        <Scatter
+          data={scatterData}
+          fill="#8b5cf6"
+          fillOpacity={0.7}
+          cursor="pointer"
+          onClick={(point: any) => {
+            if (point?.fighter_id) router.push(`/fighters/${point.fighter_id}`)
+          }}
+        >
           <LabelList
             dataKey="name"
             position="top"
