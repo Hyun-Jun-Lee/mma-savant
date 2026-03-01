@@ -7,12 +7,14 @@ import logging
 from prefect import task
 from prefect.logging import get_run_logger
 from prefect.cache_policies import NO_CACHE
+from sqlalchemy import select, update, distinct
 
 from database.connection.postgres_conn import get_async_db_context
 from fighter.repositories import get_all_fighter, delete_all_rankings
+from fighter.models import FighterModel
 from event.repositories import get_events
+from event.models import EventSchema, EventModel
 from match.repositories import get_match_fighter_mapping
-from event.models import EventSchema
 from data_collector.scrapers import (
     scrap_fighters,
     scrap_all_events,
@@ -29,6 +31,11 @@ from data_collector.workflows.data_store import (
     save_basic_match_stat,
     save_sig_str_match_stat,
     save_rankings
+)
+from data_collector.scripts.scrape_nationality import (
+    slugify_name,
+    parse_hometown_from_html,
+    extract_nationality,
 )
 
 RANDOM_DELAY = random.randint(1, 5)
@@ -244,3 +251,116 @@ async def scrap_rankings_task(crawler_fn: Callable) -> None:
         except Exception as e:
             logger.error(f"scrap_rankings_task failed: {str(e)}")
             logger.error(format_exc())
+
+
+@task(retries=2, cache_policy=NO_CACHE)
+async def enrich_fighter_nationality_task(crawler_fn: Callable) -> None:
+    logger = get_run_logger()
+    logger.info("enrich_fighter_nationality_task started")
+
+    async with get_async_db_context() as session:
+        result = await session.execute(
+            select(FighterModel.id, FighterModel.name)
+            .where(FighterModel.nationality.is_(None))
+            .order_by(FighterModel.id)
+        )
+        fighters = result.all()
+
+    logger.info(f"Found {len(fighters)} fighters without nationality")
+    if not fighters:
+        logger.info("Nothing to enrich. Skipping.")
+        return
+
+    success_count = 0
+    for i, (fighter_id, name) in enumerate(fighters, 1):
+        logger.info(f"[{i}/{len(fighters)}] Processing: {name} (id={fighter_id})")
+        profile_url = f"https://www.ufc.com/athlete/{slugify_name(name)}"
+
+        try:
+            html = await crawler_fn(profile_url)
+        except Exception as e:
+            logger.warning(f"  -> Request failed for {profile_url}: {e}")
+            await asyncio.sleep(random.uniform(1.0, 2.0))
+            continue
+
+        if not html:
+            logger.warning(f"  -> No response from {profile_url}")
+            await asyncio.sleep(random.uniform(1.0, 2.0))
+            continue
+
+        hometown = parse_hometown_from_html(html)
+        if not hometown:
+            logger.warning(f"  -> No hometown found at {profile_url}")
+            await asyncio.sleep(random.uniform(1.0, 2.0))
+            continue
+
+        nationality = extract_nationality(hometown)
+        if not nationality:
+            logger.warning(f"  -> Could not extract nationality from: {hometown}")
+            await asyncio.sleep(random.uniform(1.0, 2.0))
+            continue
+
+        async with get_async_db_context() as session:
+            await session.execute(
+                update(FighterModel)
+                .where(FighterModel.id == fighter_id)
+                .values(nationality=nationality)
+            )
+            await session.commit()
+        success_count += 1
+        logger.info(f"  -> {nationality} (hometown: {hometown})")
+
+        await asyncio.sleep(random.uniform(1.0, 2.0))
+
+    logger.info(f"enrich_fighter_nationality_task completed: {success_count}/{len(fighters)} updated")
+
+
+@task(retries=2, cache_policy=NO_CACHE)
+async def enrich_event_geocoding_task() -> None:
+    from geopy.geocoders import Nominatim
+    from geopy.extra.rate_limiter import RateLimiter
+
+    logger = get_run_logger()
+    logger.info("enrich_event_geocoding_task started")
+
+    async with get_async_db_context() as session:
+        result = await session.execute(
+            select(distinct(EventModel.location))
+            .where(EventModel.latitude.is_(None))
+            .where(EventModel.location.isnot(None))
+        )
+        locations = [row[0] for row in result.all()]
+
+    logger.info(f"Found {len(locations)} unique locations to geocode")
+    if not locations:
+        logger.info("Nothing to geocode. Skipping.")
+        return
+
+    geolocator = Nominatim(user_agent="mma-savant-geocoder", timeout=10)
+    geocode = RateLimiter(geolocator.geocode, min_delay_seconds=1.0)
+
+    success_count = 0
+    for i, loc in enumerate(locations, 1):
+        logger.info(f"[{i}/{len(locations)}] Geocoding: {loc}")
+        try:
+            result = await asyncio.to_thread(geocode, loc)
+        except Exception as e:
+            logger.error(f"  -> Error: {e}")
+            continue
+
+        if not result:
+            logger.warning(f"  -> No result found")
+            continue
+
+        lat, lng = result.latitude, result.longitude
+        async with get_async_db_context() as session:
+            await session.execute(
+                update(EventModel)
+                .where(EventModel.location == loc)
+                .values(latitude=lat, longitude=lng)
+            )
+            await session.commit()
+        success_count += 1
+        logger.info(f"  -> ({lat:.4f}, {lng:.4f})")
+
+    logger.info(f"enrich_event_geocoding_task completed: {success_count}/{len(locations)} locations geocoded")

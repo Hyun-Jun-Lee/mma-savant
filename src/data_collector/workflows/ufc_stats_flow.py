@@ -9,7 +9,9 @@ from data_collector.workflows.tasks import (
     scrap_all_events_task,
     scrap_event_detail_task,
     scrap_match_detail_task,
-    scrap_rankings_task
+    scrap_rankings_task,
+    enrich_fighter_nationality_task,
+    enrich_event_geocoding_task,
 )
 
 
@@ -26,10 +28,20 @@ async def run_ufc_stats_flow():
     await scrap_all_fighter_task(crawl_with_httpx)
     logger.info("Fighters scraping completed")
 
+    # enrich fighter nationality
+    logger.info("Fighter nationality enrichment started")
+    await enrich_fighter_nationality_task(crawl_with_httpx)
+    logger.info("Fighter nationality enrichment completed")
+
     # scrape events
     logger.info("Events scraping started")
     await scrap_all_events_task(crawl_with_httpx)
     logger.info("Events scraping completed")
+
+    # enrich event geocoding
+    logger.info("Event geocoding enrichment started")
+    await enrich_event_geocoding_task()
+    logger.info("Event geocoding enrichment completed")
 
     # scrape event details
     logger.info("Event details scraping started")
