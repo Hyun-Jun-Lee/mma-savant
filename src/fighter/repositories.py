@@ -280,7 +280,7 @@ async def get_finish_breakdown(session: AsyncSession, fighter_id: int) -> dict:
             COUNT(*) FILTER (WHERE m.method ILIKE '%%dec%%') AS decision
         FROM fighter_match fm
         JOIN "match" m ON m.id = fm.match_id
-        WHERE fm.fighter_id = :fighter_id AND fm.result = 'Win'
+        WHERE fm.fighter_id = :fighter_id AND LOWER(fm.result) = 'win'
     """)
     result = await session.execute(stmt, {"fighter_id": fighter_id})
     row = result.mappings().one()
