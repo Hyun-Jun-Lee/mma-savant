@@ -18,10 +18,10 @@ interface KnockdownLeadersChartProps {
 export function KnockdownLeadersChart({ data }: KnockdownLeadersChartProps) {
   const router = useRouter()
 
-  const FighterTick = ({ x, y, payload }: any) => {
-    const item = data.find((d) => d.name === payload.value)
+  const FighterTick = ({ x, y, payload }: { x?: number; y?: number; payload?: { value: string } }) => {
+    const item = data.find((d) => d.name === payload?.value)
     return (
-      <g transform={`translate(${x},${y})`}>
+      <g transform={`translate(${x ?? 0},${y ?? 0})`}>
         <text
           x={-4}
           y={0}
@@ -32,7 +32,7 @@ export function KnockdownLeadersChart({ data }: KnockdownLeadersChartProps) {
           style={{ cursor: 'pointer' }}
           onClick={() => item && router.push(`/fighters/${item.fighter_id}`)}
         >
-          {payload.value}
+          {payload?.value}
         </text>
       </g>
     )

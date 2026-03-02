@@ -7,7 +7,7 @@ import { useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { useChatStore } from '@/store/chatStore'
 import { ChatApiService } from '@/services/chatApi'
-import { handleApiError, ApiError } from '@/lib/api'
+import { ApiError } from '@/lib/api'
 import { ChatSession, Message } from '@/types/chat'
 import { ChatSessionResponse } from '@/types/api'
 

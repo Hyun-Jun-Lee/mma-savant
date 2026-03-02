@@ -37,10 +37,10 @@ export function StrikingAccuracyChart({ data }: StrikingAccuracyChartProps) {
   const router = useRouter()
   const [activeKey, setActiveKey] = useState<MinKey>('min10')
   const fighters = data[activeKey]
-  const FighterTick = ({ x, y, payload }: any) => {
-    const item = fighters.find((d) => d.name === payload.value)
+  const FighterTick = ({ x, y, payload }: { x?: number; y?: number; payload?: { value: string } }) => {
+    const item = fighters.find((d) => d.name === payload?.value)
     return (
-      <g transform={`translate(${x},${y})`}>
+      <g transform={`translate(${x ?? 0},${y ?? 0})`}>
         <text
           x={-4}
           y={0}
@@ -51,7 +51,7 @@ export function StrikingAccuracyChart({ data }: StrikingAccuracyChartProps) {
           style={{ cursor: 'pointer' }}
           onClick={() => item && router.push(`/fighters/${item.fighter_id}`)}
         >
-          {payload.value}
+          {payload?.value}
         </text>
       </g>
     )

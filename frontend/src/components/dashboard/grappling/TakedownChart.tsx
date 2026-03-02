@@ -39,10 +39,10 @@ export function TakedownChart({ data }: TakedownChartProps) {
   const fighters = data[activeKey]
   const chartData = fighters.map((d) => ({ ...d, accLabel: `${d.td_accuracy}%` }))
 
-  const FighterTick = ({ x, y, payload }: any) => {
-    const item = chartData.find((d: any) => d.name === payload.value)
+  const FighterTick = ({ x, y, payload }: { x?: number; y?: number; payload?: { value: string } }) => {
+    const item = chartData.find((d) => d.name === payload?.value)
     return (
-      <g transform={`translate(${x},${y})`}>
+      <g transform={`translate(${x ?? 0},${y ?? 0})`}>
         <text
           x={-4}
           y={0}
@@ -53,7 +53,7 @@ export function TakedownChart({ data }: TakedownChartProps) {
           style={{ cursor: 'pointer' }}
           onClick={() => item && router.push(`/fighters/${item.fighter_id}`)}
         >
-          {payload.value}
+          {payload?.value}
         </text>
       </g>
     )

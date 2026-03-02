@@ -37,10 +37,10 @@ export function SigStrikesChart({ data }: SigStrikesChartProps) {
       ? fighters.reduce((sum, d) => sum + d.sig_str_per_fight, 0) / fighters.length
       : 0
 
-  const FighterTick = ({ x, y, payload }: any) => {
-    const item = fighters.find((d) => d.name === payload.value)
+  const FighterTick = ({ x, y, payload }: { x?: number; y?: number; payload?: { value: string } }) => {
+    const item = fighters.find((d) => d.name === payload?.value)
     return (
-      <g transform={`translate(${x},${y})`}>
+      <g transform={`translate(${x ?? 0},${y ?? 0})`}>
         <text
           x={-4}
           y={0}
@@ -51,7 +51,7 @@ export function SigStrikesChart({ data }: SigStrikesChartProps) {
           style={{ cursor: 'pointer' }}
           onClick={() => item && router.push(`/fighters/${item.fighter_id}`)}
         >
-          {payload.value}
+          {payload?.value}
         </text>
       </g>
     )

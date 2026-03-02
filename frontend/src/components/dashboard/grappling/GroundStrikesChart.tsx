@@ -106,7 +106,7 @@ export function GroundStrikesChart({ data }: GroundStrikesChartProps) {
           fill="#10b981"
           fillOpacity={0.6}
           cursor="pointer"
-          onClick={(point: any) => {
+          onClick={(point: { fighter_id?: number }) => {
             if (point?.fighter_id) router.push(`/fighters/${point.fighter_id}`)
           }}
         >

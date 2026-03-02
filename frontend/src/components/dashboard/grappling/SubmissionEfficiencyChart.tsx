@@ -103,7 +103,7 @@ export function SubmissionEfficiencyChart({
           fill="#8b5cf6"
           fillOpacity={0.7}
           cursor="pointer"
-          onClick={(point: any) => {
+          onClick={(point: { fighter_id?: number }) => {
             if (point?.fighter_id) router.push(`/fighters/${point.fighter_id}`)
           }}
         >

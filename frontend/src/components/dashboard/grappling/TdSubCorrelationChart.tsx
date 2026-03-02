@@ -134,7 +134,7 @@ export function TdSubCorrelationChart({ data }: TdSubCorrelationChartProps) {
             fill="#8b5cf6"
             fillOpacity={0.6}
             cursor="pointer"
-            onClick={(point: any) => {
+            onClick={(point: { fighter_id?: number }) => {
               if (point?.fighter_id) router.push(`/fighters/${point.fighter_id}`)
             }}
           >

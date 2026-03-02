@@ -44,7 +44,7 @@ export function DashboardPageClient() {
   // Fetch tab data on tab switch
   useEffect(() => {
     fetchTab(activeTab)
-  }, [activeTab, fetchTab]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [activeTab, fetchTab])
 
   return (
     <div className="mx-auto max-w-7xl px-4 py-6">
