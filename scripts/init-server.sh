@@ -101,6 +101,15 @@ export SERVER_PORT=$SERVER_PORT
 envsubst '${ACTIVE_API} ${ACTIVE_WEB} ${SERVER_PORT}' < $NGINX_TEMPLATE > $NGINX_CONF
 log_success "nginx.conf generated"
 
+# 5-1. .htpasswd 생성 (Swagger Basic Auth)
+log_info "Generating .htpasswd for Swagger access..."
+SWAGGER_USER=$(grep -E "^SWAGGER_USER=" $ENV_FILE | cut -d'=' -f2)
+SWAGGER_PASSWORD=$(grep -E "^SWAGGER_PASSWORD=" $ENV_FILE | cut -d'=' -f2)
+SWAGGER_USER=${SWAGGER_USER:-admin}
+SWAGGER_PASSWORD=${SWAGGER_PASSWORD:-changeme}
+echo "${SWAGGER_USER}:$(openssl passwd -apr1 "$SWAGGER_PASSWORD")" > $PROJECT_DIR/nginx/.htpasswd
+log_success ".htpasswd generated (user: ${SWAGGER_USER})"
+
 # 6. Docker 상태 확인
 log_info "Checking Docker..."
 if ! command -v docker &> /dev/null; then

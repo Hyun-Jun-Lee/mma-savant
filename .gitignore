@@ -163,3 +163,4 @@ cython_debug/
 *versions/
 *.log.*
 .DS_Store
+nginx/.htpasswd
