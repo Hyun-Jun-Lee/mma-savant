@@ -3,7 +3,12 @@
 import { useState } from 'react'
 import Link from 'next/link'
 import type { FightHistoryItem, PerMatchStats } from '@/types/fighter'
-import { ChevronDown, ChevronRight, Star } from 'lucide-react'
+import { ChevronDown, ChevronRight, HelpCircle, Star } from 'lucide-react'
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from '@/components/ui/tooltip'
 
 interface Props {
   fights: FightHistoryItem[]
@@ -99,9 +104,22 @@ export function FightHistoryTable({ fights }: Props) {
 
   return (
     <div className="rounded-xl border border-white/[0.06] bg-white/[0.03] p-5 transition-all duration-300 ease-out hover:border-white/[0.12] hover:bg-white/[0.05]">
-      <h3 className="mb-4 text-sm font-semibold text-zinc-100">
-        Fight History ({fights.length})
-      </h3>
+      <div className="mb-4 flex items-center gap-1.5">
+        <h3 className="text-sm font-semibold text-zinc-100">
+          Fight History ({fights.length})
+        </h3>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <HelpCircle className="h-3.5 w-3.5 shrink-0 cursor-help text-zinc-600 hover:text-zinc-400 transition-colors" />
+          </TooltipTrigger>
+          <TooltipContent
+            side="top"
+            className="max-w-[240px] bg-zinc-800 text-zinc-200 border border-white/[0.06]"
+          >
+            행을 클릭하면 경기별 상세 스탯을 확인할 수 있습니다. ⭐ 표시는 해당 경기가 메인 이벤트였음을 나타냅니다.
+          </TooltipContent>
+        </Tooltip>
+      </div>
 
       {/* Desktop table header */}
       <div className="hidden text-[10px] font-semibold uppercase tracking-wider text-zinc-600 sm:grid sm:grid-cols-[2rem_3.5rem_1fr_1fr_7rem_3.5rem_5.5rem]  sm:gap-2 sm:px-2 sm:pb-2">
