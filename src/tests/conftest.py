@@ -44,11 +44,11 @@ async def clean_test_session():
     from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
     from sqlalchemy.orm import sessionmaker
     from config import get_database_url
-    
+
     # 각 테스트마다 새로운 엔진과 세션 생성
     engine = create_async_engine(get_database_url(is_test=True), echo=False)
     session_factory = sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
-    
+
     session = session_factory()
     try:
         yield session
@@ -134,7 +134,7 @@ async def fighter_with_rankings(clean_test_session):
     )
     clean_test_session.add(fighter)
     await clean_test_session.flush()
-    
+
     # 랭킹 정보 추가
     rankings = [
         RankingModel(fighter_id=fighter.id, weight_class_id=4, ranking=3),  # Lightweight
@@ -142,7 +142,7 @@ async def fighter_with_rankings(clean_test_session):
     ]
     clean_test_session.add_all(rankings)
     await clean_test_session.flush()
-    
+
     return fighter, rankings
 
 
@@ -160,7 +160,7 @@ async def weight_class_fighters(clean_test_session):
     ]
     clean_test_session.add_all(fighters)
     await clean_test_session.flush()
-    
+
     # Lightweight(4) 체급 랭킹 추가
     rankings = [
         RankingModel(fighter_id=fighters[0].id, weight_class_id=4, ranking=1),
@@ -169,7 +169,7 @@ async def weight_class_fighters(clean_test_session):
     ]
     clean_test_session.add_all(rankings)
     await clean_test_session.flush()
-    
+
     return fighters, rankings
 
 
@@ -180,11 +180,11 @@ def normalized_name_test_cases():
     이름 정규화 관련 테스트용
     """
     return [
-        ("José Aldó", "jose aldo"),
+        ("Jos\u00e9 Ald\u00f3", "jose aldo"),
         ("Khabib Nurmagomedov", "khabib nurmagomedov"),
         ("Conor McGregor", "conor mcgregor"),
         ("ANDERSON SILVA", "anderson silva"),
-        ("Fédor Emelianenko", "fedor emelianenko"),
+        ("F\u00e9dor Emelianenko", "fedor emelianenko"),
         ("Israel Adesanya", "israel adesanya")
     ]
 
@@ -289,7 +289,7 @@ async def match_with_fighters(sample_match, sample_fighter, clean_test_session):
     )
     clean_test_session.add(fighter2)
     await clean_test_session.flush()
-    
+
     # FighterMatch 관계 생성
     fighter_matches = [
         FighterMatchModel(
@@ -305,7 +305,7 @@ async def match_with_fighters(sample_match, sample_fighter, clean_test_session):
     ]
     clean_test_session.add_all(fighter_matches)
     await clean_test_session.flush()
-    
+
     return sample_match, [sample_fighter, fighter2], fighter_matches
 
 
@@ -316,7 +316,7 @@ async def match_with_statistics(match_with_fighters, clean_test_session):
     매치 통계 테스트용
     """
     match, fighters, fighter_matches = match_with_fighters
-    
+
     # 기본 매치 통계 생성
     basic_stats = [
         BasicMatchStatModel(
@@ -346,7 +346,7 @@ async def match_with_statistics(match_with_fighters, clean_test_session):
             round=3
         )
     ]
-    
+
     # 스트라이크 세부 통계 생성
     strike_stats = [
         SigStrMatchStatModel(
@@ -374,10 +374,10 @@ async def match_with_statistics(match_with_fighters, clean_test_session):
             round=3
         )
     ]
-    
+
     clean_test_session.add_all(basic_stats + strike_stats)
     await clean_test_session.flush()
-    
+
     return match, fighters, fighter_matches, basic_stats, strike_stats
 
 
@@ -399,7 +399,7 @@ async def multiple_matches_for_event(sample_event, clean_test_session):
         ),
         MatchModel(
             event_id=sample_event.id,
-            weight_class_id=5,  # Welterweight  
+            weight_class_id=5,  # Welterweight
             method="Submission",
             result_round=1,
             time="4:55",
@@ -434,7 +434,7 @@ async def fighters_with_multiple_matches(clean_test_session):
     ]
     clean_test_session.add_all(fighters)
     await clean_test_session.flush()
-    
+
     # 이벤트 생성
     events = [
         EventModel(name="UFC Event 1", event_date=date(2024, 1, 1), location="Vegas"),
@@ -443,7 +443,7 @@ async def fighters_with_multiple_matches(clean_test_session):
     ]
     clean_test_session.add_all(events)
     await clean_test_session.flush()
-    
+
     # 매치들 생성
     matches = [
         MatchModel(event_id=events[0].id, weight_class_id=5, method="Decision", result_round=3, time="15:00", order=1, is_main_event=False),
@@ -452,7 +452,7 @@ async def fighters_with_multiple_matches(clean_test_session):
     ]
     clean_test_session.add_all(matches)
     await clean_test_session.flush()
-    
+
     # FighterMatch 관계 생성 (두 파이터가 3번 싸움)
     fighter_matches = []
     for i, match in enumerate(matches):
@@ -461,10 +461,10 @@ async def fighters_with_multiple_matches(clean_test_session):
             FighterMatchModel(fighter_id=fighters[0].id, match_id=match.id, result="win"),
             FighterMatchModel(fighter_id=fighters[1].id, match_id=match.id, result="loss")
         ])
-    
+
     clean_test_session.add_all(fighter_matches)
     await clean_test_session.flush()
-    
+
     return fighters, matches, fighter_matches
 
 
@@ -483,7 +483,7 @@ async def multiple_events_different_dates(clean_test_session):
             location="Las Vegas, NV"
         ),
         EventModel(
-            name="UFC 291", 
+            name="UFC 291",
             event_date=date(2024, 3, 20),
             location="Miami, FL"
         ),
@@ -503,7 +503,7 @@ async def multiple_events_different_dates(clean_test_session):
     return events
 
 
-@pytest_asyncio.fixture  
+@pytest_asyncio.fixture
 async def multiple_events_different_names(clean_test_session):
     """
     다양한 이름의 이벤트들 생성
@@ -544,7 +544,7 @@ async def events_past_and_future(clean_test_session):
     """
     from datetime import timedelta
     today = utc_today()
-    
+
     # 과거 이벤트들
     past_events = [
         EventModel(
@@ -553,7 +553,7 @@ async def events_past_and_future(clean_test_session):
             location="Las Vegas, NV"
         ),
         EventModel(
-            name="UFC Past Event 2", 
+            name="UFC Past Event 2",
             event_date=today - timedelta(days=15),
             location="New York, NY"
         ),
@@ -563,7 +563,7 @@ async def events_past_and_future(clean_test_session):
             location="Los Angeles, CA"
         )
     ]
-    
+
     # 미래 이벤트들
     future_events = [
         EventModel(
@@ -582,11 +582,11 @@ async def events_past_and_future(clean_test_session):
             location="London, UK"
         )
     ]
-    
+
     all_events = past_events + future_events
     clean_test_session.add_all(all_events)
     await clean_test_session.flush()
-    
+
     return past_events, future_events
 
 
@@ -667,9 +667,10 @@ async def dashboard_data(clean_test_session):
     데이터 구성:
     - 3명의 파이터 (A, B: 5전 이상, C: 4전 — HAVING >= 5 필터 테스트용)
     - 7개의 이벤트 (5 past, 2 future)
-    - 9개의 매치: wc=4 (LW) 7개 + wc=5 (WW) 2개
-    - 18개의 fighter_match / match_statistics / strike_detail 기록
+    - 13개의 매치: wc=4 (LW) 10개 + wc=5 (WW) 3개
+    - fighter_match / match_statistics / strike_detail 기록
     - 2개의 ranking 기록
+    - finish_rate_trend용: 단일 연도에 13매치가 모이도록 이벤트 날짜를 같은 연도로 배치
     """
     session = clean_test_session
     today = date.today()
@@ -685,11 +686,14 @@ async def dashboard_data(clean_test_session):
     await session.flush()
 
     # === Events (5 past + 2 future) ===
+    # 모든 past 이벤트가 같은 연도(작년)에 속하도록 배치
+    # finish_rate_trend HAVING COUNT(*) >= 10 충족
+    last_year = today.replace(year=today.year - 1)
     events = [
-        EventModel(name="UFC Test 301", event_date=today - timedelta(days=400), location="Las Vegas, NV"),
-        EventModel(name="UFC Test 302", event_date=today - timedelta(days=300), location="New York, NY"),
-        EventModel(name="UFC Test 303", event_date=today - timedelta(days=120), location="London, UK"),
-        EventModel(name="UFC Test 304", event_date=today - timedelta(days=60), location="Abu Dhabi, UAE"),
+        EventModel(name="UFC Test 301", event_date=last_year.replace(month=2, day=15), location="Las Vegas, NV"),
+        EventModel(name="UFC Test 302", event_date=last_year.replace(month=4, day=20), location="New York, NY"),
+        EventModel(name="UFC Test 303", event_date=last_year.replace(month=7, day=10), location="London, UK"),
+        EventModel(name="UFC Test 304", event_date=last_year.replace(month=9, day=15), location="Abu Dhabi, UAE"),
         EventModel(name="UFC Test 305", event_date=today - timedelta(days=14), location="Miami, FL"),
         EventModel(name="UFC Test 306", event_date=today + timedelta(days=14), location="Tokyo, Japan"),
         EventModel(name="UFC Test 307", event_date=today + timedelta(days=45), location="Sydney, Australia"),
