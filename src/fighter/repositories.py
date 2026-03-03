@@ -204,6 +204,7 @@ async def get_fight_history(session: AsyncSession, fighter_id: int) -> list[dict
             MatchModel.time,
             MatchModel.is_main_event,
             MatchModel.weight_class_id,
+            EventModel.id.label("event_id"),
             EventModel.name.label("event_name"),
             EventModel.event_date,
             opp_f.id.label("opponent_id"),

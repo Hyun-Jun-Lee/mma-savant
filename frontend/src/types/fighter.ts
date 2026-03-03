@@ -99,6 +99,7 @@ export interface FightHistoryItem {
   method: string | null
   round: number | null
   time: string | null
+  event_id: number | null
   event_name: string | null
   event_date: string | null
   weight_class: string | null

@@ -135,6 +135,7 @@ class FightHistoryItemDTO(BaseModel):
     method: Optional[str] = None
     round: Optional[int] = None
     time: Optional[str] = None
+    event_id: Optional[int] = None
     event_name: Optional[str] = None
     event_date: Optional[date] = None
     weight_class: Optional[str] = None

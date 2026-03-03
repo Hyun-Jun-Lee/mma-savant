@@ -362,6 +362,7 @@ async def get_fighter_detail(session: AsyncSession, fighter_id: int) -> FighterD
                 method=row.get("method"),
                 round=row.get("result_round"),
                 time=row.get("time"),
+                event_id=row.get("event_id"),
                 event_name=row.get("event_name"),
                 event_date=row.get("event_date"),
                 weight_class=wc_name,
