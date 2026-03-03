@@ -35,11 +35,11 @@ export function PieChartVisualization({ data, xAxis, yAxis }: PieChartVisualizat
     typeof sampleRow[key] === 'number'
   ) || Object.keys(sampleRow)[1]
 
-  // 파이 차트용 색상 팔레트
+  // 대시보드 시맨틱 컬러 기반 팔레트
   const colors = [
-    "#8884d8", "#82ca9d", "#ffc658", "#ff7c7c", "#8dd1e1",
-    "#d084d0", "#87ceeb", "#dda0dd", "#98fb98", "#f0e68c",
-    "#ffb347", "#deb887", "#ff6347", "#40e0d0", "#ee82ee"
+    "#8b5cf6", "#10b981", "#f59e0b", "#ef4444", "#06b6d4",
+    "#a855f7", "#f97316", "#14b8a6", "#60a5fa", "#71717a",
+    "#ec4899", "#84cc16", "#e879f9", "#22d3ee", "#fb923c"
   ]
 
   // 데이터 정규화 (name, value 형태로 변환)
@@ -80,11 +80,13 @@ export function PieChartVisualization({ data, xAxis, yAxis }: PieChartVisualizat
           </Pie>
           <Tooltip
             contentStyle={{
-              backgroundColor: "#374151",
-              border: "1px solid #6b7280",
+              backgroundColor: "#18181b",
+              border: "1px solid rgba(255,255,255,0.06)",
               borderRadius: "8px",
-              color: "#f9fafb"
+              fontSize: "12px",
             }}
+            itemStyle={{ color: '#e4e4e7' }}
+            labelStyle={{ color: '#a1a1aa' }}
             formatter={(value: number) => [
               `${value.toLocaleString()} (${((value / total) * 100).toFixed(1)}%)`,
               valueKey

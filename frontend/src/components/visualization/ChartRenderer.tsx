@@ -66,7 +66,7 @@ export function ChartRenderer({ data }: ChartRendererProps) {
   return (
     <div className="w-full max-w-4xl space-y-4">
       {/* 메인 시각화 카드 */}
-      <Card className="bg-zinc-800/50 backdrop-blur-sm border-zinc-700">
+      <Card className="bg-white/[0.03] backdrop-blur-sm border-white/[0.06]">
         <CardHeader className="pb-3">
           <CardTitle className="flex items-center gap-2 text-white text-lg">
             {getIcon()}
@@ -80,7 +80,7 @@ export function ChartRenderer({ data }: ChartRendererProps) {
 
       {/* 인사이트 요약 (text_summary가 아닌 경우에만 표시) */}
       {selected_visualization !== "text_summary" && insights.length > 0 && (
-        <Card className="bg-zinc-800/30 backdrop-blur-sm border-zinc-700/50">
+        <Card className="bg-white/[0.02] backdrop-blur-sm border-white/[0.06]">
           <CardHeader className="pb-3">
             <CardTitle className="flex items-center gap-2 text-white text-base">
               <MessageSquare className="w-4 h-4" />

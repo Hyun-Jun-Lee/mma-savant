@@ -25,7 +25,7 @@ export function UserTable({ users, onEditUser, currentUserId }: UserTableProps) 
     <div className="overflow-x-auto">
       <table className="w-full border-collapse">
         <thead>
-          <tr className="border-b border-white/10 bg-white/5">
+          <tr className="border-b border-white/[0.06] bg-white/5">
             <th className="text-left p-3 font-medium text-zinc-300">사용자</th>
             <th className="text-left p-3 font-medium text-zinc-300">상태</th>
             <th className="text-center p-3 font-medium text-zinc-300">일일 사용량</th>
@@ -38,7 +38,7 @@ export function UserTable({ users, onEditUser, currentUserId }: UserTableProps) 
           {users.map((user) => (
             <tr
               key={user.id}
-              className="border-b border-white/10 hover:bg-white/5 transition-colors"
+              className="border-b border-white/[0.03] hover:bg-white/5 transition-colors"
             >
               {/* User Info */}
               <td className="p-3">

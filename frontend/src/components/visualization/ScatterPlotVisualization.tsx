@@ -51,30 +51,34 @@ export function ScatterPlotVisualization({ data, xAxis, yAxis }: ScatterPlotVisu
         <ScatterChart
           margin={{ top: 20, right: 30, left: 20, bottom: 5 }}
         >
-          <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
+          <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" />
           <XAxis
             type="number"
             dataKey="x"
             name={xAxisKey}
-            stroke="#9ca3af"
-            fontSize={12}
+            tick={{ fill: '#52525b', fontSize: 11 }}
+            axisLine={false}
+            tickLine={false}
           />
           <YAxis
             type="number"
             dataKey="y"
             name={yAxisKey}
-            stroke="#9ca3af"
-            fontSize={12}
+            tick={{ fill: '#52525b', fontSize: 11 }}
+            axisLine={false}
+            tickLine={false}
           />
           <ZAxis type="number" dataKey="z" range={[50, 200]} />
           <Tooltip
             cursor={{ strokeDasharray: "3 3" }}
             contentStyle={{
-              backgroundColor: "#374151",
-              border: "1px solid #6b7280",
+              backgroundColor: "#18181b",
+              border: "1px solid rgba(255,255,255,0.06)",
               borderRadius: "8px",
-              color: "#f9fafb"
+              fontSize: "12px",
             }}
+            itemStyle={{ color: '#e4e4e7' }}
+            labelStyle={{ color: '#a1a1aa' }}
             formatter={(value: number, name: string) => [
               value.toLocaleString(),
               name === "x" ? xAxisKey : name === "y" ? yAxisKey : name
@@ -84,7 +88,7 @@ export function ScatterPlotVisualization({ data, xAxis, yAxis }: ScatterPlotVisu
           <Scatter
             name="데이터 포인트"
             data={scatterData}
-            fill="#8884d8"
+            fill="#8b5cf6"
           />
         </ScatterChart>
       </ResponsiveContainer>

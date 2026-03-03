@@ -36,10 +36,10 @@ export function LineChartVisualization({ data, xAxis, yAxis }: LineChartVisualiz
   const xAxisKey = xAxis || Object.keys(sampleRow)[0]
   const yAxisKeys = yAxis ? [yAxis] : numericFields
 
-  // 색상 팔레트
+  // 대시보드 시맨틱 컬러 기반 팔레트
   const colors = [
-    "#8884d8", "#82ca9d", "#ffc658", "#ff7c7c", "#8dd1e1",
-    "#d084d0", "#87ceeb", "#dda0dd", "#98fb98", "#f0e68c"
+    "#8b5cf6", "#10b981", "#f59e0b", "#ef4444", "#06b6d4",
+    "#a855f7", "#f97316", "#14b8a6", "#60a5fa", "#71717a"
   ]
 
   return (
@@ -49,23 +49,27 @@ export function LineChartVisualization({ data, xAxis, yAxis }: LineChartVisualiz
           data={data}
           margin={{ top: 20, right: 30, left: 20, bottom: 5 }}
         >
-          <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
+          <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" />
           <XAxis
             dataKey={xAxisKey}
-            stroke="#9ca3af"
-            fontSize={12}
+            tick={{ fill: '#52525b', fontSize: 11 }}
+            axisLine={false}
+            tickLine={false}
           />
           <YAxis
-            stroke="#9ca3af"
-            fontSize={12}
+            tick={{ fill: '#52525b', fontSize: 11 }}
+            axisLine={false}
+            tickLine={false}
           />
           <Tooltip
             contentStyle={{
-              backgroundColor: "#374151",
-              border: "1px solid #6b7280",
+              backgroundColor: "#18181b",
+              border: "1px solid rgba(255,255,255,0.06)",
               borderRadius: "8px",
-              color: "#f9fafb"
+              fontSize: "12px",
             }}
+            itemStyle={{ color: '#e4e4e7' }}
+            labelStyle={{ color: '#a1a1aa' }}
           />
           {yAxisKeys.length > 1 && <Legend />}
 

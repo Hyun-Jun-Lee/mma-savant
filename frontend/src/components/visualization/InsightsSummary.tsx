@@ -32,7 +32,7 @@ export function InsightsSummary({ insights }: InsightsSummaryProps) {
       {insights.map((insight, index) => (
         <div
           key={index}
-          className="flex items-start gap-3 p-3 bg-zinc-700/30 rounded-lg border border-zinc-600/30 hover:bg-zinc-700/50 transition-colors"
+          className="flex items-start gap-3 p-3 bg-white/[0.03] rounded-lg border border-white/[0.06] hover:bg-white/[0.05] transition-colors"
         >
           <div className="mt-0.5 shrink-0">
             {getInsightIcon(insight)}
@@ -44,7 +44,7 @@ export function InsightsSummary({ insights }: InsightsSummaryProps) {
       ))}
 
       {/* 인사이트 개수 표시 */}
-      <div className="pt-2 text-xs text-zinc-500 text-center border-t border-zinc-700/50">
+      <div className="pt-2 text-xs text-zinc-500 text-center border-t border-white/[0.06]">
         총 {insights.length}개의 인사이트
       </div>
     </div>

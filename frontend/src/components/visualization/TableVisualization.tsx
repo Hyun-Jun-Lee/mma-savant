@@ -22,7 +22,7 @@ export function TableVisualization({ data }: TableVisualizationProps) {
     <div className="overflow-x-auto">
       <table className="w-full text-sm">
         <thead>
-          <tr className="border-b border-zinc-600">
+          <tr className="border-b border-white/[0.06]">
             {columns.map((column) => (
               <th
                 key={column}
@@ -37,7 +37,7 @@ export function TableVisualization({ data }: TableVisualizationProps) {
           {data.map((row, index) => (
             <tr
               key={index}
-              className="border-b border-zinc-700/50 hover:bg-zinc-700/20 transition-colors"
+              className="border-b border-white/[0.03] last:border-0 hover:bg-white/[0.04] transition-colors"
             >
               {columns.map((column) => (
                 <td
