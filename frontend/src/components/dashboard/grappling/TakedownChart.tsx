@@ -12,8 +12,11 @@ import {
   Cell,
   LabelList,
 } from 'recharts'
-import { PillTabs } from '../PillTabs'
+import { ChevronDown } from 'lucide-react'
+import { toTitleCase } from '@/lib/utils'
+import { PillTabs, TabContent } from '../PillTabs'
 import type { MinFightsLeaderboard, TakedownLeader } from '@/types/dashboard'
+import { ChartTooltip } from '../ChartTooltip'
 
 const TABS = [
   { key: 'min10', label: '10+ Fights' },
@@ -36,8 +39,10 @@ function getColor(accuracy: number) {
 export function TakedownChart({ data }: TakedownChartProps) {
   const router = useRouter()
   const [activeKey, setActiveKey] = useState<MinKey>('min10')
+  const [expanded, setExpanded] = useState(false)
   const fighters = data[activeKey]
-  const chartData = fighters.map((d) => ({ ...d, accLabel: `${d.td_accuracy}%` }))
+  const displayFighters = expanded ? fighters : fighters.slice(0, 5)
+  const chartData = displayFighters.map((d) => ({ ...d, accLabel: `${d.td_accuracy}%` }))
 
   const FighterTick = ({ x, y, payload }: { x?: number; y?: number; payload?: { value: string } }) => {
     const item = chartData.find((d) => d.name === payload?.value)
@@ -52,8 +57,10 @@ export function TakedownChart({ data }: TakedownChartProps) {
           fontSize={11}
           style={{ cursor: 'pointer' }}
           onClick={() => item && router.push(`/fighters/${item.fighter_id}`)}
+          onMouseEnter={(e) => { e.currentTarget.setAttribute('fill', '#60a5fa') }}
+          onMouseLeave={(e) => { e.currentTarget.setAttribute('fill', '#a1a1aa') }}
         >
-          {payload?.value}
+          {toTitleCase(payload?.value ?? '')}
         </text>
       </g>
     )
@@ -69,7 +76,8 @@ export function TakedownChart({ data }: TakedownChartProps) {
           size="sm"
         />
       </div>
-    <ResponsiveContainer width="100%" height={280}>
+    <TabContent activeKey={activeKey}>
+    <ResponsiveContainer width="100%" height={expanded ? 320 : 180}>
       <BarChart
         data={chartData}
         layout="vertical"
@@ -92,14 +100,17 @@ export function TakedownChart({ data }: TakedownChartProps) {
         />
         <Tooltip
           cursor={{ fill: 'rgba(255,255,255,0.04)' }}
-          contentStyle={{
-            backgroundColor: '#18181b',
-            border: '1px solid rgba(255,255,255,0.06)',
-            borderRadius: '8px',
-            fontSize: '12px',
+          content={({ active, payload, label }) => {
+            if (!active || !payload?.length) return null
+            const d = payload[0]?.payload as TakedownLeader & { accLabel: string }
+            return (
+              <ChartTooltip active={active} label={label}>
+                <p className="text-zinc-400">Landed: {d.total_td_landed}</p>
+                <p className="text-zinc-400">Attempted: {d.total_td_attempted}</p>
+                <p className="text-zinc-400">Accuracy: {d.td_accuracy}%</p>
+              </ChartTooltip>
+            )
           }}
-          itemStyle={{ color: '#e4e4e7' }}
-          labelStyle={{ color: '#a1a1aa' }}
         />
         {/* Attempted (background bar) */}
         <Bar
@@ -109,6 +120,9 @@ export function TakedownChart({ data }: TakedownChartProps) {
           barSize={16}
           radius={[0, 3, 3, 0]}
           name="Attempted"
+          animationBegin={200}
+          animationDuration={900}
+          animationEasing="ease-out"
         />
         {/* Landed (foreground bar) */}
         <Bar
@@ -116,6 +130,9 @@ export function TakedownChart({ data }: TakedownChartProps) {
           barSize={16}
           radius={[0, 3, 3, 0]}
           name="Landed"
+          animationBegin={500}
+          animationDuration={900}
+          animationEasing="ease-out"
         >
           <LabelList
             dataKey="accLabel"
@@ -128,6 +145,16 @@ export function TakedownChart({ data }: TakedownChartProps) {
         </Bar>
       </BarChart>
     </ResponsiveContainer>
+    {fighters.length > 5 && (
+      <button
+        onClick={() => setExpanded(!expanded)}
+        className="mt-2 flex w-full items-center justify-center gap-1 rounded-lg py-1.5 text-xs text-zinc-500 transition-colors hover:bg-white/[0.04] hover:text-zinc-300"
+      >
+        <ChevronDown className={`h-3.5 w-3.5 transition-transform ${expanded ? 'rotate-180' : ''}`} />
+        {expanded ? 'Show Less' : `Show All ${fighters.length}`}
+      </button>
+    )}
+    </TabContent>
     </div>
   )
 }

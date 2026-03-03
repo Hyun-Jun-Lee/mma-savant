@@ -12,7 +12,9 @@ import {
   ReferenceLine,
   Cell,
 } from 'recharts'
-import { PillTabs } from '../PillTabs'
+import { ChevronDown } from 'lucide-react'
+import { toTitleCase } from '@/lib/utils'
+import { PillTabs, TabContent } from '../PillTabs'
 import type { MinFightsLeaderboard, StrikeExchange } from '@/types/dashboard'
 
 const TABS = [
@@ -30,10 +32,12 @@ interface StrikeExchangeChartProps {
 export function StrikeExchangeChart({ data }: StrikeExchangeChartProps) {
   const router = useRouter()
   const [activeKey, setActiveKey] = useState<MinKey>('min10')
+  const [expanded, setExpanded] = useState(false)
   const fighters = data[activeKey]
+  const displayFighters = expanded ? fighters : fighters.slice(0, 5)
 
   const FighterTick = ({ x, y, payload }: { x?: number; y?: number; payload?: { value: string } }) => {
-    const item = fighters.find((d) => d.name === payload?.value)
+    const item = displayFighters.find((d) => d.name === payload?.value)
     return (
       <g transform={`translate(${x ?? 0},${y ?? 0})`}>
         <text
@@ -45,14 +49,16 @@ export function StrikeExchangeChart({ data }: StrikeExchangeChartProps) {
           fontSize={11}
           style={{ cursor: 'pointer' }}
           onClick={() => item && router.push(`/fighters/${item.fighter_id}`)}
+          onMouseEnter={(e) => { e.currentTarget.setAttribute('fill', '#60a5fa') }}
+          onMouseLeave={(e) => { e.currentTarget.setAttribute('fill', '#a1a1aa') }}
         >
-          {payload?.value}
+          {toTitleCase(payload?.value ?? '')}
         </text>
       </g>
     )
   }
 
-  const chartData = fighters.map((f) => ({
+  const chartData = displayFighters.map((f) => ({
     name: f.name,
     fighter_id: f.fighter_id,
     differential: f.differential_per_fight,
@@ -70,7 +76,8 @@ export function StrikeExchangeChart({ data }: StrikeExchangeChartProps) {
           size="sm"
         />
       </div>
-      <ResponsiveContainer width="100%" height={280}>
+      <TabContent activeKey={activeKey}>
+      <ResponsiveContainer width="100%" height={expanded ? 320 : 180}>
         <BarChart
           data={chartData}
           layout="vertical"
@@ -105,7 +112,7 @@ export function StrikeExchangeChart({ data }: StrikeExchangeChartProps) {
             }}
           />
           <ReferenceLine x={0} stroke="#3f3f46" />
-          <Bar dataKey="differential" barSize={16} radius={[0, 4, 4, 0]} name="Differential">
+          <Bar dataKey="differential" barSize={16} radius={[0, 4, 4, 0]} name="Differential" animationBegin={500} animationDuration={1200} animationEasing="ease-out">
             {chartData.map((entry, i) => (
               <Cell
                 key={i}
@@ -116,6 +123,16 @@ export function StrikeExchangeChart({ data }: StrikeExchangeChartProps) {
           </Bar>
         </BarChart>
       </ResponsiveContainer>
+      {fighters.length > 5 && (
+        <button
+          onClick={() => setExpanded(!expanded)}
+          className="mt-2 flex w-full items-center justify-center gap-1 rounded-lg py-1.5 text-xs text-zinc-500 transition-colors hover:bg-white/[0.04] hover:text-zinc-300"
+        >
+          <ChevronDown className={`h-3.5 w-3.5 transition-transform ${expanded ? 'rotate-180' : ''}`} />
+          {expanded ? 'Show Less' : `Show All ${fighters.length}`}
+        </button>
+      )}
+      </TabContent>
     </div>
   )
 }

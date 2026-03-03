@@ -10,16 +10,18 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { ChartCard } from '../ChartCard'
-import { Trophy } from 'lucide-react'
+import { Crown } from 'lucide-react'
+import { toTitleCase } from '@/lib/utils'
 import type { WeightClassRanking } from '@/types/dashboard'
 
 interface RankingsTableProps {
   rankings: WeightClassRanking[]
+  index?: number
 }
 
 const P4P_NAME = "Men's Pound-for-Pound"
 
-export function RankingsTable({ rankings }: RankingsTableProps) {
+export function RankingsTable({ rankings, index }: RankingsTableProps) {
   const defaultId =
     rankings.find(
       (r) => r.weight_class.toLowerCase() === P4P_NAME.toLowerCase()
@@ -56,8 +58,9 @@ export function RankingsTable({ rankings }: RankingsTableProps) {
     <ChartCard
       title="Rankings"
       description="Current UFC rankings by weight class"
-      tooltip="UFC 공식 랭킹입니다. 드롭다운으로 체급을 선택하세요. 트로피 아이콘은 현 챔피언입니다."
+      tooltip="UFC 공식 랭킹입니다. 드롭다운으로 체급을 선택하세요. 왕관 아이콘은 현 챔피언입니다."
       headerRight={dropdown}
+      index={index}
     >
       <div className="overflow-x-auto">
         <table className="w-full text-left text-sm">
@@ -78,7 +81,7 @@ export function RankingsTable({ rankings }: RankingsTableProps) {
               >
                 <td className="py-2 pr-4">
                   {f.ranking === 0 ? (
-                    <Trophy className="h-4 w-4 text-amber-500" />
+                    <Crown className="h-4 w-4 text-amber-500" />
                   ) : (
                     <span className="text-xs text-zinc-500">#{f.ranking}</span>
                   )}
@@ -88,7 +91,7 @@ export function RankingsTable({ rankings }: RankingsTableProps) {
                     href={`/fighters/${f.fighter_id}`}
                     className="hover:text-blue-400 hover:underline transition-colors"
                   >
-                    {f.fighter_name}
+                    {toTitleCase(f.fighter_name)}
                   </Link>
                 </td>
                 <td className="py-2 pr-4 text-right text-zinc-300">{f.wins}</td>

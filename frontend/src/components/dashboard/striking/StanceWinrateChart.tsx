@@ -45,7 +45,7 @@ export function StanceWinrateChart({ data }: StanceWinrateChartProps) {
         </thead>
         <tbody>
           {STANCES.map((winner) => (
-            <tr key={winner} className="border-t border-white/[0.04]">
+            <tr key={winner} className="border-t border-white/[0.03]">
               <td className="px-2 py-2.5 font-medium text-zinc-300">{winner}</td>
               {STANCES.map((loser) => {
                 const cell = matrix[winner][loser]

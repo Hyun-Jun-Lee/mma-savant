@@ -9,8 +9,9 @@ import {
   Legend,
 } from 'recharts'
 import type { FinishMethod } from '@/types/dashboard'
+import { FINISH_COLORS } from '@/lib/utils'
 
-const COLORS = ['#8b5cf6', '#06b6d4', '#10b981', '#f59e0b', '#ef4444', '#ec4899']
+const FALLBACK_COLORS = ['#8b5cf6', '#06b6d4', '#10b981', '#f59e0b', '#ef4444', '#ec4899']
 
 interface FinishMethodsChartProps {
   data: FinishMethod[]
@@ -32,9 +33,14 @@ export function FinishMethodsChart({ data }: FinishMethodsChartProps) {
           innerRadius={60}
           outerRadius={100}
           strokeWidth={0}
+          animationBegin={400}
+          animationDuration={1400}
+          animationEasing="ease-out"
+          startAngle={90}
+          endAngle={-270}
         >
-          {data.map((_, i) => (
-            <Cell key={i} fill={COLORS[i % COLORS.length]} />
+          {data.map((d, i) => (
+            <Cell key={i} fill={FINISH_COLORS[d.method_category] ?? FALLBACK_COLORS[i % FALLBACK_COLORS.length]} />
           ))}
         </Pie>
         <Tooltip

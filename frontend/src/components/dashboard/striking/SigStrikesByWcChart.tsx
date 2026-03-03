@@ -9,25 +9,31 @@ import {
   ResponsiveContainer,
 } from 'recharts'
 import type { SigStrikesByWeightClass } from '@/types/dashboard'
+import { abbreviateWeightClass } from '@/lib/utils'
 
 interface SigStrikesByWcChartProps {
   data: SigStrikesByWeightClass[]
 }
 
+const EXCLUDED_CLASSES = new Set(['open weight', 'catch weight'])
+
 export function SigStrikesByWcChart({ data }: SigStrikesByWcChartProps) {
-  const filtered = data.filter((d) => d.weight_class.toLowerCase() !== 'open weight')
+  const filtered = data
+    .filter((d) => !EXCLUDED_CLASSES.has(d.weight_class.toLowerCase()))
+    .map((d) => ({ ...d, short: abbreviateWeightClass(d.weight_class) }))
 
   return (
     <ResponsiveContainer width="100%" height={280}>
       <BarChart data={filtered} margin={{ top: 5, right: 10, left: -10, bottom: 0 }}>
         <XAxis
-          dataKey="weight_class"
-          tick={{ fill: '#52525b', fontSize: 10 }}
+          dataKey="short"
+          tick={{ fill: '#a1a1aa', fontSize: 10 }}
           axisLine={false}
           tickLine={false}
-          angle={-30}
+          interval={0}
+          angle={-35}
           textAnchor="end"
-          height={50}
+          height={60}
         />
         <YAxis
           tick={{ fill: '#52525b', fontSize: 11 }}
@@ -51,6 +57,9 @@ export function SigStrikesByWcChart({ data }: SigStrikesByWcChartProps) {
           radius={[4, 4, 0, 0]}
           barSize={20}
           name="Avg Sig. Strikes/Fight"
+          animationBegin={500}
+          animationDuration={1200}
+          animationEasing="ease-out"
         />
       </BarChart>
     </ResponsiveContainer>

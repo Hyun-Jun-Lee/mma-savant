@@ -37,15 +37,6 @@ export interface WeightClassRanking {
   fighters: RankingFighter[]
 }
 
-export interface CategoryLeader {
-  category: string
-  label: string
-  fighter_id: number
-  name: string
-  value: number
-  unit: string
-}
-
 export interface EventMapLocation {
   location: string
   latitude: number
@@ -65,7 +56,6 @@ export interface HomeResponse {
   recent_events: RecentEvent[]
   upcoming_events: UpcomingEvent[]
   rankings: WeightClassRanking[]
-  category_leaders: CategoryLeader[]
   event_map: EventMapLocation[]
   nationality_distribution: NationalityDistribution[]
 }

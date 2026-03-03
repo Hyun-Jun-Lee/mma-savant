@@ -100,12 +100,15 @@ export function SubmissionEfficiencyChart({
         />
         <Scatter
           data={scatterData}
-          fill="#8b5cf6"
+          fill="#a855f7"
           fillOpacity={0.7}
           cursor="pointer"
           onClick={(point: { fighter_id?: number }) => {
             if (point?.fighter_id) router.push(`/fighters/${point.fighter_id}`)
           }}
+          animationBegin={600}
+          animationDuration={1200}
+          animationEasing="ease-out"
         >
           <LabelList
             dataKey="name"

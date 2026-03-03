@@ -61,6 +61,7 @@ export function OverviewTab({ data, loading, error, onRetry }: OverviewTabProps)
           loading={!data && loading}
           error={error}
           onRetry={onRetry}
+          index={0}
         >
           {fmLoading ? (
             <Skeleton className="h-[280px] bg-white/[0.06]" />
@@ -75,6 +76,7 @@ export function OverviewTab({ data, loading, error, onRetry }: OverviewTabProps)
           loading={loading}
           error={error}
           onRetry={onRetry}
+          index={1}
         >
           {data && <EventsTimelineChart data={data.events_timeline} />}
         </ChartCard>
@@ -90,6 +92,7 @@ export function OverviewTab({ data, loading, error, onRetry }: OverviewTabProps)
           loading={loading}
           error={error}
           onRetry={onRetry}
+          index={2}
         >
           {data && <WeightClassActivityChart data={data.weight_class_activity} />}
         </ChartCard>
@@ -101,6 +104,7 @@ export function OverviewTab({ data, loading, error, onRetry }: OverviewTabProps)
           loading={!data && loading}
           error={error}
           onRetry={onRetry}
+          index={3}
         >
           {fdLoading ? (
             <Skeleton className="h-[280px] bg-white/[0.06]" />
@@ -119,6 +123,7 @@ export function OverviewTab({ data, loading, error, onRetry }: OverviewTabProps)
         loading={!data && loading}
         error={error}
         onRetry={onRetry}
+        index={4}
       >
         {frtLoading ? (
           <Skeleton className="h-[280px] bg-white/[0.06]" />
@@ -133,6 +138,7 @@ export function OverviewTab({ data, loading, error, onRetry }: OverviewTabProps)
         parentLoading={loading}
         error={error}
         onRetry={onRetry}
+        index={5}
       />
     </div>
   )

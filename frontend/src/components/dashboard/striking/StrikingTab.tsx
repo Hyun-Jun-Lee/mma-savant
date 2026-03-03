@@ -103,6 +103,7 @@ export function StrikingTab({ data, loading, error, onRetry }: StrikingTabProps)
           loading={!data && loading}
           error={error}
           onRetry={onRetry}
+          index={0}
         >
           {stLoading ? (
             <Skeleton className="h-[280px] bg-white/[0.06]" />
@@ -118,6 +119,7 @@ export function StrikingTab({ data, loading, error, onRetry }: StrikingTabProps)
           loading={!data && loading}
           error={error}
           onRetry={onRetry}
+          index={1}
         >
           {saLoading ? (
             <Skeleton className="h-[280px] bg-white/[0.06]" />
@@ -137,6 +139,7 @@ export function StrikingTab({ data, loading, error, onRetry }: StrikingTabProps)
           loading={!data && loading}
           error={error}
           onRetry={onRetry}
+          index={2}
         >
           {ktLoading ? (
             <Skeleton className="h-[280px] bg-white/[0.06]" />
@@ -152,6 +155,7 @@ export function StrikingTab({ data, loading, error, onRetry }: StrikingTabProps)
           loading={!data && loading}
           error={error}
           onRetry={onRetry}
+          index={3}
         >
           {ssLoading ? (
             <Skeleton className="h-[280px] bg-white/[0.06]" />
@@ -171,6 +175,7 @@ export function StrikingTab({ data, loading, error, onRetry }: StrikingTabProps)
           loading={!data && loading}
           error={error}
           onRetry={onRetry}
+          index={4}
         >
           {kdLoading ? (
             <Skeleton className="h-[280px] bg-white/[0.06]" />
@@ -185,6 +190,7 @@ export function StrikingTab({ data, loading, error, onRetry }: StrikingTabProps)
           loading={loading}
           error={error}
           onRetry={onRetry}
+          index={5}
         >
           {data && <SigStrikesByWcChart data={data.sig_strikes_by_weight_class} />}
         </ChartCard>
@@ -200,6 +206,7 @@ export function StrikingTab({ data, loading, error, onRetry }: StrikingTabProps)
           loading={!data && loading}
           error={error}
           onRetry={onRetry}
+          index={6}
         >
           {seLoading ? (
             <Skeleton className="h-[280px] bg-white/[0.06]" />
@@ -215,6 +222,7 @@ export function StrikingTab({ data, loading, error, onRetry }: StrikingTabProps)
           loading={!data && loading}
           error={error}
           onRetry={onRetry}
+          index={7}
         >
           {swLoading ? (
             <Skeleton className="h-[280px] bg-white/[0.06]" />

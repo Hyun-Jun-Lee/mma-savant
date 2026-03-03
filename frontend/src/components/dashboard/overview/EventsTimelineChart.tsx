@@ -9,6 +9,7 @@ import {
   ResponsiveContainer,
 } from 'recharts'
 import type { EventTimeline } from '@/types/dashboard'
+import { ChartTooltip } from '../ChartTooltip'
 
 interface EventsTimelineChartProps {
   data: EventTimeline[]
@@ -36,14 +37,15 @@ export function EventsTimelineChart({ data }: EventsTimelineChartProps) {
           tickLine={false}
         />
         <Tooltip
-          contentStyle={{
-            backgroundColor: '#18181b',
-            border: '1px solid rgba(255,255,255,0.06)',
-            borderRadius: '8px',
-            fontSize: '12px',
+          content={({ active, payload, label }) => {
+            if (!active || !payload?.length) return null
+            const count = payload[0]?.value as number
+            return (
+              <ChartTooltip active={active} label={label}>
+                <p className="text-zinc-400">Events: {count}</p>
+              </ChartTooltip>
+            )
           }}
-          itemStyle={{ color: '#e4e4e7' }}
-          labelStyle={{ color: '#a1a1aa' }}
         />
         <Area
           type="monotone"
@@ -52,6 +54,9 @@ export function EventsTimelineChart({ data }: EventsTimelineChartProps) {
           strokeWidth={2}
           fill="url(#evtGrad)"
           name="Events"
+          animationBegin={600}
+          animationDuration={1800}
+          animationEasing="ease-out"
         />
       </AreaChart>
     </ResponsiveContainer>

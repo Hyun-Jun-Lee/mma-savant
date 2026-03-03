@@ -17,7 +17,6 @@ import type {
   SubmissionTechnique,
   GroundStrikesLeader,
   MinFightsLeaderboard,
-  CategoryLeader,
   EventMapLocation,
   NationalityDistribution,
   TdAttemptsLeaderboard,
@@ -83,11 +82,6 @@ function buildChartParams(params: {
 
 export const chartApi = {
   // Home
-  getCategoryLeaders: () =>
-    dashboardFetch<CategoryLeader[]>(
-      '/api/dashboard/chart/category-leaders'
-    ),
-
   getEventMap: () =>
     dashboardFetch<EventMapLocation[]>(
       '/api/dashboard/chart/event-map'

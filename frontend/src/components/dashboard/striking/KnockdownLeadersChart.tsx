@@ -1,5 +1,6 @@
 'use client'
 
+import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import {
   BarChart,
@@ -9,6 +10,8 @@ import {
   Tooltip,
   ResponsiveContainer,
 } from 'recharts'
+import { ChevronDown } from 'lucide-react'
+import { toTitleCase } from '@/lib/utils'
 import type { KnockdownLeader } from '@/types/dashboard'
 
 interface KnockdownLeadersChartProps {
@@ -17,9 +20,11 @@ interface KnockdownLeadersChartProps {
 
 export function KnockdownLeadersChart({ data }: KnockdownLeadersChartProps) {
   const router = useRouter()
+  const [expanded, setExpanded] = useState(false)
+  const displayData = expanded ? data : data.slice(0, 5)
 
   const FighterTick = ({ x, y, payload }: { x?: number; y?: number; payload?: { value: string } }) => {
-    const item = data.find((d) => d.name === payload?.value)
+    const item = displayData.find((d) => d.name === payload?.value)
     return (
       <g transform={`translate(${x ?? 0},${y ?? 0})`}>
         <text
@@ -31,17 +36,20 @@ export function KnockdownLeadersChart({ data }: KnockdownLeadersChartProps) {
           fontSize={11}
           style={{ cursor: 'pointer' }}
           onClick={() => item && router.push(`/fighters/${item.fighter_id}`)}
+          onMouseEnter={(e) => { e.currentTarget.setAttribute('fill', '#60a5fa') }}
+          onMouseLeave={(e) => { e.currentTarget.setAttribute('fill', '#a1a1aa') }}
         >
-          {payload?.value}
+          {toTitleCase(payload?.value ?? '')}
         </text>
       </g>
     )
   }
 
   return (
-    <ResponsiveContainer width="100%" height={280}>
+    <>
+    <ResponsiveContainer width="100%" height={expanded ? 320 : 180}>
       <BarChart
-        data={data}
+        data={displayData}
         layout="vertical"
         margin={{ top: 5, right: 30, left: 10, bottom: 0 }}
       >
@@ -80,8 +88,21 @@ export function KnockdownLeadersChart({ data }: KnockdownLeadersChartProps) {
           radius={[0, 4, 4, 0]}
           barSize={16}
           name="Knockdowns"
+          animationBegin={500}
+          animationDuration={1200}
+          animationEasing="ease-out"
         />
       </BarChart>
     </ResponsiveContainer>
+    {data.length > 5 && (
+      <button
+        onClick={() => setExpanded(!expanded)}
+        className="mt-2 flex w-full items-center justify-center gap-1 rounded-lg py-1.5 text-xs text-zinc-500 transition-colors hover:bg-white/[0.04] hover:text-zinc-300"
+      >
+        <ChevronDown className={`h-3.5 w-3.5 transition-transform ${expanded ? 'rotate-180' : ''}`} />
+        {expanded ? 'Show Less' : `Show All ${data.length}`}
+      </button>
+    )}
+    </>
   )
 }

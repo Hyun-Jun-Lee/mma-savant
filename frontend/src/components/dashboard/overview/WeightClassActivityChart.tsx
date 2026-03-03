@@ -10,22 +10,7 @@ import {
   ResponsiveContainer,
 } from 'recharts'
 import type { WeightClassActivity } from '@/types/dashboard'
-
-const ABBREVIATIONS: Record<string, string> = {
-  strawweight: 'Straw',
-  flyweight: 'Fly',
-  bantamweight: 'Bantam',
-  featherweight: 'Feather',
-  lightweight: 'Light',
-  welterweight: 'Welter',
-  middleweight: 'Middle',
-  'light heavyweight': 'LHW',
-  heavyweight: 'Heavy',
-  "women's strawweight": 'W.Straw',
-  "women's flyweight": 'W.Fly',
-  "women's bantamweight": 'W.Bantam',
-  "women's featherweight": 'W.Feather',
-}
+import { abbreviateWeightClass } from '@/lib/utils'
 
 interface WeightClassActivityChartProps {
   data: WeightClassActivity[]
@@ -40,7 +25,7 @@ export function WeightClassActivityChart({
     .filter((d) => !EXCLUDED_CLASSES.has(d.weight_class.toLowerCase()))
     .map((d) => ({
       ...d,
-      short: ABBREVIATIONS[d.weight_class] ?? d.weight_class,
+      short: abbreviateWeightClass(d.weight_class),
       finish_count: d.ko_tko_count + d.sub_count,
     }))
 
@@ -71,6 +56,9 @@ export function WeightClassActivityChart({
           radius={[4, 4, 0, 0]}
           barSize={20}
           name="Total Fights"
+          animationBegin={500}
+          animationDuration={1200}
+          animationEasing="ease-out"
         />
         <Scatter dataKey="finish_count" fill="#ef4444" name="Finishes" />
         <Tooltip

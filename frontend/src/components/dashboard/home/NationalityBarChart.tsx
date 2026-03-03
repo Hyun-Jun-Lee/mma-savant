@@ -75,7 +75,7 @@ export function NationalityBarChart({ data }: NationalityBarChartProps) {
             )
           }}
         />
-        <Bar dataKey="value" radius={[0, 4, 4, 0]} barSize={18}>
+        <Bar dataKey="value" radius={[0, 4, 4, 0]} barSize={18} animationBegin={500} animationDuration={1200} animationEasing="ease-out">
           {chartData.map((entry, index) => (
             <Cell
               key={index}

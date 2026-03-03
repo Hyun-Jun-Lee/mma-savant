@@ -9,22 +9,7 @@ import {
   ResponsiveContainer,
 } from 'recharts'
 import type { ControlTimeByClass } from '@/types/dashboard'
-
-const ABBREVIATIONS: Record<string, string> = {
-  strawweight: 'Straw',
-  flyweight: 'Fly',
-  bantamweight: 'Bantam',
-  featherweight: 'Feather',
-  lightweight: 'Light',
-  welterweight: 'Welter',
-  middleweight: 'Middle',
-  'light heavyweight': 'LHW',
-  heavyweight: 'Heavy',
-  "women's strawweight": 'W.Straw',
-  "women's flyweight": 'W.Fly',
-  "women's bantamweight": 'W.Bantam',
-  "women's featherweight": 'W.Feather',
-}
+import { abbreviateWeightClass, WEIGHT_CLASS_ABBR } from '@/lib/utils'
 
 interface ControlTimeChartProps {
   data: ControlTimeByClass[]
@@ -43,7 +28,7 @@ export function ControlTimeChart({ data }: ControlTimeChartProps) {
     .filter((d) => !EXCLUDED_CLASSES.has(d.weight_class.toLowerCase()))
     .map((d) => ({
       ...d,
-      short: ABBREVIATIONS[d.weight_class] ?? d.weight_class,
+      short: abbreviateWeightClass(d.weight_class),
     }))
 
   return (
@@ -82,7 +67,7 @@ export function ControlTimeChart({ data }: ControlTimeChartProps) {
           labelFormatter={(label) =>
             data.find(
               (d) =>
-                (ABBREVIATIONS[d.weight_class] ?? d.weight_class) === label
+                (WEIGHT_CLASS_ABBR[d.weight_class.toLowerCase()] ?? d.weight_class) === label
             )?.weight_class ?? label
           }
         />
@@ -92,6 +77,9 @@ export function ControlTimeChart({ data }: ControlTimeChartProps) {
           radius={[4, 4, 0, 0]}
           barSize={20}
           name="Avg Control"
+          animationBegin={500}
+          animationDuration={1200}
+          animationEasing="ease-out"
         />
       </BarChart>
     </ResponsiveContainer>

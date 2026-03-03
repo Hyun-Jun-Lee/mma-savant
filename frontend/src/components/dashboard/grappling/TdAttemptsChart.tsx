@@ -12,7 +12,9 @@ import {
   ReferenceLine,
   ResponsiveContainer,
 } from 'recharts'
-import { PillTabs } from '../PillTabs'
+import { ChevronDown } from 'lucide-react'
+import { toTitleCase } from '@/lib/utils'
+import { PillTabs, TabContent } from '../PillTabs'
 import type { TdAttemptsLeaderboard } from '@/types/dashboard'
 
 const TABS = [
@@ -30,10 +32,12 @@ interface TdAttemptsChartProps {
 export function TdAttemptsChart({ data }: TdAttemptsChartProps) {
   const router = useRouter()
   const [activeKey, setActiveKey] = useState<MinKey>('min10')
+  const [expanded, setExpanded] = useState(false)
   const fighters = data[activeKey]
+  const displayFighters = expanded ? fighters : fighters.slice(0, 5)
 
   const FighterTick = ({ x, y, payload }: { x?: number; y?: number; payload?: { value: string } }) => {
-    const item = fighters.find((d) => d.name === payload?.value)
+    const item = displayFighters.find((d) => d.name === payload?.value)
     return (
       <g transform={`translate(${x ?? 0},${y ?? 0})`}>
         <text
@@ -45,8 +49,10 @@ export function TdAttemptsChart({ data }: TdAttemptsChartProps) {
           fontSize={11}
           style={{ cursor: 'pointer' }}
           onClick={() => item && router.push(`/fighters/${item.fighter_id}`)}
+          onMouseEnter={(e) => { e.currentTarget.setAttribute('fill', '#60a5fa') }}
+          onMouseLeave={(e) => { e.currentTarget.setAttribute('fill', '#a1a1aa') }}
         >
-          {payload?.value}
+          {toTitleCase(payload?.value ?? '')}
         </text>
       </g>
     )
@@ -62,9 +68,10 @@ export function TdAttemptsChart({ data }: TdAttemptsChartProps) {
           size="sm"
         />
       </div>
-      <ResponsiveContainer width="100%" height={280}>
+      <TabContent activeKey={activeKey}>
+      <ResponsiveContainer width="100%" height={expanded ? 320 : 180}>
         <ComposedChart
-          data={fighters}
+          data={displayFighters}
           layout="vertical"
           margin={{ top: 20, right: 40, left: 10, bottom: 0 }}
         >
@@ -110,18 +117,34 @@ export function TdAttemptsChart({ data }: TdAttemptsChartProps) {
           />
           <Bar
             dataKey="td_attempts_per_fight"
-            fill="#06b6d4"
+            fill="#10b981"
             barSize={3}
             radius={[0, 2, 2, 0]}
             name="TD Attempts/Fight"
+            animationBegin={400}
+            animationDuration={1000}
+            animationEasing="ease-out"
           />
           <Scatter
             dataKey="td_attempts_per_fight"
-            fill="rgba(6,182,212,0.85)"
+            fill="rgba(16,185,129,0.85)"
             name="TD Attempts/Fight"
+            animationBegin={700}
+            animationDuration={800}
+            animationEasing="ease-out"
           />
         </ComposedChart>
       </ResponsiveContainer>
+      {fighters.length > 5 && (
+        <button
+          onClick={() => setExpanded(!expanded)}
+          className="mt-2 flex w-full items-center justify-center gap-1 rounded-lg py-1.5 text-xs text-zinc-500 transition-colors hover:bg-white/[0.04] hover:text-zinc-300"
+        >
+          <ChevronDown className={`h-3.5 w-3.5 transition-transform ${expanded ? 'rotate-180' : ''}`} />
+          {expanded ? 'Show Less' : `Show All ${fighters.length}`}
+        </button>
+      )}
+      </TabContent>
     </div>
   )
 }

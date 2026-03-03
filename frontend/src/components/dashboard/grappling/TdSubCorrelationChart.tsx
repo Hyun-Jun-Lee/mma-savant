@@ -137,6 +137,9 @@ export function TdSubCorrelationChart({ data }: TdSubCorrelationChartProps) {
             onClick={(point: { fighter_id?: number }) => {
               if (point?.fighter_id) router.push(`/fighters/${point.fighter_id}`)
             }}
+            animationBegin={600}
+            animationDuration={1200}
+            animationEasing="ease-out"
           >
             <LabelList
               dataKey="name"

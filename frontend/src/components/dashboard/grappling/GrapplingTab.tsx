@@ -103,6 +103,7 @@ export function GrapplingTab({ data, loading, error, onRetry }: GrapplingTabProp
           loading={!data && loading}
           error={error}
           onRetry={onRetry}
+          index={0}
         >
           {tdLoading ? (
             <Skeleton className="h-[280px] bg-white/[0.06]" />
@@ -118,6 +119,7 @@ export function GrapplingTab({ data, loading, error, onRetry }: GrapplingTabProp
           loading={!data && loading}
           error={error}
           onRetry={onRetry}
+          index={1}
         >
           {stLoading ? (
             <Skeleton className="h-[280px] bg-white/[0.06]" />
@@ -136,6 +138,7 @@ export function GrapplingTab({ data, loading, error, onRetry }: GrapplingTabProp
           loading={loading}
           error={error}
           onRetry={onRetry}
+          index={2}
         >
           {data && <ControlTimeChart data={data.control_time} />}
         </ChartCard>
@@ -147,6 +150,7 @@ export function GrapplingTab({ data, loading, error, onRetry }: GrapplingTabProp
           loading={!data && loading}
           error={error}
           onRetry={onRetry}
+          index={3}
         >
           {gsLoading ? (
             <Skeleton className="h-[280px] bg-white/[0.06]" />
@@ -162,6 +166,7 @@ export function GrapplingTab({ data, loading, error, onRetry }: GrapplingTabProp
           loading={!data && loading}
           error={error}
           onRetry={onRetry}
+          index={4}
         >
           {seLoading ? (
             <Skeleton className="h-[280px] bg-white/[0.06]" />
@@ -181,6 +186,7 @@ export function GrapplingTab({ data, loading, error, onRetry }: GrapplingTabProp
           loading={!data && loading}
           error={error}
           onRetry={onRetry}
+          index={5}
         >
           {taLoading ? (
             <Skeleton className="h-[280px] bg-white/[0.06]" />
@@ -196,6 +202,7 @@ export function GrapplingTab({ data, loading, error, onRetry }: GrapplingTabProp
           loading={!data && loading}
           error={error}
           onRetry={onRetry}
+          index={6}
         >
           {tddLoading ? (
             <Skeleton className="h-[280px] bg-white/[0.06]" />
@@ -214,6 +221,7 @@ export function GrapplingTab({ data, loading, error, onRetry }: GrapplingTabProp
         loading={!data && loading}
         error={error}
         onRetry={onRetry}
+        index={7}
       >
         {tscLoading ? (
           <Skeleton className="h-[280px] bg-white/[0.06]" />

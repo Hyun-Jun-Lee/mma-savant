@@ -10,12 +10,15 @@ import {
   Tooltip,
   ResponsiveContainer,
 } from 'recharts'
-import { PillTabs } from '../PillTabs'
+import { ChevronDown } from 'lucide-react'
+import { toTitleCase } from '@/lib/utils'
+import { PillTabs, TabContent } from '../PillTabs'
 import { ChartCard } from '../ChartCard'
 import { WeightClassFilter } from '../WeightClassFilter'
 import { Skeleton } from '@/components/ui/skeleton'
 import { chartApi } from '@/services/dashboardApi'
 import type { OverviewResponse } from '@/types/dashboard'
+import { ChartTooltip } from '../ChartTooltip'
 
 const TABS = [
   { key: 'wins', label: 'Most Wins' },
@@ -34,6 +37,7 @@ interface LeaderboardChartProps {
   parentLoading: boolean
   error: string | null
   onRetry: () => void
+  index?: number
 }
 
 export function LeaderboardChart({
@@ -41,6 +45,7 @@ export function LeaderboardChart({
   parentLoading,
   error,
   onRetry,
+  index,
 }: LeaderboardChartProps) {
   const router = useRouter()
   const [activeKey, setActiveKey] = useState<LeaderboardKey>('wins')
@@ -74,9 +79,12 @@ export function LeaderboardChart({
     }
   }, [weightClassId, ufcOnly])
 
+  const [expanded, setExpanded] = useState(false)
+
   const displayData = localData ?? initialData
 
   const fighters = displayData?.[activeKey]
+  const displayFighters = expanded ? fighters : fighters?.slice(0, 5)
   const isWinStreak = activeKey === 'win_streak'
   const isWinRate = !isWinStreak && activeKey !== 'wins'
   const dataKey = isWinStreak ? 'win_streak' : isWinRate ? 'win_rate' : 'wins'
@@ -85,7 +93,7 @@ export function LeaderboardChart({
   const FighterTick = useCallback(
     (props: any) => {
       const { x, y, payload } = props
-      const fighter = fighters?.find((f: any) => f.name === payload.value)
+      const fighter = displayFighters?.find((f: any) => f.name === payload.value)
       return (
         <g transform={`translate(${x},${y})`}>
           <text
@@ -106,12 +114,12 @@ export function LeaderboardChart({
               e.currentTarget.setAttribute('fill', '#a1a1aa')
             }}
           >
-            {payload.value}
+            {toTitleCase(payload.value)}
           </text>
         </g>
       )
     },
-    [fighters, router]
+    [displayFighters, router]
   )
   /* eslint-enable @typescript-eslint/no-explicit-any */
 
@@ -126,6 +134,7 @@ export function LeaderboardChart({
       loading={!initialData && parentLoading}
       error={error}
       onRetry={onRetry}
+      index={index}
     >
       {loading ? (
         <Skeleton className="h-[360px] bg-white/[0.06]" />
@@ -162,9 +171,10 @@ export function LeaderboardChart({
             </button>
           </div>
           {fighters && (
-            <ResponsiveContainer width="100%" height={320}>
+            <TabContent activeKey={activeKey}>
+            <ResponsiveContainer width="100%" height={expanded ? 320 : 180}>
               <BarChart
-                data={fighters}
+                data={displayFighters}
                 layout="vertical"
                 margin={{ top: 5, right: 30, left: 10, bottom: 0 }}
               >
@@ -185,21 +195,21 @@ export function LeaderboardChart({
                   width={120}
                 />
                 <Tooltip
-                  contentStyle={{
-                    backgroundColor: '#18181b',
-                    border: '1px solid rgba(255,255,255,0.06)',
-                    borderRadius: '8px',
-                    fontSize: '12px',
+                  content={({ active, payload, label }) => {
+                    if (!active || !payload?.length) return null
+                    const val = payload[0]?.value as number
+                    return (
+                      <ChartTooltip active={active} label={label}>
+                        <p className="text-zinc-400">
+                          {isWinRate
+                            ? `Win Rate: ${val.toFixed(1)}%`
+                            : isWinStreak
+                              ? `Streak: ${val} wins`
+                              : `Wins: ${val}`}
+                        </p>
+                      </ChartTooltip>
+                    )
                   }}
-                  itemStyle={{ color: '#e4e4e7' }}
-                  labelStyle={{ color: '#a1a1aa' }}
-                  formatter={(value: number) =>
-                    isWinRate
-                      ? `${value.toFixed(1)}%`
-                      : isWinStreak
-                        ? `${value} wins`
-                        : value
-                  }
                 />
                 <Bar
                   dataKey={dataKey}
@@ -210,6 +220,16 @@ export function LeaderboardChart({
                 />
               </BarChart>
             </ResponsiveContainer>
+            {fighters.length > 5 && (
+              <button
+                onClick={() => setExpanded(!expanded)}
+                className="mt-2 flex w-full items-center justify-center gap-1 rounded-lg py-1.5 text-xs text-zinc-500 transition-colors hover:bg-white/[0.04] hover:text-zinc-300"
+              >
+                <ChevronDown className={`h-3.5 w-3.5 transition-transform ${expanded ? 'rotate-180' : ''}`} />
+                {expanded ? 'Show Less' : `Show All ${fighters.length}`}
+              </button>
+            )}
+            </TabContent>
           )}
         </div>
       )}

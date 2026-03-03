@@ -10,6 +10,7 @@ import {
   ResponsiveContainer,
 } from 'recharts'
 import type { OverviewResponse } from '@/types/dashboard'
+import { ChartTooltip } from '../ChartTooltip'
 
 interface FightDurationChartProps {
   data: OverviewResponse['fight_duration']
@@ -47,25 +48,25 @@ export function FightDurationChart({ data }: FightDurationChartProps) {
         />
         <Tooltip
           cursor={{ fill: 'rgba(255,255,255,0.04)' }}
-          contentStyle={{
-            backgroundColor: '#18181b',
-            border: '1px solid rgba(255,255,255,0.06)',
-            borderRadius: '8px',
-            fontSize: '12px',
+          content={({ active, payload, label }) => {
+            if (!active || !payload?.length) return null
+            const d = payload[0]?.payload as { label: string; fight_count: number; pct: number; result_round: number }
+            return (
+              <ChartTooltip active={active} label={`Round ${d.result_round}`}>
+                <p className="text-zinc-400">Fights: {d.fight_count}</p>
+                {d.pct !== undefined && <p className="text-zinc-400">Percentage: {d.pct.toFixed(1)}%</p>}
+              </ChartTooltip>
+            )
           }}
-          itemStyle={{ color: '#e4e4e7' }}
-          labelStyle={{ color: '#a1a1aa' }}
-          formatter={(value: number, name: string) =>
-            name === 'fight_count'
-              ? [value, 'Fights']
-              : [`${value.toFixed(1)}%`, 'Percentage']
-          }
         />
         <Bar
           dataKey="fight_count"
           fill="#f59e0b"
           radius={[4, 4, 0, 0]}
           name="fight_count"
+          animationBegin={600}
+          animationDuration={1000}
+          animationEasing="ease-out"
         />
         <ReferenceLine
           x={`R${Math.round(data.avg_round)}`}

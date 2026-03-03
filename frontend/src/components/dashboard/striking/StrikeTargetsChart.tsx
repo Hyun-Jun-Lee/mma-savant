@@ -10,6 +10,7 @@ import {
   Tooltip,
 } from 'recharts'
 import type { StrikeTarget } from '@/types/dashboard'
+import { ChartTooltip } from '../ChartTooltip'
 
 interface StrikeTargetsChartProps {
   data: StrikeTarget[]
@@ -34,19 +35,21 @@ export function StrikeTargetsChart({ data }: StrikeTargetsChartProps) {
           fillOpacity={0.25}
           strokeWidth={2}
           name="Landed"
+          animationBegin={500}
+          animationDuration={1200}
+          animationEasing="ease-out"
         />
         <Tooltip
-          contentStyle={{
-            backgroundColor: '#18181b',
-            border: '1px solid rgba(255,255,255,0.06)',
-            borderRadius: '8px',
-            fontSize: '12px',
-          }}
-          itemStyle={{ color: '#e4e4e7' }}
-          labelStyle={{ color: '#a1a1aa' }}
-          formatter={(value: number) => {
-            const pct = total > 0 ? ((value / total) * 100).toFixed(1) : '0.0'
-            return [`${value.toLocaleString()} (${pct}%)`, 'Landed']
+          content={({ active, payload }) => {
+            if (!active || !payload?.length) return null
+            const d = payload[0]?.payload as { target: string; landed: number }
+            const pct = total > 0 ? ((d.landed / total) * 100).toFixed(1) : '0.0'
+            return (
+              <ChartTooltip active={active} label={d.target}>
+                <p className="text-zinc-400">Landed: {d.landed.toLocaleString()}</p>
+                <p className="text-zinc-400">Share: {pct}%</p>
+              </ChartTooltip>
+            )
           }}
         />
       </RadarChart>

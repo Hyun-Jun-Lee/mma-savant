@@ -1,19 +1,22 @@
+import Link from 'next/link'
 import { Clock } from 'lucide-react'
 import { ChartCard } from '../ChartCard'
 import type { UpcomingEvent } from '@/types/dashboard'
 
 interface UpcomingEventsProps {
   events: UpcomingEvent[]
+  index?: number
 }
 
-export function UpcomingEvents({ events }: UpcomingEventsProps) {
+export function UpcomingEvents({ events, index }: UpcomingEventsProps) {
   return (
-    <ChartCard title="Upcoming Events" description="Scheduled UFC events" tooltip="예정된 UFC 이벤트 목록입니다. D-day로 남은 일수를 확인할 수 있습니다.">
+    <ChartCard title="Upcoming Events" description="Scheduled UFC events" tooltip="예정된 UFC 이벤트 목록입니다. D-day로 남은 일수를 확인할 수 있습니다." index={index}>
       <div className="space-y-3">
         {events.map((event) => (
-          <div
+          <Link
             key={event.id}
-            className="flex items-start justify-between gap-3 rounded-lg border border-white/[0.04] bg-white/[0.02] p-3"
+            href={`/events/${event.id}`}
+            className="flex items-start justify-between gap-3 rounded-lg border border-white/[0.04] bg-white/[0.02] p-3 transition-colors hover:border-white/[0.08] hover:bg-white/[0.04]"
           >
             <div className="min-w-0">
               <p className="truncate text-sm font-medium text-zinc-200">
@@ -34,7 +37,7 @@ export function UpcomingEvents({ events }: UpcomingEventsProps) {
                 D-{event.days_until}
               </div>
             </div>
-          </div>
+          </Link>
         ))}
         {events.length === 0 && (
           <p className="py-8 text-center text-sm text-zinc-600">

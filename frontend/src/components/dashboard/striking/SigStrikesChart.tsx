@@ -12,7 +12,9 @@ import {
   ReferenceLine,
   ResponsiveContainer,
 } from 'recharts'
-import { PillTabs } from '../PillTabs'
+import { ChevronDown } from 'lucide-react'
+import { toTitleCase } from '@/lib/utils'
+import { PillTabs, TabContent } from '../PillTabs'
 import type { MinFightsLeaderboard, SigStrikesLeader } from '@/types/dashboard'
 
 const TABS = [
@@ -30,15 +32,17 @@ interface SigStrikesChartProps {
 export function SigStrikesChart({ data }: SigStrikesChartProps) {
   const router = useRouter()
   const [activeKey, setActiveKey] = useState<MinKey>('min10')
+  const [expanded, setExpanded] = useState(false)
   const fighters = data[activeKey]
+  const displayFighters = expanded ? fighters : fighters.slice(0, 5)
 
   const avg =
-    fighters.length > 0
-      ? fighters.reduce((sum, d) => sum + d.sig_str_per_fight, 0) / fighters.length
+    displayFighters.length > 0
+      ? displayFighters.reduce((sum, d) => sum + d.sig_str_per_fight, 0) / displayFighters.length
       : 0
 
   const FighterTick = ({ x, y, payload }: { x?: number; y?: number; payload?: { value: string } }) => {
-    const item = fighters.find((d) => d.name === payload?.value)
+    const item = displayFighters.find((d) => d.name === payload?.value)
     return (
       <g transform={`translate(${x ?? 0},${y ?? 0})`}>
         <text
@@ -50,15 +54,17 @@ export function SigStrikesChart({ data }: SigStrikesChartProps) {
           fontSize={11}
           style={{ cursor: 'pointer' }}
           onClick={() => item && router.push(`/fighters/${item.fighter_id}`)}
+          onMouseEnter={(e) => { e.currentTarget.setAttribute('fill', '#60a5fa') }}
+          onMouseLeave={(e) => { e.currentTarget.setAttribute('fill', '#a1a1aa') }}
         >
-          {payload?.value}
+          {toTitleCase(payload?.value ?? '')}
         </text>
       </g>
     )
   }
 
   // dot 크기를 경기 수에 비례
-  const scatterData = fighters.map((d) => ({
+  const scatterData = displayFighters.map((d) => ({
     ...d,
     dotSize: Math.max(30, Math.min(120, d.total_fights * 4)),
   }))
@@ -73,7 +79,8 @@ export function SigStrikesChart({ data }: SigStrikesChartProps) {
           size="sm"
         />
       </div>
-    <ResponsiveContainer width="100%" height={280}>
+    <TabContent activeKey={activeKey}>
+    <ResponsiveContainer width="100%" height={expanded ? 320 : 180}>
       <ComposedChart
         data={scatterData}
         layout="vertical"
@@ -124,15 +131,31 @@ export function SigStrikesChart({ data }: SigStrikesChartProps) {
           barSize={3}
           radius={[0, 2, 2, 0]}
           name="Sig/Fight"
+          animationBegin={400}
+          animationDuration={1000}
+          animationEasing="ease-out"
         />
         {/* Dot (scatter at end) */}
         <Scatter
           dataKey="sig_str_per_fight"
           fill="rgba(245,158,11,0.85)"
           name="Sig/Fight"
+          animationBegin={700}
+          animationDuration={800}
+          animationEasing="ease-out"
         />
       </ComposedChart>
     </ResponsiveContainer>
+    {fighters.length > 5 && (
+      <button
+        onClick={() => setExpanded(!expanded)}
+        className="mt-2 flex w-full items-center justify-center gap-1 rounded-lg py-1.5 text-xs text-zinc-500 transition-colors hover:bg-white/[0.04] hover:text-zinc-300"
+      >
+        <ChevronDown className={`h-3.5 w-3.5 transition-transform ${expanded ? 'rotate-180' : ''}`} />
+        {expanded ? 'Show Less' : `Show All ${fighters.length}`}
+      </button>
+    )}
+    </TabContent>
     </div>
   )
 }
