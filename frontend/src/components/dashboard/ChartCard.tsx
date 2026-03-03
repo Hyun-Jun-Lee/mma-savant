@@ -1,6 +1,7 @@
 'use client'
 
-import type { ReactNode } from 'react'
+import { type ReactNode, useCallback, useRef } from 'react'
+import { motion } from 'framer-motion'
 import { Skeleton } from '@/components/ui/skeleton'
 import { AlertCircle, HelpCircle, RefreshCw } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -20,6 +21,7 @@ interface ChartCardProps {
   error?: string | null
   onRetry?: () => void
   children: ReactNode
+  index?: number
 }
 
 export function ChartCard({
@@ -32,10 +34,36 @@ export function ChartCard({
   error,
   onRetry,
   children,
+  index = 0,
 }: ChartCardProps) {
+  const cardRef = useRef<HTMLDivElement>(null)
+
+  const handleMouseMove = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
+    const el = cardRef.current
+    if (!el) return
+    const rect = el.getBoundingClientRect()
+    el.style.setProperty('--mouse-x', `${e.clientX - rect.left}px`)
+    el.style.setProperty('--mouse-y', `${e.clientY - rect.top}px`)
+  }, [])
+
   return (
-    <div
-      className={`rounded-xl border border-white/[0.06] bg-white/[0.03] p-5 transition-all duration-300 ease-out hover:scale-[1.01] hover:border-white/[0.12] hover:bg-white/[0.05] hover:shadow-lg hover:shadow-black/20 ${className}`}
+    <motion.div
+      ref={cardRef}
+      initial={{ opacity: 0, y: 28, filter: 'blur(4px)' }}
+      animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
+      transition={{
+        duration: 0.7,
+        ease: [0.23, 1, 0.32, 1],
+        delay: index * 0.1,
+      }}
+      whileHover={{
+        y: -3,
+        boxShadow: '0 0 28px rgba(139, 92, 246, 0.12)',
+        borderColor: 'rgba(139, 92, 246, 0.3)',
+        transition: { duration: 0.3, ease: 'easeOut' },
+      }}
+      onMouseMove={handleMouseMove}
+      className={`relative overflow-hidden rounded-xl border border-white/[0.06] bg-white/[0.03] p-5 before:pointer-events-none before:absolute before:inset-x-0 before:top-0 before:h-px before:bg-gradient-to-r before:from-transparent before:via-violet-500 before:to-transparent before:opacity-0 before:transition-opacity before:duration-300 hover:border-white/[0.12] hover:bg-white/[0.05] hover:before:opacity-70 after:pointer-events-none after:absolute after:inset-0 after:opacity-0 after:transition-opacity after:duration-300 after:[background:radial-gradient(600px_circle_at_var(--mouse-x)_var(--mouse-y),rgba(139,92,246,0.04),transparent_40%)] hover:after:opacity-100 ${className}`}
     >
       {/* Header */}
       <div className="mb-4 flex items-start justify-between gap-3">
@@ -49,7 +77,7 @@ export function ChartCard({
                 </TooltipTrigger>
                 <TooltipContent
                   side="top"
-                  className="max-w-[240px] bg-zinc-800 text-zinc-200 border border-white/[0.06]"
+                  className="max-w-[240px] bg-zinc-900 text-zinc-200 border border-white/[0.06]"
                 >
                   {tooltip}
                 </TooltipContent>
@@ -89,6 +117,6 @@ export function ChartCard({
       ) : (
         children
       )}
-    </div>
+    </motion.div>
   )
 }
