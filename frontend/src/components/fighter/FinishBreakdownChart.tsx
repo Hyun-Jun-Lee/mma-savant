@@ -1,6 +1,6 @@
 'use client'
 
-import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from 'recharts'
+import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Label } from 'recharts'
 import type { FinishBreakdown } from '@/types/fighter'
 
 interface Props {
@@ -68,6 +68,11 @@ export function FinishBreakdownChart({ breakdown }: Props) {
                 {data.map((entry) => (
                   <Cell key={entry.name} fill={entry.color} />
                 ))}
+                <Label
+                  value={`${total} Wins`}
+                  position="center"
+                  style={{ fill: '#e4e4e7', fontSize: '13px', fontWeight: 600 }}
+                />
               </Pie>
               <Tooltip
                 contentStyle={{

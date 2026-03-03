@@ -1,6 +1,7 @@
 'use client'
 
 import type { FighterRecord } from '@/types/fighter'
+import { Badge } from '@/components/ui/badge'
 
 interface Props {
   record: FighterRecord
@@ -69,15 +70,9 @@ export function RecordCard({ record }: Props) {
       {/* Streak */}
       {type !== 'none' && count > 0 && (
         <div className="mt-3">
-          <span
-            className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${
-              type === 'win'
-                ? 'bg-emerald-500/20 text-emerald-400'
-                : 'bg-red-500/20 text-red-400'
-            }`}
-          >
+          <Badge variant={type === 'win' ? 'win' : 'loss'}>
             {count} {type === 'win' ? 'Win' : 'Loss'} Streak
-          </span>
+          </Badge>
         </div>
       )}
     </div>

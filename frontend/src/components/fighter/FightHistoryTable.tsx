@@ -3,12 +3,14 @@
 import { useState } from 'react'
 import Link from 'next/link'
 import type { FightHistoryItem, PerMatchStats } from '@/types/fighter'
-import { ChevronDown, ChevronRight, HelpCircle, Star } from 'lucide-react'
+import { ChevronDown, ChevronRight, HelpCircle } from 'lucide-react'
 import {
   Tooltip,
   TooltipContent,
   TooltipTrigger,
 } from '@/components/ui/tooltip'
+import { Badge } from '@/components/ui/badge'
+import { toTitleCase, formatDate } from '@/lib/utils'
 
 interface Props {
   fights: FightHistoryItem[]
@@ -20,21 +22,35 @@ function formatControlTime(seconds: number): string {
   return `${m}:${s.toString().padStart(2, '0')}`
 }
 
-function ResultBadge({ result }: { result: string }) {
+function ResultBadge({ result, method }: { result: string; method?: string | null }) {
   const lower = result.toLowerCase()
-  let className =
-    'inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase '
-  if (lower === 'win') className += 'bg-emerald-500/20 text-emerald-400'
-  else if (lower === 'loss') className += 'bg-red-500/20 text-red-400'
-  else className += 'bg-zinc-500/20 text-zinc-400'
-  return <span className={className}>{result}</span>
+  let variant: 'ko' | 'submission' | 'decision' | 'win' | 'loss' | 'draw' = 'draw'
+  if (lower === 'win') {
+    const m = (method ?? '').toLowerCase()
+    if (m.includes('ko') || m.includes('tko')) {
+      variant = 'ko'
+    } else if (m.includes('sub')) {
+      variant = 'submission'
+    } else if (m.includes('dec')) {
+      variant = 'decision'
+    } else {
+      variant = 'win'
+    }
+  } else if (lower === 'loss') {
+    variant = 'loss'
+  }
+  return (
+    <Badge variant={variant} className="text-[10px] font-semibold uppercase">
+      {result}
+    </Badge>
+  )
 }
 
 function PerMatchDetail({ stats }: { stats: PerMatchStats }) {
   const { basic, sig_str } = stats
 
   return (
-    <div className="space-y-3 rounded-lg border border-white/[0.04] bg-white/[0.02] p-4 text-xs">
+    <div className="space-y-3 rounded-lg border border-white/[0.06] bg-white/[0.02] p-4 text-xs">
       {basic && (
         <div>
           <p className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-zinc-500">
@@ -114,9 +130,9 @@ export function FightHistoryTable({ fights }: Props) {
           </TooltipTrigger>
           <TooltipContent
             side="top"
-            className="max-w-[240px] bg-zinc-800 text-zinc-200 border border-white/[0.06]"
+            className="max-w-[240px] bg-zinc-900 text-zinc-200 border border-white/[0.06]"
           >
-            행을 클릭하면 경기별 상세 스탯을 확인할 수 있습니다. ⭐ 표시는 해당 경기가 메인 이벤트였음을 나타냅니다.
+            행을 클릭하면 경기별 상세 스탯을 확인할 수 있습니다. MAIN 표시는 해당 경기가 메인 이벤트였음을 나타냅니다.
           </TooltipContent>
         </Tooltip>
       </div>
@@ -132,7 +148,7 @@ export function FightHistoryTable({ fights }: Props) {
         <span>Date</span>
       </div>
 
-      <div className="divide-y divide-white/[0.04]">
+      <div className="divide-y divide-white/[0.03]">
         {fights.map((fight) => {
           const isExpanded = expandedId === fight.match_id
           const hasStats = fight.stats && (fight.stats.basic || fight.stats.sig_str)
@@ -158,21 +174,31 @@ export function FightHistoryTable({ fights }: Props) {
                       )
                     ) : null}
                   </span>
-                  <ResultBadge result={fight.result} />
+                  <ResultBadge result={fight.result} method={fight.method} />
                   <span className="flex items-center gap-1.5 truncate text-zinc-200">
                     <Link
                       href={`/fighters/${fight.opponent.id}`}
                       className="hover:text-blue-400 hover:underline"
                       onClick={(e) => e.stopPropagation()}
                     >
-                      {fight.opponent.name}
+                      {toTitleCase(fight.opponent.name)}
                     </Link>
                     {fight.is_main_event && (
-                      <Star className="h-3 w-3 shrink-0 text-yellow-500" />
+                      <span className="rounded px-1 py-0.5 text-[9px] font-semibold uppercase text-amber-400 bg-amber-400/10">Main</span>
                     )}
                   </span>
                   <span className="truncate text-zinc-400">
-                    {fight.event_name ?? '-'}
+                    {fight.event_id ? (
+                      <Link
+                        href={`/events/${fight.event_id}`}
+                        className="hover:text-blue-400 hover:underline transition-colors"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        {fight.event_name ?? '-'}
+                      </Link>
+                    ) : (
+                      fight.event_name ?? '-'
+                    )}
                   </span>
                   <span className="text-zinc-400">
                     {fight.method ?? '-'}
@@ -182,7 +208,7 @@ export function FightHistoryTable({ fights }: Props) {
                     {fight.time ?? ''}
                   </span>
                   <span className="text-zinc-500">
-                    {fight.event_date ?? '-'}
+                    {fight.event_date ? formatDate(fight.event_date) : '-'}
                   </span>
                 </div>
 
@@ -198,7 +224,7 @@ export function FightHistoryTable({ fights }: Props) {
                         )
                       ) : null}
                     </span>
-                    <ResultBadge result={fight.result} />
+                    <ResultBadge result={fight.result} method={fight.method} />
                     <span className="text-xs text-zinc-200">
                       vs{' '}
                       <Link
@@ -206,17 +232,17 @@ export function FightHistoryTable({ fights }: Props) {
                         className="hover:text-blue-400 hover:underline"
                         onClick={(e) => e.stopPropagation()}
                       >
-                        {fight.opponent.name}
+                        {toTitleCase(fight.opponent.name)}
                       </Link>
                     </span>
                     {fight.is_main_event && (
-                      <Star className="h-3 w-3 text-yellow-500" />
+                      <span className="rounded px-1 py-0.5 text-[9px] font-semibold uppercase text-amber-400 bg-amber-400/10">Main</span>
                     )}
                   </div>
                   <div className="ml-6 flex flex-wrap gap-x-3 text-[10px] text-zinc-500">
                     <span>{fight.method ?? '-'}</span>
                     <span>R{fight.round ?? '-'} {fight.time ?? ''}</span>
-                    <span>{fight.event_date ?? '-'}</span>
+                    <span>{fight.event_date ? formatDate(fight.event_date) : '-'}</span>
                   </div>
                 </div>
               </button>
