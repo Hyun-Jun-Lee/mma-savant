@@ -3,9 +3,11 @@ from typing import Optional, List
 from typing_extensions import Literal
 
 from sqlalchemy import select, extract
+from sqlalchemy.orm import selectinload
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from event.models import EventModel, EventSchema
+from match.models import MatchModel, FighterMatchModel
 from common.utils import utc_today
 
 async def get_event_by_id(session: AsyncSession, event_id: int) -> Optional[EventSchema]:
@@ -139,8 +141,8 @@ async def search_events_by_name(session: AsyncSession, search_term: str, limit: 
     return [event.to_schema() for event in events]
 
 async def get_events_date_range(
-    session: AsyncSession, 
-    start_date: date, 
+    session: AsyncSession,
+    start_date: date,
     end_date: date
 ) -> List[EventSchema]:
     """
@@ -156,3 +158,22 @@ async def get_events_date_range(
     )
     events = result.scalars().all()
     return [event.to_schema() for event in events]
+
+
+async def get_event_with_matches(session: AsyncSession, event_id: int) -> Optional[EventModel]:
+    """
+    이벤트와 관련된 모든 매치, 파이터를 eager loading으로 한 번에 조회합니다.
+    통계 데이터는 라운드별 복수 레코드가 존재하므로 별도 집계 쿼리로 조회합니다.
+    """
+    result = await session.execute(
+        select(EventModel)
+        .where(EventModel.id == event_id)
+        .options(
+            selectinload(EventModel.matches)
+            .selectinload(MatchModel.weight_class),
+            selectinload(EventModel.matches)
+            .selectinload(MatchModel.fighter_matches)
+            .selectinload(FighterMatchModel.fighter),
+        )
+    )
+    return result.scalar_one_or_none()

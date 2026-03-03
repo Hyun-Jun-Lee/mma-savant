@@ -5,7 +5,7 @@ import pytest
 from datetime import date
 
 from event import repositories as event_repo
-from event.models import EventSchema
+from event.models import EventModel, EventSchema
 from common.utils import utc_today
 
 
@@ -280,3 +280,61 @@ async def test_get_events_date_range_invalid_range(clean_test_session):
 
     assert isinstance(result, list)
     assert len(result) == 0
+
+
+# =============================================================================
+# get_event_with_matches 테스트
+# =============================================================================
+
+@pytest.mark.asyncio
+async def test_get_event_with_matches_existing(event_with_full_matches, clean_test_session):
+    """이벤트와 관련된 매치, 파이터를 eager loading으로 조회"""
+    data = event_with_full_matches
+    event = data["event"]
+
+    result = await event_repo.get_event_with_matches(clean_test_session, event.id)
+
+    # EventModel 인스턴스 반환
+    assert result is not None
+    assert isinstance(result, EventModel)
+    assert result.id == event.id
+    assert result.name == "UFC Test Detail Event"
+
+    # 매치가 3개 로드됨
+    assert len(result.matches) == 3
+
+    # 각 매치에 fighter_matches가 로드됨
+    for match in result.matches:
+        assert len(match.fighter_matches) == 2
+        for fm in match.fighter_matches:
+            # fighter 관계가 eager loading됨
+            assert fm.fighter is not None
+            assert fm.fighter.name is not None
+
+    # weight_class 관계가 eager loading됨
+    wc_names = {m.weight_class.name for m in result.matches if m.weight_class}
+    assert "lightweight" in wc_names
+    assert "welterweight" in wc_names
+
+
+@pytest.mark.asyncio
+async def test_get_event_with_matches_nonexistent(clean_test_session):
+    """존재하지 않는 이벤트 ID로 조회 시 None 반환"""
+    result = await event_repo.get_event_with_matches(clean_test_session, 99999)
+
+    assert result is None
+
+
+@pytest.mark.asyncio
+async def test_get_event_with_matches_no_matches(clean_test_session):
+    """매치가 없는 이벤트 조회"""
+    from event.models import EventModel as EM
+    event = EM(name="Empty Event", event_date=date(2024, 1, 1), location="Nowhere")
+    clean_test_session.add(event)
+    await clean_test_session.flush()
+
+    result = await event_repo.get_event_with_matches(clean_test_session, event.id)
+
+    assert result is not None
+    assert result.name == "Empty Event"
+    assert len(result.matches) == 0

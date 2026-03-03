@@ -5,12 +5,15 @@ from calendar import monthrange
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from event import repositories as event_repo
+from match import repositories as match_repo
 from event.dto import (
     EventListDTO, EventSearchDTO, EventSearchResultDTO,
-    MonthlyCalendarDTO, YearlyCalendarDTO, MonthlyBreakdownDTO
+    MonthlyCalendarDTO, YearlyCalendarDTO, MonthlyBreakdownDTO,
+    EventDetailDTO, EventMatchDTO, EventFighterStatDTO, EventSummaryDTO,
 )
 from event.exceptions import (
-    EventValidationError, EventDateError, EventQueryError
+    EventValidationError, EventDateError, EventQueryError,
+    EventNotFoundError,
 )
 from common.utils import utc_today
 
@@ -187,3 +190,147 @@ async def get_events_calendar(
         raise
     except Exception as e:
         raise EventQueryError("get_events_calendar", {"year": year, "month": month}, str(e))
+
+
+def _parse_time_to_seconds(time_str: Optional[str]) -> int:
+    """'M:SS' 형식의 시간 문자열을 초로 변환합니다."""
+    if not time_str:
+        return 0
+    try:
+        parts = time_str.strip().split(":")
+        if len(parts) == 2:
+            return int(parts[0]) * 60 + int(parts[1])
+    except (ValueError, IndexError):
+        pass
+    return 0
+
+
+def _classify_method(method: Optional[str]) -> str:
+    """경기 종료 방법을 분류합니다."""
+    if not method:
+        return "other"
+    m = method.lower()
+    if "ko" in m or "tko" in m:
+        return "ko_tko"
+    if "sub" in m:
+        return "submission"
+    if "dec" in m:
+        return "decision"
+    return "other"
+
+
+def _build_event_summary(matches: list) -> EventSummaryDTO:
+    """이벤트의 매치 목록으로부터 요약 통계를 생성합니다."""
+    total = len(matches)
+    ko_tko = 0
+    submission = 0
+    decision = 0
+    other = 0
+    total_duration = 0
+    duration_count = 0
+
+    for match in matches:
+        category = _classify_method(match.method)
+        if category == "ko_tko":
+            ko_tko += 1
+        elif category == "submission":
+            submission += 1
+        elif category == "decision":
+            decision += 1
+        else:
+            other += 1
+
+        round_num = match.result_round or 0
+        time_seconds = _parse_time_to_seconds(match.time)
+        if round_num > 0 and time_seconds > 0:
+            fight_duration = (round_num - 1) * 300 + time_seconds
+            total_duration += fight_duration
+            duration_count += 1
+
+    avg_duration = total_duration / duration_count if duration_count > 0 else 0.0
+
+    return EventSummaryDTO(
+        total_bouts=total,
+        ko_tko_count=ko_tko,
+        submission_count=submission,
+        decision_count=decision,
+        other_count=other,
+        avg_fight_duration_seconds=round(avg_duration, 1),
+    )
+
+
+async def get_event_detail(
+    session: AsyncSession,
+    event_id: int,
+) -> EventDetailDTO:
+    """
+    이벤트 상세 정보를 조회합니다.
+    이벤트 기본 정보, 매치 목록 (파이터 + 스탯), 요약 통계를 포함합니다.
+    """
+    if not isinstance(event_id, int) or event_id <= 0:
+        raise EventValidationError("event_id", event_id, "event_id must be a positive integer")
+
+    try:
+        event_model = await event_repo.get_event_with_matches(session, event_id)
+        if not event_model:
+            raise EventNotFoundError(event_id)
+
+        # 모든 fighter_match_id 수집 → 배치 집계 쿼리
+        all_fm_ids = []
+        for match in event_model.matches:
+            for fm in match.fighter_matches:
+                all_fm_ids.append(fm.id)
+
+        stats_map = await match_repo.get_basic_stats_aggregate_by_fighter_match_ids(
+            session, all_fm_ids
+        )
+
+        sorted_matches = sorted(
+            event_model.matches,
+            key=lambda m: m.order or 0,
+            reverse=True,
+        )
+
+        match_dtos = []
+        for match in sorted_matches:
+            weight_class_name = None
+            if match.weight_class:
+                weight_class_name = match.weight_class.name
+
+            fighters = []
+            for fm in match.fighter_matches:
+                fighter = fm.fighter
+                aggregated_stats = stats_map.get(fm.id)
+
+                fighters.append(EventFighterStatDTO(
+                    fighter_id=fighter.id,
+                    name=fighter.name,
+                    nickname=fighter.nickname,
+                    nationality=fighter.nationality,
+                    result=fm.result,
+                    stats=aggregated_stats,
+                ))
+
+            match_dtos.append(EventMatchDTO(
+                match_id=match.id,
+                weight_class=weight_class_name,
+                method=match.method,
+                result_round=match.result_round,
+                time=match.time,
+                order=match.order,
+                is_main_event=match.is_main_event,
+                fighters=fighters,
+            ))
+
+        summary = _build_event_summary(event_model.matches)
+
+        return EventDetailDTO(
+            event=event_model.to_schema(),
+            matches=match_dtos,
+            summary=summary,
+        )
+
+    except (EventNotFoundError, EventValidationError):
+        raise
+    except Exception as e:
+        raise EventQueryError("get_event_detail", {"event_id": event_id}, str(e))

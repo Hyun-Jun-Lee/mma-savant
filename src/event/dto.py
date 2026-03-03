@@ -2,6 +2,7 @@ from typing import Dict, List, Optional
 from pydantic import BaseModel, Field
 
 from event.models import EventSchema
+from match.models import BasicMatchStatSchema
 
 
 class EventListDTO(BaseModel):
@@ -50,3 +51,42 @@ class YearlyCalendarDTO(BaseModel):
     year: int = Field(description="연도")
     total_events: int = Field(description="총 이벤트 수")
     monthly_breakdown: Dict[str, MonthlyBreakdownDTO] = Field(description="월별 이벤트 요약")
+
+
+class EventFighterStatDTO(BaseModel):
+    """이벤트 매치 내 파이터 정보 및 스탯"""
+    fighter_id: int = Field(description="파이터 ID")
+    name: str = Field(description="파이터 이름")
+    nickname: Optional[str] = Field(default=None, description="파이터 별명")
+    nationality: Optional[str] = Field(default=None, description="국적")
+    result: Optional[str] = Field(default=None, description="경기 결과 (Win/Loss/Draw/NC)")
+    stats: Optional[BasicMatchStatSchema] = Field(default=None, description="기본 경기 통계")
+
+
+class EventMatchDTO(BaseModel):
+    """이벤트 내 개별 매치"""
+    match_id: int = Field(description="매치 ID")
+    weight_class: Optional[str] = Field(default=None, description="체급명")
+    method: Optional[str] = Field(default=None, description="경기 종료 방법")
+    result_round: Optional[int] = Field(default=0, description="종료 라운드")
+    time: Optional[str] = Field(default=None, description="종료 시간")
+    order: Optional[int] = Field(default=0, description="카드 순서")
+    is_main_event: bool = Field(default=False, description="메인 이벤트 여부")
+    fighters: List[EventFighterStatDTO] = Field(default_factory=list, description="참가 파이터 목록")
+
+
+class EventSummaryDTO(BaseModel):
+    """이벤트 요약 통계"""
+    total_bouts: int = Field(default=0, description="총 경기 수")
+    ko_tko_count: int = Field(default=0, description="KO/TKO 종료 수")
+    submission_count: int = Field(default=0, description="서브미션 종료 수")
+    decision_count: int = Field(default=0, description="판정 종료 수")
+    other_count: int = Field(default=0, description="기타 종료 수 (DQ, NC 등)")
+    avg_fight_duration_seconds: float = Field(default=0.0, description="평균 경기 시간 (초)")
+
+
+class EventDetailDTO(BaseModel):
+    """이벤트 상세 정보"""
+    event: EventSchema = Field(description="이벤트 기본 정보")
+    matches: List[EventMatchDTO] = Field(default_factory=list, description="매치 목록")
+    summary: EventSummaryDTO = Field(default_factory=EventSummaryDTO, description="이벤트 요약 통계")

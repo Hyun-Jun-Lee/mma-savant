@@ -10,6 +10,7 @@ from api.websocket.routes import router as websocket_router
 from api.admin.routes import router as admin_router
 from api.dashboard.routes import router as dashboard_router
 from api.fighter.routes import router as fighter_router
+from api.event.routes import router as event_router
 
 # 메인 API 라우터
 api_router = APIRouter()
@@ -34,3 +35,6 @@ api_router.include_router(dashboard_router)
 
 # 파이터 상세 API 등록
 api_router.include_router(fighter_router)
+
+# 이벤트 상세 API 등록
+api_router.include_router(event_router)

@@ -190,6 +190,53 @@ async def get_fighter_sig_str_stats_aggregate(session: AsyncSession, fighter_id:
         )
     return FighterSigStrStatsAggregateDTO()
 
+async def get_basic_stats_aggregate_by_fighter_match_ids(
+    session: AsyncSession, fighter_match_ids: List[int]
+) -> Dict[int, BasicMatchStatSchema]:
+    """
+    여러 fighter_match_id에 대한 기본 통계를 라운드별로 집계하여 반환합니다.
+    반환값: {fighter_match_id: BasicMatchStatSchema(합산)} 딕셔너리
+    """
+    if not fighter_match_ids:
+        return {}
+
+    result = await session.execute(
+        select(
+            BasicMatchStatModel.fighter_match_id,
+            func.sum(BasicMatchStatModel.knockdowns).label("knockdowns"),
+            func.sum(BasicMatchStatModel.control_time_seconds).label("control_time_seconds"),
+            func.sum(BasicMatchStatModel.submission_attempts).label("submission_attempts"),
+            func.sum(BasicMatchStatModel.sig_str_landed).label("sig_str_landed"),
+            func.sum(BasicMatchStatModel.sig_str_attempted).label("sig_str_attempted"),
+            func.sum(BasicMatchStatModel.total_str_landed).label("total_str_landed"),
+            func.sum(BasicMatchStatModel.total_str_attempted).label("total_str_attempted"),
+            func.sum(BasicMatchStatModel.td_landed).label("td_landed"),
+            func.sum(BasicMatchStatModel.td_attempted).label("td_attempted"),
+        )
+        .where(BasicMatchStatModel.fighter_match_id.in_(fighter_match_ids))
+        .group_by(BasicMatchStatModel.fighter_match_id)
+    )
+
+    stats_map = {}
+    for row in result.mappings().all():
+        fm_id = row["fighter_match_id"]
+        stats_map[fm_id] = BasicMatchStatSchema(
+            id=0,
+            fighter_match_id=fm_id,
+            round=0,
+            knockdowns=row["knockdowns"] or 0,
+            control_time_seconds=row["control_time_seconds"] or 0,
+            submission_attempts=row["submission_attempts"] or 0,
+            sig_str_landed=row["sig_str_landed"] or 0,
+            sig_str_attempted=row["sig_str_attempted"] or 0,
+            total_str_landed=row["total_str_landed"] or 0,
+            total_str_attempted=row["total_str_attempted"] or 0,
+            td_landed=row["td_landed"] or 0,
+            td_attempted=row["td_attempted"] or 0,
+        )
+    return stats_map
+
+
 ################################
 ######### FighterMatch #########
 ################################

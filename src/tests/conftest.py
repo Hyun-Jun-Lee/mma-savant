@@ -20,6 +20,7 @@ from database.connection.postgres_conn_test import (
 from fighter.models import FighterModel, FighterSchema, RankingModel, RankingSchema
 from match.models import MatchModel, FighterMatchModel, SigStrMatchStatModel, BasicMatchStatModel
 from event.models import EventModel
+from common.models import WeightClassModel
 from common.utils import utc_today
 
 
@@ -967,4 +968,201 @@ async def dashboard_data(clean_test_session):
         "matches": matches,
         "fighter_matches": all_fms,
         "rankings": rankings,
+    }
+
+
+# =============================================================================
+# Event Detail 테스트용 fixture
+# =============================================================================
+
+@pytest_asyncio.fixture
+async def event_with_full_matches(clean_test_session):
+    """
+    이벤트 상세 조회 테스트용 종합 데이터 세트
+
+    데이터 구성:
+    - 2개의 체급 (lightweight, welterweight)
+    - 1개의 이벤트
+    - 4명의 파이터
+    - 3개의 매치 (KO/TKO, Submission, Decision)
+    - 라운드별 BasicMatchStat (집계 테스트용)
+
+    매치별 예상 fight duration:
+    - Match 0 (KO/TKO): R2 3:45 → (2-1)*300 + 225 = 525s
+    - Match 1 (SUB): R1 4:30 → (1-1)*300 + 270 = 270s
+    - Match 2 (DEC): R3 5:00 → (3-1)*300 + 300 = 900s
+    - avg = (525+270+900)/3 = 565.0s
+    """
+    session = clean_test_session
+
+    # === Weight Classes (기존 시드 데이터 조회) ===
+    from sqlalchemy import select
+    wc_lw = (await session.execute(
+        select(WeightClassModel).where(WeightClassModel.name == "lightweight")
+    )).scalar_one()
+    wc_ww = (await session.execute(
+        select(WeightClassModel).where(WeightClassModel.name == "welterweight")
+    )).scalar_one()
+
+    # === Event ===
+    event = EventModel(
+        name="UFC Test Detail Event",
+        event_date=date(2024, 6, 15),
+        location="Las Vegas, NV",
+        url="http://example.com/event",
+        latitude=36.1699,
+        longitude=-115.1398,
+    )
+    session.add(event)
+    await session.flush()
+
+    # === Fighters ===
+    fighters = [
+        FighterModel(name="Fighter Alpha", nickname="The Alpha", wins=15, losses=2, draws=0, nationality="USA"),
+        FighterModel(name="Fighter Beta", nickname="The Beta", wins=12, losses=3, draws=1, nationality="Brazil"),
+        FighterModel(name="Fighter Gamma", nickname=None, wins=20, losses=1, draws=0, nationality="Russia"),
+        FighterModel(name="Fighter Delta", nickname="The Delta", wins=8, losses=5, draws=0, nationality="UK"),
+    ]
+    session.add_all(fighters)
+    await session.flush()
+
+    # === Matches ===
+    matches = [
+        MatchModel(
+            event_id=event.id, weight_class_id=wc_lw.id,
+            method="KO/TKO-Punch", result_round=2, time="3:45",
+            order=3, is_main_event=True,
+        ),
+        MatchModel(
+            event_id=event.id, weight_class_id=wc_ww.id,
+            method="SUB-Rear Naked Choke", result_round=1, time="4:30",
+            order=2, is_main_event=False,
+        ),
+        MatchModel(
+            event_id=event.id, weight_class_id=wc_lw.id,
+            method="Decision - Unanimous", result_round=3, time="5:00",
+            order=1, is_main_event=False,
+        ),
+    ]
+    session.add_all(matches)
+    await session.flush()
+
+    # === Fighter Matches ===
+    fms = [
+        # Match 0 (KO/TKO): Alpha win, Beta loss
+        FighterMatchModel(fighter_id=fighters[0].id, match_id=matches[0].id, result="win"),
+        FighterMatchModel(fighter_id=fighters[1].id, match_id=matches[0].id, result="loss"),
+        # Match 1 (SUB): Gamma win, Delta loss
+        FighterMatchModel(fighter_id=fighters[2].id, match_id=matches[1].id, result="win"),
+        FighterMatchModel(fighter_id=fighters[3].id, match_id=matches[1].id, result="loss"),
+        # Match 2 (DEC): Alpha win, Gamma loss
+        FighterMatchModel(fighter_id=fighters[0].id, match_id=matches[2].id, result="win"),
+        FighterMatchModel(fighter_id=fighters[2].id, match_id=matches[2].id, result="loss"),
+    ]
+    session.add_all(fms)
+    await session.flush()
+
+    # === Multi-round BasicMatchStats (집계 테스트용) ===
+    basic_stats = [
+        # Match 0, fms[0] Alpha: R1 + R2
+        BasicMatchStatModel(
+            fighter_match_id=fms[0].id, round=1,
+            knockdowns=0, control_time_seconds=60, submission_attempts=0,
+            sig_str_landed=20, sig_str_attempted=35,
+            total_str_landed=30, total_str_attempted=50,
+            td_landed=1, td_attempted=2,
+        ),
+        BasicMatchStatModel(
+            fighter_match_id=fms[0].id, round=2,
+            knockdowns=1, control_time_seconds=40, submission_attempts=0,
+            sig_str_landed=15, sig_str_attempted=20,
+            total_str_landed=20, total_str_attempted=30,
+            td_landed=0, td_attempted=1,
+        ),
+        # Match 0, fms[1] Beta: R1 + R2
+        BasicMatchStatModel(
+            fighter_match_id=fms[1].id, round=1,
+            knockdowns=0, control_time_seconds=30, submission_attempts=0,
+            sig_str_landed=15, sig_str_attempted=30,
+            total_str_landed=22, total_str_attempted=40,
+            td_landed=0, td_attempted=1,
+        ),
+        BasicMatchStatModel(
+            fighter_match_id=fms[1].id, round=2,
+            knockdowns=0, control_time_seconds=10, submission_attempts=0,
+            sig_str_landed=8, sig_str_attempted=15,
+            total_str_landed=12, total_str_attempted=20,
+            td_landed=0, td_attempted=0,
+        ),
+        # Match 1, fms[2] Gamma: R1
+        BasicMatchStatModel(
+            fighter_match_id=fms[2].id, round=1,
+            knockdowns=0, control_time_seconds=180, submission_attempts=2,
+            sig_str_landed=10, sig_str_attempted=18,
+            total_str_landed=15, total_str_attempted=25,
+            td_landed=2, td_attempted=3,
+        ),
+        # Match 1, fms[3] Delta: R1
+        BasicMatchStatModel(
+            fighter_match_id=fms[3].id, round=1,
+            knockdowns=0, control_time_seconds=20, submission_attempts=0,
+            sig_str_landed=5, sig_str_attempted=12,
+            total_str_landed=8, total_str_attempted=18,
+            td_landed=0, td_attempted=1,
+        ),
+        # Match 2, fms[4] Alpha: R1 + R2 + R3
+        BasicMatchStatModel(
+            fighter_match_id=fms[4].id, round=1,
+            knockdowns=0, control_time_seconds=50, submission_attempts=0,
+            sig_str_landed=18, sig_str_attempted=30,
+            total_str_landed=25, total_str_attempted=40,
+            td_landed=1, td_attempted=2,
+        ),
+        BasicMatchStatModel(
+            fighter_match_id=fms[4].id, round=2,
+            knockdowns=0, control_time_seconds=40, submission_attempts=1,
+            sig_str_landed=15, sig_str_attempted=25,
+            total_str_landed=22, total_str_attempted=35,
+            td_landed=1, td_attempted=1,
+        ),
+        BasicMatchStatModel(
+            fighter_match_id=fms[4].id, round=3,
+            knockdowns=1, control_time_seconds=80, submission_attempts=0,
+            sig_str_landed=22, sig_str_attempted=35,
+            total_str_landed=30, total_str_attempted=45,
+            td_landed=0, td_attempted=1,
+        ),
+        # Match 2, fms[5] Gamma: R1 + R2 + R3
+        BasicMatchStatModel(
+            fighter_match_id=fms[5].id, round=1,
+            knockdowns=0, control_time_seconds=30, submission_attempts=0,
+            sig_str_landed=12, sig_str_attempted=25,
+            total_str_landed=18, total_str_attempted=35,
+            td_landed=0, td_attempted=1,
+        ),
+        BasicMatchStatModel(
+            fighter_match_id=fms[5].id, round=2,
+            knockdowns=0, control_time_seconds=20, submission_attempts=0,
+            sig_str_landed=10, sig_str_attempted=20,
+            total_str_landed=15, total_str_attempted=28,
+            td_landed=1, td_attempted=2,
+        ),
+        BasicMatchStatModel(
+            fighter_match_id=fms[5].id, round=3,
+            knockdowns=0, control_time_seconds=10, submission_attempts=0,
+            sig_str_landed=8, sig_str_attempted=18,
+            total_str_landed=12, total_str_attempted=25,
+            td_landed=0, td_attempted=1,
+        ),
+    ]
+    session.add_all(basic_stats)
+    await session.flush()
+
+    return {
+        "event": event,
+        "fighters": fighters,
+        "matches": matches,
+        "fighter_matches": fms,
+        "basic_stats": basic_stats,
+        "weight_classes": [wc_lw, wc_ww],
     }

@@ -558,9 +558,97 @@ async def test_get_match_with_winner_loser_empty_fighters(sample_match, clean_te
         assert len(result.fighters) == 0
 
 
+# =============================================================================
+# get_basic_stats_aggregate_by_fighter_match_ids 테스트
+# =============================================================================
+
+@pytest.mark.asyncio
+async def test_get_basic_stats_aggregate_multi_round(event_with_full_matches, clean_test_session):
+    """여러 라운드의 통계를 fighter_match_id별로 집계하여 반환"""
+    data = event_with_full_matches
+    fms = data["fighter_matches"]
+
+    # fms[0] = Alpha Match 0: R1(KD=0,sig=20/35,td=1/2,ctrl=60) + R2(KD=1,sig=15/20,td=0/1,ctrl=40)
+    # 합산 기대값: KD=1, sig=35/55, td=1/3, ctrl=100
+    result = await match_repo.get_basic_stats_aggregate_by_fighter_match_ids(
+        clean_test_session, [fms[0].id]
+    )
+
+    assert fms[0].id in result
+    stats = result[fms[0].id]
+    assert isinstance(stats, BasicMatchStatSchema)
+    assert stats.knockdowns == 1
+    assert stats.sig_str_landed == 35
+    assert stats.sig_str_attempted == 55
+    assert stats.td_landed == 1
+    assert stats.td_attempted == 3
+    assert stats.control_time_seconds == 100
+    assert stats.total_str_landed == 50
+    assert stats.total_str_attempted == 80
+
+
+@pytest.mark.asyncio
+async def test_get_basic_stats_aggregate_three_rounds(event_with_full_matches, clean_test_session):
+    """3라운드 매치 통계 집계 검증"""
+    data = event_with_full_matches
+    fms = data["fighter_matches"]
+
+    # fms[4] = Alpha Match 2: R1(sig=18/30,td=1/2,ctrl=50) + R2(sig=15/25,td=1/1,ctrl=40) + R3(sig=22/35,td=0/1,ctrl=80)
+    # 합산 기대값: KD=1, sig=55/90, td=2/4, ctrl=170, sub=1
+    result = await match_repo.get_basic_stats_aggregate_by_fighter_match_ids(
+        clean_test_session, [fms[4].id]
+    )
+
+    stats = result[fms[4].id]
+    assert stats.knockdowns == 1
+    assert stats.sig_str_landed == 55
+    assert stats.sig_str_attempted == 90
+    assert stats.td_landed == 2
+    assert stats.td_attempted == 4
+    assert stats.control_time_seconds == 170
+    assert stats.submission_attempts == 1
+
+
+@pytest.mark.asyncio
+async def test_get_basic_stats_aggregate_batch(event_with_full_matches, clean_test_session):
+    """여러 fighter_match_id를 한 번에 집계"""
+    data = event_with_full_matches
+    fms = data["fighter_matches"]
+
+    all_ids = [fm.id for fm in fms]
+    result = await match_repo.get_basic_stats_aggregate_by_fighter_match_ids(
+        clean_test_session, all_ids
+    )
+
+    # 6개 fighter_match 모두에 대해 결과 반환
+    assert len(result) == 6
+    for fm_id in all_ids:
+        assert fm_id in result
+
+
+@pytest.mark.asyncio
+async def test_get_basic_stats_aggregate_empty_list(clean_test_session):
+    """빈 리스트 전달 시 빈 딕셔너리 반환"""
+    result = await match_repo.get_basic_stats_aggregate_by_fighter_match_ids(
+        clean_test_session, []
+    )
+
+    assert result == {}
+
+
+@pytest.mark.asyncio
+async def test_get_basic_stats_aggregate_nonexistent_ids(clean_test_session):
+    """존재하지 않는 fighter_match_id로 조회 시 빈 딕셔너리 반환"""
+    result = await match_repo.get_basic_stats_aggregate_by_fighter_match_ids(
+        clean_test_session, [99999, 99998]
+    )
+
+    assert result == {}
+
+
 if __name__ == "__main__":
     print("Match Repositories 테스트 실행...")
     print("✅ Test Database를 사용한 완전한 통합 테스트!")
     print("✅ 새로 추가된 Repository 함수들 테스트 포함!")
     print("\n테스트 실행:")
-    print("uv run pytest tests/match/test_repositories.py -v")
+    print("uv run pytest tests/match/test_match_repositories.py -v")
