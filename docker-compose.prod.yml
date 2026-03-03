@@ -185,7 +185,7 @@ services:
       - DB_HOST=savant_db
       - PREFECT_API_URL=${PREFECT_API_URL}
       - PREFECT_API_KEY=${PREFECT_API_KEY}
-    command: ["uv", "run", "python", "-m", "data_collector.workflows.ufc_stats_flow"]
+    command: ["uv", "run", "python", "-m", "data_collector.main"]
     networks:
       - savant_network
     depends_on:
