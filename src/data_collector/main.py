@@ -1,4 +1,4 @@
-from workflows.ufc_stats_flow import run_ufc_stats_flow
+from data_collector.workflows.ufc_stats_flow import run_ufc_stats_flow
 from prefect.schedules import Cron
 
 
