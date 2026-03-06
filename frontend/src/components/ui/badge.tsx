@@ -24,7 +24,7 @@ const badgeVariants = cva(
           "rounded-full border-transparent bg-cyan-500/20 text-cyan-400",
         win: "rounded-full border-transparent bg-emerald-500/20 text-emerald-400",
         loss: "rounded-full border-transparent bg-red-500/20 text-red-400",
-        draw: "rounded-full border-transparent bg-zinc-500/20 text-zinc-400",
+        draw: "rounded-full border-transparent bg-amber-500/20 text-amber-400",
         champion:
           "rounded-full border-transparent bg-yellow-500/20 text-yellow-400",
         ranking:

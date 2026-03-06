@@ -50,7 +50,7 @@ export function FighterDetailClient({ fighterId }: Props) {
         <FinishBreakdownChart breakdown={data.record.finish_breakdown} />
       </div>
 
-      <CareerStatsCard stats={data.stats} />
+      <CareerStatsCard stats={data.stats} submissionWins={data.record.finish_breakdown.submission} />
 
       <FightHistoryTable fights={data.fight_history} />
     </div>

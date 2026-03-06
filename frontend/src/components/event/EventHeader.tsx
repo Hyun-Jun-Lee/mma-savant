@@ -1,5 +1,6 @@
 'use client'
 
+import { motion } from 'framer-motion'
 import type { EventInfo, EventSummary } from '@/types/event'
 import { Calendar, MapPin, Swords, Clock } from 'lucide-react'
 import { formatDate } from '@/lib/utils'
@@ -17,7 +18,12 @@ function formatDuration(seconds: number): string {
 
 export function EventHeader({ event, summary }: Props) {
   return (
-    <div className="rounded-xl border border-white/[0.06] bg-white/[0.03] p-5 transition-all duration-300 ease-out hover:border-white/[0.12] hover:bg-white/[0.05]">
+    <motion.div
+      initial={{ opacity: 0, y: 28, filter: 'blur(4px)' }}
+      animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
+      transition={{ duration: 0.7, ease: [0.23, 1, 0.32, 1] }}
+      className="rounded-xl border border-white/[0.06] bg-white/[0.03] p-5 transition-all duration-300 ease-out hover:border-white/[0.12] hover:bg-white/[0.05]"
+    >
       <h1 className="text-2xl font-bold text-zinc-100">{event.name}</h1>
 
       <div className="mt-2 flex flex-wrap items-center gap-4 text-sm text-zinc-400">
@@ -44,6 +50,6 @@ export function EventHeader({ event, summary }: Props) {
           </span>
         )}
       </div>
-    </div>
+    </motion.div>
   )
 }

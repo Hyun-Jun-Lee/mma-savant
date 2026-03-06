@@ -1,17 +1,13 @@
 'use client'
 
+import { motion } from 'framer-motion'
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Label } from 'recharts'
 import type { FinishBreakdown } from '@/types/fighter'
+import { FINISH_COLORS } from '@/lib/utils'
 
 interface Props {
   breakdown: FinishBreakdown
 }
-
-const COLORS = {
-  ko_tko: '#ef4444',
-  submission: '#a855f7',
-  decision: '#06b6d4',
-} as const
 
 const LABELS: Record<string, string> = {
   ko_tko: 'KO/TKO',
@@ -36,22 +32,27 @@ export function FinishBreakdownChart({ breakdown }: Props) {
   }
 
   const data = [
-    { name: 'KO/TKO', value: breakdown.ko_tko, color: COLORS.ko_tko },
+    { name: 'KO/TKO', value: breakdown.ko_tko, color: FINISH_COLORS.ko_tko },
     {
       name: 'Submission',
       value: breakdown.submission,
-      color: COLORS.submission,
+      color: FINISH_COLORS.submission,
     },
-    { name: 'Decision', value: breakdown.decision, color: COLORS.decision },
+    { name: 'Decision', value: breakdown.decision, color: FINISH_COLORS.decision },
   ].filter((d) => d.value > 0)
 
   return (
-    <div className="rounded-xl border border-white/[0.06] bg-white/[0.03] p-5 transition-all duration-300 ease-out hover:border-white/[0.12] hover:bg-white/[0.05]">
+    <motion.div
+      initial={{ opacity: 0, y: 28, filter: 'blur(4px)' }}
+      animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
+      transition={{ duration: 0.7, ease: [0.23, 1, 0.32, 1] }}
+      className="rounded-xl border border-white/[0.06] bg-white/[0.03] p-5 transition-all duration-300 ease-out hover:border-white/[0.12] hover:bg-white/[0.05]"
+    >
       <h3 className="mb-4 text-sm font-semibold text-zinc-100">
         Finish Breakdown
       </h3>
 
-      <div className="flex items-center gap-6">
+      <div className="flex items-center justify-center gap-6">
         <div className="h-[160px] w-[160px] shrink-0">
           <ResponsiveContainer width="100%" height="100%">
             <PieChart>
@@ -64,6 +65,11 @@ export function FinishBreakdownChart({ breakdown }: Props) {
                 paddingAngle={2}
                 dataKey="value"
                 stroke="none"
+                animationBegin={400}
+                animationDuration={1400}
+                animationEasing="ease-out"
+                startAngle={90}
+                endAngle={-270}
               >
                 {data.map((entry) => (
                   <Cell key={entry.name} fill={entry.color} />
@@ -98,7 +104,7 @@ export function FinishBreakdownChart({ breakdown }: Props) {
                 <div
                   className="h-2.5 w-2.5 rounded-full"
                   style={{
-                    backgroundColor: COLORS[key as keyof typeof COLORS],
+                    backgroundColor: FINISH_COLORS[key],
                   }}
                 />
                 <span className="text-zinc-400">{label}</span>
@@ -110,6 +116,6 @@ export function FinishBreakdownChart({ breakdown }: Props) {
           })}
         </div>
       </div>
-    </div>
+    </motion.div>
   )
 }

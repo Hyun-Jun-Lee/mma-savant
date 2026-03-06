@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { motion, AnimatePresence } from 'framer-motion'
 import Link from 'next/link'
 import type { FightHistoryItem, PerMatchStats } from '@/types/fighter'
 import { ChevronDown, ChevronRight, HelpCircle } from 'lucide-react'
@@ -22,26 +23,12 @@ function formatControlTime(seconds: number): string {
   return `${m}:${s.toString().padStart(2, '0')}`
 }
 
-function ResultBadge({ result, method }: { result: string; method?: string | null }) {
+function ResultBadge({ result }: { result: string }) {
   const lower = result.toLowerCase()
-  let variant: 'ko' | 'submission' | 'decision' | 'win' | 'loss' | 'draw' = 'draw'
-  if (lower === 'win') {
-    const m = (method ?? '').toLowerCase()
-    if (m.includes('ko') || m.includes('tko')) {
-      variant = 'ko'
-    } else if (m.includes('sub')) {
-      variant = 'submission'
-    } else if (m.includes('dec')) {
-      variant = 'decision'
-    } else {
-      variant = 'win'
-    }
-  } else if (lower === 'loss') {
-    variant = 'loss'
-  }
+  const variant = lower === 'win' ? 'win' : lower === 'loss' ? 'loss' : 'draw'
   return (
     <Badge variant={variant} className="text-[10px] font-semibold uppercase">
-      {result}
+      {lower === 'unknown' ? 'TBD' : result}
     </Badge>
   )
 }
@@ -104,6 +91,29 @@ function StatLine({
   )
 }
 
+function computeAvgFightTime(fights: FightHistoryItem[]): string | null {
+  const durations: number[] = []
+  for (const f of fights) {
+    if (f.round != null && f.round > 0 && f.time) {
+      const parts = f.time.trim().split(':')
+      if (parts.length === 2) {
+        const mins = parseInt(parts[0], 10)
+        const secs = parseInt(parts[1], 10)
+        if (!isNaN(mins) && !isNaN(secs)) {
+          durations.push((f.round - 1) * 300 + mins * 60 + secs)
+        }
+      }
+    }
+  }
+  if (durations.length === 0) return null
+  const avg = durations.reduce((a, b) => a + b, 0) / durations.length
+  const totalRounds = Math.floor(avg / 300) + 1
+  const remainder = avg % 300
+  const m = Math.floor(remainder / 60)
+  const s = Math.round(remainder % 60)
+  return `${totalRounds}R ${m}:${s.toString().padStart(2, '0')}`
+}
+
 export function FightHistoryTable({ fights }: Props) {
   const [expandedId, setExpandedId] = useState<number | null>(null)
 
@@ -119,11 +129,50 @@ export function FightHistoryTable({ fights }: Props) {
   }
 
   return (
-    <div className="rounded-xl border border-white/[0.06] bg-white/[0.03] p-5 transition-all duration-300 ease-out hover:border-white/[0.12] hover:bg-white/[0.05]">
+    <motion.div
+      initial={{ opacity: 0, y: 28, filter: 'blur(4px)' }}
+      animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
+      transition={{ duration: 0.7, ease: [0.23, 1, 0.32, 1] }}
+      className="rounded-xl border border-white/[0.06] bg-white/[0.03] p-5 transition-all duration-300 ease-out hover:border-white/[0.12] hover:bg-white/[0.05]"
+    >
       <div className="mb-4 flex items-center gap-1.5">
         <h3 className="text-sm font-semibold text-zinc-100">
-          Fight History ({fights.length})
+          Fight History
         </h3>
+        {/* Recent 5 fights result dots */}
+        <div className="ml-auto flex items-center gap-1">
+          {fights.slice(0, 5).map((f, i) => {
+            const r = f.result.toLowerCase()
+            const color =
+              r === 'win'
+                ? 'bg-emerald-400'
+                : r === 'loss'
+                  ? 'bg-red-400'
+                  : 'bg-zinc-500'
+            const label = r === 'win' ? 'W' : r === 'loss' ? 'L' : 'D'
+            return (
+              <Tooltip key={f.match_id}>
+                <TooltipTrigger asChild>
+                  <span className={`inline-block h-2 w-2 rounded-full ${color}`} />
+                </TooltipTrigger>
+                <TooltipContent
+                  side="top"
+                  className="bg-zinc-900 text-zinc-200 border border-white/[0.06] text-[10px] px-1.5 py-0.5"
+                >
+                  {label} vs {toTitleCase(f.opponent.name)}
+                </TooltipContent>
+              </Tooltip>
+            )
+          })}
+        </div>
+        {(() => {
+          const avg = computeAvgFightTime(fights)
+          return avg ? (
+            <span className="text-xs text-zinc-500">
+              Avg. {avg}
+            </span>
+          ) : null
+        })()}
         <Tooltip>
           <TooltipTrigger asChild>
             <HelpCircle className="h-3.5 w-3.5 shrink-0 cursor-help text-zinc-600 hover:text-zinc-400 transition-colors" />
@@ -174,7 +223,7 @@ export function FightHistoryTable({ fights }: Props) {
                       )
                     ) : null}
                   </span>
-                  <ResultBadge result={fight.result} method={fight.method} />
+                  <ResultBadge result={fight.result} />
                   <span className="flex items-center gap-1.5 truncate text-zinc-200">
                     <Link
                       href={`/fighters/${fight.opponent.id}`}
@@ -224,7 +273,7 @@ export function FightHistoryTable({ fights }: Props) {
                         )
                       ) : null}
                     </span>
-                    <ResultBadge result={fight.result} method={fight.method} />
+                    <ResultBadge result={fight.result} />
                     <span className="text-xs text-zinc-200">
                       vs{' '}
                       <Link
@@ -248,15 +297,26 @@ export function FightHistoryTable({ fights }: Props) {
               </button>
 
               {/* Expanded stats */}
-              {isExpanded && fight.stats && (
-                <div className="px-2 pb-3 pt-1 sm:pl-10">
-                  <PerMatchDetail stats={fight.stats} />
-                </div>
-              )}
+              <AnimatePresence>
+                {isExpanded && fight.stats && (
+                  <motion.div
+                    key="expanded-stats"
+                    initial={{ opacity: 0, height: 0 }}
+                    animate={{ opacity: 1, height: 'auto' }}
+                    exit={{ opacity: 0, height: 0 }}
+                    transition={{ duration: 0.25, ease: 'easeOut' }}
+                    className="overflow-hidden"
+                  >
+                    <div className="px-2 pb-3 pt-1 sm:pl-10">
+                      <PerMatchDetail stats={fight.stats} />
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
             </div>
           )
         })}
       </div>
-    </div>
+    </motion.div>
   )
 }

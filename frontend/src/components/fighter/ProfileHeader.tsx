@@ -1,5 +1,6 @@
 'use client'
 
+import { motion } from 'framer-motion'
 import type { FighterProfile } from '@/types/fighter'
 import { Crown, Ruler, Weight, Target, User } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
@@ -13,7 +14,12 @@ export function ProfileHeader({ profile }: Props) {
   const rankingEntries = Object.entries(profile.rankings)
 
   return (
-    <div className="rounded-xl border border-white/[0.06] bg-white/[0.03] p-5 transition-all duration-300 ease-out hover:border-white/[0.12] hover:bg-white/[0.05]">
+    <motion.div
+      initial={{ opacity: 0, y: 28, filter: 'blur(4px)' }}
+      animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
+      transition={{ duration: 0.7, ease: [0.23, 1, 0.32, 1] }}
+      className="rounded-xl border border-white/[0.06] bg-white/[0.03] p-5 transition-all duration-300 ease-out hover:border-white/[0.12] hover:bg-white/[0.05]"
+    >
       {/* Name & Nickname */}
       <div className="flex flex-wrap items-center gap-3">
         <h1 className="text-2xl font-bold text-zinc-100">{toTitleCase(profile.name)}</h1>
@@ -88,6 +94,6 @@ export function ProfileHeader({ profile }: Props) {
           ))}
         </div>
       )}
-    </div>
+    </motion.div>
   )
 }
