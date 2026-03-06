@@ -5,7 +5,8 @@
     "important_notes": [
       "All table names use SINGULAR form (match, fighter, event, ranking)",
       "NEVER use plural forms (matches, fighters, events, rankings)",
-      "Primary keys are always 'id' column with integer type"
+      "Primary keys are always 'id' column with integer type",
+      "All tables have 'created_at' and 'updated_at' timestamp columns"
     ]
   },
   "tables": {
@@ -109,6 +110,18 @@
           "nullable": true,
           "description": "Currently holds a championship belt",
           "notes": "true = currently holds belt"
+        },
+        {
+          "column": "detail_url",
+          "type": "character varying",
+          "nullable": true,
+          "description": "URL to fighter detail page on source site"
+        },
+        {
+          "column": "nationality",
+          "type": "character varying",
+          "nullable": true,
+          "description": "Fighter nationality / country"
         }
       ]
     },
@@ -140,6 +153,24 @@
             "pattern": "city, state/province, country",
             "examples": ["las vegas, nevada, usa", "abu dhabi, abu dhabi, uae"]
           }
+        },
+        {
+          "column": "url",
+          "type": "character varying",
+          "nullable": true,
+          "description": "URL to event detail page on source site"
+        },
+        {
+          "column": "latitude",
+          "type": "double precision",
+          "nullable": true,
+          "description": "Event venue latitude coordinate"
+        },
+        {
+          "column": "longitude",
+          "type": "double precision",
+          "nullable": true,
+          "description": "Event venue longitude coordinate"
         }
       ]
     },
@@ -213,6 +244,12 @@
           "description": "Time fight ended in round",
           "value_format": {"pattern": "M:SS", "examples": ["5:00", "2:34", "0:45"]},
           "notes": "Time within round when fight ended. if time over 5:00 it need to devided by 5. example: 5:01 -> 0:01"
+        },
+        {
+          "column": "detail_url",
+          "type": "character varying",
+          "nullable": true,
+          "description": "URL to match detail page on source site"
         }
       ]
     },
@@ -221,19 +258,20 @@
       "relationships": {
         "fighter": "N:1 - References one fighter",
         "match": "N:1 - References one match",
-        "match_statistics": "1:N - Fighter match has detailed statistics"
+        "match_statistics": "1:1 - Fighter match has basic round statistics",
+        "strike_detail": "1:1 - Fighter match has detailed strike breakdown"
       },
       "columns": [
         {
           "column": "fighter_id",
           "type": "integer",
-          "nullable": true,
+          "nullable": false,
           "description": "Foreign key to fighter"
         },
         {
           "column": "match_id",
           "type": "integer",
-          "nullable": true,
+          "nullable": false,
           "description": "Foreign key to match"
         },
         {
@@ -391,7 +429,7 @@
       ]
     },
     "strike_detail": {
-      "description": "Detailed striking statistics breakdown",
+      "description": "Detailed striking statistics breakdown by target and position",
       "relationships": {
         "fighter_match": "N:1 - Strike details belong to one fighter's match performance"
       },
@@ -483,7 +521,7 @@
       ]
     },
     "user": {
-      "description": "System users (not MMA domain)",
+      "description": "System users (not MMA domain - do not query for MMA analysis)",
       "relationships": {
         "conversation": "1:N - User can have multiple conversations"
       },
@@ -529,9 +567,21 @@
           "nullable": false
         },
         {
+          "column": "is_admin",
+          "type": "boolean",
+          "nullable": false,
+          "description": "Admin user flag"
+        },
+        {
           "column": "daily_requests",
           "type": "integer",
           "nullable": false
+        },
+        {
+          "column": "daily_request_limit",
+          "type": "integer",
+          "nullable": false,
+          "description": "Maximum daily AI request limit"
         },
         {
           "column": "total_requests",
@@ -546,31 +596,28 @@
       ]
     },
     "conversation": {
-      "description": "User conversation sessions (not MMA domain)",
+      "description": "User conversation sessions (not MMA domain - do not query for MMA analysis)",
       "relationships": {
         "user": "N:1 - Conversation belongs to one user",
         "message": "1:N - Conversation contains multiple messages"
       },
       "columns": [
         {
-          "column": "session_id",
-          "type": "character varying",
-          "nullable": false
-        },
-        {
           "column": "user_id",
           "type": "integer",
-          "nullable": false
+          "nullable": false,
+          "description": "Foreign key to user"
         },
         {
           "column": "title",
           "type": "text",
-          "nullable": true
+          "nullable": true,
+          "description": "Conversation title"
         }
       ]
     },
     "message": {
-      "description": "Individual messages within conversations (not MMA domain)",
+      "description": "Individual messages within conversations (not MMA domain - do not query for MMA analysis)",
       "relationships": {
         "conversation": "N:1 - Message belongs to one conversation"
       },
@@ -578,27 +625,32 @@
         {
           "column": "message_id",
           "type": "character varying",
-          "nullable": false
+          "nullable": false,
+          "description": "Unique message UUID"
         },
         {
-          "column": "session_id",
-          "type": "character varying",
-          "nullable": false
+          "column": "conversation_id",
+          "type": "integer",
+          "nullable": false,
+          "description": "Foreign key to conversation"
         },
         {
           "column": "role",
           "type": "character varying",
-          "nullable": false
+          "nullable": false,
+          "description": "Message sender role (user or assistant)"
         },
         {
           "column": "content",
           "type": "text",
-          "nullable": false
+          "nullable": false,
+          "description": "Message content"
         },
         {
           "column": "tool_results",
           "type": "jsonb",
-          "nullable": true
+          "nullable": true,
+          "description": "AI tool execution results (SQL query results, etc.)"
         }
       ]
     }

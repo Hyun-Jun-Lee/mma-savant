@@ -264,8 +264,9 @@ filterwarnings = [
 ]
 
 [tool.uv]
-# 현재 디렉토리를 Python 경로에 추가
-dev-dependencies = []
+
+[dependency-groups]
+dev = []
 
 [tool.hatch.build.targets.wheel]
 packages = ["."]
