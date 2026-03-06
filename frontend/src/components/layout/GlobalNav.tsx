@@ -24,7 +24,7 @@ export function GlobalNav() {
         {/* Logo */}
         <Link href="/" className="flex items-center gap-2">
           <Image src="/logo.svg" alt="MMA Savant" width={72} height={72} className="rounded-md" />
-          <span className="text-sm font-semibold text-white">MMA Savant</span>
+          <span className="text-sm font-semibold text-white">MMA <span className="text-violet-500">S</span>avant</span>
         </Link>
 
         {/* Nav Links */}
