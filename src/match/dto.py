@@ -76,6 +76,9 @@ class FighterBasicStatsAggregateDTO(BaseModel):
     total_str_attempted: int = 0
     td_landed: int = 0
     td_attempted: int = 0
+    opp_td_landed: int = 0
+    opp_td_attempted: int = 0
+    opp_knockdowns: int = 0
     match_count: int = 0
 
 

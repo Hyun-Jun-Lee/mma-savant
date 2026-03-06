@@ -240,6 +240,7 @@ async def get_fighter_detail(session: AsyncSession, fighter_id: int) -> FighterD
         # 5. career aggregate stats (기존 함수 재사용)
         basic_agg = await match_repo.get_fighter_basic_stats_aggregate(session, fighter_id)
         sig_str_agg = await match_repo.get_fighter_sig_str_stats_aggregate(session, fighter_id)
+        top_sub = await fighter_repo.get_top_submission_technique(session, fighter_id)
 
         # 6. per-match stats 배치 조회
         fm_ids = [row["fighter_match_id"] for row in fight_history_rows]
@@ -286,6 +287,7 @@ async def get_fighter_detail(session: AsyncSession, fighter_id: int) -> FighterD
                 sig_str_attempted=basic_agg.sig_str_attempted,
                 sig_str_accuracy=sig_acc,
                 knockdowns=basic_agg.knockdowns,
+                opp_knockdowns=basic_agg.opp_knockdowns,
                 head_landed=sig_str_agg.head_strikes_landed,
                 head_attempted=sig_str_agg.head_strikes_attempts,
                 body_landed=sig_str_agg.body_strikes_landed,
@@ -294,13 +296,19 @@ async def get_fighter_detail(session: AsyncSession, fighter_id: int) -> FighterD
                 leg_attempted=sig_str_agg.leg_strikes_attempts,
                 match_count=match_count,
             )
+            td_def = round((1 - basic_agg.opp_td_landed / basic_agg.opp_td_attempted) * 100, 1) if basic_agg.opp_td_attempted > 0 else 0.0
+
             grappling = GrapplingStatsDTO(
                 td_landed=basic_agg.td_landed,
                 td_attempted=basic_agg.td_attempted,
                 td_accuracy=td_acc,
+                td_defense_rate=td_def,
+                opp_td_landed=basic_agg.opp_td_landed,
+                opp_td_attempted=basic_agg.opp_td_attempted,
                 control_time_seconds=basic_agg.control_time_seconds,
                 avg_control_time_seconds=avg_ctrl,
                 submission_attempts=basic_agg.submission_attempts,
+                top_submission=top_sub,
                 match_count=match_count,
             )
             stats = CareerStatsDTO(striking=striking, grappling=grappling)

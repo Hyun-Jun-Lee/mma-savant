@@ -1,6 +1,6 @@
 from typing import List, Optional, Dict
 
-from sqlalchemy import select, func
+from sqlalchemy import select, func, text
 from sqlalchemy.orm import aliased
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -113,6 +113,7 @@ async def get_sig_str_match_stats(
 async def get_fighter_basic_stats_aggregate(session: AsyncSession, fighter_id: int) -> FighterBasicStatsAggregateDTO:
     """
     특정 선수의 기본 통계 데이터를 데이터베이스 레벨에서 집계하여 가져옵니다.
+    상대의 테이크다운 통계도 함께 집계합니다 (TD 방어율 산출용).
     """
     result = await session.execute(
         select(
@@ -132,6 +133,25 @@ async def get_fighter_basic_stats_aggregate(session: AsyncSession, fighter_id: i
     )
 
     stats = result.mappings().one_or_none()
+
+    # 상대 TD 집계 (방어율 산출용)
+    opp_result = await session.execute(
+        text("""
+            SELECT
+                COALESCE(SUM(opp_bs.td_landed), 0) AS opp_td_landed,
+                COALESCE(SUM(opp_bs.td_attempted), 0) AS opp_td_attempted,
+                COALESCE(SUM(opp_bs.knockdowns), 0) AS opp_knockdowns
+            FROM fighter_match fm
+            JOIN fighter_match opp_fm
+                ON opp_fm.match_id = fm.match_id AND opp_fm.fighter_id != fm.fighter_id
+            JOIN match_statistics opp_bs
+                ON opp_bs.fighter_match_id = opp_fm.id
+            WHERE fm.fighter_id = :fighter_id
+        """),
+        {"fighter_id": fighter_id},
+    )
+    opp_stats = opp_result.mappings().one()
+
     if stats:
         return FighterBasicStatsAggregateDTO(
             knockdowns=stats["knockdowns"] or 0,
@@ -143,6 +163,9 @@ async def get_fighter_basic_stats_aggregate(session: AsyncSession, fighter_id: i
             total_str_attempted=stats["total_str_attempted"] or 0,
             td_landed=stats["td_landed"] or 0,
             td_attempted=stats["td_attempted"] or 0,
+            opp_td_landed=opp_stats["opp_td_landed"],
+            opp_td_attempted=opp_stats["opp_td_attempted"],
+            opp_knockdowns=opp_stats["opp_knockdowns"],
             match_count=stats["match_count"] or 0
         )
     return FighterBasicStatsAggregateDTO()
@@ -234,6 +257,31 @@ async def get_basic_stats_aggregate_by_fighter_match_ids(
             td_landed=row["td_landed"] or 0,
             td_attempted=row["td_attempted"] or 0,
         )
+    return stats_map
+
+
+async def get_per_round_stats_by_fighter_match_ids(
+    session: AsyncSession, fighter_match_ids: List[int]
+) -> Dict[int, List[BasicMatchStatSchema]]:
+    """
+    여러 fighter_match_id에 대한 라운드별 기본 통계를 집계 없이 반환합니다.
+    반환값: {fighter_match_id: [round1_schema, round2_schema, ...]} 딕셔너리
+    """
+    if not fighter_match_ids:
+        return {}
+
+    result = await session.execute(
+        select(BasicMatchStatModel)
+        .where(BasicMatchStatModel.fighter_match_id.in_(fighter_match_ids))
+        .order_by(BasicMatchStatModel.fighter_match_id, BasicMatchStatModel.round)
+    )
+
+    stats_map: Dict[int, List[BasicMatchStatSchema]] = {}
+    for row in result.scalars().all():
+        fm_id = row.fighter_match_id
+        if fm_id not in stats_map:
+            stats_map[fm_id] = []
+        stats_map[fm_id].append(row.to_schema())
     return stats_map
 
 

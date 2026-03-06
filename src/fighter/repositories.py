@@ -290,3 +290,25 @@ async def get_finish_breakdown(session: AsyncSession, fighter_id: int) -> dict:
         "submission": row["submission"] or 0,
         "decision": row["decision"] or 0,
     }
+
+
+async def get_top_submission_technique(session: AsyncSession, fighter_id: int) -> Optional[str]:
+    """
+    파이터의 가장 많이 성공한 서브미션 기술을 반환합니다.
+    """
+    stmt = text("""
+        SELECT
+            REPLACE(m.method, 'SUB-', '') AS technique,
+            COUNT(*) AS cnt
+        FROM fighter_match fm
+        JOIN "match" m ON m.id = fm.match_id
+        WHERE fm.fighter_id = :fighter_id
+          AND LOWER(fm.result) = 'win'
+          AND m.method LIKE 'SUB-%%'
+        GROUP BY m.method
+        ORDER BY cnt DESC
+        LIMIT 1
+    """)
+    result = await session.execute(stmt, {"fighter_id": fighter_id})
+    row = result.mappings().one_or_none()
+    return row["technique"] if row else None

@@ -69,6 +69,7 @@ class StrikingStatsDTO(BaseModel):
     sig_str_attempted: int = 0
     sig_str_accuracy: float = 0.0
     knockdowns: int = 0
+    opp_knockdowns: int = 0
     head_landed: int = 0
     head_attempted: int = 0
     body_landed: int = 0
@@ -82,9 +83,13 @@ class GrapplingStatsDTO(BaseModel):
     td_landed: int = 0
     td_attempted: int = 0
     td_accuracy: float = 0.0
+    td_defense_rate: float = 0.0
+    opp_td_landed: int = 0
+    opp_td_attempted: int = 0
     control_time_seconds: int = 0
     avg_control_time_seconds: int = 0
     submission_attempts: int = 0
+    top_submission: Optional[str] = None
     match_count: int = 0
 
 
