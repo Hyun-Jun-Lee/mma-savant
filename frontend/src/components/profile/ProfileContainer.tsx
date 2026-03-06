@@ -117,7 +117,7 @@ export function ProfileContainer() {
 
       <div className="relative max-w-4xl mx-auto px-4 py-8">
         {/* 헤더 */}
-        <div className="flex items-center justify-between mb-8">
+        <div className="mb-8">
           <Button
             variant="ghost"
             className="text-zinc-400 hover:text-white hover:bg-white/10"
@@ -126,13 +126,6 @@ export function ProfileContainer() {
             <ArrowLeft className="w-4 h-4 mr-2" />
             Back
           </Button>
-
-          <div className="flex items-center space-x-2">
-            <div className="w-8 h-8 bg-white rounded-lg flex items-center justify-center">
-              <span className="text-zinc-900 font-bold text-sm">MS</span>
-            </div>
-            <span className="text-white font-semibold">MMA Savant</span>
-          </div>
         </div>
 
         {/* 프로필 카드 */}

@@ -1,5 +1,6 @@
 'use client'
 
+import Image from 'next/image'
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import { useAuth } from '@/hooks/useAuth'
@@ -22,9 +23,7 @@ export function GlobalNav() {
       <div className="mx-auto flex h-14 max-w-7xl items-center justify-between px-4">
         {/* Logo */}
         <Link href="/" className="flex items-center gap-2">
-          <div className="flex h-7 w-7 items-center justify-center rounded-md bg-white">
-            <span className="text-xs font-bold text-zinc-900">MS</span>
-          </div>
+          <Image src="/logo.svg" alt="MMA Savant" width={72} height={72} className="rounded-md" />
           <span className="text-sm font-semibold text-white">MMA Savant</span>
         </Link>
 

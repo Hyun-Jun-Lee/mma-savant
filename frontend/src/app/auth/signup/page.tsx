@@ -1,6 +1,7 @@
 "use client"
 
 import { useState } from "react"
+import Image from "next/image"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { GoogleLoginButton } from "@/components/auth/GoogleLoginButton"
 import { SignupForm } from "@/components/auth/SignupForm"
@@ -51,9 +52,7 @@ export default function SignUpPage() {
       <Card className="relative w-full max-w-md bg-white/5 backdrop-blur-sm border-white/10">
         <CardHeader className="text-center space-y-6 pb-4">
           <div className="space-y-4">
-            <div className="w-16 h-16 mx-auto bg-white rounded-xl flex items-center justify-center shadow-lg">
-              <span className="text-zinc-900 font-bold text-xl">MS</span>
-            </div>
+            <Image src="/logo.svg" alt="MMA Savant" width={176} height={176} className="mx-auto rounded-xl shadow-lg" />
             <div>
               <CardTitle className="text-3xl font-bold text-white">
                 MMA Savant

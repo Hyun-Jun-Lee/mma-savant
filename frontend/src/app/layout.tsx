@@ -18,6 +18,7 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "MMA Savant - Your Personal MMA Expert",
   description: "Get expert insights on MMA fighters, techniques, and fight analysis",
+  icons: { icon: "/favicon.svg" },
 };
 
 export default function RootLayout({
