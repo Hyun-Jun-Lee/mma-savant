@@ -10,6 +10,11 @@ COPY --from=ghcr.io/astral-sh/uv:latest /uv /bin/uv
 # 작업 디렉토리 설정
 WORKDIR /app
 
+# venv를 /app 외부에 생성 → 볼륨 마운트(./src:/app)에 영향받지 않음
+ENV UV_PROJECT_ENVIRONMENT=/opt/venv
+# Docker overlay FS에서 hardlink 미지원 경고 제거
+ENV UV_LINK_MODE=copy
+
 # 의존성 파일 먼저 복사 (캐시 활용)
 COPY src/pyproject.toml src/uv.lock* ./
 
