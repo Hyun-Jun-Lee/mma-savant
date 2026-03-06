@@ -29,7 +29,8 @@ def test_get_supported_charts_returns_dict_with_expected_charts():
     # Then: 모든 예상 차트 타입이 포함되어야 한다
     expected_charts = {
         "table", "bar_chart", "pie_chart",
-        "line_chart", "scatter_plot", "text_summary"
+        "line_chart", "scatter_plot", "text_summary",
+        "area_chart", "radar_chart"
     }
     assert isinstance(result, dict)
     assert set(result.keys()) == expected_charts
@@ -140,19 +141,20 @@ def test_get_chart_list_contains_all_expected_charts():
     # Then: 모든 예상 차트가 포함되어야 한다
     expected_charts = {
         "table", "bar_chart", "pie_chart",
-        "line_chart", "scatter_plot", "text_summary"
+        "line_chart", "scatter_plot", "text_summary",
+        "area_chart", "radar_chart"
     }
     assert set(result) == expected_charts
 
 
 def test_get_chart_list_has_correct_length():
-    """차트 목록의 길이가 예상 개수(6개)와 일치한다"""
+    """차트 목록의 길이가 예상 개수(8개)와 일치한다"""
     # Given: 차트 목록을 조회할 때
     # When: get_chart_list를 호출하면
     result = get_chart_list()
 
-    # Then: 6개의 차트가 있어야 한다
-    assert len(result) == 6
+    # Then: 8개의 차트가 있어야 한다
+    assert len(result) == 8
 
 
 # =============================================================================
@@ -223,7 +225,8 @@ def test_get_charts_for_prompt_contains_all_chart_ids():
     # Then: 모든 차트 ID가 포함되어야 한다
     expected_charts = [
         "table", "bar_chart", "pie_chart",
-        "line_chart", "scatter_plot", "text_summary"
+        "line_chart", "scatter_plot", "text_summary",
+        "area_chart", "radar_chart"
     ]
     for chart_id in expected_charts:
         assert f"**{chart_id}**" in result, f"{chart_id}가 프롬프트에 포함되지 않음"
