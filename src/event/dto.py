@@ -60,7 +60,9 @@ class EventFighterStatDTO(BaseModel):
     nickname: Optional[str] = Field(default=None, description="파이터 별명")
     nationality: Optional[str] = Field(default=None, description="국적")
     result: Optional[str] = Field(default=None, description="경기 결과 (Win/Loss/Draw/NC)")
+    ranking: Optional[int] = Field(default=None, description="해당 체급 랭킹")
     stats: Optional[BasicMatchStatSchema] = Field(default=None, description="기본 경기 통계")
+    round_stats: Optional[List[BasicMatchStatSchema]] = Field(default=None, description="라운드별 경기 통계")
 
 
 class EventMatchDTO(BaseModel):

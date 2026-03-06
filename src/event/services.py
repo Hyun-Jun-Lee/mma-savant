@@ -284,6 +284,9 @@ async def get_event_detail(
         stats_map = await match_repo.get_basic_stats_aggregate_by_fighter_match_ids(
             session, all_fm_ids
         )
+        round_stats_map = await match_repo.get_per_round_stats_by_fighter_match_ids(
+            session, all_fm_ids
+        )
 
         sorted_matches = sorted(
             event_model.matches,
@@ -301,6 +304,15 @@ async def get_event_detail(
             for fm in match.fighter_matches:
                 fighter = fm.fighter
                 aggregated_stats = stats_map.get(fm.id)
+                per_round = round_stats_map.get(fm.id)
+
+                # ranking: match의 weight_class_id와 일치하는 ranking 추출
+                fighter_ranking = None
+                if match.weight_class_id and hasattr(fighter, 'rankings'):
+                    for r in fighter.rankings:
+                        if r.weight_class_id == match.weight_class_id:
+                            fighter_ranking = r.ranking
+                            break
 
                 fighters.append(EventFighterStatDTO(
                     fighter_id=fighter.id,
@@ -308,7 +320,9 @@ async def get_event_detail(
                     nickname=fighter.nickname,
                     nationality=fighter.nationality,
                     result=fm.result,
+                    ranking=fighter_ranking,
                     stats=aggregated_stats,
+                    round_stats=per_round,
                 ))
 
             match_dtos.append(EventMatchDTO(

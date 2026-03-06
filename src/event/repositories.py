@@ -8,6 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from event.models import EventModel, EventSchema
 from match.models import MatchModel, FighterMatchModel
+from fighter.models import FighterModel
 from common.utils import utc_today
 
 async def get_event_by_id(session: AsyncSession, event_id: int) -> Optional[EventSchema]:
@@ -173,7 +174,8 @@ async def get_event_with_matches(session: AsyncSession, event_id: int) -> Option
             .selectinload(MatchModel.weight_class),
             selectinload(EventModel.matches)
             .selectinload(MatchModel.fighter_matches)
-            .selectinload(FighterMatchModel.fighter),
+            .selectinload(FighterMatchModel.fighter)
+            .selectinload(FighterModel.rankings),
         )
     )
     return result.scalar_one_or_none()

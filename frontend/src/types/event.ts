@@ -26,7 +26,9 @@ export interface EventFighterStat {
   nickname: string | null
   nationality: string | null
   result: string | null
+  ranking: number | null
   stats: BasicMatchStat | null
+  round_stats: BasicMatchStat[] | null
 }
 
 export interface EventMatch {
