@@ -1,6 +1,6 @@
 'use client'
 
-import { type ReactNode, useCallback, useRef } from 'react'
+import { type ReactNode } from 'react'
 import { motion } from 'framer-motion'
 import { Skeleton } from '@/components/ui/skeleton'
 import { AlertCircle, HelpCircle, RefreshCw } from 'lucide-react'
@@ -36,19 +36,8 @@ export function ChartCard({
   children,
   index = 0,
 }: ChartCardProps) {
-  const cardRef = useRef<HTMLDivElement>(null)
-
-  const handleMouseMove = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
-    const el = cardRef.current
-    if (!el) return
-    const rect = el.getBoundingClientRect()
-    el.style.setProperty('--mouse-x', `${e.clientX - rect.left}px`)
-    el.style.setProperty('--mouse-y', `${e.clientY - rect.top}px`)
-  }, [])
-
   return (
     <motion.div
-      ref={cardRef}
       initial={{ opacity: 0, y: 28, filter: 'blur(4px)' }}
       animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
       transition={{
@@ -62,8 +51,7 @@ export function ChartCard({
         borderColor: 'rgba(139, 92, 246, 0.3)',
         transition: { duration: 0.3, ease: 'easeOut' },
       }}
-      onMouseMove={handleMouseMove}
-      className={`relative overflow-hidden rounded-xl border border-white/[0.06] bg-white/[0.03] p-5 before:pointer-events-none before:absolute before:inset-x-0 before:top-0 before:h-px before:bg-gradient-to-r before:from-transparent before:via-violet-500 before:to-transparent before:opacity-0 before:transition-opacity before:duration-300 hover:border-white/[0.12] hover:bg-white/[0.05] hover:before:opacity-70 after:pointer-events-none after:absolute after:inset-0 after:opacity-0 after:transition-opacity after:duration-300 after:[background:radial-gradient(600px_circle_at_var(--mouse-x)_var(--mouse-y),rgba(139,92,246,0.04),transparent_40%)] hover:after:opacity-100 ${className}`}
+      className={`relative overflow-hidden rounded-xl border border-white/[0.06] bg-white/[0.03] p-5 before:pointer-events-none before:absolute before:inset-x-0 before:top-0 before:h-px before:bg-gradient-to-r before:from-transparent before:via-violet-500 before:to-transparent before:opacity-0 before:transition-opacity before:duration-300 hover:border-white/[0.12] hover:bg-white/[0.05] hover:before:opacity-70 ${className}`}
     >
       {/* Header */}
       <div className="mb-4 flex items-start justify-between gap-3">

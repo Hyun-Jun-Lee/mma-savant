@@ -7,8 +7,14 @@ import {
   ResponsiveContainer,
   Tooltip,
   Legend,
-  PieLabelRenderProps
 } from "recharts"
+import {
+  TOOLTIP_STYLE,
+  ANIMATION,
+  PIE_DONUT,
+  LEGEND_STYLE,
+  getSemanticColor,
+} from "@/lib/chartTheme"
 
 interface PieChartVisualizationProps {
   data: Record<string, string | number>[]
@@ -25,7 +31,6 @@ export function PieChartVisualization({ data, xAxis, yAxis }: PieChartVisualizat
     )
   }
 
-  // 파이 차트용 데이터 변환
   const sampleRow = data[0]
   const nameKey = xAxis || Object.keys(sampleRow).find(key =>
     typeof sampleRow[key] === 'string'
@@ -35,21 +40,11 @@ export function PieChartVisualization({ data, xAxis, yAxis }: PieChartVisualizat
     typeof sampleRow[key] === 'number'
   ) || Object.keys(sampleRow)[1]
 
-  // 대시보드 시맨틱 컬러 기반 팔레트
-  const colors = [
-    "#8b5cf6", "#10b981", "#f59e0b", "#ef4444", "#06b6d4",
-    "#a855f7", "#f97316", "#14b8a6", "#60a5fa", "#71717a",
-    "#ec4899", "#84cc16", "#e879f9", "#22d3ee", "#fb923c"
-  ]
-
-  // 데이터 정규화 (name, value 형태로 변환)
   const pieData = data.map((item) => ({
     name: String(item[nameKey]),
     value: Number(item[valueKey]) || 0,
-    originalData: item
   }))
 
-  // 총합 계산
   const total = pieData.reduce((sum, item) => sum + item.value, 0)
 
   return (
@@ -58,45 +53,52 @@ export function PieChartVisualization({ data, xAxis, yAxis }: PieChartVisualizat
         <PieChart>
           <Pie
             data={pieData}
+            dataKey="value"
+            nameKey="name"
             cx="50%"
             cy="50%"
-            labelLine={false}
-            label={(props: PieLabelRenderProps) => {
-              const name = String(props.name || '')
-              const value = Number(props.value) || 0
-              const percent = ((value / total) * 100).toFixed(1)
-              return `${name}: ${percent}%`
-            }}
-            outerRadius={100}
-            fill="#8884d8"
-            dataKey="value"
+            {...PIE_DONUT}
+            {...ANIMATION.pie}
           >
             {pieData.map((entry, index) => (
               <Cell
                 key={`cell-${index}`}
-                fill={colors[index % colors.length]}
+                fill={getSemanticColor(entry.name, index)}
               />
             ))}
           </Pie>
+
+          {/* Donut center total */}
+          <text
+            x="50%"
+            y="48%"
+            textAnchor="middle"
+            dominantBaseline="middle"
+            className="fill-zinc-200 text-xl font-semibold"
+          >
+            {total.toLocaleString()}
+          </text>
+          <text
+            x="50%"
+            y="57%"
+            textAnchor="middle"
+            dominantBaseline="middle"
+            className="fill-zinc-500 text-[10px]"
+          >
+            합계
+          </text>
+
           <Tooltip
-            contentStyle={{
-              backgroundColor: "#18181b",
-              border: "1px solid rgba(255,255,255,0.06)",
-              borderRadius: "8px",
-              fontSize: "12px",
-            }}
-            itemStyle={{ color: '#e4e4e7' }}
-            labelStyle={{ color: '#a1a1aa' }}
+            {...TOOLTIP_STYLE}
             formatter={(value: number) => [
               `${value.toLocaleString()} (${((value / total) * 100).toFixed(1)}%)`,
               valueKey
             ]}
           />
-          <Legend />
+          <Legend {...LEGEND_STYLE} />
         </PieChart>
       </ResponsiveContainer>
 
-      {/* 데이터 요약 */}
       <div className="mt-2 text-xs text-zinc-500 text-center">
         총 {pieData.length}개 항목 • 전체: {total.toLocaleString()}
       </div>

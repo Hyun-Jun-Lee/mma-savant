@@ -1,13 +1,13 @@
 "use client"
 
 import {
-  LineChart,
-  Line,
+  AreaChart,
+  Area,
   XAxis,
   YAxis,
   Tooltip,
   ResponsiveContainer,
-  Legend
+  Legend,
 } from "recharts"
 import {
   AXIS_TICK,
@@ -20,13 +20,13 @@ import {
   getSemanticColor,
 } from "@/lib/chartTheme"
 
-interface LineChartVisualizationProps {
+interface AreaChartVisualizationProps {
   data: Record<string, string | number>[]
   xAxis?: string
   yAxis?: string
 }
 
-export function LineChartVisualization({ data, xAxis, yAxis }: LineChartVisualizationProps) {
+export function AreaChartVisualization({ data, xAxis, yAxis }: AreaChartVisualizationProps) {
   if (!data || data.length === 0) {
     return (
       <div className="p-8 text-center text-zinc-400">
@@ -40,13 +40,28 @@ export function LineChartVisualization({ data, xAxis, yAxis }: LineChartVisualiz
     typeof sampleRow[key] === 'number'
   )
 
-  const xAxisKey = xAxis || Object.keys(sampleRow)[0]
+  const xAxisKey = xAxis || Object.keys(sampleRow).find(key =>
+    typeof sampleRow[key] === 'string'
+  ) || Object.keys(sampleRow)[0]
+
   const yAxisKeys = yAxis ? [yAxis] : numericFields
 
   return (
     <div className="w-full h-80">
       <ResponsiveContainer width="100%" height="100%">
-        <LineChart data={data} margin={CHART_MARGIN}>
+        <AreaChart data={data} margin={CHART_MARGIN}>
+          <defs>
+            {yAxisKeys.map((key, index) => {
+              const color = getSemanticColor(key, index)
+              return (
+                <linearGradient key={`grad-${key}`} id={`area-grad-${index}`} x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="5%" stopColor={color} stopOpacity={0.3} />
+                  <stop offset="95%" stopColor={color} stopOpacity={0} />
+                </linearGradient>
+              )
+            })}
+          </defs>
+
           <XAxis dataKey={xAxisKey} tick={AXIS_TICK} {...AXIS_PROPS} />
           <YAxis tick={AXIS_TICK} {...AXIS_PROPS} />
           <Tooltip cursor={TOOLTIP_CURSOR} {...TOOLTIP_STYLE} />
@@ -55,19 +70,18 @@ export function LineChartVisualization({ data, xAxis, yAxis }: LineChartVisualiz
           {yAxisKeys.map((key, index) => {
             const color = getSemanticColor(key, index)
             return (
-              <Line
+              <Area
                 key={key}
                 type="monotone"
                 dataKey={key}
                 stroke={color}
                 strokeWidth={2}
-                dot={{ fill: color, strokeWidth: 2, r: 3 }}
-                activeDot={{ r: 6, stroke: color, strokeWidth: 2, fill: '#18181b' }}
+                fill={`url(#area-grad-${index})`}
                 {...ANIMATION.line}
               />
             )
           })}
-        </LineChart>
+        </AreaChart>
       </ResponsiveContainer>
 
       <div className="mt-2 text-xs text-zinc-500 text-center">

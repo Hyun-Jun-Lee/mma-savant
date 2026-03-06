@@ -48,7 +48,7 @@ export function FightDurationChart({ data }: FightDurationChartProps) {
         />
         <Tooltip
           cursor={{ fill: 'rgba(255,255,255,0.04)' }}
-          content={({ active, payload, label }) => {
+          content={({ active, payload }) => {
             if (!active || !payload?.length) return null
             const d = payload[0]?.payload as { label: string; fight_count: number; pct: number; result_round: number }
             return (

@@ -1,14 +1,17 @@
 "use client"
 
+import { motion } from "framer-motion"
 import { VisualizationData } from "@/types/chat"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { TableVisualization } from "./TableVisualization"
 import { BarChartVisualization } from "./BarChartVisualization"
 import { PieChartVisualization } from "./PieChartVisualization"
 import { LineChartVisualization } from "./LineChartVisualization"
+import { AreaChartVisualization } from "./AreaChartVisualization"
+import { RadarChartVisualization } from "./RadarChartVisualization"
 import { ScatterPlotVisualization } from "./ScatterPlotVisualization"
 import { InsightsSummary } from "./InsightsSummary"
-import { BarChart3, PieChart, TrendingUp, ScatterChart, Table, MessageSquare } from "lucide-react"
+import { BarChart3, PieChart, TrendingUp, Activity, Radar, ScatterChart, Table, MessageSquare } from "lucide-react"
 
 interface ChartRendererProps {
   data: VisualizationData
@@ -26,6 +29,10 @@ export function ChartRenderer({ data }: ChartRendererProps) {
         return <PieChart className="w-5 h-5" />
       case "line_chart":
         return <TrendingUp className="w-5 h-5" />
+      case "area_chart":
+        return <Activity className="w-5 h-5" />
+      case "radar_chart":
+        return <Radar className="w-5 h-5" />
       case "scatter_plot":
         return <ScatterChart className="w-5 h-5" />
       case "table":
@@ -54,6 +61,10 @@ export function ChartRenderer({ data }: ChartRendererProps) {
         return <PieChartVisualization {...commonProps} />
       case "line_chart":
         return <LineChartVisualization {...commonProps} />
+      case "area_chart":
+        return <AreaChartVisualization {...commonProps} />
+      case "radar_chart":
+        return <RadarChartVisualization {...commonProps} />
       case "scatter_plot":
         return <ScatterPlotVisualization {...commonProps} />
       case "text_summary":
@@ -64,7 +75,12 @@ export function ChartRenderer({ data }: ChartRendererProps) {
   }
 
   return (
-    <div className="w-full max-w-4xl space-y-4">
+    <motion.div
+      className="w-full max-w-4xl space-y-4"
+      initial={{ opacity: 0, y: 12 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.4, ease: "easeOut" }}
+    >
       {/* 메인 시각화 카드 */}
       <Card className="bg-white/[0.03] backdrop-blur-sm border-white/[0.06]">
         <CardHeader className="pb-3">
@@ -92,6 +108,6 @@ export function ChartRenderer({ data }: ChartRendererProps) {
           </CardContent>
         </Card>
       )}
-    </div>
+    </motion.div>
   )
 }

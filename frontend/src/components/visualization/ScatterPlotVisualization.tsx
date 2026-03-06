@@ -5,11 +5,19 @@ import {
   Scatter,
   XAxis,
   YAxis,
-  CartesianGrid,
   Tooltip,
   ResponsiveContainer,
   ZAxis
 } from "recharts"
+import {
+  AXIS_TICK,
+  AXIS_PROPS,
+  TOOLTIP_STYLE,
+  TOOLTIP_CURSOR_DASHED,
+  ANIMATION,
+  CHART_MARGIN,
+  getSemanticColor,
+} from "@/lib/chartTheme"
 
 interface ScatterPlotVisualizationProps {
   data: Record<string, string | number>[]
@@ -26,21 +34,21 @@ export function ScatterPlotVisualization({ data, xAxis, yAxis }: ScatterPlotVisu
     )
   }
 
-  // 숫자형 데이터 필드 찾기
   const sampleRow = data[0]
   const numericFields = Object.keys(sampleRow).filter(key =>
     typeof sampleRow[key] === 'number'
   )
 
-  // x축과 y축 결정
   const xAxisKey = xAxis || numericFields[0] || Object.keys(sampleRow)[0]
   const yAxisKey = yAxis || numericFields[1] || Object.keys(sampleRow)[1]
 
-  // 산점도용 데이터 변환
+  // Use 3rd numeric field for bubble size if available
+  const zAxisKey = numericFields.find(k => k !== xAxisKey && k !== yAxisKey)
+
   const scatterData = data.map((item, index) => ({
     x: Number(item[xAxisKey]) || index,
     y: Number(item[yAxisKey]) || 0,
-    z: 50, // 점 크기 (고정값)
+    z: zAxisKey ? Number(item[zAxisKey]) || 50 : 50,
     name: item.name || item[Object.keys(item)[0]] || `Point ${index + 1}`,
     originalData: item
   }))
@@ -48,37 +56,25 @@ export function ScatterPlotVisualization({ data, xAxis, yAxis }: ScatterPlotVisu
   return (
     <div className="w-full h-80">
       <ResponsiveContainer width="100%" height="100%">
-        <ScatterChart
-          margin={{ top: 20, right: 30, left: 20, bottom: 5 }}
-        >
-          <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" />
+        <ScatterChart margin={CHART_MARGIN}>
           <XAxis
             type="number"
             dataKey="x"
             name={xAxisKey}
-            tick={{ fill: '#52525b', fontSize: 11 }}
-            axisLine={false}
-            tickLine={false}
+            tick={AXIS_TICK}
+            {...AXIS_PROPS}
           />
           <YAxis
             type="number"
             dataKey="y"
             name={yAxisKey}
-            tick={{ fill: '#52525b', fontSize: 11 }}
-            axisLine={false}
-            tickLine={false}
+            tick={AXIS_TICK}
+            {...AXIS_PROPS}
           />
-          <ZAxis type="number" dataKey="z" range={[50, 200]} />
+          <ZAxis type="number" dataKey="z" range={[40, 200]} />
           <Tooltip
-            cursor={{ strokeDasharray: "3 3" }}
-            contentStyle={{
-              backgroundColor: "#18181b",
-              border: "1px solid rgba(255,255,255,0.06)",
-              borderRadius: "8px",
-              fontSize: "12px",
-            }}
-            itemStyle={{ color: '#e4e4e7' }}
-            labelStyle={{ color: '#a1a1aa' }}
+            cursor={TOOLTIP_CURSOR_DASHED}
+            {...TOOLTIP_STYLE}
             formatter={(value: number, name: string) => [
               value.toLocaleString(),
               name === "x" ? xAxisKey : name === "y" ? yAxisKey : name
@@ -88,12 +84,13 @@ export function ScatterPlotVisualization({ data, xAxis, yAxis }: ScatterPlotVisu
           <Scatter
             name="데이터 포인트"
             data={scatterData}
-            fill="#8b5cf6"
+            fill={getSemanticColor(xAxisKey, 0)}
+            fillOpacity={0.7}
+            {...ANIMATION.scatter}
           />
         </ScatterChart>
       </ResponsiveContainer>
 
-      {/* 데이터 요약 */}
       <div className="mt-2 text-xs text-zinc-500 text-center">
         {data.length}개 데이터 포인트 • X: {xAxisKey}, Y: {yAxisKey}
       </div>
