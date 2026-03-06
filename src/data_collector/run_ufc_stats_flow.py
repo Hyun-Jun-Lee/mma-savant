@@ -9,6 +9,7 @@ from datetime import datetime
 from data_collector.crawler import crawl_with_crawl4ai, crawl_with_httpx
 from data_collector.workflows.tasks import (
     scrap_all_events_task,
+    scrap_upcoming_events_task,
     scrap_all_fighter_task,
     scrap_event_detail_task,
     scrap_match_detail_task,
@@ -19,13 +20,14 @@ from data_collector.workflows.tasks import (
 TASK_MAP = {
     "fighters": ("Fighters", scrap_all_fighter_task),
     "events": ("Events", scrap_all_events_task),
+    "upcoming-events": ("Upcoming events", scrap_upcoming_events_task),
     "event-detail": ("Event details", scrap_event_detail_task),
     "match-detail": ("Match details", scrap_match_detail_task),
     "rankings": ("Rankings", scrap_rankings_task),
 }
 
 # 전체 실행 순서
-ALL_TASKS = ["fighters", "events", "event-detail", "match-detail", "rankings"]
+ALL_TASKS = ["fighters", "events", "upcoming-events", "event-detail", "match-detail", "rankings"]
 
 
 def setup_logging():
@@ -114,11 +116,12 @@ Examples:
   python run_ufc_stats_flow.py --list              # 사용 가능한 태스크 목록
 
 Available tasks:
-  fighters      - 파이터 정보 크롤링
-  events        - 이벤트 목록 크롤링
-  event-detail  - 이벤트 상세 정보 크롤링
-  match-detail  - 매치 상세 정보 크롤링
-  rankings      - 랭킹 정보 크롤링
+  fighters         - 파이터 정보 크롤링
+  events           - 완료된 이벤트 목록 크롤링
+  upcoming-events  - 예정된 이벤트 목록 크롤링
+  event-detail     - 이벤트 상세 정보 크롤링
+  match-detail     - 매치 상세 정보 크롤링
+  rankings         - 랭킹 정보 크롤링
         """
     )
     parser.add_argument(

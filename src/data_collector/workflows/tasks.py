@@ -100,6 +100,42 @@ async def scrap_all_events_task(crawler_fn: Callable, batch_size: int = 30) -> N
 
     logger.info(f"scrap_all_events_task completed: {saved_count}/{total_events} events saved")
 
+
+@task(retries=3, cache_policy=NO_CACHE)
+async def scrap_upcoming_events_task(crawler_fn: Callable, batch_size: int = 30) -> None:
+    logger = get_run_logger()
+    upcoming_events_url = "http://ufcstats.com/statistics/events/upcoming?page=all"
+    try:
+        logger.info("scrap_upcoming_events_task started")
+        event_schema_list = await scrap_all_events(crawler_fn, upcoming_events_url)
+    except Exception as e:
+        logger.error(f"scrap_upcoming_events_task failed: {str(e)}")
+        logger.error(format_exc())
+        return
+
+    total_events = len(event_schema_list)
+    saved_count = 0
+
+    for i in range(0, total_events, batch_size):
+        batch = event_schema_list[i:i + batch_size]
+        batch_num = (i // batch_size) + 1
+        total_batches = (total_events + batch_size - 1) // batch_size
+
+        logger.info(f"Processing batch {batch_num}/{total_batches} ({len(batch)} upcoming events)")
+
+        try:
+            async with get_async_db_context() as session:
+                await save_events(session, batch)
+            saved_count += len(batch)
+            logger.info(f"Batch {batch_num}/{total_batches} completed: {len(batch)} upcoming events saved")
+        except Exception as e:
+            logger.error(f"Batch {batch_num}/{total_batches} failed: {str(e)}")
+            logger.error(format_exc())
+            continue
+
+    logger.info(f"scrap_upcoming_events_task completed: {saved_count}/{total_events} upcoming events saved")
+
+
 async def process_event_detail(
     idx: int,
     event: EventSchema,
