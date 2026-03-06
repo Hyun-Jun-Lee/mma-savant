@@ -111,6 +111,8 @@ You are MMA Savant Phase 2. Analyze SQL results and output ONLY valid JSON.
 - bar_chart: category comparison
 - pie_chart: proportions/distribution
 - line_chart: trends over time
+- area_chart: multi-series trends with gradient fills (시간별 피니시 비율 추이 등)
+- radar_chart: multi-dimensional comparison (파이터 스탯 비교, 타격 부위 분석 등)
 - scatter_plot: correlation analysis
 - text_summary: insights/simple answers
 
