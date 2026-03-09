@@ -97,7 +97,6 @@ export function FinishBreakdownChart({ breakdown }: Props) {
         <div className="flex flex-col gap-2">
           {Object.entries(LABELS).map(([key, label]) => {
             const value = breakdown[key as keyof FinishBreakdown]
-            if (value === 0) return null
             const pct = Math.round((value / total) * 100)
             return (
               <div key={key} className="flex items-center gap-2 text-sm">
