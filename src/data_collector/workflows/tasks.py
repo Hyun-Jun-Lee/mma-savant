@@ -36,6 +36,8 @@ from data_collector.scripts.scrape_nationality import (
     slugify_name,
     parse_hometown_from_html,
     extract_nationality,
+    fetch_nationality_from_tapology,
+    TapologyClient,
 )
 
 RANDOM_DELAY = random.randint(1, 5)
@@ -291,12 +293,13 @@ async def scrap_rankings_task(crawler_fn: Callable) -> None:
 
 @task(retries=2, cache_policy=NO_CACHE)
 async def enrich_fighter_nationality_task(crawler_fn: Callable) -> None:
+    """Tapology를 1차 소스로 사용하고, UFC.com을 fallback으로 사용한다."""
     logger = get_run_logger()
     logger.info("enrich_fighter_nationality_task started")
 
     async with get_async_db_context() as session:
         result = await session.execute(
-            select(FighterModel.id, FighterModel.name)
+            select(FighterModel.id, FighterModel.name, FighterModel.nickname)
             .where(FighterModel.nationality.is_(None))
             .order_by(FighterModel.id)
         )
@@ -308,47 +311,78 @@ async def enrich_fighter_nationality_task(crawler_fn: Callable) -> None:
         return
 
     success_count = 0
-    for i, (fighter_id, name) in enumerate(fighters, 1):
-        logger.info(f"[{i}/{len(fighters)}] Processing: {name} (id={fighter_id})")
-        profile_url = f"https://www.ufc.com/athlete/{slugify_name(name)}"
+    tapology_count = 0
+    ufc_count = 0
 
-        try:
-            html = await crawler_fn(profile_url)
-        except Exception as e:
-            logger.warning(f"  -> Request failed for {profile_url}: {e}")
-            await asyncio.sleep(random.uniform(1.0, 2.0))
-            continue
+    tapology_client = TapologyClient()
+    try:
+        for i, (fighter_id, name, nickname) in enumerate(fighters, 1):
+            logger.info(f"[{i}/{len(fighters)}] Processing: {name} (id={fighter_id})")
 
-        if not html:
-            logger.warning(f"  -> No response from {profile_url}")
-            await asyncio.sleep(random.uniform(1.0, 2.0))
-            continue
-
-        hometown = parse_hometown_from_html(html)
-        if not hometown:
-            logger.warning(f"  -> No hometown found at {profile_url}")
-            await asyncio.sleep(random.uniform(1.0, 2.0))
-            continue
-
-        nationality = extract_nationality(hometown)
-        if not nationality:
-            logger.warning(f"  -> Could not extract nationality from: {hometown}")
-            await asyncio.sleep(random.uniform(1.0, 2.0))
-            continue
-
-        async with get_async_db_context() as session:
-            await session.execute(
-                update(FighterModel)
-                .where(FighterModel.id == fighter_id)
-                .values(nationality=nationality)
+            # 1) Tapology (MMA 전문 DB, 높은 커버리지)
+            nationality = await fetch_nationality_from_tapology(
+                name, nickname, client=tapology_client,
             )
-            await session.commit()
-        success_count += 1
-        logger.info(f"  -> {nationality} (hometown: {hometown})")
+            if nationality:
+                async with get_async_db_context() as session:
+                    await session.execute(
+                        update(FighterModel)
+                        .where(FighterModel.id == fighter_id)
+                        .values(nationality=nationality)
+                    )
+                    await session.commit()
+                success_count += 1
+                tapology_count += 1
+                logger.info(f"  -> {nationality} (via Tapology)")
+                await asyncio.sleep(random.uniform(2.0, 4.0))
+                continue
 
-        await asyncio.sleep(random.uniform(1.0, 2.0))
+            # 2) Fallback: UFC.com
+            profile_url = f"https://www.ufc.com/athlete/{slugify_name(name)}"
+            try:
+                html = await crawler_fn(profile_url)
+            except Exception as e:
+                logger.warning(f"  -> UFC.com request failed for {profile_url}: {e}")
+                await asyncio.sleep(random.uniform(1.0, 2.0))
+                continue
 
-    logger.info(f"enrich_fighter_nationality_task completed: {success_count}/{len(fighters)} updated")
+            if not html:
+                logger.warning(f"  -> No response from {profile_url}")
+                await asyncio.sleep(random.uniform(1.0, 2.0))
+                continue
+
+            hometown = parse_hometown_from_html(html)
+            if not hometown:
+                logger.warning(f"  -> No data from Tapology or UFC.com")
+                await asyncio.sleep(random.uniform(1.0, 2.0))
+                continue
+
+            nationality = extract_nationality(hometown)
+            if not nationality:
+                logger.warning(f"  -> Could not extract nationality from: {hometown}")
+                await asyncio.sleep(random.uniform(1.0, 2.0))
+                continue
+
+            async with get_async_db_context() as session:
+                await session.execute(
+                    update(FighterModel)
+                    .where(FighterModel.id == fighter_id)
+                    .values(nationality=nationality)
+                )
+                await session.commit()
+            success_count += 1
+            ufc_count += 1
+            logger.info(f"  -> {nationality} (via UFC.com, hometown: {hometown})")
+
+            await asyncio.sleep(random.uniform(1.0, 2.0))
+
+    finally:
+        tapology_client.close()
+
+    logger.info(
+        f"enrich_fighter_nationality_task completed: {success_count}/{len(fighters)} updated "
+        f"(Tapology: {tapology_count}, UFC.com: {ufc_count})"
+    )
 
 
 @task(retries=2, cache_policy=NO_CACHE)

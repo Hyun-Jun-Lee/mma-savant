@@ -1,8 +1,8 @@
 """
 Fighter nationality scraping script.
 
-Scrapes fighter hometown from UFC.com athlete profiles, extracts nationality
-from the last comma-separated segment of the hometown field.
+Scrapes fighter nationality using Tapology.com as primary source,
+with UFC.com athlete profiles as fallback.
 
 Usage:
     cd src && uv run python -m data_collector.scripts.scrape_nationality
@@ -14,8 +14,12 @@ import random
 import re
 import sys
 
+import time
+
 import psycopg2
+import requests as http_requests
 from bs4 import BeautifulSoup
+from fake_useragent import UserAgent
 from playwright.async_api import async_playwright
 from text_unidecode import unidecode
 
@@ -30,6 +34,185 @@ logger = logging.getLogger(__name__)
 
 # 한국어/영어 hometown 라벨
 HOMETOWN_LABELS = {"hometown", "고향"}
+
+# Tapology 설정
+_ua = UserAgent()
+TAPOLOGY_BASE_DELAY = (2.0, 4.0)  # 요청 간 기본 딜레이 (초)
+TAPOLOGY_CIRCUIT_BREAKER_THRESHOLD = 5  # 연속 실패 N회 시 일시 중단
+TAPOLOGY_CIRCUIT_BREAKER_COOLDOWN = 60  # 중단 시 대기 시간 (초)
+
+# ISO 3166-1 alpha-2 → 국가명 매핑
+ISO_TO_COUNTRY: dict[str, str] = {
+    "AF": "Afghanistan", "AL": "Albania", "DZ": "Algeria", "AR": "Argentina",
+    "AM": "Armenia", "AU": "Australia", "AT": "Austria", "AZ": "Azerbaijan",
+    "BH": "Bahrain", "BD": "Bangladesh", "BY": "Belarus", "BE": "Belgium",
+    "BO": "Bolivia", "BA": "Bosnia and Herzegovina", "BR": "Brazil",
+    "BG": "Bulgaria", "CM": "Cameroon", "CA": "Canada", "CL": "Chile",
+    "CN": "China", "CO": "Colombia", "CD": "DR Congo", "CG": "Republic of the Congo",
+    "CR": "Costa Rica", "HR": "Croatia", "CU": "Cuba", "CY": "Cyprus",
+    "CZ": "Czech Republic", "DK": "Denmark", "DO": "Dominican Republic",
+    "EC": "Ecuador", "EG": "Egypt", "SV": "El Salvador", "EE": "Estonia",
+    "FI": "Finland", "FR": "France", "GE": "Georgia", "DE": "Germany",
+    "GH": "Ghana", "GR": "Greece", "GU": "Guam", "GT": "Guatemala",
+    "GY": "Guyana", "HN": "Honduras", "HK": "Hong Kong", "HU": "Hungary",
+    "IS": "Iceland", "IN": "India", "ID": "Indonesia", "IR": "Iran",
+    "IQ": "Iraq", "IE": "Ireland", "IL": "Israel", "IT": "Italy",
+    "JM": "Jamaica", "JP": "Japan", "JO": "Jordan", "KZ": "Kazakhstan",
+    "KE": "Kenya", "XK": "Kosovo", "KW": "Kuwait", "KG": "Kyrgyzstan",
+    "LV": "Latvia", "LB": "Lebanon", "LT": "Lithuania", "LU": "Luxembourg",
+    "MK": "North Macedonia", "MY": "Malaysia", "MX": "Mexico", "MD": "Moldova",
+    "MN": "Mongolia", "ME": "Montenegro", "MA": "Morocco", "MM": "Myanmar",
+    "NP": "Nepal", "NL": "Netherlands", "NZ": "New Zealand", "NI": "Nicaragua",
+    "NG": "Nigeria", "NO": "Norway", "PK": "Pakistan", "PS": "Palestine",
+    "PA": "Panama", "PY": "Paraguay", "PE": "Peru", "PH": "Philippines",
+    "PL": "Poland", "PT": "Portugal", "PR": "Puerto Rico", "RO": "Romania",
+    "RU": "Russia", "SA": "Saudi Arabia", "SN": "Senegal", "RS": "Serbia",
+    "SG": "Singapore", "SK": "Slovakia", "SI": "Slovenia", "ZA": "South Africa",
+    "KR": "South Korea", "ES": "Spain", "LK": "Sri Lanka", "SE": "Sweden",
+    "CH": "Switzerland", "SY": "Syria", "TW": "Taiwan", "TJ": "Tajikistan",
+    "TH": "Thailand", "TN": "Tunisia", "TR": "Turkey", "TM": "Turkmenistan",
+    "UA": "Ukraine", "AE": "United Arab Emirates", "GB": "United Kingdom",
+    "US": "United States", "UY": "Uruguay", "UZ": "Uzbekistan",
+    "VE": "Venezuela", "VN": "Vietnam", "TT": "Trinidad and Tobago",
+    "SR": "Suriname", "EN": "England", "SC": "Scotland", "WA": "Wales",
+}
+
+
+def _strip_nickname(display_name: str) -> str:
+    """Tapology 표시명에서 닉네임을 제거한다.
+
+    'Alex "Poatan" Pereira' -> 'Alex Pereira'
+    """
+    # ASCII 따옴표와 유니코드 따옴표 모두 처리
+    result = re.sub(r'"[^"]*"\s*', "", display_name)
+    result = re.sub(r'\u201c[^\u201d]*\u201d\s*', "", result)
+    return result.strip()
+
+
+class TapologyClient:
+    """Tapology 국적 조회 클라이언트.
+
+    - requests.Session으로 쿠키/커넥션 유지
+    - fake_useragent로 매 요청마다 UA 로테이션
+    - 연속 실패 시 circuit breaker로 일시 중단
+    - 요청 간 2~4초 랜덤 딜레이
+    """
+
+    def __init__(self) -> None:
+        self._session = http_requests.Session()
+        self._consecutive_failures = 0
+
+    def _get_headers(self) -> dict[str, str]:
+        return {"User-Agent": _ua.random}
+
+    def _request(self, url: str) -> http_requests.Response | None:
+        """HTTP GET with circuit breaker."""
+        if self._consecutive_failures >= TAPOLOGY_CIRCUIT_BREAKER_THRESHOLD:
+            logger.warning(
+                "Circuit breaker open (%d consecutive failures), "
+                "cooling down %ds...",
+                self._consecutive_failures,
+                TAPOLOGY_CIRCUIT_BREAKER_COOLDOWN,
+            )
+            time.sleep(TAPOLOGY_CIRCUIT_BREAKER_COOLDOWN)
+            self._consecutive_failures = 0
+
+        try:
+            resp = self._session.get(
+                url, headers=self._get_headers(), timeout=10,
+            )
+            if resp.status_code == 200:
+                self._consecutive_failures = 0
+                return resp
+            logger.warning("Tapology %d for %s", resp.status_code, url)
+            self._consecutive_failures += 1
+            return None
+        except Exception as e:
+            logger.warning("Tapology request error for %s: %s", url, e)
+            self._consecutive_failures += 1
+            return None
+
+    def fetch_nationality(
+        self, name: str, nickname: str | None = None,
+    ) -> str | None:
+        """Tapology 검색 → 상세 페이지에서 국기 ISO 코드로 국가명을 반환한다."""
+        # 1) 검색
+        search_term = name.replace(" ", "+")
+        resp = self._request(
+            f"https://www.tapology.com/search?term={search_term}",
+        )
+        if not resp:
+            return None
+
+        soup = BeautifulSoup(resp.text, "html.parser")
+        links = soup.select('a[href*="/fightcenter/fighters/"]')
+        if not links:
+            return None
+
+        # 2) 이름 매칭으로 후보 필터링
+        name_lower = name.lower().strip()
+        candidates: list[tuple[str, str]] = []
+        for a in links:
+            display = a.get_text(strip=True)
+            clean = _strip_nickname(display).lower().strip()
+            if clean == name_lower:
+                candidates.append((a["href"], display))
+
+        if not candidates:
+            return None
+
+        # 3) 후보가 여러 명이고 nickname이 있으면 nickname으로 구분
+        detail_path = candidates[0][0]
+        if len(candidates) > 1 and nickname:
+            nick_lower = nickname.lower()
+            for href, display in candidates:
+                if nick_lower in display.lower():
+                    detail_path = href
+                    break
+
+        # 요청 간 딜레이
+        time.sleep(random.uniform(*TAPOLOGY_BASE_DELAY))
+
+        # 4) 상세 페이지에서 첫 번째 국기 ISO 코드 추출
+        detail_resp = self._request(
+            f"https://www.tapology.com{detail_path}",
+        )
+        if not detail_resp:
+            return None
+
+        detail_soup = BeautifulSoup(detail_resp.text, "html.parser")
+        flag_img = detail_soup.select_one('img[src*="/flags/"]')
+        if not flag_img:
+            return None
+
+        match = re.search(r"/flags/([A-Z]{2})", flag_img["src"])
+        if not match:
+            return None
+
+        iso_code = match.group(1)
+        return ISO_TO_COUNTRY.get(iso_code)
+
+    def close(self) -> None:
+        self._session.close()
+
+
+async def fetch_nationality_from_tapology(
+    name: str,
+    nickname: str | None = None,
+    *,
+    client: TapologyClient | None = None,
+) -> str | None:
+    """Tapology 국적 조회의 async wrapper.
+
+    client를 전달하면 세션을 재사용한다. 전달하지 않으면 일회용 세션을 생성한다.
+    """
+    if client:
+        return await asyncio.to_thread(client.fetch_nationality, name, nickname)
+    c = TapologyClient()
+    try:
+        return await asyncio.to_thread(c.fetch_nationality, name, nickname)
+    finally:
+        c.close()
 
 
 def get_connection():
