@@ -183,6 +183,7 @@ services:
       - .env
     environment:
       - DB_HOST=savant_db
+      - REDIS_HOST=savant_redis
       - PREFECT_API_URL=${PREFECT_API_URL}
       - PREFECT_API_KEY=${PREFECT_API_KEY}
     command: ["uv", "run", "python", "-m", "data_collector.main"]
@@ -191,6 +192,8 @@ services:
     depends_on:
       savant_db:
         condition: service_healthy
+      redis:
+        condition: service_started
     profiles:
       - manual
 
