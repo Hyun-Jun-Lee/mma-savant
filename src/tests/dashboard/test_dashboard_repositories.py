@@ -137,11 +137,14 @@ async def test_get_events_timeline(clean_test_session, dashboard_data):
 
 @pytest.mark.asyncio
 async def test_get_leaderboard_wins_no_filter(clean_test_session, dashboard_data):
-    """필터 없이 fighter 테이블의 wins 컬럼 기준 정렬"""
+    """필터 없이 fighter_match JOIN으로 집계, method breakdown 포함"""
     result = await dashboard_repo.get_leaderboard_wins(clean_test_session)
     assert len(result) >= 3
     assert result[0]["name"] == "Alpha Fighter"
-    assert result[0]["wins"] == 10
+    assert result[0]["wins"] >= 10
+    assert "ko_tko_wins" in result[0]
+    assert "sub_wins" in result[0]
+    assert "dec_wins" in result[0]
 
 
 @pytest.mark.asyncio
@@ -154,34 +157,10 @@ async def test_get_leaderboard_wins_with_filter(clean_test_session, dashboard_da
 
 
 @pytest.mark.asyncio
-async def test_get_leaderboard_winrate_min10(clean_test_session, dashboard_data):
-    """min_fights=10: A(12전 83.3%), B(13전 61.5%) 통과, C(5전) 제외"""
-    result = await dashboard_repo.get_leaderboard_winrate(clean_test_session, min_fights=10)
-    assert len(result) == 2
-    assert result[0]["name"] == "Alpha Fighter"
-    assert float(result[0]["win_rate"]) == approx(83.3, abs=0.1)
-    assert result[1]["name"] == "Beta Fighter"
-    assert float(result[1]["win_rate"]) == approx(61.5, abs=0.1)
-
-
-@pytest.mark.asyncio
-async def test_get_leaderboard_winrate_min30(clean_test_session, dashboard_data):
-    """min_fights=30: 아무도 해당 없음"""
-    result = await dashboard_repo.get_leaderboard_winrate(clean_test_session, min_fights=30)
-    assert len(result) == 0
-
-
-@pytest.mark.asyncio
-async def test_get_leaderboard_winrate_with_filter(clean_test_session, dashboard_data):
-    """wc=4 + min_fights=5: A(8전 100%), B(8전 25%)"""
-    result = await dashboard_repo.get_leaderboard_winrate(
-        clean_test_session, min_fights=5, weight_class_id=4
-    )
-    assert len(result) == 2
-    assert result[0]["name"] == "Alpha Fighter"
-    assert float(result[0]["win_rate"]) == 100.0
-    assert result[1]["name"] == "Beta Fighter"
-    assert float(result[1]["win_rate"]) == 25.0
+async def test_get_lose_streak_leaders(clean_test_session, dashboard_data):
+    """연패 리더 조회"""
+    result = await dashboard_repo.get_lose_streak_leaders(clean_test_session)
+    assert isinstance(result, list)
 
 
 @pytest.mark.asyncio

@@ -16,7 +16,7 @@ from dashboard.dto import (
     DivisionRankingDTO, RankingFighterDTO, CategoryLeaderDTO,
     EventMapDTO,
     OverviewResponseDTO, FinishMethodDTO, WeightClassActivityDTO,
-    EventTimelineDTO, LeaderboardDTO, LeaderboardFighterDTO, WinStreakFighterDTO,
+    EventTimelineDTO, LeaderboardDTO, LeaderboardFighterDTO, WinStreakFighterDTO, LoseStreakFighterDTO,
     FightDurationDTO, FightDurationRoundDTO,
     FinishRateTrendDTO, NationalityDistributionDTO,
     StrikingResponseDTO, StrikeTargetDTO, StrikingAccuracyDTO,
@@ -30,7 +30,7 @@ from dashboard.dto import (
     ControlTimeDTO, GroundStrikesDTO, SubmissionEfficiencyDTO,
     SubmissionEfficiencyFighterDTO,
     TdAttemptsLeaderDTO, TdAttemptsLeaderboardDTO,
-    TdSubCorrelationDTO, TdSubCorrelationFighterDTO,
+    TdSubCorrelationDTO, TdSubCorrelationFighterDTO, TdSubQuadrantDTO,
     TdDefenseLeaderDTO, TdDefenseLeaderboardDTO,
 )
 from dashboard.exceptions import DashboardQueryError
@@ -262,7 +262,7 @@ async def get_chart_leaderboard(
     cache_key = _chart_cache_key("leaderboard", weight_class_id, ufc_only=ufc_only)
     cached = _get_cached(cache_key)
     if cached:
-        if "win_streak" not in cached:
+        if "lose_streak" not in cached:
             try:
                 redis_client.delete(cache_key)
             except Exception:
@@ -275,17 +275,13 @@ async def get_chart_leaderboard(
 
     try:
         wins_data = await dashboard_repo.get_leaderboard_wins(session, weight_class_id, ufc_only=ufc_only)
-        winrate10_data = await dashboard_repo.get_leaderboard_winrate(session, 10, weight_class_id, ufc_only=ufc_only)
-        winrate15_data = await dashboard_repo.get_leaderboard_winrate(session, 15, weight_class_id, ufc_only=ufc_only)
-        winrate20_data = await dashboard_repo.get_leaderboard_winrate(session, 20, weight_class_id, ufc_only=ufc_only)
         win_streak_data = await dashboard_repo.get_win_streak_leaders(session, weight_class_id)
+        lose_streak_data = await dashboard_repo.get_lose_streak_leaders(session, weight_class_id)
 
         result = LeaderboardDTO(
             wins=[LeaderboardFighterDTO(**r) for r in wins_data],
-            winrate_min10=[LeaderboardFighterDTO(**r) for r in winrate10_data],
-            winrate_min15=[LeaderboardFighterDTO(**r) for r in winrate15_data],
-            winrate_min20=[LeaderboardFighterDTO(**r) for r in winrate20_data],
             win_streak=[WinStreakFighterDTO(**r) for r in win_streak_data],
+            lose_streak=[LoseStreakFighterDTO(**r) for r in lose_streak_data],
         )
         _set_cache(cache_key, result.model_dump())
         return result
@@ -712,8 +708,15 @@ async def get_chart_td_sub_correlation(
 
     try:
         data = await dashboard_repo.get_td_sub_correlation(session, weight_class_id)
+        quadrants = {
+            key: TdSubQuadrantDTO(
+                fighters=[TdSubCorrelationFighterDTO(**f) for f in q["fighters"]],
+                count=q["count"],
+            )
+            for key, q in data["quadrants"].items()
+        }
         result = TdSubCorrelationDTO(
-            fighters=[TdSubCorrelationFighterDTO(**r) for r in data["fighters"]],
+            quadrants=quadrants,
             avg_td=data["avg_td"],
             avg_sub=data["avg_sub"],
         )
@@ -764,9 +767,9 @@ async def get_overview(
     cache_key = _cache_key("overview", weight_class_id, ufc_only=ufc_only)
     cached = _get_cached(cache_key)
     if cached:
-        # stale 캐시 감지: win_streak 필드가 leaderboard에 없으면 캐시 무효화
+        # stale 캐시 감지: lose_streak 필드가 leaderboard에 없으면 캐시 무효화
         lb = cached.get("leaderboard", {})
-        if "win_streak" not in lb:
+        if "lose_streak" not in lb:
             try:
                 redis_client.delete(cache_key)
             except Exception:

@@ -299,20 +299,17 @@ async def test_get_chart_leaderboard_cache_miss(clean_test_session, dashboard_da
 
         assert isinstance(result, LeaderboardDTO)
         assert len(result.wins) > 0
-        assert hasattr(result, "winrate_min10")
-        assert hasattr(result, "winrate_min15")
-        assert hasattr(result, "winrate_min20")
+        assert hasattr(result, "win_streak")
+        assert hasattr(result, "lose_streak")
         mock_redis.set.assert_called_once()
 
 
 @pytest.mark.asyncio
 async def test_get_chart_leaderboard_cache_hit(clean_test_session):
     cached = {
-        "wins": [{"fighter_id": 1, "name": "Test", "wins": 10, "losses": 1, "draws": 0, "win_rate": 90.9}],
-        "winrate_min10": [],
-        "winrate_min15": [],
-        "winrate_min20": [],
+        "wins": [{"fighter_id": 1, "name": "Test", "wins": 10, "losses": 1, "draws": 0, "ko_tko_wins": 5, "sub_wins": 3, "dec_wins": 2}],
         "win_streak": [{"fighter_id": 1, "name": "Test", "win_streak": 5, "wins": 10, "losses": 1, "draws": 0}],
+        "lose_streak": [{"fighter_id": 1, "name": "Test", "lose_streak": 2, "wins": 10, "losses": 1, "draws": 0}],
     }
     with patch(REDIS_PATCH) as mock_redis:
         mock_redis.get.return_value = json.dumps(cached)

@@ -2,7 +2,7 @@
 Dashboard 도메인 DTO 클래스들
 탭별 aggregate 응답 모델 정의
 """
-from typing import List, Optional
+from typing import Dict, List, Optional
 from datetime import date
 from pydantic import BaseModel, ConfigDict
 
@@ -132,7 +132,9 @@ class LeaderboardFighterDTO(BaseModel):
     wins: int
     losses: int
     draws: int
-    win_rate: float
+    ko_tko_wins: int = 0
+    sub_wins: int = 0
+    dec_wins: int = 0
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -148,12 +150,21 @@ class WinStreakFighterDTO(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
+class LoseStreakFighterDTO(BaseModel):
+    fighter_id: int
+    name: str
+    lose_streak: int
+    wins: int
+    losses: int
+    draws: int
+
+    model_config = ConfigDict(from_attributes=True)
+
+
 class LeaderboardDTO(BaseModel):
     wins: List[LeaderboardFighterDTO]
-    winrate_min10: List[LeaderboardFighterDTO]
-    winrate_min15: List[LeaderboardFighterDTO]
-    winrate_min20: List[LeaderboardFighterDTO]
     win_streak: List[WinStreakFighterDTO] = []
+    lose_streak: List[LoseStreakFighterDTO] = []
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -162,6 +173,9 @@ class FightDurationRoundDTO(BaseModel):
     result_round: int
     fight_count: int
     percentage: float
+    ko_tko: int = 0
+    submission: int = 0
+    decision_other: int = 0
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -393,12 +407,21 @@ class TdSubCorrelationFighterDTO(BaseModel):
     total_td_landed: int
     sub_finishes: int
     total_fights: int
+    td_per_fight: float
+    sub_per_fight: float
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class TdSubQuadrantDTO(BaseModel):
+    fighters: List[TdSubCorrelationFighterDTO]
+    count: int
 
     model_config = ConfigDict(from_attributes=True)
 
 
 class TdSubCorrelationDTO(BaseModel):
-    fighters: List[TdSubCorrelationFighterDTO]
+    quadrants: Dict[str, TdSubQuadrantDTO]
     avg_td: float
     avg_sub: float
 

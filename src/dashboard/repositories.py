@@ -185,18 +185,23 @@ async def get_leaderboard_wins(
     limit: int = 10,
     ufc_only: bool = False,
 ) -> List[Dict[str, Any]]:
+    method_cols = """
+                COUNT(CASE WHEN fm.result = 'win' AND m.method LIKE 'KO/TKO%' THEN 1 END) AS ko_tko_wins,
+                COUNT(CASE WHEN fm.result = 'win' AND m.method LIKE 'SUB-%' THEN 1 END) AS sub_wins,
+                COUNT(CASE WHEN fm.result = 'win' THEN 1 END)
+                  - COUNT(CASE WHEN fm.result = 'win' AND m.method LIKE 'KO/TKO%' THEN 1 END)
+                  - COUNT(CASE WHEN fm.result = 'win' AND m.method LIKE 'SUB-%' THEN 1 END) AS dec_wins
+    """
+
     if weight_class_id is not None:
-        result = await session.execute(text("""
+        result = await session.execute(text(f"""
             SELECT
                 f.id AS fighter_id,
                 f.name,
                 COUNT(CASE WHEN fm.result = 'win' THEN 1 END) AS wins,
                 COUNT(CASE WHEN fm.result = 'loss' THEN 1 END) AS losses,
                 COUNT(CASE WHEN fm.result = 'draw' THEN 1 END) AS draws,
-                ROUND(
-                    COUNT(CASE WHEN fm.result = 'win' THEN 1 END) * 100.0 /
-                    NULLIF(COUNT(*), 0), 1
-                ) AS win_rate
+                {method_cols}
             FROM fighter f
             JOIN fighter_match fm ON f.id = fm.fighter_id
             JOIN match m ON fm.match_id = m.id
@@ -206,92 +211,39 @@ async def get_leaderboard_wins(
             LIMIT :limit
         """), {"weight_class_id": weight_class_id, "limit": limit})
     elif ufc_only:
-        result = await session.execute(text("""
+        result = await session.execute(text(f"""
             SELECT
                 f.id AS fighter_id,
                 f.name,
                 COUNT(CASE WHEN fm.result = 'win' THEN 1 END) AS wins,
                 COUNT(CASE WHEN fm.result = 'loss' THEN 1 END) AS losses,
                 COUNT(CASE WHEN fm.result = 'draw' THEN 1 END) AS draws,
-                ROUND(
-                    COUNT(CASE WHEN fm.result = 'win' THEN 1 END) * 100.0 /
-                    NULLIF(COUNT(*), 0), 1
-                ) AS win_rate
-            FROM fighter f
-            JOIN fighter_match fm ON f.id = fm.fighter_id
-            GROUP BY f.id, f.name
-            ORDER BY wins DESC
-            LIMIT :limit
-        """), {"limit": limit})
-    else:
-        result = await session.execute(text("""
-            SELECT id AS fighter_id, name, wins, losses, draws,
-                ROUND(wins * 100.0 / NULLIF(wins + losses + draws, 0), 1) AS win_rate
-            FROM fighter
-            ORDER BY wins DESC
-            LIMIT :limit
-        """), {"limit": limit})
-    return [dict(row) for row in result.mappings().all()]
-
-
-async def get_leaderboard_winrate(
-    session: AsyncSession,
-    min_fights: int,
-    weight_class_id: Optional[int] = None,
-    limit: int = 10,
-    ufc_only: bool = False,
-) -> List[Dict[str, Any]]:
-    if weight_class_id is not None:
-        result = await session.execute(text("""
-            SELECT
-                f.id AS fighter_id,
-                f.name,
-                COUNT(CASE WHEN fm.result = 'win' THEN 1 END) AS wins,
-                COUNT(CASE WHEN fm.result = 'loss' THEN 1 END) AS losses,
-                COUNT(CASE WHEN fm.result = 'draw' THEN 1 END) AS draws,
-                ROUND(
-                    COUNT(CASE WHEN fm.result = 'win' THEN 1 END) * 100.0 /
-                    NULLIF(COUNT(*), 0), 1
-                ) AS win_rate
+                {method_cols}
             FROM fighter f
             JOIN fighter_match fm ON f.id = fm.fighter_id
             JOIN match m ON fm.match_id = m.id
-            WHERE m.weight_class_id = :weight_class_id
             GROUP BY f.id, f.name
-            HAVING COUNT(*) >= :min_fights
-            ORDER BY win_rate DESC
+            ORDER BY wins DESC
             LIMIT :limit
-        """), {"weight_class_id": weight_class_id, "min_fights": min_fights, "limit": limit})
-    elif ufc_only:
-        result = await session.execute(text("""
+        """), {"limit": limit})
+    else:
+        result = await session.execute(text(f"""
             SELECT
                 f.id AS fighter_id,
                 f.name,
                 COUNT(CASE WHEN fm.result = 'win' THEN 1 END) AS wins,
                 COUNT(CASE WHEN fm.result = 'loss' THEN 1 END) AS losses,
                 COUNT(CASE WHEN fm.result = 'draw' THEN 1 END) AS draws,
-                ROUND(
-                    COUNT(CASE WHEN fm.result = 'win' THEN 1 END) * 100.0 /
-                    NULLIF(COUNT(*), 0), 1
-                ) AS win_rate
+                {method_cols}
             FROM fighter f
             JOIN fighter_match fm ON f.id = fm.fighter_id
+            JOIN match m ON fm.match_id = m.id
             GROUP BY f.id, f.name
-            HAVING COUNT(*) >= :min_fights
-            ORDER BY win_rate DESC
+            ORDER BY wins DESC
             LIMIT :limit
-        """), {"min_fights": min_fights, "limit": limit})
-    else:
-        result = await session.execute(text("""
-            SELECT
-                id AS fighter_id, name, wins, losses, draws,
-                ROUND(wins * 100.0 / NULLIF(wins + losses + draws, 0), 1) AS win_rate
-            FROM fighter
-            WHERE (wins + losses + draws) >= :min_fights
-            ORDER BY win_rate DESC
-            LIMIT :limit
-        """), {"min_fights": min_fights, "limit": limit})
+        """), {"limit": limit})
     return [dict(row) for row in result.mappings().all()]
+
 
 
 async def get_win_streak_leaders(
@@ -342,6 +294,54 @@ async def get_win_streak_leaders(
     return [dict(row) for row in result.mappings().all()]
 
 
+async def get_lose_streak_leaders(
+    session: AsyncSession,
+    weight_class_id: Optional[int] = None,
+    limit: int = 10,
+) -> List[Dict[str, Any]]:
+    """현재 연패 중인 선수 TOP N (최근 경기부터 역순으로 연패 계산)"""
+    wc_clause, params = _wc_filter(weight_class_id)
+    params["limit"] = limit
+    result = await session.execute(text(f"""
+        WITH ordered_fights AS (
+            SELECT
+                f.id AS fighter_id,
+                f.name,
+                f.wins, f.losses, f.draws,
+                fm.result,
+                ROW_NUMBER() OVER (
+                    PARTITION BY f.id ORDER BY e.event_date DESC, m.id DESC
+                ) AS rn
+            FROM fighter f
+            JOIN fighter_match fm ON f.id = fm.fighter_id
+            JOIN match m ON fm.match_id = m.id
+            JOIN event e ON m.event_id = e.id
+            WHERE fm.result IN ('win', 'loss')
+                AND e.event_date IS NOT NULL
+                {wc_clause}
+        ),
+        first_win AS (
+            SELECT fighter_id, MIN(rn) AS first_win_rn
+            FROM ordered_fights
+            WHERE result = 'win'
+            GROUP BY fighter_id
+        )
+        SELECT
+            o.fighter_id,
+            o.name,
+            o.wins, o.losses, o.draws,
+            COUNT(*) AS lose_streak
+        FROM ordered_fights o
+        LEFT JOIN first_win fw ON o.fighter_id = fw.fighter_id
+        WHERE o.result = 'loss'
+            AND o.rn < COALESCE(fw.first_win_rn, 999999)
+        GROUP BY o.fighter_id, o.name, o.wins, o.losses, o.draws
+        ORDER BY lose_streak DESC
+        LIMIT :limit
+    """), params)
+    return [dict(row) for row in result.mappings().all()]
+
+
 async def get_fight_duration_rounds(
     session: AsyncSession, weight_class_id: Optional[int] = None
 ) -> List[Dict[str, Any]]:
@@ -350,7 +350,11 @@ async def get_fight_duration_rounds(
         SELECT
             result_round,
             COUNT(*) AS fight_count,
-            ROUND(COUNT(*) * 100.0 / SUM(COUNT(*)) OVER(), 1) AS percentage
+            ROUND(COUNT(*) * 100.0 / SUM(COUNT(*)) OVER(), 1) AS percentage,
+            COUNT(CASE WHEN method LIKE 'KO/TKO%' THEN 1 END) AS ko_tko,
+            COUNT(CASE WHEN method LIKE 'SUB-%' THEN 1 END) AS submission,
+            COUNT(*) - COUNT(CASE WHEN method LIKE 'KO/TKO%' THEN 1 END)
+                     - COUNT(CASE WHEN method LIKE 'SUB-%' THEN 1 END) AS decision_other
         FROM match
         WHERE result_round IS NOT NULL
             {wc_clause}
@@ -614,24 +618,29 @@ async def get_submission_efficiency_fighters(
     wc_clause, params = _wc_filter(weight_class_id)
     params["min_fights"] = min_fights
     params["limit"] = limit
-    if not wc_clause:
-        where_clause = ""
-    else:
-        where_clause = f"WHERE {wc_clause.lstrip('AND ')}"
     result = await session.execute(text(f"""
+        WITH per_fight AS (
+            SELECT
+                fm.fighter_id,
+                fm.match_id,
+                SUM(ms.submission_attempts) AS fight_sub_attempts,
+                MAX(CASE WHEN m.method LIKE 'SUB-%%' AND fm.result = 'win'
+                         THEN 1 ELSE 0 END) AS is_sub_win
+            FROM match_statistics ms
+            JOIN fighter_match fm ON ms.fighter_match_id = fm.id
+            JOIN match m ON fm.match_id = m.id
+            WHERE 1=1 {wc_clause}
+            GROUP BY fm.fighter_id, fm.match_id
+        )
         SELECT
             f.id AS fighter_id,
             f.name,
-            SUM(ms.submission_attempts) AS total_sub_attempts,
-            COUNT(CASE WHEN m.method LIKE 'SUB-%' AND fm.result = 'win' THEN 1 END) AS sub_finishes
-        FROM match_statistics ms
-        JOIN fighter_match fm ON ms.fighter_match_id = fm.id
-        JOIN fighter f ON fm.fighter_id = f.id
-        JOIN match m ON fm.match_id = m.id
-        {where_clause}
+            GREATEST(SUM(pf.fight_sub_attempts), SUM(pf.is_sub_win))::int AS total_sub_attempts,
+            SUM(pf.is_sub_win)::int AS sub_finishes
+        FROM per_fight pf
+        JOIN fighter f ON pf.fighter_id = f.id
         GROUP BY f.id, f.name
-        HAVING SUM(ms.submission_attempts) >= :min_fights
-            AND COUNT(DISTINCT fm.match_id) >= :min_fights
+        HAVING COUNT(*) >= :min_fights
         ORDER BY sub_finishes DESC
         LIMIT :limit
     """), params)
@@ -960,38 +969,102 @@ async def get_td_attempts_leaders(
 
 
 async def get_td_sub_correlation(
-    session: AsyncSession, weight_class_id: Optional[int] = None, limit: int = 10
+    session: AsyncSession, weight_class_id: Optional[int] = None, limit: int = 3
 ) -> Dict[str, Any]:
-    """TD vs SUB 상관관계 산점도 데이터 + 평균값 (top N by td+sub)"""
+    """TD vs SUB 사분면 그리드 — 전체 평균 기준으로 4개 사분면별 top N 반환"""
     wc_clause, params = _wc_filter(weight_class_id)
     params["limit"] = limit
-    fighters_result = await session.execute(text(f"""
+    result = await session.execute(text(f"""
+        WITH base AS (
+            SELECT
+                f.id AS fighter_id,
+                f.name,
+                SUM(ms.td_landed) AS total_td_landed,
+                COUNT(CASE WHEN m.method LIKE 'SUB-%%' AND fm.result = 'win'
+                      THEN 1 END) AS sub_finishes,
+                COUNT(DISTINCT fm.match_id) AS total_fights,
+                SUM(ms.td_landed)::float
+                    / NULLIF(COUNT(DISTINCT fm.match_id), 0) AS td_per_fight,
+                COUNT(CASE WHEN m.method LIKE 'SUB-%%' AND fm.result = 'win'
+                      THEN 1 END)::float
+                    / NULLIF(COUNT(DISTINCT fm.match_id), 0) AS sub_per_fight
+            FROM match_statistics ms
+            JOIN fighter_match fm ON ms.fighter_match_id = fm.id
+            JOIN fighter f ON fm.fighter_id = f.id
+            JOIN match m ON fm.match_id = m.id
+            WHERE 1=1
+                {wc_clause}
+            GROUP BY f.id, f.name
+            HAVING COUNT(DISTINCT fm.match_id) >= 5
+        ),
+        avgs AS (
+            SELECT
+                AVG(td_per_fight) AS avg_td_rate,
+                AVG(sub_per_fight) AS avg_sub_rate
+            FROM base
+        ),
+        classified AS (
+            SELECT
+                b.*,
+                a.avg_td_rate,
+                a.avg_sub_rate,
+                CASE
+                    WHEN b.td_per_fight >= a.avg_td_rate
+                     AND b.sub_per_fight >= a.avg_sub_rate THEN 'high_td_high_sub'
+                    WHEN b.td_per_fight >= a.avg_td_rate   THEN 'high_td_low_sub'
+                    WHEN b.sub_per_fight >= a.avg_sub_rate  THEN 'low_td_high_sub'
+                    ELSE 'low_td_low_sub'
+                END AS quadrant
+            FROM base b
+            CROSS JOIN avgs a
+        ),
+        top_ranked AS (
+            SELECT
+                c.*,
+                ROW_NUMBER() OVER (
+                    PARTITION BY c.quadrant
+                    ORDER BY (c.td_per_fight / NULLIF(c.avg_td_rate, 0))
+                           + (c.sub_per_fight / NULLIF(c.avg_sub_rate, 0)) DESC
+                ) AS rn
+            FROM classified c
+        )
         SELECT
-            f.id AS fighter_id,
-            f.name,
-            SUM(ms.td_landed) AS total_td_landed,
-            COUNT(CASE WHEN m.method LIKE 'SUB-%' AND fm.result = 'win' THEN 1 END) AS sub_finishes,
-            COUNT(DISTINCT fm.match_id) AS total_fights
-        FROM match_statistics ms
-        JOIN fighter_match fm ON ms.fighter_match_id = fm.id
-        JOIN fighter f ON fm.fighter_id = f.id
-        JOIN match m ON fm.match_id = m.id
-        WHERE 1=1
-            {wc_clause}
-        GROUP BY f.id, f.name
-        HAVING COUNT(DISTINCT fm.match_id) >= 5
-        ORDER BY SUM(ms.td_landed) + COUNT(CASE WHEN m.method LIKE 'SUB-%' AND fm.result = 'win' THEN 1 END) DESC
-        LIMIT :limit
+            fighter_id, name, total_td_landed, sub_finishes, total_fights,
+            ROUND(td_per_fight::numeric, 2) AS td_per_fight,
+            ROUND(sub_per_fight::numeric, 2) AS sub_per_fight,
+            quadrant,
+            ROUND(avg_td_rate::numeric, 2) AS avg_td_rate,
+            ROUND(avg_sub_rate::numeric, 2) AS avg_sub_rate,
+            rn,
+            COUNT(*) OVER (PARTITION BY quadrant) AS quadrant_count
+        FROM top_ranked
+        WHERE rn <= :limit
+        ORDER BY quadrant, rn
     """), params)
-    fighters = [dict(row) for row in fighters_result.mappings().all()]
+    rows = [dict(r) for r in result.mappings().all()]
 
-    avg_td = sum(f["total_td_landed"] for f in fighters) / len(fighters) if fighters else 0
-    avg_sub = sum(f["sub_finishes"] for f in fighters) / len(fighters) if fighters else 0
+    avg_td = float(rows[0]["avg_td_rate"]) if rows else 0
+    avg_sub = float(rows[0]["avg_sub_rate"]) if rows else 0
+
+    quadrants: Dict[str, Any] = {}
+    for row in rows:
+        q = row["quadrant"]
+        if q not in quadrants:
+            quadrants[q] = {"fighters": [], "count": int(row["quadrant_count"])}
+        quadrants[q]["fighters"].append({
+            "fighter_id": row["fighter_id"],
+            "name": row["name"],
+            "total_td_landed": int(row["total_td_landed"]),
+            "sub_finishes": int(row["sub_finishes"]),
+            "total_fights": int(row["total_fights"]),
+            "td_per_fight": float(row["td_per_fight"]),
+            "sub_per_fight": float(row["sub_per_fight"]),
+        })
 
     return {
-        "fighters": fighters,
-        "avg_td": round(avg_td, 1),
-        "avg_sub": round(avg_sub, 1),
+        "quadrants": quadrants,
+        "avg_td": round(float(avg_td), 1),
+        "avg_sub": round(float(avg_sub), 1),
     }
 
 
@@ -1037,28 +1110,34 @@ async def get_submission_efficiency_avg_ratio(
 ) -> float:
     wc_clause, params = _wc_filter(weight_class_id)
     params["min_fights"] = min_fights
-    if not wc_clause:
-        where_clause = ""
-    else:
-        where_clause = f"WHERE {wc_clause.lstrip('AND ')}"
     result = await session.execute(text(f"""
+        WITH per_fight AS (
+            SELECT
+                fm.fighter_id,
+                fm.match_id,
+                SUM(ms.submission_attempts) AS fight_sub_attempts,
+                MAX(CASE WHEN m.method LIKE 'SUB-%%' AND fm.result = 'win'
+                         THEN 1 ELSE 0 END) AS is_sub_win
+            FROM match_statistics ms
+            JOIN fighter_match fm ON ms.fighter_match_id = fm.id
+            JOIN match m ON fm.match_id = m.id
+            WHERE 1=1 {wc_clause}
+            GROUP BY fm.fighter_id, fm.match_id
+        ),
+        per_fighter AS (
+            SELECT
+                fighter_id,
+                GREATEST(SUM(fight_sub_attempts), SUM(is_sub_win)) AS total_sub_attempts,
+                SUM(is_sub_win) AS sub_finishes
+            FROM per_fight
+            GROUP BY fighter_id
+            HAVING COUNT(*) >= :min_fights
+        )
         SELECT
             ROUND(
                 SUM(sub_finishes)::numeric / NULLIF(SUM(total_sub_attempts), 0), 3
             ) AS avg_efficiency_ratio
-        FROM (
-            SELECT
-                SUM(ms.submission_attempts) AS total_sub_attempts,
-                COUNT(CASE WHEN m.method LIKE 'SUB-%' AND fm.result = 'win' THEN 1 END) AS sub_finishes
-            FROM match_statistics ms
-            JOIN fighter_match fm ON ms.fighter_match_id = fm.id
-            JOIN fighter f ON fm.fighter_id = f.id
-            JOIN match m ON fm.match_id = m.id
-            {where_clause}
-            GROUP BY f.id, f.name
-            HAVING SUM(ms.submission_attempts) >= :min_fights
-                AND COUNT(DISTINCT fm.match_id) >= :min_fights
-        ) sub
+        FROM per_fighter
     """), params)
     row = result.mappings().one()
     return float(row["avg_efficiency_ratio"]) if row["avg_efficiency_ratio"] is not None else 0.0
