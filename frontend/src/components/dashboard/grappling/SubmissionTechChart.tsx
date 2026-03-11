@@ -7,6 +7,7 @@ import {
   YAxis,
   Tooltip,
   ResponsiveContainer,
+  LabelList,
 } from 'recharts'
 import type { SubmissionTechnique } from '@/types/dashboard'
 import { ChartTooltip } from '../ChartTooltip'
@@ -23,7 +24,7 @@ export function SubmissionTechChart({ data }: SubmissionTechChartProps) {
       <BarChart
         data={data}
         layout="vertical"
-        margin={{ top: 5, right: 10, left: 10, bottom: 0 }}
+        margin={{ top: 5, right: 40, left: 10, bottom: 0 }}
       >
         <XAxis
           type="number"
@@ -37,7 +38,7 @@ export function SubmissionTechChart({ data }: SubmissionTechChartProps) {
           tick={{ fill: '#a1a1aa', fontSize: 11 }}
           axisLine={false}
           tickLine={false}
-          width={120}
+          width={150}
         />
         <Tooltip
           cursor={{ fill: 'rgba(255,255,255,0.04)' }}
@@ -62,7 +63,13 @@ export function SubmissionTechChart({ data }: SubmissionTechChartProps) {
           animationBegin={500}
           animationDuration={1200}
           animationEasing="ease-out"
-        />
+        >
+          <LabelList
+            dataKey="count"
+            position="right"
+            style={{ fill: '#a1a1aa', fontSize: 10 }}
+          />
+        </Bar>
       </BarChart>
     </ResponsiveContainer>
   )

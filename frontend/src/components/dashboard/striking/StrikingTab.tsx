@@ -7,7 +7,6 @@ import { StrikeTargetsChart } from './StrikeTargetsChart'
 import { StrikingAccuracyChart } from './StrikingAccuracyChart'
 import { KoTkoLeadersChart } from './KoTkoLeadersChart'
 import { SigStrikesChart } from './SigStrikesChart'
-import { KnockdownLeadersChart } from './KnockdownLeadersChart'
 import { SigStrikesByWcChart } from './SigStrikesByWcChart'
 import { StrikeExchangeChart } from './StrikeExchangeChart'
 import { StanceWinrateChart } from './StanceWinrateChart'
@@ -62,16 +61,6 @@ export function StrikingTab({ data, loading, error, onRetry }: StrikingTabProps)
   })
 
   const {
-    data: knockdownLeaders,
-    loading: kdLoading,
-    weightClassId: kdWc,
-    setWeightClassId: setKdWc,
-  } = useChartFilter({
-    initialData: data?.knockdown_leaders,
-    fetchFn: chartApi.getKnockdownLeaders,
-  })
-
-  const {
     data: strikeExchange,
     loading: seLoading,
     weightClassId: seWc,
@@ -93,53 +82,17 @@ export function StrikingTab({ data, loading, error, onRetry }: StrikingTabProps)
 
   return (
     <div className="space-y-4">
-      {/* Row 1: Radar + Bullet */}
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-        <ChartCard
-          title="Strike Targets"
-          description="Significant strike distribution by body area"
-          tooltip="Head, Body, Leg 부위별 유효 타격 분포를 레이더 차트로 보여줍니다."
-          headerRight={<WeightClassFilter value={stWc} onChange={setStWc} />}
-          loading={!data && loading}
-          error={error}
-          onRetry={onRetry}
-          index={0}
-        >
-          {stLoading ? (
-            <Skeleton className="h-[280px] bg-white/[0.06]" />
-          ) : (
-            strikeTargets && <StrikeTargetsChart data={strikeTargets} />
-          )}
-        </ChartCard>
-        <ChartCard
-          title="Striking Accuracy"
-          description="Top fighters by significant strike accuracy"
-          tooltip="유효 타격 정확도 상위 파이터입니다. 넓은 바는 시도, 좁은 바는 적중 수이며 오른쪽 %가 정확도입니다."
-          headerRight={<WeightClassFilter value={saWc} onChange={setSaWc} />}
-          loading={!data && loading}
-          error={error}
-          onRetry={onRetry}
-          index={1}
-        >
-          {saLoading ? (
-            <Skeleton className="h-[280px] bg-white/[0.06]" />
-          ) : (
-            strikingAccuracy && <StrikingAccuracyChart data={strikingAccuracy} />
-          )}
-        </ChartCard>
-      </div>
-
-      {/* Row 2: Bar + Lollipop */}
+      {/* Row 1: KO/TKO Leaders + Striking Accuracy */}
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         <ChartCard
           title="KO/TKO Leaders"
           description="Top fighters by KO and TKO finishes"
-          tooltip="KO/TKO 피니시 횟수가 가장 많은 상위 파이터를 보여줍니다."
+          tooltip="Shows top fighters with the most KO/TKO finishes."
           headerRight={<WeightClassFilter value={ktWc} onChange={setKtWc} />}
           loading={!data && loading}
           error={error}
           onRetry={onRetry}
-          index={2}
+          index={0}
         >
           {ktLoading ? (
             <Skeleton className="h-[280px] bg-white/[0.06]" />
@@ -148,14 +101,68 @@ export function StrikingTab({ data, loading, error, onRetry }: StrikingTabProps)
           )}
         </ChartCard>
         <ChartCard
-          title="Sig. Strikes Per Fight"
-          description="Top fighters by average significant strikes"
-          tooltip="경기당 평균 유효 타격 수 상위 파이터입니다. 점선은 전체 평균입니다."
-          headerRight={<WeightClassFilter value={ssWc} onChange={setSsWc} />}
+          title="Stance Winrate"
+          description="Win rates by stance matchup (matrix table)"
+          tooltip="Color-coded matrix table showing win rates by stance matchup. Compare Orthodox/Southpaw/Switch matchup advantages."
+          headerRight={<WeightClassFilter value={swWc} onChange={setSwWc} />}
+          loading={!data && loading}
+          error={error}
+          onRetry={onRetry}
+          index={1}
+        >
+          {swLoading ? (
+            <Skeleton className="h-[280px] bg-white/[0.06]" />
+          ) : (
+            stanceWinrate && <StanceWinrateChart data={stanceWinrate} />
+          )}
+        </ChartCard>
+      </div>
+
+      {/* Row 2: Strike Exchange (full width) */}
+      <ChartCard
+        title="Strike Exchange"
+        description="Striking differential per fight"
+        tooltip="Shows striking differential per fight (landed minus taken). Positive values indicate dominance."
+        headerRight={<WeightClassFilter value={seWc} onChange={setSeWc} />}
+        loading={!data && loading}
+        error={error}
+        onRetry={onRetry}
+        index={2}
+      >
+        {seLoading ? (
+          <Skeleton className="h-[280px] bg-white/[0.06]" />
+        ) : (
+          strikeExchange && <StrikeExchangeChart data={strikeExchange} />
+        )}
+      </ChartCard>
+
+      {/* Row 3: Stance Winrate + Sig. Strikes Per Fight */}
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+        <ChartCard
+          title="Striking Accuracy"
+          description="Top fighters by significant strike accuracy"
+          tooltip="Top fighters by striking accuracy. Bar length = accuracy %, label on right = percentage."
+          headerRight={<WeightClassFilter value={saWc} onChange={setSaWc} />}
           loading={!data && loading}
           error={error}
           onRetry={onRetry}
           index={3}
+        >
+          {saLoading ? (
+            <Skeleton className="h-[280px] bg-white/[0.06]" />
+          ) : (
+            strikingAccuracy && <StrikingAccuracyChart data={strikingAccuracy} />
+          )}
+        </ChartCard>
+        <ChartCard
+          title="Sig. Strikes Per Fight"
+          description="Top fighters by average significant strikes"
+          tooltip="Top fighters by average significant strikes per fight. Dashed line indicates the overall average."
+          headerRight={<WeightClassFilter value={ssWc} onChange={setSsWc} />}
+          loading={!data && loading}
+          error={error}
+          onRetry={onRetry}
+          index={4}
         >
           {ssLoading ? (
             <Skeleton className="h-[280px] bg-white/[0.06]" />
@@ -165,70 +172,34 @@ export function StrikingTab({ data, loading, error, onRetry }: StrikingTabProps)
         </ChartCard>
       </div>
 
-      {/* Row 3: Knockdown Leaders + Sig Strikes by Weight Class */}
+      {/* Row 4: Strike Targets + Sig Strikes by Weight Class */}
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         <ChartCard
-          title="Knockdown Leaders"
-          description="Top fighters by total knockdowns"
-          tooltip="총 넉다운 횟수가 가장 많은 상위 파이터를 보여줍니다."
-          headerRight={<WeightClassFilter value={kdWc} onChange={setKdWc} />}
+          title="Strike Targets"
+          description="Significant strike distribution by body area"
+          tooltip="Radar chart showing significant strike distribution by target area: Head, Body, Leg."
+          headerRight={<WeightClassFilter value={stWc} onChange={setStWc} />}
           loading={!data && loading}
           error={error}
           onRetry={onRetry}
-          index={4}
+          index={5}
         >
-          {kdLoading ? (
+          {stLoading ? (
             <Skeleton className="h-[280px] bg-white/[0.06]" />
           ) : (
-            knockdownLeaders && <KnockdownLeadersChart data={knockdownLeaders} />
+            strikeTargets && <StrikeTargetsChart data={strikeTargets} />
           )}
         </ChartCard>
         <ChartCard
           title="Sig. Strikes by Weight Class"
           description="Average significant strikes per fight by division"
-          tooltip="체급별 경기당 평균 유효 타격 수를 비교합니다."
+          tooltip="Compares average significant strikes per fight across weight classes."
           loading={loading}
-          error={error}
-          onRetry={onRetry}
-          index={5}
-        >
-          {data && <SigStrikesByWcChart data={data.sig_strikes_by_weight_class} />}
-        </ChartCard>
-      </div>
-
-      {/* Row 4: Strike Exchange + Stance Winrate */}
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-        <ChartCard
-          title="Strike Exchange"
-          description="Striking differential per fight"
-          tooltip="경기당 유효 타격 차이 (적중 - 피격)로 공방 효율을 보여줍니다. 양수일수록 우세합니다."
-          headerRight={<WeightClassFilter value={seWc} onChange={setSeWc} />}
-          loading={!data && loading}
           error={error}
           onRetry={onRetry}
           index={6}
         >
-          {seLoading ? (
-            <Skeleton className="h-[280px] bg-white/[0.06]" />
-          ) : (
-            strikeExchange && <StrikeExchangeChart data={strikeExchange} />
-          )}
-        </ChartCard>
-        <ChartCard
-          title="Stance Winrate"
-          description="Win rates by stance matchup"
-          tooltip="스탠스별 매치업 승률을 히트맵으로 보여줍니다. Orthodox/Southpaw/Switch 간 상성을 확인할 수 있습니다."
-          headerRight={<WeightClassFilter value={swWc} onChange={setSwWc} />}
-          loading={!data && loading}
-          error={error}
-          onRetry={onRetry}
-          index={7}
-        >
-          {swLoading ? (
-            <Skeleton className="h-[280px] bg-white/[0.06]" />
-          ) : (
-            stanceWinrate && <StanceWinrateChart data={stanceWinrate} />
-          )}
+          {data && <SigStrikesByWcChart data={data.sig_strikes_by_weight_class} />}
         </ChartCard>
       </div>
     </div>

@@ -56,7 +56,7 @@ export function OverviewTab({ data, loading, error, onRetry }: OverviewTabProps)
         <ChartCard
           title="Finish Methods"
           description="Distribution of fight outcomes"
-          tooltip="KO/TKO, Submission, Decision 등 경기 종료 방식의 비율을 도넛 차트로 보여줍니다."
+          tooltip="Donut chart showing the distribution of fight outcomes: KO/TKO, Submission, Decision, etc."
           headerRight={<WeightClassFilter value={fmWc} onChange={setFmWc} />}
           loading={!data && loading}
           error={error}
@@ -71,8 +71,8 @@ export function OverviewTab({ data, loading, error, onRetry }: OverviewTabProps)
         </ChartCard>
         <ChartCard
           title="Events Timeline"
-          description="UFC events per year"
-          tooltip="연도별 UFC 이벤트 개최 수 추이를 보여줍니다."
+          description="UFC events per year (area chart)"
+          tooltip="Area chart showing the trend of UFC events held per year."
           loading={loading}
           error={error}
           onRetry={onRetry}
@@ -86,8 +86,8 @@ export function OverviewTab({ data, loading, error, onRetry }: OverviewTabProps)
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
         <ChartCard
           title="Weight Class Activity"
-          description="Fight count and finish rates by division"
-          tooltip="체급별 총 경기 수와 피니시/KO 비율을 비교합니다. Fights/Rates 탭으로 전환할 수 있습니다."
+          description="Total fight count by division"
+          tooltip="Horizontal bar chart showing total fight count per weight class, sorted by activity level."
           className="lg:col-span-2"
           loading={loading}
           error={error}
@@ -98,8 +98,8 @@ export function OverviewTab({ data, loading, error, onRetry }: OverviewTabProps)
         </ChartCard>
         <ChartCard
           title="Fight Duration"
-          description="Finish round distribution"
-          tooltip="경기가 몇 라운드에서 끝나는지 분포를 보여줍니다. 점선은 평균 종료 라운드입니다."
+          description="Finish method breakdown by round"
+          tooltip="Stacked bar showing KO/TKO, Submission, and Decision/Other counts per round. Dashed line indicates the average finish round."
           headerRight={<WeightClassFilter value={fdWc} onChange={setFdWc} />}
           loading={!data && loading}
           error={error}
@@ -117,8 +117,8 @@ export function OverviewTab({ data, loading, error, onRetry }: OverviewTabProps)
       {/* Row 3: Finish Rate Trend */}
       <ChartCard
         title="Finish Rate Trend"
-        description="Year-over-year finish method rates"
-        tooltip="연도별 KO, TKO, 서브미션, 판정 비율 추이를 보여줍니다."
+        description="Year-over-year finish method rates (line chart)"
+        tooltip="Line chart showing year-over-year trends for KO/TKO, submission, and decision rates at 5-year intervals."
         headerRight={<WeightClassFilter value={frtWc} onChange={setFrtWc} />}
         loading={!data && loading}
         error={error}

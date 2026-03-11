@@ -1,8 +1,8 @@
 'use client'
 
 import {
-  AreaChart,
-  Area,
+  LineChart,
+  Line,
   XAxis,
   YAxis,
   Tooltip,
@@ -23,25 +23,25 @@ const COLORS = {
 }
 
 export function FinishRateTrendChart({ data }: FinishRateTrendChartProps) {
+  // 5-year interval ticks
+  const years = data.map((d) => d.year)
+  const minTick = Math.ceil(Math.min(...years) / 5) * 5
+  const maxYear = Math.max(...years)
+  const ticks: number[] = []
+  for (let y = minTick; y <= maxYear; y += 5) ticks.push(y)
+
   return (
     <ResponsiveContainer width="100%" height={280}>
-      <AreaChart data={data} margin={{ top: 5, right: 10, left: -10, bottom: 0 }}>
-        <defs>
-          {Object.entries(COLORS).map(([key, color]) => (
-            <linearGradient key={key} id={`frt-${key}`} x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor={color} stopOpacity={0.3} />
-              <stop offset="100%" stopColor={color} stopOpacity={0} />
-            </linearGradient>
-          ))}
-        </defs>
+      <LineChart data={data} margin={{ top: 5, right: 10, left: -10, bottom: 0 }}>
         <XAxis
           dataKey="year"
           tick={{ fill: '#52525b', fontSize: 11 }}
           axisLine={false}
           tickLine={false}
+          ticks={ticks}
         />
         <YAxis
-          tick={{ fill: '#52525b', fontSize: 11 }}
+          tick={{ fill: '#a1a1aa', fontSize: 11 }}
           axisLine={false}
           tickLine={false}
           tickFormatter={(v) => `${v}%`}
@@ -64,10 +64,10 @@ export function FinishRateTrendChart({ data }: FinishRateTrendChartProps) {
           iconSize={8}
           wrapperStyle={{ fontSize: '11px', color: '#a1a1aa' }}
         />
-        <Area type="monotone" dataKey="ko_tko_rate" stroke={COLORS.ko_tko_rate} strokeWidth={2} fill={`url(#frt-ko_tko_rate)`} name="KO/TKO" animationBegin={500} animationDuration={1500} animationEasing="ease-out" />
-        <Area type="monotone" dataKey="sub_rate" stroke={COLORS.sub_rate} strokeWidth={2} fill={`url(#frt-sub_rate)`} name="Submission" animationBegin={500} animationDuration={1500} animationEasing="ease-out" />
-        <Area type="monotone" dataKey="dec_rate" stroke={COLORS.dec_rate} strokeWidth={2} fill={`url(#frt-dec_rate)`} name="Decision" animationBegin={500} animationDuration={1500} animationEasing="ease-out" />
-      </AreaChart>
+        <Line type="monotone" dataKey="ko_tko_rate" stroke={COLORS.ko_tko_rate} strokeWidth={2} dot={false} name="KO/TKO" animationBegin={500} animationDuration={1500} animationEasing="ease-out" />
+        <Line type="monotone" dataKey="sub_rate" stroke={COLORS.sub_rate} strokeWidth={2} dot={false} name="Submission" animationBegin={500} animationDuration={1500} animationEasing="ease-out" />
+        <Line type="monotone" dataKey="dec_rate" stroke={COLORS.dec_rate} strokeWidth={2} dot={false} name="Decision" animationBegin={500} animationDuration={1500} animationEasing="ease-out" />
+      </LineChart>
     </ResponsiveContainer>
   )
 }

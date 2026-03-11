@@ -30,7 +30,7 @@ export function HomeTab({ data }: HomeTabProps) {
       </div>
       {/* Events Row */}
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-        <RecentEvents events={recent_events} index={0} />
+        <RecentEvents events={recent_events} totalEvents={summary.total_events} index={0} />
         <UpcomingEvents events={upcoming_events} index={1} />
       </div>
 
@@ -39,7 +39,7 @@ export function HomeTab({ data }: HomeTabProps) {
         <ChartCard
           title="Event Locations"
           description="UFC events around the world"
-          tooltip="전 세계 UFC 대회 개최지를 지도에 표시합니다. 마커 크기는 이벤트 횟수에 비례합니다."
+          tooltip="Shows UFC event locations on a world map. Marker size is proportional to event count."
           index={0}
         >
           <EventMapChart data={event_map} />
@@ -51,7 +51,7 @@ export function HomeTab({ data }: HomeTabProps) {
         <ChartCard
           title="Nationality Distribution"
           description="Fighter count by nationality (Top 15 + Others)"
-          tooltip="UFC 선수들의 국적 분포를 보여줍니다. 막대 길이가 선수 수에 비례합니다."
+          tooltip="Shows fighter nationality distribution. Bar length is proportional to fighter count."
           index={1}
         >
           <NationalityBarChart data={nationality_distribution} />

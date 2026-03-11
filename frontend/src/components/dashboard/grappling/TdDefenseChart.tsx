@@ -9,6 +9,7 @@ import {
   YAxis,
   Tooltip,
   ResponsiveContainer,
+  LabelList,
 } from 'recharts'
 import { ChevronDown } from 'lucide-react'
 import { toTitleCase } from '@/lib/utils'
@@ -16,9 +17,9 @@ import { PillTabs, TabContent } from '../PillTabs'
 import type { MinFightsLeaderboard, TdDefenseLeader } from '@/types/dashboard'
 
 const TABS = [
-  { key: 'min10', label: '10+ Fights' },
-  { key: 'min15', label: '15+ Fights' },
   { key: 'min20', label: '20+ Fights' },
+  { key: 'min15', label: '15+ Fights' },
+  { key: 'min10', label: '10+ Fights' },
 ] as const
 
 type MinKey = (typeof TABS)[number]['key']
@@ -29,7 +30,7 @@ interface TdDefenseChartProps {
 
 export function TdDefenseChart({ data }: TdDefenseChartProps) {
   const router = useRouter()
-  const [activeKey, setActiveKey] = useState<MinKey>('min10')
+  const [activeKey, setActiveKey] = useState<MinKey>('min20')
   const [expanded, setExpanded] = useState(false)
   const fighters = data[activeKey]
   const displayFighters = expanded ? fighters : fighters.slice(0, 5)
@@ -67,11 +68,11 @@ export function TdDefenseChart({ data }: TdDefenseChartProps) {
         />
       </div>
       <TabContent activeKey={activeKey}>
-      <ResponsiveContainer width="100%" height={expanded ? 320 : 180}>
+      <ResponsiveContainer width="100%" height={expanded ? Math.max(320, displayFighters.length * 34) : 180}>
         <BarChart
           data={displayFighters}
           layout="vertical"
-          margin={{ top: 5, right: 30, left: 10, bottom: 0 }}
+          margin={{ top: 5, right: 50, left: 10, bottom: 0 }}
         >
           <XAxis
             type="number"
@@ -88,6 +89,7 @@ export function TdDefenseChart({ data }: TdDefenseChartProps) {
             axisLine={false}
             tickLine={false}
             width={100}
+            interval={0}
           />
           <Tooltip
             content={({ active, payload, label }) => {
@@ -112,7 +114,14 @@ export function TdDefenseChart({ data }: TdDefenseChartProps) {
             animationBegin={400}
             animationDuration={1000}
             animationEasing="ease-out"
-          />
+          >
+            <LabelList
+              dataKey="td_defense_rate"
+              position="right"
+              style={{ fill: '#a1a1aa', fontSize: 10 }}
+              formatter={(v: unknown) => `${Number(v).toFixed(1)}%`}
+            />
+          </Bar>
         </BarChart>
       </ResponsiveContainer>
       {fighters.length > 5 && (

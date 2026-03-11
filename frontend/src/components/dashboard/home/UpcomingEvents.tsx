@@ -10,7 +10,7 @@ interface UpcomingEventsProps {
 
 export function UpcomingEvents({ events, index }: UpcomingEventsProps) {
   return (
-    <ChartCard title="Upcoming Events" description="Scheduled UFC events" tooltip="예정된 UFC 이벤트 목록입니다. D-day로 남은 일수를 확인할 수 있습니다." index={index}>
+    <ChartCard title="Upcoming Events" description="Scheduled UFC events" tooltip="List of upcoming UFC events. Shows days remaining until each event." index={index}>
       <div className="space-y-3">
         {events.map((event) => (
           <Link

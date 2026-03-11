@@ -19,9 +19,9 @@ import type { MinFightsLeaderboard, StrikingAccuracyFighter } from '@/types/dash
 import { ChartTooltip } from '../ChartTooltip'
 
 const TABS = [
-  { key: 'min10', label: '10+ Fights' },
-  { key: 'min15', label: '15+ Fights' },
   { key: 'min20', label: '20+ Fights' },
+  { key: 'min15', label: '15+ Fights' },
+  { key: 'min10', label: '10+ Fights' },
 ] as const
 
 type MinKey = (typeof TABS)[number]['key']
@@ -30,15 +30,9 @@ interface StrikingAccuracyChartProps {
   data: MinFightsLeaderboard<StrikingAccuracyFighter>
 }
 
-function getColor(accuracy: number) {
-  if (accuracy >= 62) return '#8b5cf6'
-  if (accuracy >= 55) return '#7c3aed'
-  return '#6d28d9'
-}
-
 export function StrikingAccuracyChart({ data }: StrikingAccuracyChartProps) {
   const router = useRouter()
-  const [activeKey, setActiveKey] = useState<MinKey>('min10')
+  const [activeKey, setActiveKey] = useState<MinKey>('min20')
   const [expanded, setExpanded] = useState(false)
   const fighters = data[activeKey]
   const displayFighters = expanded ? fighters : fighters.slice(0, 5)
@@ -77,18 +71,19 @@ export function StrikingAccuracyChart({ data }: StrikingAccuracyChartProps) {
         />
       </div>
     <TabContent activeKey={activeKey}>
-    <ResponsiveContainer width="100%" height={expanded ? 320 : 180}>
+    <ResponsiveContainer width="100%" height={expanded ? Math.max(320, displayFighters.length * 34) : 180}>
       <BarChart
         data={chartData}
         layout="vertical"
         margin={{ top: 5, right: 50, left: 10, bottom: 0 }}
-        barGap={-16}
       >
         <XAxis
           type="number"
+          domain={[0, 100]}
           tick={{ fill: '#52525b', fontSize: 11 }}
           axisLine={false}
           tickLine={false}
+          tickFormatter={(v: number) => `${v}%`}
         />
         <YAxis
           dataKey="name"
@@ -97,6 +92,7 @@ export function StrikingAccuracyChart({ data }: StrikingAccuracyChartProps) {
           axisLine={false}
           tickLine={false}
           width={100}
+          interval={0}
         />
         <Tooltip
           cursor={{ fill: 'rgba(255,255,255,0.04)' }}
@@ -112,24 +108,11 @@ export function StrikingAccuracyChart({ data }: StrikingAccuracyChartProps) {
             )
           }}
         />
-        {/* Attempted (background bar) */}
         <Bar
-          dataKey="total_sig_attempted"
-          fill="#8b5cf6"
-          fillOpacity={0.15}
+          dataKey="accuracy"
           barSize={16}
-          radius={[0, 3, 3, 0]}
-          name="Attempted"
-          animationBegin={200}
-          animationDuration={900}
-          animationEasing="ease-out"
-        />
-        {/* Landed (foreground bar) */}
-        <Bar
-          dataKey="total_sig_landed"
-          barSize={16}
-          radius={[0, 3, 3, 0]}
-          name="Landed"
+          radius={[0, 4, 4, 0]}
+          name="Accuracy"
           animationBegin={500}
           animationDuration={900}
           animationEasing="ease-out"
@@ -139,8 +122,12 @@ export function StrikingAccuracyChart({ data }: StrikingAccuracyChartProps) {
             position="right"
             style={{ fill: '#a1a1aa', fontSize: 10 }}
           />
-          {chartData.map((d, i) => (
-            <Cell key={i} fill={getColor(d.accuracy)} />
+          {chartData.map((_, i) => (
+            <Cell
+              key={i}
+              fill="#8b5cf6"
+              fillOpacity={Math.max(0.2, 1 - i * 0.13)}
+            />
           ))}
         </Bar>
       </BarChart>

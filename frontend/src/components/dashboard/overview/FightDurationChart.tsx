@@ -6,11 +6,14 @@ import {
   XAxis,
   YAxis,
   Tooltip,
+  Legend,
+  LabelList,
   ReferenceLine,
   ResponsiveContainer,
 } from 'recharts'
 import type { OverviewResponse } from '@/types/dashboard'
 import { ChartTooltip } from '../ChartTooltip'
+import { FINISH_COLORS } from '@/lib/utils'
 
 interface FightDurationChartProps {
   data: OverviewResponse['fight_duration']
@@ -20,6 +23,12 @@ function formatSeconds(seconds: number): string {
   const m = Math.floor(seconds / 60)
   const s = seconds % 60
   return `${m}:${s.toString().padStart(2, '0')}`
+}
+
+const STACK_COLORS = {
+  ko_tko: FINISH_COLORS.ko_tko ?? '#ef4444',
+  submission: FINISH_COLORS.submission ?? '#a855f7',
+  decision_other: FINISH_COLORS.decision ?? '#06b6d4',
 }
 
 export function FightDurationChart({ data }: FightDurationChartProps) {
@@ -34,7 +43,7 @@ export function FightDurationChart({ data }: FightDurationChartProps) {
 
   return (
     <ResponsiveContainer width="100%" height={280}>
-      <BarChart data={chartData} margin={{ top: 20, right: 10, left: -10, bottom: 0 }}>
+      <BarChart data={chartData} margin={{ top: 24, right: 10, left: -10, bottom: 0 }}>
         <XAxis
           dataKey="label"
           tick={{ fill: '#52525b', fontSize: 11 }}
@@ -42,7 +51,7 @@ export function FightDurationChart({ data }: FightDurationChartProps) {
           tickLine={false}
         />
         <YAxis
-          tick={{ fill: '#52525b', fontSize: 11 }}
+          tick={{ fill: '#a1a1aa', fontSize: 11 }}
           axisLine={false}
           tickLine={false}
         />
@@ -50,24 +59,60 @@ export function FightDurationChart({ data }: FightDurationChartProps) {
           cursor={{ fill: 'rgba(255,255,255,0.04)' }}
           content={({ active, payload }) => {
             if (!active || !payload?.length) return null
-            const d = payload[0]?.payload as { label: string; fight_count: number; pct: number; result_round: number }
+            const d = payload[0]?.payload as {
+              label: string; result_round: number; fight_count: number
+              ko_tko: number; submission: number; decision_other: number
+            }
             return (
               <ChartTooltip active={active} label={`Round ${d.result_round}`}>
-                <p className="text-zinc-400">Fights: {d.fight_count}</p>
-                {d.pct !== undefined && <p className="text-zinc-400">Percentage: {d.pct.toFixed(1)}%</p>}
+                <p style={{ color: STACK_COLORS.ko_tko }}>KO/TKO: {d.ko_tko}</p>
+                <p style={{ color: STACK_COLORS.submission }}>Submission: {d.submission}</p>
+                <p style={{ color: STACK_COLORS.decision_other }}>Decision/Other: {d.decision_other}</p>
               </ChartTooltip>
             )
           }}
         />
+        <Legend
+          verticalAlign="top"
+          iconType="circle"
+          iconSize={8}
+          wrapperStyle={{ fontSize: '11px', color: '#a1a1aa', paddingBottom: '16px' }}
+        />
         <Bar
-          dataKey="fight_count"
-          fill="#f59e0b"
-          radius={[4, 4, 0, 0]}
-          name="fight_count"
+          dataKey="ko_tko"
+          name="KO/TKO"
+          stackId="a"
+          fill={STACK_COLORS.ko_tko}
           animationBegin={600}
           animationDuration={1000}
           animationEasing="ease-out"
         />
+        <Bar
+          dataKey="submission"
+          name="Submission"
+          stackId="a"
+          fill={STACK_COLORS.submission}
+          animationBegin={600}
+          animationDuration={1000}
+          animationEasing="ease-out"
+        />
+        <Bar
+          dataKey="decision_other"
+          name="Decision/Other"
+          stackId="a"
+          fill={STACK_COLORS.decision_other}
+          radius={[4, 4, 0, 0]}
+          animationBegin={600}
+          animationDuration={1000}
+          animationEasing="ease-out"
+        >
+          <LabelList
+            dataKey="fight_count"
+            position="top"
+            fill="#a1a1aa"
+            fontSize={10}
+          />
+        </Bar>
         <ReferenceLine
           x={`R${Math.round(data.avg_round)}`}
           stroke="#71717a"

@@ -7,6 +7,7 @@ import {
   YAxis,
   Tooltip,
   ResponsiveContainer,
+  LabelList,
 } from 'recharts'
 import type { ControlTimeByClass } from '@/types/dashboard'
 import { abbreviateWeightClass, WEIGHT_CLASS_ABBR } from '@/lib/utils'
@@ -29,58 +30,61 @@ export function ControlTimeChart({ data }: ControlTimeChartProps) {
     .map((d) => ({
       ...d,
       short: abbreviateWeightClass(d.weight_class),
+      label: formatSeconds(d.avg_control_seconds),
     }))
 
   return (
-    <ResponsiveContainer width="100%" height={280}>
+    <ResponsiveContainer width="100%" height={Math.max(280, chartData.length * 30)}>
       <BarChart
         data={chartData}
-        margin={{ top: 5, right: 10, left: -10, bottom: 0 }}
+        layout="vertical"
+        margin={{ top: 5, right: 50, left: 10, bottom: 0 }}
       >
         <XAxis
-          dataKey="short"
-          tick={{ fill: '#a1a1aa', fontSize: 10 }}
-          axisLine={false}
-          tickLine={false}
-          interval={0}
-          angle={-35}
-          textAnchor="end"
-          height={60}
-        />
-        <YAxis
+          type="number"
           tick={{ fill: '#52525b', fontSize: 11 }}
           axisLine={false}
           tickLine={false}
           tickFormatter={formatSeconds}
         />
+        <YAxis
+          dataKey="short"
+          type="category"
+          tick={{ fill: '#a1a1aa', fontSize: 11 }}
+          axisLine={false}
+          tickLine={false}
+          width={55}
+          interval={0}
+        />
         <Tooltip
           cursor={{ fill: 'rgba(255,255,255,0.04)' }}
-          contentStyle={{
-            backgroundColor: '#18181b',
-            border: '1px solid rgba(255,255,255,0.06)',
-            borderRadius: '8px',
-            fontSize: '12px',
+          content={({ active, payload }) => {
+            if (!active || !payload?.length) return null
+            const d = payload[0]?.payload as ControlTimeByClass & { short: string }
+            return (
+              <div className="rounded-lg border border-white/[0.06] bg-zinc-900 px-3 py-2 text-xs shadow-lg">
+                <p className="mb-1 font-medium text-zinc-200">{d.weight_class}</p>
+                <p className="text-zinc-400">Avg Control: {formatSeconds(d.avg_control_seconds)}</p>
+              </div>
+            )
           }}
-          itemStyle={{ color: '#e4e4e7' }}
-          labelStyle={{ color: '#a1a1aa' }}
-          formatter={(value: number) => [formatSeconds(value), 'Avg Control']}
-          labelFormatter={(label) =>
-            data.find(
-              (d) =>
-                (WEIGHT_CLASS_ABBR[d.weight_class.toLowerCase()] ?? d.weight_class) === label
-            )?.weight_class ?? label
-          }
         />
         <Bar
           dataKey="avg_control_seconds"
           fill="#06b6d4"
-          radius={[4, 4, 0, 0]}
-          barSize={20}
+          radius={[0, 4, 4, 0]}
+          barSize={16}
           name="Avg Control"
           animationBegin={500}
           animationDuration={1200}
           animationEasing="ease-out"
-        />
+        >
+          <LabelList
+            dataKey="label"
+            position="right"
+            style={{ fill: '#a1a1aa', fontSize: 10 }}
+          />
+        </Bar>
       </BarChart>
     </ResponsiveContainer>
   )

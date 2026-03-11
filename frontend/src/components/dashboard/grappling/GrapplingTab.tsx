@@ -5,7 +5,6 @@ import { useChartFilter } from '@/hooks/useChartFilter'
 import { chartApi } from '@/services/dashboardApi'
 import { TakedownChart } from './TakedownChart'
 import { SubmissionTechChart } from './SubmissionTechChart'
-import { ControlTimeChart } from './ControlTimeChart'
 import { GroundStrikesChart } from './GroundStrikesChart'
 import { SubmissionEfficiencyChart } from './SubmissionEfficiencyChart'
 import { TdAttemptsChart } from './TdAttemptsChart'
@@ -98,7 +97,7 @@ export function GrapplingTab({ data, loading, error, onRetry }: GrapplingTabProp
         <ChartCard
           title="Takedown Accuracy"
           description="Top fighters by takedown accuracy"
-          tooltip="테이크다운 정확도 상위 파이터입니다. 넓은 바는 시도, 좁은 바는 성공 수이며 오른쪽 %가 정확도입니다."
+          tooltip="Top fighters by takedown accuracy. Wide bar = attempts, narrow bar = landed, percentage on right = accuracy."
           headerRight={<WeightClassFilter value={tdWc} onChange={setTdWc} />}
           loading={!data && loading}
           error={error}
@@ -114,7 +113,7 @@ export function GrapplingTab({ data, loading, error, onRetry }: GrapplingTabProp
         <ChartCard
           title="Submission Techniques"
           description="Most common submission finishes"
-          tooltip="UFC에서 가장 많이 사용된 서브미션 기술 순위를 보여줍니다."
+          tooltip="Shows the most commonly used submission techniques in the UFC."
           headerRight={<WeightClassFilter value={stWc} onChange={setStWc} />}
           loading={!data && loading}
           error={error}
@@ -129,28 +128,17 @@ export function GrapplingTab({ data, loading, error, onRetry }: GrapplingTabProp
         </ChartCard>
       </div>
 
-      {/* Row 2: Control Time + Ground Strikes + Submission Efficiency */}
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
-        <ChartCard
-          title="Control Time"
-          description="Average control time by weight class"
-          tooltip="체급별 경기당 평균 그라운드 컨트롤 시간을 보여줍니다."
-          loading={loading}
-          error={error}
-          onRetry={onRetry}
-          index={2}
-        >
-          {data && <ControlTimeChart data={data.control_time} />}
-        </ChartCard>
+      {/* Row 2: Ground Strikes + Submission Efficiency */}
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         <ChartCard
           title="Ground Strikes"
-          description="Attempts vs landed with accuracy bubble size"
-          tooltip="그라운드 타격 시도 vs 적중을 산점도로 표시합니다. 점 크기는 정확도, 대각선은 참고 비율입니다."
+          description="Top fighters by ground strike accuracy"
+          tooltip="Ranked list of fighters by ground strike accuracy, showing landed and attempted counts."
           headerRight={<WeightClassFilter value={gsWc} onChange={setGsWc} />}
           loading={!data && loading}
           error={error}
           onRetry={onRetry}
-          index={3}
+          index={2}
         >
           {gsLoading ? (
             <Skeleton className="h-[280px] bg-white/[0.06]" />
@@ -160,13 +148,13 @@ export function GrapplingTab({ data, loading, error, onRetry }: GrapplingTabProp
         </ChartCard>
         <ChartCard
           title="Submission Efficiency"
-          description="Attempts vs finishes with average ratio"
-          tooltip="서브미션 시도 대비 성공 비율을 보여줍니다. 점선은 전체 평균 효율입니다."
+          description="Top fighters by submission finish rate"
+          tooltip="Ranked list of fighters by submission efficiency, showing finishes and attempts with average ratio."
           headerRight={<WeightClassFilter value={seWc} onChange={setSeWc} />}
           loading={!data && loading}
           error={error}
           onRetry={onRetry}
-          index={4}
+          index={3}
         >
           {seLoading ? (
             <Skeleton className="h-[280px] bg-white/[0.06]" />
@@ -181,12 +169,12 @@ export function GrapplingTab({ data, loading, error, onRetry }: GrapplingTabProp
         <ChartCard
           title="TD Attempts Leaders"
           description="Top fighters by takedown attempts per fight"
-          tooltip="경기당 테이크다운 시도 횟수 상위 파이터입니다. 점선은 전체 평균입니다."
+          tooltip="Top fighters by takedown attempts per fight. Dashed line indicates the overall average."
           headerRight={<WeightClassFilter value={taWc} onChange={setTaWc} />}
           loading={!data && loading}
           error={error}
           onRetry={onRetry}
-          index={5}
+          index={4}
         >
           {taLoading ? (
             <Skeleton className="h-[280px] bg-white/[0.06]" />
@@ -197,12 +185,12 @@ export function GrapplingTab({ data, loading, error, onRetry }: GrapplingTabProp
         <ChartCard
           title="TD Defense Leaders"
           description="Top fighters by takedown defense rate"
-          tooltip="테이크다운 방어율 상위 파이터입니다. 상대의 테이크다운 시도 중 방어 성공 비율을 보여줍니다."
+          tooltip="Top fighters by takedown defense rate. Shows the percentage of opponent takedown attempts successfully defended."
           headerRight={<WeightClassFilter value={tddWc} onChange={setTddWc} />}
           loading={!data && loading}
           error={error}
           onRetry={onRetry}
-          index={6}
+          index={5}
         >
           {tddLoading ? (
             <Skeleton className="h-[280px] bg-white/[0.06]" />
@@ -215,13 +203,27 @@ export function GrapplingTab({ data, loading, error, onRetry }: GrapplingTabProp
       {/* Row 4: TD-Sub Correlation */}
       <ChartCard
         title="TD-Submission Correlation"
-        description="Takedown landed vs submission finishes"
-        tooltip="테이크다운 성공 수와 서브미션 피니시 수의 상관관계를 산점도로 보여줍니다. 점선은 전체 평균입니다."
+        description={
+          <span className="flex items-center gap-2">
+            Classifies fighters by takedown and submission style
+            <span className="flex items-center gap-1.5">
+              <span className="flex items-center gap-0.5">
+                <span className="inline-block h-1.5 w-1.5 rounded-full bg-emerald-500/60" />
+                <span className="text-zinc-600">TD</span>
+              </span>
+              <span className="flex items-center gap-0.5">
+                <span className="inline-block h-1.5 w-1.5 rounded-full bg-purple-500/60" />
+                <span className="text-zinc-600">SUB</span>
+              </span>
+            </span>
+          </span>
+        }
+        tooltip="Quadrant grid classifying fighters by takedown and submission performance relative to averages."
         headerRight={<WeightClassFilter value={tscWc} onChange={setTscWc} />}
         loading={!data && loading}
         error={error}
         onRetry={onRetry}
-        index={7}
+        index={6}
       >
         {tscLoading ? (
           <Skeleton className="h-[280px] bg-white/[0.06]" />

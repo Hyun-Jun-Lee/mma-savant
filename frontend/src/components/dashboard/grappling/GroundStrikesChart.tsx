@@ -1,133 +1,110 @@
 'use client'
 
+import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import {
-  ScatterChart,
-  Scatter,
-  XAxis,
-  YAxis,
-  ZAxis,
-  Tooltip,
-  LabelList,
-  ResponsiveContainer,
-  ReferenceLine,
-} from 'recharts'
+import { ChevronDown } from 'lucide-react'
+import { toTitleCase } from '@/lib/utils'
 import type { GroundStrikesLeader } from '@/types/dashboard'
 
 interface GroundStrikesChartProps {
   data: GroundStrikesLeader[]
 }
 
-export function GroundStrikesChart({ data }: GroundStrikesChartProps) {
-  const router = useRouter()
-
-  const scatterData = data.map((d) => ({
-    x: d.total_ground_attempted,
-    y: d.total_ground_landed,
-    z: d.accuracy,
-    name: d.name,
-    fighter_id: d.fighter_id,
-  }))
-
-  const maxVal = Math.max(
-    ...data.map((d) => Math.max(d.total_ground_attempted, d.total_ground_landed)),
-    1
-  )
+function DonutRing({ pct, color, size = 52 }: { pct: number; color: string; size?: number }) {
+  const r = (size - 6) / 2
+  const c = 2 * Math.PI * r
+  const filled = (pct / 100) * c
 
   return (
-    <ResponsiveContainer width="100%" height={280}>
-      <ScatterChart margin={{ top: 10, right: 10, left: -10, bottom: 0 }}>
-        <XAxis
-          dataKey="x"
-          type="number"
-          name="Attempted"
-          tick={{ fill: '#52525b', fontSize: 11 }}
-          axisLine={false}
-          tickLine={false}
-          label={{
-            value: 'Attempted',
-            position: 'bottom',
-            fill: '#a1a1aa',
-            fontSize: 11,
-            offset: -5,
-          }}
-        />
-        <YAxis
-          dataKey="y"
-          type="number"
-          name="Landed"
-          tick={{ fill: '#52525b', fontSize: 11 }}
-          axisLine={false}
-          tickLine={false}
-          label={{
-            value: 'Landed',
-            angle: -90,
-            position: 'insideLeft',
-            fill: '#a1a1aa',
-            fontSize: 11,
-          }}
-        />
-        <ZAxis dataKey="z" range={[40, 200]} name="Accuracy" />
-        {/* 100% reference line */}
-        <ReferenceLine
-          segment={[
-            { x: 0, y: 0 },
-            { x: maxVal, y: maxVal },
-          ]}
-          stroke="#3f3f46"
-          strokeDasharray="4 4"
-        />
-        {/* 70% reference line */}
-        <ReferenceLine
-          segment={[
-            { x: 0, y: 0 },
-            { x: maxVal, y: maxVal * 0.7 },
-          ]}
-          stroke="#27272a"
-          strokeDasharray="4 4"
-        />
-        <Tooltip
-          content={({ active, payload }) => {
-            if (!active || !payload?.length) return null
-            const d = payload[0]?.payload as { name: string; x: number; y: number; z: number }
-            if (!d) return null
-            return (
-              <div className="rounded-lg border border-white/[0.06] bg-zinc-900 px-3 py-2 text-xs shadow-lg">
-                <p className="mb-1 font-medium text-zinc-200">{d.name}</p>
-                <p className="text-zinc-400">Attempted: {d.x}</p>
-                <p className="text-zinc-400">Landed: {d.y}</p>
-                <p className="text-zinc-400">Accuracy: {d.z.toFixed(1)}%</p>
+    <svg width={size} height={size} className="shrink-0">
+      <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="#27272a" strokeWidth={5} />
+      <circle
+        cx={size / 2}
+        cy={size / 2}
+        r={r}
+        fill="none"
+        stroke={color}
+        strokeWidth={5}
+        strokeDasharray={`${filled} ${c - filled}`}
+        strokeDashoffset={c * 0.25}
+        strokeLinecap="round"
+        className="transition-all duration-700"
+      />
+      <text
+        x={size / 2}
+        y={size / 2}
+        textAnchor="middle"
+        dominantBaseline="central"
+        fill="#e4e4e7"
+        fontSize={11}
+        fontWeight={600}
+      >
+        {pct.toFixed(1)}%
+      </text>
+    </svg>
+  )
+}
+
+export function GroundStrikesChart({ data }: GroundStrikesChartProps) {
+  const router = useRouter()
+  const [expanded, setExpanded] = useState(false)
+
+  const sorted = [...data].sort((a, b) => b.accuracy - a.accuracy)
+  const visible = expanded ? sorted.slice(0, 10) : sorted.slice(0, 5)
+
+  return (
+    <div className="flex flex-col">
+      <div className="divide-y divide-white/[0.04]">
+        {visible.map((f, i) => (
+          <div
+            key={f.fighter_id}
+            className="group flex items-center gap-3 px-3 py-2.5 transition-colors hover:bg-white/[0.03]"
+          >
+            {/* Rank */}
+            <span className="w-5 shrink-0 text-center text-xs font-semibold text-zinc-500">
+              {i + 1}
+            </span>
+
+            {/* Donut */}
+            <DonutRing pct={f.accuracy} color="#10b981" />
+
+            {/* Name + Stats */}
+            <div className="min-w-0 flex-1">
+              <button
+                onClick={() => router.push(`/fighters/${f.fighter_id}`)}
+                className="truncate text-sm font-medium text-zinc-200 transition-colors hover:text-blue-400"
+              >
+                {toTitleCase(f.name)}
+              </button>
+              <div className="mt-0.5 flex items-center gap-3 text-[11px]">
+                <span>
+                  <span className="font-medium text-emerald-400">{f.total_ground_landed}</span>
+                  <span className="ml-1 text-zinc-500">landed</span>
+                </span>
+                <span>
+                  <span className="font-medium text-zinc-400">{f.total_ground_attempted}</span>
+                  <span className="ml-1 text-zinc-500">attempted</span>
+                </span>
               </div>
-            )
-          }}
-        />
-        <Scatter
-          data={scatterData}
-          fill="#10b981"
-          fillOpacity={0.6}
-          cursor="pointer"
-          onClick={(point: { fighter_id?: number }) => {
-            if (point?.fighter_id) router.push(`/fighters/${point.fighter_id}`)
-          }}
-          animationBegin={600}
-          animationDuration={1200}
-          animationEasing="ease-out"
+            </div>
+
+            {/* Percentage badge */}
+            <span className="shrink-0 rounded-full border border-emerald-500/20 bg-emerald-500/10 px-2 py-0.5 text-[11px] font-medium text-emerald-400">
+              {f.accuracy.toFixed(1)}%
+            </span>
+          </div>
+        ))}
+      </div>
+
+      {sorted.length > 5 && (
+        <button
+          onClick={() => setExpanded(!expanded)}
+          className="mt-2 flex w-full items-center justify-center gap-1 rounded-lg py-1.5 text-xs text-zinc-500 transition-colors hover:bg-white/[0.04] hover:text-zinc-300"
         >
-          <LabelList
-            dataKey="name"
-            position="top"
-            fill="#a1a1aa"
-            fontSize={10}
-            content={({ index, x, y, value }) =>
-              index === 0 ? (
-                <text x={x as number} y={(y as number) - 8} textAnchor="middle" fill="#e4e4e7" fontSize={10}>
-                  {value}
-                </text>
-              ) : null
-            }
-          />
-        </Scatter>
-      </ScatterChart>
-    </ResponsiveContainer>
+          <ChevronDown className={`h-3.5 w-3.5 transition-transform ${expanded ? 'rotate-180' : ''}`} />
+          {expanded ? 'Show Less' : `Show All ${sorted.length}`}
+        </button>
+      )}
+    </div>
   )
 }

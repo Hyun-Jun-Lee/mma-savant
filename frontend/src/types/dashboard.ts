@@ -60,6 +60,37 @@ export interface HomeResponse {
   nationality_distribution: NationalityDistribution[]
 }
 
+// ── Event List (paginated) ──
+export interface EventListItem {
+  id: number
+  name: string
+  location: string | null
+  event_date: string | null
+}
+
+export interface EventListResponse {
+  events: EventListItem[]
+  total: number
+  page: number
+  limit: number
+  year: number | null
+  month: number | null
+}
+
+// ── Event Search ──
+export interface EventSearchResult {
+  event: EventListItem
+  match_type: string
+  relevance: number
+}
+
+export interface EventSearchResponse {
+  results: EventSearchResult[]
+  total: number
+  query: string
+  search_type: string
+}
+
 // ── Overview ──
 export interface FinishMethod {
   method_category: string
@@ -87,7 +118,9 @@ export interface LeaderboardFighter {
   wins: number
   losses: number
   draws: number
-  win_rate: number
+  ko_tko_wins: number
+  sub_wins: number
+  dec_wins: number
 }
 
 export interface WinStreakFighter {
@@ -99,10 +132,22 @@ export interface WinStreakFighter {
   draws: number
 }
 
+export interface LoseStreakFighter {
+  fighter_id: number
+  name: string
+  lose_streak: number
+  wins: number
+  losses: number
+  draws: number
+}
+
 export interface FightDurationRound {
   result_round: number
   fight_count: number
   percentage: number
+  ko_tko: number
+  submission: number
+  decision_other: number
 }
 
 export interface FinishRateTrend {
@@ -119,10 +164,8 @@ export interface OverviewResponse {
   events_timeline: EventTimeline[]
   leaderboard: {
     wins: LeaderboardFighter[]
-    winrate_min10: LeaderboardFighter[]
-    winrate_min15: LeaderboardFighter[]
-    winrate_min20: LeaderboardFighter[]
     win_streak: WinStreakFighter[]
+    lose_streak: LoseStreakFighter[]
   }
   fight_duration: {
     rounds: FightDurationRound[]
@@ -260,10 +303,17 @@ export interface TdSubCorrelationFighter {
   total_td_landed: number
   sub_finishes: number
   total_fights: number
+  td_per_fight: number
+  sub_per_fight: number
+}
+
+export interface TdSubQuadrant {
+  fighters: TdSubCorrelationFighter[]
+  count: number
 }
 
 export interface TdSubCorrelation {
-  fighters: TdSubCorrelationFighter[]
+  quadrants: Record<string, TdSubQuadrant>
   avg_td: number
   avg_sub: number
 }

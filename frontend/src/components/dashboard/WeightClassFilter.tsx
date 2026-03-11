@@ -9,18 +9,18 @@ import {
 } from '@/components/ui/select'
 
 const WEIGHT_CLASSES = [
-  { id: 1, name: 'Strawweight' },
-  { id: 2, name: 'Flyweight' },
-  { id: 3, name: 'Bantamweight' },
-  { id: 4, name: 'Featherweight' },
-  { id: 5, name: 'Lightweight' },
-  { id: 6, name: 'Welterweight' },
-  { id: 7, name: 'Middleweight' },
-  { id: 8, name: 'Light Heavyweight' },
-  { id: 9, name: 'Heavyweight' },
-  { id: 10, name: "Women's Strawweight" },
-  { id: 11, name: "Women's Flyweight" },
-  { id: 12, name: "Women's Bantamweight" },
+  { id: 1, name: 'Flyweight' },
+  { id: 2, name: 'Bantamweight' },
+  { id: 3, name: 'Featherweight' },
+  { id: 4, name: 'Lightweight' },
+  { id: 5, name: 'Welterweight' },
+  { id: 6, name: 'Middleweight' },
+  { id: 7, name: 'Light Heavyweight' },
+  { id: 8, name: 'Heavyweight' },
+  { id: 9, name: "Women's Strawweight" },
+  { id: 10, name: "Women's Flyweight" },
+  { id: 11, name: "Women's Bantamweight" },
+  { id: 12, name: "Women's Featherweight" },
 ] as const
 
 interface WeightClassFilterProps {

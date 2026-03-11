@@ -1,16 +1,16 @@
 'use client'
 
 import {
-  ComposedChart,
+  BarChart,
   Bar,
-  Scatter,
   XAxis,
   YAxis,
   Tooltip,
   ResponsiveContainer,
+  LabelList,
 } from 'recharts'
 import type { WeightClassActivity } from '@/types/dashboard'
-import { abbreviateWeightClass } from '@/lib/utils'
+import { ChartTooltip } from '../ChartTooltip'
 
 interface WeightClassActivityChartProps {
   data: WeightClassActivity[]
@@ -23,70 +23,64 @@ export function WeightClassActivityChart({
 }: WeightClassActivityChartProps) {
   const chartData = data
     .filter((d) => !EXCLUDED_CLASSES.has(d.weight_class.toLowerCase()))
-    .map((d) => ({
-      ...d,
-      short: abbreviateWeightClass(d.weight_class),
-      finish_count: d.ko_tko_count + d.sub_count,
-    }))
+    .sort((a, b) => b.total_fights - a.total_fights)
+
+  const chartHeight = Math.max(280, chartData.length * 26)
 
   return (
-    <ResponsiveContainer width="100%" height={280}>
-      <ComposedChart
+    <ResponsiveContainer width="100%" height={chartHeight}>
+      <BarChart
         data={chartData}
-        margin={{ top: 5, right: 10, left: -10, bottom: 0 }}
+        layout="vertical"
+        margin={{ top: 5, right: 45, left: 0, bottom: 0 }}
       >
         <XAxis
-          dataKey="short"
-          tick={{ fill: '#a1a1aa', fontSize: 10 }}
-          axisLine={false}
-          tickLine={false}
-          interval={0}
-          angle={-35}
-          textAnchor="end"
-          height={60}
-        />
-        <YAxis
+          type="number"
           tick={{ fill: '#52525b', fontSize: 11 }}
           axisLine={false}
           tickLine={false}
         />
-        <Bar
-          dataKey="total_fights"
-          fill="#8b5cf6"
-          radius={[4, 4, 0, 0]}
-          barSize={20}
-          name="Total Fights"
-          animationBegin={500}
-          animationDuration={1200}
-          animationEasing="ease-out"
+        <YAxis
+          type="category"
+          dataKey="weight_class"
+          tick={{ fill: '#a1a1aa', fontSize: 11 }}
+          axisLine={false}
+          tickLine={false}
+          width={120}
         />
-        <Scatter dataKey="finish_count" fill="#ef4444" name="Finishes" />
         <Tooltip
           cursor={{ fill: 'rgba(255,255,255,0.04)' }}
           content={({ active, payload }) => {
             if (!active || !payload?.length) return null
-            const d = payload[0]?.payload as WeightClassActivity & {
-              finish_count: number
-            }
+            const d = payload[0]?.payload as WeightClassActivity
             if (!d) return null
             return (
-              <div className="rounded-lg border border-white/[0.06] bg-zinc-900 px-3 py-2 text-xs shadow-lg">
-                <p className="mb-1 text-zinc-400">{d.weight_class}</p>
-                <p className="text-zinc-200">
+              <ChartTooltip active={active} label={d.weight_class}>
+                <p className="text-zinc-400">
                   Total Fights: {d.total_fights}
                 </p>
-                <p className="text-zinc-200">
-                  Finishes: {d.finish_count} ({d.finish_rate.toFixed(1)}%)
-                </p>
-                <p className="pl-3 text-zinc-400">
-                  KO/TKO: {d.ko_tko_count}
-                </p>
-                <p className="pl-3 text-zinc-400">SUB: {d.sub_count}</p>
-              </div>
+              </ChartTooltip>
             )
           }}
         />
-      </ComposedChart>
+        <Bar
+          dataKey="total_fights"
+          fill="#8b5cf6"
+          radius={[0, 4, 4, 0]}
+          barSize={16}
+          name="Total Fights"
+          animationBegin={500}
+          animationDuration={1200}
+          animationEasing="ease-out"
+        >
+          <LabelList
+            dataKey="total_fights"
+            position="right"
+            fill="#a1a1aa"
+            fontSize={11}
+          />
+        </Bar>
+      </BarChart>
     </ResponsiveContainer>
   )
 }

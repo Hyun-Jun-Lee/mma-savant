@@ -58,7 +58,7 @@ export function RankingsTable({ rankings, index }: RankingsTableProps) {
     <ChartCard
       title="Rankings"
       description="Current UFC rankings by weight class"
-      tooltip="UFC 공식 랭킹입니다. 드롭다운으로 체급을 선택하세요. 왕관 아이콘은 현 챔피언입니다."
+      tooltip="Official UFC rankings. Select a weight class from the dropdown. Crown icon indicates the current champion."
       headerRight={dropdown}
       index={index}
     >

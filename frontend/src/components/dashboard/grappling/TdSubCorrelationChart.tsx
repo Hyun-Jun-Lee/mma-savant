@@ -1,162 +1,107 @@
 'use client'
 
+import { useMemo } from 'react'
 import { useRouter } from 'next/navigation'
-import {
-  ScatterChart,
-  Scatter,
-  XAxis,
-  YAxis,
-  Tooltip,
-  LabelList,
-  ReferenceLine,
-  ResponsiveContainer,
-} from 'recharts'
-import type { TdSubCorrelation } from '@/types/dashboard'
+import { toTitleCase } from '@/lib/utils'
+import type { TdSubCorrelation, TdSubCorrelationFighter } from '@/types/dashboard'
 
 interface TdSubCorrelationChartProps {
   data: TdSubCorrelation
 }
 
-const QUADRANT_LABELS = [
-  { label: 'TD↑ SUB↑', className: 'top-1 right-2' },
-  { label: 'TD↓ SUB↑', className: 'top-1 left-12' },
-  { label: 'TD↑ SUB↓', className: 'bottom-14 right-2' },
-  { label: 'TD↓ SUB↓', className: 'bottom-14 left-12' },
+const QUADRANT_CONFIG = [
+  { key: 'high_td_high_sub', title: 'TD\u2191 SUB\u2191', titleColor: 'text-emerald-400' },
+  { key: 'high_td_low_sub', title: 'TD\u2191 SUB\u2193', titleColor: 'text-blue-400' },
+  { key: 'low_td_high_sub', title: 'TD\u2193 SUB\u2191', titleColor: 'text-purple-400' },
+  { key: 'low_td_low_sub', title: 'TD\u2193 SUB\u2193', titleColor: 'text-zinc-500' },
 ] as const
 
-export function TdSubCorrelationChart({ data }: TdSubCorrelationChartProps) {
-  const router = useRouter()
-  const { fighters, avg_td, avg_sub } = data
-
-  const scatterData = fighters.map((f) => ({
-    x: f.total_td_landed,
-    y: f.sub_finishes,
-    name: f.name,
-    fights: f.total_fights,
-    fighter_id: f.fighter_id,
-  }))
-
-  // 사분면별 대표 선수 (중심에서 가장 먼 선수) 인덱스 계산
-  const labelIndices = new Set<number>()
-  const quadrants = [
-    { highTd: true, highSub: true },
-    { highTd: false, highSub: true },
-    { highTd: true, highSub: false },
-    { highTd: false, highSub: false },
-  ]
-  for (const q of quadrants) {
-    let bestIdx = -1
-    let bestDist = -1
-    scatterData.forEach((f, i) => {
-      const inQuadrant =
-        (f.x >= avg_td) === q.highTd && (f.y >= avg_sub) === q.highSub
-      if (!inQuadrant) return
-      const dist = Math.hypot(f.x - avg_td, f.y - avg_sub)
-      if (dist > bestDist) {
-        bestDist = dist
-        bestIdx = i
-      }
-    })
-    if (bestIdx >= 0) labelIndices.add(bestIdx)
+function HeatCell({
+  value,
+  maxVal,
+  color,
+  label,
+}: {
+  value: number
+  maxVal: number
+  color: 'emerald' | 'purple'
+  label: string
+}) {
+  const intensity = maxVal > 0 ? value / maxVal : 0
+  const bgMap = {
+    emerald: `rgba(16, 185, 129, ${0.3 + intensity * 0.4})`,
+    purple: `rgba(168, 85, 247, ${0.3 + intensity * 0.4})`,
   }
 
   return (
-    <div className="relative">
-      {QUADRANT_LABELS.map(({ label, className }) => (
-        <span
-          key={label}
-          className={`absolute text-[10px] font-medium text-zinc-400 pointer-events-none ${className}`}
-        >
-          {label}
-        </span>
-      ))}
-      <ResponsiveContainer width="100%" height={400}>
-        <ScatterChart margin={{ top: 24, right: 20, left: 10, bottom: 20 }}>
-          <XAxis
-            dataKey="x"
-            type="number"
-            name="TD Landed"
-            tick={{ fill: '#52525b', fontSize: 11 }}
-            axisLine={false}
-            tickLine={false}
-            label={{
-              value: 'TD Landed',
-              position: 'insideBottom',
-              fill: '#a1a1aa',
-              fontSize: 11,
-              offset: -10,
-            }}
-          />
-          <YAxis
-            dataKey="y"
-            type="number"
-            name="Sub Finishes"
-            tick={{ fill: '#52525b', fontSize: 11 }}
-            axisLine={false}
-            tickLine={false}
-            width={40}
-            label={{
-              value: 'Sub Finishes',
-              angle: -90,
-              position: 'insideLeft',
-              fill: '#a1a1aa',
-              fontSize: 11,
-              offset: 5,
-            }}
-          />
-          <ReferenceLine
-            x={avg_td}
-            stroke="#3f3f46"
-            strokeDasharray="4 4"
-          />
-          <ReferenceLine
-            y={avg_sub}
-            stroke="#3f3f46"
-            strokeDasharray="4 4"
-          />
-          <Tooltip
-            content={({ active, payload }) => {
-              if (!active || !payload?.length) return null
-              const d = payload[0]?.payload as (typeof scatterData)[number]
-              if (!d) return null
-              return (
-                <div className="rounded-lg border border-white/[0.06] bg-zinc-900 px-3 py-2 text-xs shadow-lg">
-                  <p className="mb-1 font-medium text-zinc-200">{d.name}</p>
-                  <p className="text-zinc-400">TD Landed: {d.x}</p>
-                  <p className="text-zinc-400">Sub Finishes: {d.y}</p>
-                  <p className="text-zinc-400">Fights: {d.fights}</p>
-                </div>
-              )
-            }}
-          />
-          <Scatter
-            data={scatterData}
-            fill="#8b5cf6"
-            fillOpacity={0.6}
-            cursor="pointer"
-            onClick={(point: { fighter_id?: number }) => {
-              if (point?.fighter_id) router.push(`/fighters/${point.fighter_id}`)
-            }}
-            animationBegin={600}
-            animationDuration={1200}
-            animationEasing="ease-out"
+    <div
+      className="flex h-10 w-12 flex-col items-center justify-center rounded-md"
+      style={{ backgroundColor: bgMap[color] }}
+    >
+      <span className="text-xs font-semibold text-zinc-100">{value}</span>
+      <span className="text-[8px] uppercase text-zinc-400">{label}</span>
+    </div>
+  )
+}
+
+export function TdSubCorrelationChart({ data }: TdSubCorrelationChartProps) {
+  const router = useRouter()
+  const { quadrants } = data
+
+  const { maxTd, maxSub } = useMemo(() => {
+    let mTd = 0
+    let mSub = 0
+    for (const key of Object.keys(quadrants)) {
+      for (const f of quadrants[key]?.fighters ?? []) {
+        if (f.total_td_landed > mTd) mTd = f.total_td_landed
+        if (f.sub_finishes > mSub) mSub = f.sub_finishes
+      }
+    }
+    return { maxTd: mTd, maxSub: mSub }
+  }, [quadrants])
+
+  return (
+    <div className="grid grid-cols-2 gap-3">
+      {QUADRANT_CONFIG.map((cfg) => {
+        const q = quadrants[cfg.key]
+        const fighters = q?.fighters ?? []
+        const count = q?.count ?? 0
+
+        return (
+          <div
+            key={cfg.key}
+            className="rounded-lg border border-white/[0.06] bg-white/[0.02] px-4 py-3"
           >
-            <LabelList
-              dataKey="name"
-              position="top"
-              fill="#a1a1aa"
-              fontSize={10}
-              content={({ index, x, y, value }) =>
-                labelIndices.has(index!) ? (
-                  <text x={x as number} y={(y as number) - 8} textAnchor="middle" fill="#e4e4e7" fontSize={10}>
-                    {value}
-                  </text>
-                ) : null
-              }
-            />
-          </Scatter>
-        </ScatterChart>
-      </ResponsiveContainer>
+            <div className="mb-2">
+              <span className={`text-xs font-bold ${cfg.titleColor}`}>{cfg.title}</span>
+            </div>
+            <div className="space-y-2">
+              {fighters.map((f: TdSubCorrelationFighter) => (
+                <div key={f.fighter_id} className="flex items-center justify-between gap-2">
+                  <button
+                    onClick={() => router.push(`/fighters/${f.fighter_id}`)}
+                    className="min-w-0 truncate text-xs text-zinc-300 transition-colors hover:text-blue-400"
+                  >
+                    {toTitleCase(f.name)}
+                  </button>
+                  <div className="flex shrink-0 items-center gap-1">
+                    <HeatCell value={f.total_td_landed} maxVal={maxTd} color="emerald" label="TD" />
+                    <HeatCell value={f.sub_finishes} maxVal={maxSub} color="purple" label="SUB" />
+                  </div>
+                </div>
+              ))}
+              {fighters.length === 0 && (
+                <p className="text-[11px] text-zinc-600">No fighters</p>
+              )}
+            </div>
+            {count > 0 && (
+              <p className="mt-2 text-right text-[10px] text-zinc-600">
+                {count} fighters
+              </p>
+            )}
+          </div>
+        )
+      })}
     </div>
   )
 }

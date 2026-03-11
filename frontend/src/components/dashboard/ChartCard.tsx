@@ -13,8 +13,9 @@ import {
 
 interface ChartCardProps {
   title: string
-  description?: string
+  description?: ReactNode
   tooltip?: string
+  badge?: string
   className?: string
   headerRight?: ReactNode
   loading?: boolean
@@ -28,6 +29,7 @@ export function ChartCard({
   title,
   description,
   tooltip,
+  badge,
   className = '',
   headerRight,
   loading,
@@ -57,6 +59,11 @@ export function ChartCard({
       <div className="mb-4 flex items-start justify-between gap-3">
         <div className="min-w-0">
           <div className="flex items-center gap-1.5">
+            {badge && (
+              <span className="rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2 py-0.5 text-[10px] font-medium text-emerald-400">
+                {badge}
+              </span>
+            )}
             <h3 className="text-sm font-semibold text-zinc-100">{title}</h3>
             {tooltip && (
               <Tooltip>
@@ -89,7 +96,7 @@ export function ChartCard({
       ) : error ? (
         <div className="flex flex-col items-center justify-center gap-3 py-12 text-center">
           <AlertCircle className="h-8 w-8 text-zinc-600" />
-          <p className="text-sm text-zinc-500">데이터를 불러올 수 없습니다</p>
+          <p className="text-sm text-zinc-500">Unable to load data</p>
           {onRetry && (
             <Button
               size="sm"
@@ -98,7 +105,7 @@ export function ChartCard({
               onClick={onRetry}
             >
               <RefreshCw className="mr-1.5 h-3 w-3" />
-              재시도
+              Retry
             </Button>
           )}
         </div>

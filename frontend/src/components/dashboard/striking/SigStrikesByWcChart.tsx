@@ -7,9 +7,10 @@ import {
   YAxis,
   Tooltip,
   ResponsiveContainer,
+  LabelList,
 } from 'recharts'
 import type { SigStrikesByWeightClass } from '@/types/dashboard'
-import { abbreviateWeightClass } from '@/lib/utils'
+import { ChartTooltip } from '../ChartTooltip'
 
 interface SigStrikesByWcChartProps {
   data: SigStrikesByWeightClass[]
@@ -20,47 +21,59 @@ const EXCLUDED_CLASSES = new Set(['open weight', 'catch weight'])
 export function SigStrikesByWcChart({ data }: SigStrikesByWcChartProps) {
   const filtered = data
     .filter((d) => !EXCLUDED_CLASSES.has(d.weight_class.toLowerCase()))
-    .map((d) => ({ ...d, short: abbreviateWeightClass(d.weight_class) }))
 
   return (
-    <ResponsiveContainer width="100%" height={280}>
-      <BarChart data={filtered} margin={{ top: 5, right: 10, left: -10, bottom: 0 }}>
+    <ResponsiveContainer width="100%" height={Math.max(280, filtered.length * 34)}>
+      <BarChart
+        data={filtered}
+        layout="vertical"
+        margin={{ top: 5, right: 50, left: 10, bottom: 0 }}
+      >
         <XAxis
-          dataKey="short"
-          tick={{ fill: '#a1a1aa', fontSize: 10 }}
-          axisLine={false}
-          tickLine={false}
-          interval={0}
-          angle={-35}
-          textAnchor="end"
-          height={60}
-        />
-        <YAxis
+          type="number"
           tick={{ fill: '#52525b', fontSize: 11 }}
           axisLine={false}
           tickLine={false}
         />
+        <YAxis
+          dataKey="weight_class"
+          type="category"
+          tick={{ fill: '#a1a1aa', fontSize: 11 }}
+          axisLine={false}
+          tickLine={false}
+          width={110}
+          interval={0}
+        />
         <Tooltip
-          contentStyle={{
-            backgroundColor: '#18181b',
-            border: '1px solid rgba(255,255,255,0.06)',
-            borderRadius: '8px',
-            fontSize: '12px',
+          cursor={{ fill: 'rgba(255,255,255,0.04)' }}
+          content={({ active, payload, label }) => {
+            if (!active || !payload?.length) return null
+            const d = payload[0]?.payload as SigStrikesByWeightClass
+            return (
+              <ChartTooltip active={active} label={label}>
+                <p className="text-zinc-400">Avg Sig. Strikes/Fight: {d.avg_sig_str_per_fight.toFixed(1)}</p>
+                <p className="text-zinc-400">Total Fights: {d.total_fights}</p>
+              </ChartTooltip>
+            )
           }}
-          itemStyle={{ color: '#e4e4e7' }}
-          labelStyle={{ color: '#a1a1aa' }}
-          formatter={(value: number) => value.toFixed(1)}
         />
         <Bar
           dataKey="avg_sig_str_per_fight"
           fill="#f59e0b"
-          radius={[4, 4, 0, 0]}
-          barSize={20}
+          radius={[0, 4, 4, 0]}
+          barSize={18}
           name="Avg Sig. Strikes/Fight"
           animationBegin={500}
           animationDuration={1200}
           animationEasing="ease-out"
-        />
+        >
+          <LabelList
+            dataKey="avg_sig_str_per_fight"
+            position="right"
+            style={{ fill: '#a1a1aa', fontSize: 11 }}
+            formatter={(v: unknown) => Number(v).toFixed(1)}
+          />
+        </Bar>
       </BarChart>
     </ResponsiveContainer>
   )

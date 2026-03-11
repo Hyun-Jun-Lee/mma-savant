@@ -11,6 +11,7 @@ import {
   Tooltip,
   ReferenceLine,
   ResponsiveContainer,
+  LabelList,
 } from 'recharts'
 import { ChevronDown } from 'lucide-react'
 import { toTitleCase } from '@/lib/utils'
@@ -18,9 +19,9 @@ import { PillTabs, TabContent } from '../PillTabs'
 import type { MinFightsLeaderboard, SigStrikesLeader } from '@/types/dashboard'
 
 const TABS = [
-  { key: 'min10', label: '10+ Fights' },
-  { key: 'min15', label: '15+ Fights' },
   { key: 'min20', label: '20+ Fights' },
+  { key: 'min15', label: '15+ Fights' },
+  { key: 'min10', label: '10+ Fights' },
 ] as const
 
 type MinKey = (typeof TABS)[number]['key']
@@ -31,7 +32,7 @@ interface SigStrikesChartProps {
 
 export function SigStrikesChart({ data }: SigStrikesChartProps) {
   const router = useRouter()
-  const [activeKey, setActiveKey] = useState<MinKey>('min10')
+  const [activeKey, setActiveKey] = useState<MinKey>('min20')
   const [expanded, setExpanded] = useState(false)
   const fighters = data[activeKey]
   const displayFighters = expanded ? fighters : fighters.slice(0, 5)
@@ -80,11 +81,11 @@ export function SigStrikesChart({ data }: SigStrikesChartProps) {
         />
       </div>
     <TabContent activeKey={activeKey}>
-    <ResponsiveContainer width="100%" height={expanded ? 320 : 180}>
+    <ResponsiveContainer width="100%" height={expanded ? Math.max(320, displayFighters.length * 34) : 180}>
       <ComposedChart
         data={scatterData}
         layout="vertical"
-        margin={{ top: 20, right: 40, left: 10, bottom: 0 }}
+        margin={{ top: 20, right: 50, left: 10, bottom: 0 }}
       >
         <XAxis
           type="number"
@@ -99,6 +100,7 @@ export function SigStrikesChart({ data }: SigStrikesChartProps) {
           axisLine={false}
           tickLine={false}
           width={100}
+          interval={0}
         />
         <Tooltip
           content={({ active, payload, label }) => {
@@ -120,8 +122,9 @@ export function SigStrikesChart({ data }: SigStrikesChartProps) {
             value: `Avg ${avg.toFixed(1)}`,
             fill: '#71717a',
             fontSize: 10,
-            position: 'insideBottomRight',
-            dx: 8,
+            position: 'insideTopRight',
+            dx: 4,
+            dy: -4,
           }}
         />
         {/* Stem (thin bar) */}
@@ -134,7 +137,15 @@ export function SigStrikesChart({ data }: SigStrikesChartProps) {
           animationBegin={400}
           animationDuration={1000}
           animationEasing="ease-out"
-        />
+        >
+          <LabelList
+            dataKey="sig_str_per_fight"
+            position="right"
+            style={{ fill: '#a1a1aa', fontSize: 10 }}
+            formatter={(v: unknown) => Number(v).toFixed(1)}
+            offset={14}
+          />
+        </Bar>
         {/* Dot (scatter at end) */}
         <Scatter
           dataKey="sig_str_per_fight"

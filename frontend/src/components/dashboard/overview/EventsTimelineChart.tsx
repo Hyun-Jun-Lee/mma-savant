@@ -32,7 +32,7 @@ export function EventsTimelineChart({ data }: EventsTimelineChartProps) {
           tickLine={false}
         />
         <YAxis
-          tick={{ fill: '#52525b', fontSize: 11 }}
+          tick={{ fill: '#a1a1aa', fontSize: 11 }}
           axisLine={false}
           tickLine={false}
         />

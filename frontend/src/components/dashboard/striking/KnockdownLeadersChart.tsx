@@ -9,6 +9,8 @@ import {
   YAxis,
   Tooltip,
   ResponsiveContainer,
+  LabelList,
+  Cell,
 } from 'recharts'
 import { ChevronDown } from 'lucide-react'
 import { toTitleCase } from '@/lib/utils'
@@ -47,11 +49,11 @@ export function KnockdownLeadersChart({ data }: KnockdownLeadersChartProps) {
 
   return (
     <>
-    <ResponsiveContainer width="100%" height={expanded ? 320 : 180}>
+    <ResponsiveContainer width="100%" height={expanded ? Math.max(320, displayData.length * 34) : 180}>
       <BarChart
         data={displayData}
         layout="vertical"
-        margin={{ top: 5, right: 30, left: 10, bottom: 0 }}
+        margin={{ top: 5, right: 40, left: 10, bottom: 0 }}
       >
         <XAxis
           type="number"
@@ -67,6 +69,7 @@ export function KnockdownLeadersChart({ data }: KnockdownLeadersChartProps) {
           axisLine={false}
           tickLine={false}
           width={100}
+          interval={0}
         />
         <Tooltip
           content={({ active, payload, label }) => {
@@ -91,7 +94,20 @@ export function KnockdownLeadersChart({ data }: KnockdownLeadersChartProps) {
           animationBegin={500}
           animationDuration={1200}
           animationEasing="ease-out"
-        />
+        >
+          <LabelList
+            dataKey="total_knockdowns"
+            position="right"
+            style={{ fill: '#a1a1aa', fontSize: 11 }}
+          />
+          {displayData.map((_, i) => (
+            <Cell
+              key={i}
+              fill="#ef4444"
+              fillOpacity={Math.max(0.2, 1 - i * 0.13)}
+            />
+          ))}
+        </Bar>
       </BarChart>
     </ResponsiveContainer>
     {data.length > 5 && (

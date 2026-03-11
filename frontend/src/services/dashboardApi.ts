@@ -3,6 +3,8 @@ import type {
   OverviewResponse,
   StrikingResponse,
   GrapplingResponse,
+  EventListResponse,
+  EventSearchResponse,
   FinishMethod,
   FinishRateTrend,
   StrikeTarget,
@@ -46,6 +48,12 @@ function buildOverviewPath(weightClassId?: number, ufcOnly?: boolean): string {
 
 export const dashboardApi = {
   getHome: () => dashboardFetch<HomeResponse>('/api/dashboard/home'),
+
+  getEvents: (page: number, limit: number) =>
+    dashboardFetch<EventListResponse>(`/api/events?page=${page}&limit=${limit}`),
+
+  searchEvents: (query: string, limit = 20) =>
+    dashboardFetch<EventSearchResponse>(`/api/events/search?q=${encodeURIComponent(query)}&limit=${limit}`),
 
   getOverview: (weightClassId?: number, ufcOnly?: boolean) =>
     dashboardFetch<OverviewResponse>(
