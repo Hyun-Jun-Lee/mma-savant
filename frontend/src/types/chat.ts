@@ -1,6 +1,6 @@
 // 시각화 데이터 타입 정의
 export interface VisualizationData {
-  selected_visualization: "table" | "bar_chart" | "pie_chart" | "line_chart" | "area_chart" | "radar_chart" | "scatter_plot" | "text_summary"
+  selected_visualization: "table" | "bar_chart" | "pie_chart" | "line_chart" | "area_chart" | "radar_chart" | "scatter_plot" | "text_summary" | "horizontal_bar" | "stacked_bar" | "ring_list" | "lollipop_chart"
   visualization_data: {
     title: string
     data: Record<string, string | number>[]

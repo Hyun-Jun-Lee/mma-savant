@@ -29,7 +29,7 @@ export function ScatterPlotVisualization({ data, xAxis, yAxis }: ScatterPlotVisu
   if (!data || data.length === 0) {
     return (
       <div className="p-8 text-center text-zinc-400">
-        표시할 데이터가 없습니다.
+        No data to display.
       </div>
     )
   }
@@ -82,7 +82,7 @@ export function ScatterPlotVisualization({ data, xAxis, yAxis }: ScatterPlotVisu
             labelFormatter={(label) => `${label}`}
           />
           <Scatter
-            name="데이터 포인트"
+            name="Data Points"
             data={scatterData}
             fill={getSemanticColor(xAxisKey, 0)}
             fillOpacity={0.7}
@@ -92,7 +92,7 @@ export function ScatterPlotVisualization({ data, xAxis, yAxis }: ScatterPlotVisu
       </ResponsiveContainer>
 
       <div className="mt-2 text-xs text-zinc-500 text-center">
-        {data.length}개 데이터 포인트 • X: {xAxisKey}, Y: {yAxisKey}
+        {data.length} data points • X: {xAxisKey}, Y: {yAxisKey}
       </div>
     </div>
   )

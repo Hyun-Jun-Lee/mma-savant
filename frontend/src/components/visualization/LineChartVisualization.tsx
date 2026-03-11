@@ -30,7 +30,7 @@ export function LineChartVisualization({ data, xAxis, yAxis }: LineChartVisualiz
   if (!data || data.length === 0) {
     return (
       <div className="p-8 text-center text-zinc-400">
-        표시할 데이터가 없습니다.
+        No data to display.
       </div>
     )
   }
@@ -71,7 +71,7 @@ export function LineChartVisualization({ data, xAxis, yAxis }: LineChartVisualiz
       </ResponsiveContainer>
 
       <div className="mt-2 text-xs text-zinc-500 text-center">
-        {data.length}개 데이터 포인트 • {yAxisKeys.join(", ")} 추이
+        {data.length} data points • {yAxisKeys.join(", ")} trend
       </div>
     </div>
   )

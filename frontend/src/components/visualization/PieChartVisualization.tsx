@@ -26,7 +26,7 @@ export function PieChartVisualization({ data, xAxis, yAxis }: PieChartVisualizat
   if (!data || data.length === 0) {
     return (
       <div className="p-8 text-center text-zinc-400">
-        표시할 데이터가 없습니다.
+        No data to display.
       </div>
     )
   }
@@ -85,7 +85,7 @@ export function PieChartVisualization({ data, xAxis, yAxis }: PieChartVisualizat
             dominantBaseline="middle"
             className="fill-zinc-500 text-[10px]"
           >
-            합계
+            Total
           </text>
 
           <Tooltip
@@ -100,7 +100,7 @@ export function PieChartVisualization({ data, xAxis, yAxis }: PieChartVisualizat
       </ResponsiveContainer>
 
       <div className="mt-2 text-xs text-zinc-500 text-center">
-        총 {pieData.length}개 항목 • 전체: {total.toLocaleString()}
+        {pieData.length} items total • Grand total: {total.toLocaleString()}
       </div>
     </div>
   )

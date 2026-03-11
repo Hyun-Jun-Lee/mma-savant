@@ -10,8 +10,12 @@ import { LineChartVisualization } from "./LineChartVisualization"
 import { AreaChartVisualization } from "./AreaChartVisualization"
 import { RadarChartVisualization } from "./RadarChartVisualization"
 import { ScatterPlotVisualization } from "./ScatterPlotVisualization"
+import { HorizontalBarVisualization } from "./HorizontalBarVisualization"
+import { StackedBarVisualization } from "./StackedBarVisualization"
+import { RingListVisualization } from "./RingListVisualization"
+import { LollipopVisualization } from "./LollipopVisualization"
 import { InsightsSummary } from "./InsightsSummary"
-import { BarChart3, PieChart, TrendingUp, Activity, Radar, ScatterChart, Table, MessageSquare } from "lucide-react"
+import { BarChart3, PieChart, TrendingUp, Activity, Radar, ScatterChart, Table, MessageSquare, AlignLeft, Layers, Target, Minus } from "lucide-react"
 
 interface ChartRendererProps {
   data: VisualizationData
@@ -20,7 +24,6 @@ interface ChartRendererProps {
 export function ChartRenderer({ data }: ChartRendererProps) {
   const { selected_visualization, visualization_data, insights } = data
 
-  // 아이콘 매핑
   const getIcon = () => {
     switch (selected_visualization) {
       case "bar_chart":
@@ -39,12 +42,19 @@ export function ChartRenderer({ data }: ChartRendererProps) {
         return <Table className="w-5 h-5" />
       case "text_summary":
         return <MessageSquare className="w-5 h-5" />
+      case "horizontal_bar":
+        return <AlignLeft className="w-5 h-5" />
+      case "stacked_bar":
+        return <Layers className="w-5 h-5" />
+      case "ring_list":
+        return <Target className="w-5 h-5" />
+      case "lollipop_chart":
+        return <Minus className="w-5 h-5" />
       default:
         return <BarChart3 className="w-5 h-5" />
     }
   }
 
-  // 시각화 컴포넌트 렌더링
   const renderVisualization = () => {
     const commonProps = {
       data: visualization_data.data,
@@ -67,6 +77,14 @@ export function ChartRenderer({ data }: ChartRendererProps) {
         return <RadarChartVisualization {...commonProps} />
       case "scatter_plot":
         return <ScatterPlotVisualization {...commonProps} />
+      case "horizontal_bar":
+        return <HorizontalBarVisualization {...commonProps} />
+      case "stacked_bar":
+        return <StackedBarVisualization {...commonProps} />
+      case "ring_list":
+        return <RingListVisualization {...commonProps} />
+      case "lollipop_chart":
+        return <LollipopVisualization {...commonProps} />
       case "text_summary":
         return <InsightsSummary insights={insights} />
       default:
@@ -81,7 +99,6 @@ export function ChartRenderer({ data }: ChartRendererProps) {
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.4, ease: "easeOut" }}
     >
-      {/* 메인 시각화 카드 */}
       <Card className="bg-white/[0.03] backdrop-blur-sm border-white/[0.06]">
         <CardHeader className="pb-3">
           <CardTitle className="flex items-center gap-2 text-white text-lg">
@@ -94,13 +111,12 @@ export function ChartRenderer({ data }: ChartRendererProps) {
         </CardContent>
       </Card>
 
-      {/* 인사이트 요약 (text_summary가 아닌 경우에만 표시) */}
       {selected_visualization !== "text_summary" && insights.length > 0 && (
         <Card className="bg-white/[0.02] backdrop-blur-sm border-white/[0.06]">
           <CardHeader className="pb-3">
             <CardTitle className="flex items-center gap-2 text-white text-base">
               <MessageSquare className="w-4 h-4" />
-              주요 인사이트
+              Key Insights
             </CardTitle>
           </CardHeader>
           <CardContent>

@@ -26,7 +26,7 @@ export function RadarChartVisualization({ data, xAxis, yAxis }: RadarChartVisual
   if (!data || data.length === 0) {
     return (
       <div className="p-8 text-center text-zinc-400">
-        표시할 데이터가 없습니다.
+        No data to display.
       </div>
     )
   }
@@ -81,7 +81,7 @@ export function RadarChartVisualization({ data, xAxis, yAxis }: RadarChartVisual
       </ResponsiveContainer>
 
       <div className="mt-2 text-xs text-zinc-500 text-center">
-        {data.length}개 카테고리 • {valueKeys.join(", ")} 비교
+        {data.length} categories • {valueKeys.join(", ")} comparison
       </div>
     </div>
   )
