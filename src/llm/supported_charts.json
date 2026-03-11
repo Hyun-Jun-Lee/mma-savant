@@ -5,9 +5,19 @@
       "data_requirements": "구조화된 다중 속성 데이터"
   },
   "bar_chart": {
-      "description": "카테고리별 수치를 막대로 표현",
-      "best_for": "카테고리 간 수치 비교",
+      "description": "카테고리별 수치를 세로 막대로 표현",
+      "best_for": "카테고리 간 수치 비교 (항목 수 적을 때)",
       "data_requirements": "카테고리와 해당 수치"
+  },
+  "horizontal_bar": {
+      "description": "카테고리별 수치를 가로 막대로 표현, 이름이 긴 항목에 적합",
+      "best_for": "랭킹, 순위표, 이름이 긴 카테고리 비교",
+      "data_requirements": "카테고리와 해당 수치"
+  },
+  "stacked_bar": {
+      "description": "여러 항목을 하나의 막대에 적층하여 구성 비율 표현",
+      "best_for": "구성 요소 분석, 승리 방법 분포, 라운드별 통계",
+      "data_requirements": "카테고리와 2개 이상의 수치 필드"
   },
   "pie_chart": {
       "description": "전체 대비 각 부분의 비율",
@@ -33,6 +43,16 @@
       "description": "다차원 데이터를 방사형으로 표현",
       "best_for": "파이터 스탯 비교, 다차원 균형 분석, 타격 부위 분석",
       "data_requirements": "여러 카테고리와 각각의 수치"
+  },
+  "ring_list": {
+      "description": "도넛 링과 랭킹 리스트로 퍼센트 기반 순위 표현",
+      "best_for": "정확도/성공률 기반 랭킹, Top N 파이터 순위",
+      "data_requirements": "이름과 퍼센트/비율 수치 (0-100)"
+  },
+  "lollipop_chart": {
+      "description": "가는 막대와 평균 기준선으로 개별 값과 평균 비교",
+      "best_for": "개별 값과 전체 평균 비교, 상위/하위 구분",
+      "data_requirements": "카테고리와 수치 데이터"
   },
   "text_summary": {
       "description": "핵심 정보를 텍스트로 요약",
