@@ -285,6 +285,55 @@ async def get_per_round_stats_by_fighter_match_ids(
     return stats_map
 
 
+async def get_sig_str_stats_aggregate_by_fighter_match_ids(
+    session: AsyncSession, fighter_match_ids: List[int]
+) -> Dict[int, SigStrMatchStatSchema]:
+    """
+    여러 fighter_match_id에 대한 유효 타격 상세 통계를 라운드별로 집계하여 반환합니다.
+    반환값: {fighter_match_id: SigStrMatchStatSchema(합산)} 딕셔너리
+    """
+    if not fighter_match_ids:
+        return {}
+
+    result = await session.execute(
+        select(
+            SigStrMatchStatModel.fighter_match_id,
+            func.sum(SigStrMatchStatModel.head_strikes_landed).label("head_strikes_landed"),
+            func.sum(SigStrMatchStatModel.head_strikes_attempts).label("head_strikes_attempts"),
+            func.sum(SigStrMatchStatModel.body_strikes_landed).label("body_strikes_landed"),
+            func.sum(SigStrMatchStatModel.body_strikes_attempts).label("body_strikes_attempts"),
+            func.sum(SigStrMatchStatModel.leg_strikes_landed).label("leg_strikes_landed"),
+            func.sum(SigStrMatchStatModel.leg_strikes_attempts).label("leg_strikes_attempts"),
+            func.sum(SigStrMatchStatModel.clinch_strikes_landed).label("clinch_strikes_landed"),
+            func.sum(SigStrMatchStatModel.clinch_strikes_attempts).label("clinch_strikes_attempts"),
+            func.sum(SigStrMatchStatModel.ground_strikes_landed).label("ground_strikes_landed"),
+            func.sum(SigStrMatchStatModel.ground_strikes_attempts).label("ground_strikes_attempts"),
+        )
+        .where(SigStrMatchStatModel.fighter_match_id.in_(fighter_match_ids))
+        .group_by(SigStrMatchStatModel.fighter_match_id)
+    )
+
+    stats_map = {}
+    for row in result.mappings().all():
+        fm_id = row["fighter_match_id"]
+        stats_map[fm_id] = SigStrMatchStatSchema(
+            id=0,
+            fighter_match_id=fm_id,
+            round=0,
+            head_strikes_landed=row["head_strikes_landed"] or 0,
+            head_strikes_attempts=row["head_strikes_attempts"] or 0,
+            body_strikes_landed=row["body_strikes_landed"] or 0,
+            body_strikes_attempts=row["body_strikes_attempts"] or 0,
+            leg_strikes_landed=row["leg_strikes_landed"] or 0,
+            leg_strikes_attempts=row["leg_strikes_attempts"] or 0,
+            clinch_strikes_landed=row["clinch_strikes_landed"] or 0,
+            clinch_strikes_attempts=row["clinch_strikes_attempts"] or 0,
+            ground_strikes_landed=row["ground_strikes_landed"] or 0,
+            ground_strikes_attempts=row["ground_strikes_attempts"] or 0,
+        )
+    return stats_map
+
+
 ################################
 ######### FighterMatch #########
 ################################

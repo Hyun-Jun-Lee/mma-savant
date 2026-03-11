@@ -2,7 +2,7 @@ from typing import Dict, List, Optional
 from pydantic import BaseModel, Field
 
 from event.models import EventSchema
-from match.models import BasicMatchStatSchema
+from match.models import BasicMatchStatSchema, SigStrMatchStatSchema
 
 
 class EventListDTO(BaseModel):
@@ -59,10 +59,15 @@ class EventFighterStatDTO(BaseModel):
     name: str = Field(description="파이터 이름")
     nickname: Optional[str] = Field(default=None, description="파이터 별명")
     nationality: Optional[str] = Field(default=None, description="국적")
+    height_cm: Optional[float] = Field(default=None, description="키 (cm)")
+    weight_kg: Optional[float] = Field(default=None, description="체중 (kg)")
+    reach_cm: Optional[float] = Field(default=None, description="리치 (cm)")
+    stance: Optional[str] = Field(default=None, description="스탠스 (Orthodox/Southpaw/Switch)")
     result: Optional[str] = Field(default=None, description="경기 결과 (Win/Loss/Draw/NC)")
     ranking: Optional[int] = Field(default=None, description="해당 체급 랭킹")
     stats: Optional[BasicMatchStatSchema] = Field(default=None, description="기본 경기 통계")
     round_stats: Optional[List[BasicMatchStatSchema]] = Field(default=None, description="라운드별 경기 통계")
+    strike_stats: Optional[SigStrMatchStatSchema] = Field(default=None, description="부위별 유효 타격 통계")
 
 
 class EventMatchDTO(BaseModel):

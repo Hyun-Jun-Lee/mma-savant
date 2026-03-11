@@ -287,6 +287,9 @@ async def get_event_detail(
         round_stats_map = await match_repo.get_per_round_stats_by_fighter_match_ids(
             session, all_fm_ids
         )
+        sig_str_stats_map = await match_repo.get_sig_str_stats_aggregate_by_fighter_match_ids(
+            session, all_fm_ids
+        )
 
         sorted_matches = sorted(
             event_model.matches,
@@ -305,6 +308,7 @@ async def get_event_detail(
                 fighter = fm.fighter
                 aggregated_stats = stats_map.get(fm.id)
                 per_round = round_stats_map.get(fm.id)
+                strike_stats = sig_str_stats_map.get(fm.id)
 
                 # ranking: match의 weight_class_id와 일치하는 ranking 추출
                 fighter_ranking = None
@@ -319,10 +323,15 @@ async def get_event_detail(
                     name=fighter.name,
                     nickname=fighter.nickname,
                     nationality=fighter.nationality,
+                    height_cm=fighter.height_cm or None,
+                    weight_kg=fighter.weight_kg or None,
+                    reach_cm=fighter.reach_cm or None,
+                    stance=fighter.stance,
                     result=fm.result,
                     ranking=fighter_ranking,
                     stats=aggregated_stats,
                     round_stats=per_round,
+                    strike_stats=strike_stats,
                 ))
 
             match_dtos.append(EventMatchDTO(
