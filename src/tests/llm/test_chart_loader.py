@@ -30,7 +30,8 @@ def test_get_supported_charts_returns_dict_with_expected_charts():
     expected_charts = {
         "table", "bar_chart", "pie_chart",
         "line_chart", "scatter_plot", "text_summary",
-        "area_chart", "radar_chart"
+        "area_chart", "radar_chart", "stacked_bar",
+        "horizontal_bar", "lollipop_chart", "ring_list",
     }
     assert isinstance(result, dict)
     assert set(result.keys()) == expected_charts
@@ -103,7 +104,7 @@ def test_get_chart_info_returns_correct_info_for_bar_chart():
 
     # Then: bar_chart의 정보가 반환되어야 한다
     assert isinstance(result, dict)
-    assert result["description"] == "카테고리별 수치를 막대로 표현"
+    assert result["description"] == "카테고리별 수치를 세로 막대로 표현"
     assert "best_for" in result
     assert "data_requirements" in result
 
@@ -142,7 +143,8 @@ def test_get_chart_list_contains_all_expected_charts():
     expected_charts = {
         "table", "bar_chart", "pie_chart",
         "line_chart", "scatter_plot", "text_summary",
-        "area_chart", "radar_chart"
+        "area_chart", "radar_chart", "stacked_bar",
+        "horizontal_bar", "lollipop_chart", "ring_list",
     }
     assert set(result) == expected_charts
 
@@ -154,7 +156,7 @@ def test_get_chart_list_has_correct_length():
     result = get_chart_list()
 
     # Then: 8개의 차트가 있어야 한다
-    assert len(result) == 8
+    assert len(result) == 12
 
 
 # =============================================================================
@@ -226,7 +228,8 @@ def test_get_charts_for_prompt_contains_all_chart_ids():
     expected_charts = [
         "table", "bar_chart", "pie_chart",
         "line_chart", "scatter_plot", "text_summary",
-        "area_chart", "radar_chart"
+        "area_chart", "radar_chart", "stacked_bar",
+        "horizontal_bar", "lollipop_chart", "ring_list",
     ]
     for chart_id in expected_charts:
         assert f"**{chart_id}**" in result, f"{chart_id}가 프롬프트에 포함되지 않음"

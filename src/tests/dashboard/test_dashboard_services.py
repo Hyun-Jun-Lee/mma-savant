@@ -872,7 +872,9 @@ async def test_get_chart_td_sub_correlation_cache_miss(clean_test_session, dashb
         result = await dashboard_service.get_chart_td_sub_correlation(clean_test_session)
 
         assert isinstance(result, TdSubCorrelationDTO)
-        assert len(result.fighters) >= 1
+        assert isinstance(result.quadrants, dict)
+        total_fighters = sum(q.count for q in result.quadrants.values())
+        assert total_fighters >= 1
         assert isinstance(result.avg_td, float)
         assert isinstance(result.avg_sub, float)
         mock_redis.set.assert_called_once()
@@ -881,9 +883,14 @@ async def test_get_chart_td_sub_correlation_cache_miss(clean_test_session, dashb
 @pytest.mark.asyncio
 async def test_get_chart_td_sub_correlation_cache_hit(clean_test_session):
     cached = {
-        "fighters": [
-            {"fighter_id": 1, "name": "A", "total_td_landed": 50, "sub_finishes": 5, "total_fights": 10},
-        ],
+        "quadrants": {
+            "high_td_high_sub": {
+                "fighters": [
+                    {"fighter_id": 1, "name": "A", "total_td_landed": 50, "sub_finishes": 5, "total_fights": 10, "td_per_fight": 5.0, "sub_per_fight": 0.5},
+                ],
+                "count": 1,
+            }
+        },
         "avg_td": 4.5,
         "avg_sub": 0.8,
     }
@@ -893,7 +900,7 @@ async def test_get_chart_td_sub_correlation_cache_hit(clean_test_session):
         result = await dashboard_service.get_chart_td_sub_correlation(clean_test_session)
 
         assert isinstance(result, TdSubCorrelationDTO)
-        assert len(result.fighters) == 1
+        assert result.quadrants["high_td_high_sub"].count == 1
         assert result.avg_td == 4.5
         assert result.avg_sub == 0.8
         mock_redis.set.assert_not_called()
