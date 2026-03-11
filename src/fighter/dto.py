@@ -46,6 +46,7 @@ class FighterProfileDTO(BaseModel):
     reach_cm: Optional[float] = None
     birthdate: Optional[str] = None
     age: Optional[int] = None
+    weight_class: Optional[str] = None
     rankings: Dict[str, int] = {}
 
 

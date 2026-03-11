@@ -248,6 +248,15 @@ async def get_fighter_detail(session: AsyncSession, fighter_id: int) -> FighterD
 
         # === Profile ===
         birthdate_str = str(fighter.birthdate) if fighter.birthdate else None
+
+        # 최근 경기에서 체급 추출
+        weight_class_name = None
+        for row in fight_history_rows:
+            if row.get("weight_class_id"):
+                weight_class_name = WeightClassSchema.get_name_by_id(row["weight_class_id"])
+                if weight_class_name:
+                    break
+
         profile = FighterProfileDTO(
             id=fighter.id,
             name=fighter.name,
@@ -260,6 +269,7 @@ async def get_fighter_detail(session: AsyncSession, fighter_id: int) -> FighterD
             reach_cm=fighter.reach_cm if fighter.reach_cm else None,
             birthdate=birthdate_str,
             age=_calc_age(fighter.birthdate),
+            weight_class=weight_class_name,
             rankings=rankings_dict,
         )
 

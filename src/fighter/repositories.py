@@ -1,6 +1,6 @@
 from typing import List, Optional, Dict, Literal
 
-from sqlalchemy import select, delete, or_, text
+from sqlalchemy import select, delete, or_, text, func
 from sqlalchemy.orm import aliased
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -45,20 +45,34 @@ async def get_fighter_by_id(session: AsyncSession, fighter_id: int) -> Optional[
 async def get_fighter_by_name_best_record(session: AsyncSession, name: str) -> Optional[FighterSchema]:
     """
     이름 또는 닉네임으로 파이터를 검색합니다.
-    동명이인이 있을 경우 전적(승수)이 가장 좋은 선수를 반환.
+    동명이인이 있을 경우 실제 UFC 경기 이력이 많은 선수를 우선,
+    동률이면 승수가 가장 좋은 선수를 반환.
     """
     normalized_name = normalize_name(name)
 
-    # 이름 또는 닉네임으로 검색하고 승수 기준 정렬
+    # 파이터별 경기 수 서브쿼리
+    match_count_sq = (
+        select(
+            FighterMatchModel.fighter_id,
+            func.count(FighterMatchModel.id).label("match_count"),
+        )
+        .group_by(FighterMatchModel.fighter_id)
+        .subquery()
+    )
+
     result = await session.execute(
         select(FighterModel)
+        .outerjoin(match_count_sq, FighterModel.id == match_count_sq.c.fighter_id)
         .where(
             or_(
                 FighterModel.name.ilike(f'%{normalized_name}%'),
                 FighterModel.nickname.ilike(f'%{normalized_name}%')
             )
         )
-        .order_by(FighterModel.wins.desc())
+        .order_by(
+            func.coalesce(match_count_sq.c.match_count, 0).desc(),
+            FighterModel.wins.desc(),
+        )
     )
     fighter_model = result.scalars().first()
 
