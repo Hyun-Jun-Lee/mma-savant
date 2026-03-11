@@ -20,15 +20,33 @@ export interface BasicMatchStat {
   round: number
 }
 
+export interface StrikeStats {
+  head_strikes_landed: number
+  head_strikes_attempts: number
+  body_strikes_landed: number
+  body_strikes_attempts: number
+  leg_strikes_landed: number
+  leg_strikes_attempts: number
+  clinch_strikes_landed: number
+  clinch_strikes_attempts: number
+  ground_strikes_landed: number
+  ground_strikes_attempts: number
+}
+
 export interface EventFighterStat {
   fighter_id: number
   name: string
   nickname: string | null
   nationality: string | null
+  height_cm: number | null
+  weight_kg: number | null
+  reach_cm: number | null
+  stance: string | null
   result: string | null
   ranking: number | null
   stats: BasicMatchStat | null
   round_stats: BasicMatchStat[] | null
+  strike_stats: StrikeStats | null
 }
 
 export interface EventMatch {

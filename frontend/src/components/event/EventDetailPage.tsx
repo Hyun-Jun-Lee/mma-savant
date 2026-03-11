@@ -13,6 +13,13 @@ import {
   TooltipTrigger,
 } from '@/components/ui/tooltip'
 
+function isCanceledSort(result: string | null, method: string | null): boolean {
+  if (method?.toUpperCase() === 'CNC') return true
+  if (result?.toLowerCase() === 'nc') return true
+  if (!result && !method) return true
+  return false
+}
+
 interface Props {
   eventId: number
 }
@@ -68,9 +75,16 @@ export function EventDetailClient({ eventId }: Props) {
               </TooltipContent>
             </Tooltip>
           </div>
-          {data.matches.map((match) => (
-            <FightCard key={match.match_id} match={match} />
-          ))}
+          {[...data.matches]
+            .sort((a, b) => {
+              const aCanceled = isCanceledSort(a.fighters[0]?.result ?? null, a.method)
+              const bCanceled = isCanceledSort(b.fighters[0]?.result ?? null, b.method)
+              if (aCanceled !== bCanceled) return aCanceled ? 1 : -1
+              return 0
+            })
+            .map((match) => (
+              <FightCard key={match.match_id} match={match} eventDate={data.event.event_date} />
+            ))}
         </div>
       ) : (
         <div className="rounded-xl border border-white/[0.06] bg-white/[0.03] p-5">

@@ -23,12 +23,22 @@ function formatControlTime(seconds: number): string {
   return `${m}:${s.toString().padStart(2, '0')}`
 }
 
-function ResultBadge({ result }: { result: string }) {
+function ResultBadge({ result, method, eventDate }: { result: string; method?: string | null; eventDate?: string | null }) {
   const lower = result.toLowerCase()
-  const variant = lower === 'win' ? 'win' : lower === 'loss' ? 'loss' : 'draw'
+  const isNc = lower === 'nc'
+  const isCanceled = isNc && method?.toUpperCase() === 'CNC'
+  const isPastUnknown = lower === 'unknown' && eventDate && new Date(eventDate) < new Date()
+  const variant =
+    lower === 'win' ? 'win'
+    : lower === 'loss' ? 'loss'
+    : isNc ? 'canceled'
+    : isPastUnknown ? 'canceled'
+    : lower === 'unknown' ? 'draw'
+    : 'draw'
+  const label = isPastUnknown ? 'Canceled' : isCanceled ? 'Canceled' : lower === 'unknown' ? 'TBD' : isNc ? 'NC' : result
   return (
     <Badge variant={variant} className="text-[10px] font-semibold uppercase">
-      {lower === 'unknown' ? 'TBD' : result}
+      {label}
     </Badge>
   )
 }
@@ -143,13 +153,17 @@ export function FightHistoryTable({ fights }: Props) {
         <div className="ml-auto flex items-center gap-1">
           {fights.slice(0, 5).map((f, i) => {
             const r = f.result.toLowerCase()
+            const isNc = r === 'nc'
+            const isCanceled = (isNc && f.method?.toUpperCase() === 'CNC') || (r === 'unknown' && f.event_date && new Date(f.event_date) < new Date())
             const color =
               r === 'win'
                 ? 'bg-emerald-400'
                 : r === 'loss'
                   ? 'bg-red-400'
-                  : 'bg-zinc-500'
-            const label = r === 'win' ? 'W' : r === 'loss' ? 'L' : 'D'
+                  : (isNc || isCanceled)
+                    ? 'bg-amber-400'
+                    : 'bg-zinc-500'
+            const label = r === 'win' ? 'W' : r === 'loss' ? 'L' : isCanceled ? 'CNC' : isNc ? 'NC' : 'D'
             return (
               <Tooltip key={f.match_id}>
                 <TooltipTrigger asChild>
@@ -187,7 +201,7 @@ export function FightHistoryTable({ fights }: Props) {
       </div>
 
       {/* Desktop table header */}
-      <div className="hidden text-[10px] font-semibold uppercase tracking-wider text-zinc-600 sm:grid sm:grid-cols-[2rem_3.5rem_1fr_1fr_7rem_3.5rem_5.5rem]  sm:gap-2 sm:px-2 sm:pb-2">
+      <div className="hidden text-[10px] font-semibold uppercase tracking-wider text-zinc-600 sm:grid sm:grid-cols-[2rem_5rem_1fr_1fr_7rem_3.5rem_5.5rem]  sm:gap-2 sm:px-2 sm:pb-2">
         <span />
         <span>Result</span>
         <span>Opponent</span>
@@ -213,7 +227,7 @@ export function FightHistoryTable({ fights }: Props) {
                 }
               >
                 {/* Desktop */}
-                <div className="hidden items-center gap-2 px-2 py-2.5 text-xs sm:grid sm:grid-cols-[2rem_3.5rem_1fr_1fr_7rem_3.5rem_5.5rem]">
+                <div className="hidden items-center gap-2 px-2 py-2.5 text-xs sm:grid sm:grid-cols-[2rem_5rem_1fr_1fr_7rem_3.5rem_5.5rem]">
                   <span className="text-zinc-600">
                     {hasStats ? (
                       isExpanded ? (
@@ -223,7 +237,7 @@ export function FightHistoryTable({ fights }: Props) {
                       )
                     ) : null}
                   </span>
-                  <ResultBadge result={fight.result} />
+                  <ResultBadge result={fight.result} method={fight.method} eventDate={fight.event_date} />
                   <span className="flex items-center gap-1.5 truncate text-zinc-200">
                     <Link
                       href={`/fighters/${fight.opponent.id}`}
@@ -273,7 +287,7 @@ export function FightHistoryTable({ fights }: Props) {
                         )
                       ) : null}
                     </span>
-                    <ResultBadge result={fight.result} />
+                    <ResultBadge result={fight.result} method={fight.method} eventDate={fight.event_date} />
                     <span className="text-xs text-zinc-200">
                       vs{' '}
                       <Link

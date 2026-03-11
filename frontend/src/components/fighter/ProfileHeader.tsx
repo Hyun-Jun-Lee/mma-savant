@@ -74,10 +74,10 @@ export function ProfileHeader({ profile }: Props) {
         )}
       </div>
 
-      {/* Rankings */}
-      {rankingEntries.length > 0 && (
-        <div className="mt-3 flex flex-wrap gap-2">
-          {rankingEntries.map(([wc, rank]) => (
+      {/* Rankings / Weight Class */}
+      <div className="mt-3 flex flex-wrap gap-2">
+        {rankingEntries.length > 0 ? (
+          rankingEntries.map(([wc, rank]) => (
             <Badge
               key={wc}
               variant={rank === 0 ? 'champion' : 'ranking'}
@@ -88,12 +88,16 @@ export function ProfileHeader({ profile }: Props) {
                   {toTitleCase(wc)} Champion
                 </span>
               ) : (
-                `${toTitleCase(wc)}: #${rank}`
+                `${toTitleCase(wc)} #${rank}`
               )}
             </Badge>
-          ))}
-        </div>
-      )}
+          ))
+        ) : profile.weight_class ? (
+          <Badge variant="ranking">
+            {toTitleCase(profile.weight_class)}
+          </Badge>
+        ) : null}
+      </div>
     </motion.div>
   )
 }

@@ -10,6 +10,7 @@ export interface FighterProfile {
   reach_cm: number | null
   birthdate: string | null
   age: number | null
+  weight_class: string | null
   rankings: Record<string, number>
 }
 
