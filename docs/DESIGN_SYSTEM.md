@@ -109,6 +109,31 @@
 | 링크 호버 | `text-blue-400` | FighterTick 호버 `#60a5fa` |
 | CTA (Auth) | `bg-red-600` | `hover:bg-red-700` |
 
+### 2.7 Fight Comparison Colors (FightCard)
+
+경기 상세 비교 UI(Physical, StatBars, StrikeTarget, 라인 차트)에서 사용하는 result 기반 컬러 규칙.
+
+#### Result Color Mapping
+
+| Result | Bar | Text (우세 시) | Chart Line (hex) |
+|--------|-----|---------------|-----------------|
+| **Win** | `bg-emerald-500/80` | `text-emerald-400/80` | `#10b981cc` |
+| **Loss** | `bg-red-500/40` | `text-red-400/40` | `#ef444466` |
+| **기타** | `bg-zinc-500/80` | `text-zinc-400/80` | `#71717acc` |
+
+#### Opacity 규칙
+
+| 대상 | Opacity | 설명 |
+|------|---------|------|
+| 승리 선수 | **80%** | 기본 opacity. 바, 텍스트, 차트 라인 모두 적용 |
+| 패배 선수 | **40%** | 억제된 opacity. 승리 선수 대비 시각적 위계 형성 |
+
+#### 적용 원칙
+
+- 수치상 우세한 쪽에 **해당 선수의 result 색상**을 적용 (항상 emerald가 아님)
+- 승리 선수 우세 → emerald, 패배 선수 우세 → red
+- 열세한 쪽은 `text-zinc-300` (Physical) 또는 `text-zinc-500` (StatBars)로 표시
+
 ---
 
 ## 3. Typography
