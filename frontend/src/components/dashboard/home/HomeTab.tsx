@@ -34,13 +34,16 @@ export function HomeTab({ data }: HomeTabProps) {
         <UpcomingEvents events={upcoming_events} index={1} />
       </div>
 
+      {/* Rankings */}
+      <RankingsTable rankings={rankings} index={0} />
+
       {/* Event Location Map */}
       {event_map && event_map.length > 0 && (
         <ChartCard
           title="Event Locations"
           description="UFC events around the world"
           tooltip="Shows UFC event locations on a world map. Marker size is proportional to event count."
-          index={0}
+          index={1}
         >
           <EventMapChart data={event_map} />
         </ChartCard>
@@ -52,14 +55,11 @@ export function HomeTab({ data }: HomeTabProps) {
           title="Nationality Distribution"
           description="Fighter count by nationality (Top 15 + Others)"
           tooltip="Shows fighter nationality distribution. Bar length is proportional to fighter count."
-          index={1}
+          index={2}
         >
           <NationalityBarChart data={nationality_distribution} />
         </ChartCard>
       )}
-
-      {/* Rankings */}
-      <RankingsTable rankings={rankings} index={2} />
 
       {/* Data Freshness */}
       {latestEventDate && (

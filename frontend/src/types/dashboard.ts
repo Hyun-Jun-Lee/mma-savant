@@ -60,6 +60,19 @@ export interface HomeResponse {
   nationality_distribution: NationalityDistribution[]
 }
 
+// ── Fighter Search ──
+export interface FighterSearchItem {
+  fighter: {
+    id: number
+    name: string
+    nickname: string | null
+    wins: number
+    losses: number
+    draws: number
+  }
+  rankings: Record<string, number>
+}
+
 // ── Event List (paginated) ──
 export interface EventListItem {
   id: number

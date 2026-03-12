@@ -5,6 +5,7 @@ import type {
   GrapplingResponse,
   EventListResponse,
   EventSearchResponse,
+  FighterSearchItem,
   FinishMethod,
   FinishRateTrend,
   StrikeTarget,
@@ -54,6 +55,9 @@ export const dashboardApi = {
 
   searchEvents: (query: string, limit = 20) =>
     dashboardFetch<EventSearchResponse>(`/api/events/search?q=${encodeURIComponent(query)}&limit=${limit}`),
+
+  searchFighters: (query: string, limit = 20) =>
+    dashboardFetch<FighterSearchItem[]>(`/api/fighters/search?q=${encodeURIComponent(query)}&limit=${limit}`),
 
   getOverview: (weightClassId?: number, ufcOnly?: boolean) =>
     dashboardFetch<OverviewResponse>(
