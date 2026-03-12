@@ -209,6 +209,9 @@ http {
             auth_basic "Swagger Access";
             auth_basic_user_file /etc/nginx/.htpasswd;
 
+            # Swagger UI needs CDN access for CSS/JS
+            add_header Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; img-src 'self' data: https:; font-src 'self' data: https://cdn.jsdelivr.net;" always;
+
             proxy_pass http://api_backend;
             proxy_http_version 1.1;
             proxy_set_header Host $host;
@@ -220,6 +223,8 @@ http {
         location /redoc {
             auth_basic "Swagger Access";
             auth_basic_user_file /etc/nginx/.htpasswd;
+
+            add_header Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; img-src 'self' data: https:; font-src 'self' data: https://cdn.jsdelivr.net; worker-src blob:;" always;
 
             proxy_pass http://api_backend;
             proxy_http_version 1.1;
