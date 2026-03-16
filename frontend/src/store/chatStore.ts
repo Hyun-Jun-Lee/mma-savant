@@ -18,6 +18,9 @@ export const useChatStore = create<ChatStore>((set) => ({
   // 사용량 제한 상태 초기값
   usageLimit: null,
   showUsageLimitPopup: false,
+  // 에러 팝업 상태 초기값
+  errorInfo: null,
+  showErrorPopup: false,
 
   addMessage: (message) => {
     const newMessage: Message = {
@@ -135,4 +138,8 @@ export const useChatStore = create<ChatStore>((set) => ({
   // 사용량 제한 액션들
   setUsageLimit: (info) => set({ usageLimit: info }),
   setShowUsageLimitPopup: (show) => set({ showUsageLimitPopup: show }),
+
+  // 에러 팝업 액션들
+  setErrorInfo: (info) => set({ errorInfo: info }),
+  setShowErrorPopup: (show) => set({ showErrorPopup: show }),
 }))

@@ -29,6 +29,12 @@ export interface ChatSession {
   updated_at: Date
 }
 
+// 에러 정보
+export interface ErrorInfo {
+  errorClass: string
+  message: string
+}
+
 // 사용량 제한 정보
 export interface UsageLimitInfo {
   exceeded: boolean
@@ -55,6 +61,9 @@ export interface ChatState {
   // 사용량 제한 상태
   usageLimit: UsageLimitInfo | null
   showUsageLimitPopup: boolean
+  // 에러 팝업 상태
+  errorInfo: ErrorInfo | null
+  showErrorPopup: boolean
 }
 
 export interface ChatStore extends ChatState {
@@ -81,4 +90,7 @@ export interface ChatStore extends ChatState {
   // 사용량 제한 액션들
   setUsageLimit: (info: UsageLimitInfo | null) => void
   setShowUsageLimitPopup: (show: boolean) => void
+  // 에러 팝업 액션들
+  setErrorInfo: (info: ErrorInfo | null) => void
+  setShowErrorPopup: (show: boolean) => void
 }

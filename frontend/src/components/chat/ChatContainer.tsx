@@ -4,6 +4,7 @@ import { useState, useEffect } from "react"
 import { HistoryView } from "./HistoryView"
 import { MessageInput } from "./MessageInput"
 import { UsageLimitPopup } from "./UsageLimitPopup"
+import { ErrorPopup } from "./ErrorPopup"
 import { useChatStore } from "@/store/chatStore"
 import { useAuth } from "@/hooks/useAuth"
 import { useSocket } from "@/hooks/useSocket"
@@ -18,22 +19,18 @@ export function ChatContainer() {
   const { loadSessions } = useChatSession()
   const { incrementUsage } = useUser()
   const [error, setError] = useState<string | null>(null)
+  const isLoggedIn = !!user
 
-  // WebSocket 연결 완료 후 세션 목록 로드 (토큰이 준비된 상태에서 실행)
+  // WebSocket 연결 완료 후 세션 목록 1회 로드
   useEffect(() => {
-    const initializeData = async () => {
-      try {
-        await loadSessions()
-      } catch (error) {
+    if (isLoggedIn && isConnected) {
+      loadSessions().catch((error) => {
         console.error('Failed to load sessions:', error)
         setError('세션 목록 로드 중 오류가 발생했습니다.')
-      }
+      })
     }
-
-    if (user && isConnected) {
-      initializeData()
-    }
-  }, [user, isConnected, loadSessions])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isLoggedIn, isConnected])
 
   const handleSendMessage = async (message: string) => {
     try {
@@ -108,6 +105,8 @@ export function ChatContainer() {
 
       {/* 사용량 제한 팝업 */}
       <UsageLimitPopup />
+      {/* 에러 팝업 */}
+      <ErrorPopup />
     </div>
   )
 }

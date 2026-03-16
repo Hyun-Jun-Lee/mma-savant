@@ -299,8 +299,12 @@ class LangChainLLMService:
         )
 
         # 에러 체크 - agent_manager에서 반환된 에러 응답 처리
-        if result.get("error") is True:
-            # 이미 구조화된 에러 응답이므로 그대로 반환
+        if result.get("error"):
+            # error 필드가 truthy이면 에러로 처리, 필드 정규화
+            if "error_class" not in result:
+                result["error"] = True
+                result["error_class"] = "UnexpectedException"
+                result["traceback"] = result.get("error_details", {}).get("traceback", "")
             execution_time = time.time() - two_phase_start
             return result, execution_time
 
@@ -316,10 +320,12 @@ class LangChainLLMService:
     ) -> AsyncGenerator[Dict[str, Any], None]:
         """Agent 실행 결과 처리 및 히스토리 저장"""
         # 에러 응답인 경우 바로 반환
-        if result.get("error") is True:
+        if result.get("error"):
             yield {
-                **result,  # error, error_class, traceback 포함
-                "type": "error_response",  # 프론트엔드가 기대하는 타입
+                "type": "error_response",
+                "error": True,
+                "error_class": result.get("error_class", "UnexpectedException"),
+                "traceback": result.get("traceback", ""),
                 "message_id": message_id,
                 "conversation_id": conversation_id,
                 "timestamp": utc_now().isoformat(),

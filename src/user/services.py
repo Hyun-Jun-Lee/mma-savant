@@ -18,6 +18,7 @@ from user.exceptions import (
     UserNotFoundError, UserValidationError, UserAuthenticationError,
     UserDuplicateError, UserPasswordError, UserUsageLimitError, UserQueryError
 )
+from common.utils import utc_today
 
 
 # 기본 설정
@@ -502,7 +503,6 @@ async def get_oauth_user_profile(session: AsyncSession, user_id: int) -> UserPro
             raise UserNotFoundError(user_id, "id")
 
         # 일일 사용량 계산 (날짜가 바뀌었으면 0으로 리셋)
-        from datetime import date
         daily_requests = user.daily_requests
         if user.last_request_date is None or user.last_request_date.date() < utc_today():
             daily_requests = 0

@@ -270,12 +270,11 @@ class ConnectionManager:
             content, conversation_id = await self._validate_message_data(connection_id, message_data)
             validated_conversation_id = await self._validate_or_create_session(db, user.id, conversation_id, content)
 
-            # 사용자 메시지를 즉시 데이터베이스에 저장
-            await self._save_user_message(db, validated_conversation_id, user.id, content)
-
-            # 응답 처리
+            # 응답 처리 (메시지 저장은 LLM 성공 후에만 수행)
             await self._send_message_acknowledgment(connection_id, validated_conversation_id)
-            await self._process_llm_streaming_response(connection_id, content, validated_conversation_id, user.id)
+            await self._process_llm_streaming_response(
+                connection_id, content, validated_conversation_id, user.id, db
+            )
 
         except Exception as e:
             await self._handle_message_error(connection_id, e)
@@ -380,7 +379,8 @@ class ConnectionManager:
         connection_id: str,
         content: str,
         conversation_id: int,
-        user_id: int
+        user_id: int,
+        db: AsyncSession
     ) -> None:
         """LLM 스트리밍 응답 처리"""
         # LLM 서비스 초기화 확인
@@ -389,6 +389,7 @@ class ConnectionManager:
         assistant_content = ""
         assistant_message_id = str(uuid.uuid4())
         chunk_count = 0
+        has_error = False
 
         async for chunk in self.llm_service.generate_streaming_chat_response(
             user_message=content,
@@ -408,9 +409,18 @@ class ConnectionManager:
             elif chunk_type == "end":
                 await self._handle_end_chunk(connection_id, chunk, assistant_message_id, conversation_id, len(assistant_content))
             elif chunk_type == "error":
+                has_error = True
                 await self._handle_error_chunk(connection_id, chunk, assistant_message_id, conversation_id)
             elif chunk_type == "error_response":
+                has_error = True
                 await self._handle_error_response_chunk(connection_id, chunk, assistant_message_id, conversation_id)
+
+        # 에러가 없었을 때만 사용자 메시지 저장
+        print(f"(has_error: {has_error})")
+        print(f"(has error type : {type(has_error)}")
+        if not has_error:
+            await self._save_user_message(db, conversation_id, user_id, content)
+            print("(saved user message)")
 
     async def _handle_start_chunk(
         self,

@@ -12,7 +12,7 @@ export function useSocket() {
   const [isConnected, setIsConnected] = useState(false)
   const [isTyping, setIsTyping] = useState(false)
   const socketRef = useRef(getRealSocket())
-  const { addMessage, updateMessage, setConnected, setTyping, currentSession, setCurrentSession, setSessions, openModal, setUsageLimit, setShowUsageLimitPopup } = useChatStore()
+  const { addMessage, updateMessage, setConnected, setTyping, currentSession, setCurrentSession, setSessions, openModal, setUsageLimit, setShowUsageLimitPopup, setErrorInfo, setShowErrorPopup, clearChat } = useChatStore()
   const currentStreamingMessage = useRef<{
     id: string;
     content: string;
@@ -371,16 +371,12 @@ export function useSocket() {
       const userMessage = getErrorMessage(errorData.error_class)
       console.log('📝 User-friendly message:', userMessage)
 
-      // 에러 메시지를 채팅에 추가 (assistant 메시지로 표시)
-      const errorMessage = {
-        content: `⚠️ ${userMessage}`,
-        role: 'assistant' as const,
-        isStreaming: false
-      }
+      // 팝업으로 에러 표시
+      setErrorInfo({ errorClass: errorData.error_class, message: userMessage })
+      setShowErrorPopup(true)
 
-      console.log('💬 Adding error message to chat:', errorMessage)
-      const addedMessage = addMessage(errorMessage)
-      console.log('✅ Error message added with ID:', addedMessage.id)
+      // 채팅에서 진행 중이던 질문 제거
+      clearChat()
 
       // 타이핑 상태 해제
       setIsTyping(false)

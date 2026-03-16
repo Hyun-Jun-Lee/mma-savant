@@ -144,6 +144,8 @@ class AgentManager:
                 processing_id=processing_id
             )
 
+            if phase1_result.get("error") is True:
+                return phase1_result
             if phase1_result.get("error"):
                 return self._create_error_response("Phase 1 failed", phase1_result)
 
@@ -156,6 +158,8 @@ class AgentManager:
                 processing_id=processing_id
             )
 
+            if phase2_result.get("error") is True:
+                return phase2_result
             if phase2_result.get("error"):
                 return self._create_error_response("Phase 2 failed", phase2_result)
 

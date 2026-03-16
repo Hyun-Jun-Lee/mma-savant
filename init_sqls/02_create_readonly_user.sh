@@ -67,10 +67,14 @@ psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" <<-E
 	GRANT SELECT ON ranking TO $READONLY_USER;
 	GRANT SELECT ON weight_class TO $READONLY_USER;
 
-	-- 5. 시퀀스 사용 권한 (필요한 경우)
+	-- 5. 향후 생성/재생성되는 테이블에도 SELECT 권한 자동 부여
+	ALTER DEFAULT PRIVILEGES IN SCHEMA public
+	    GRANT SELECT ON TABLES TO $READONLY_USER;
+
+	-- 6. 시퀀스 사용 권한 (필요한 경우)
 	GRANT USAGE ON ALL SEQUENCES IN SCHEMA public TO $READONLY_USER;
 
-	-- 6. 생성 완료 메시지
+	-- 7. 생성 완료 메시지
 	DO \$\$
 	BEGIN
 	    RAISE NOTICE '=== 읽기 전용 사용자 생성 완료 ===';
