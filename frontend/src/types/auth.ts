@@ -6,7 +6,8 @@ declare module "next-auth" {
       id: string
     } & DefaultSession["user"]
     accessToken?: string
-    googleAccessToken?: string
+    backendToken?: string
+    backendTokenExpiry?: number
   }
 
   interface User {

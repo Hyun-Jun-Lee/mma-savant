@@ -1,13 +1,14 @@
 "use client"
 
 import { useSession } from "next-auth/react"
-import { useEffect } from "react"
+import { useEffect, useRef } from "react"
 import { useAuthStore } from "@/store/authStore"
 import { AuthApiService } from "@/services/authApi"
 
 export function useAuth() {
   const { data: session, status } = useSession()
   const { user, isLoading, isAuthenticated, setUser, setLoading } = useAuthStore()
+  const lastUserIdRef = useRef<string | null>(null)
 
   useEffect(() => {
     // OAuth 세션 체크
@@ -17,9 +18,12 @@ export function useAuth() {
     }
 
     if (status === "authenticated" && session?.user) {
-      // OAuth 로그인
+      const id = session.user.id!
+      // 이미 같은 유저가 설정되어 있으면 skip (참조 변경 방지)
+      if (lastUserIdRef.current === id) return
+      lastUserIdRef.current = id
       setUser({
-        id: session.user.id!,
+        id,
         name: session.user.name,
         email: session.user.email,
         image: session.user.image,
@@ -32,16 +36,21 @@ export function useAuth() {
     const savedUser = AuthApiService.getUser()
 
     if (token && savedUser) {
+      const id = String(savedUser.id)
+      if (lastUserIdRef.current === id) return
+      lastUserIdRef.current = id
       setUser({
-        id: String(savedUser.id),
+        id,
         name: savedUser.username,
         email: savedUser.email || null,
         image: null,
       })
     } else {
+      if (lastUserIdRef.current === null && !user) return
+      lastUserIdRef.current = null
       setUser(null)
     }
-  }, [session, status, setUser, setLoading])
+  }, [session, status, setUser, setLoading, user])
 
   // 일반 로그인 여부 확인
   const hasLocalToken = typeof window !== 'undefined' && AuthApiService.isAuthenticated()

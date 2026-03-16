@@ -30,12 +30,8 @@ export class ApiError extends Error {
   }
 }
 
-// JWT 토큰 캐시
-let cachedToken: string | null = null
-let tokenExpiry: number | null = null
-
 /**
- * JWT 토큰 가져오기 (캐싱 포함)
+ * JWT 토큰 가져오기
  * 일반 로그인과 OAuth 로그인 모두 지원
  */
 export async function getAuthToken(): Promise<string | null> {
@@ -46,50 +42,24 @@ export async function getAuthToken(): Promise<string | null> {
       return localToken
     }
 
-    // 2. OAuth 토큰 캐시 확인
-    if (cachedToken && tokenExpiry && Date.now() < tokenExpiry - 60000) {
-      return cachedToken
-    }
-
-    // 3. OAuth 세션에서 토큰 가져오기
+    // 2. OAuth 세션에서 백엔드 토큰 가져오기 (auth.ts에서 로그인 시 교환 완료)
     const session = await getSession()
 
     if (!session?.user) {
-      cachedToken = null
-      tokenExpiry = null
       return null
     }
 
-    // 백엔드에서 JWT 토큰 생성 요청
-    const response = await fetch(`${API_BASE_URL}/api/user/google-token`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        google_token: session.googleAccessToken || '',
-        email: session.user.email || '',
-        name: session.user.name || '',
-        picture: session.user.image || '',
-      }),
-    })
-
-    if (response.ok) {
-      const tokenData = await response.json()
-      cachedToken = tokenData.access_token
-      tokenExpiry = Date.now() + (tokenData.expires_in * 1000)
-      return cachedToken
+    if (session.backendToken) {
+      // 만료 1분 전이면 null 반환하여 재로그인 유도
+      if (session.backendTokenExpiry && Date.now() > session.backendTokenExpiry - 60000) {
+        return null
+      }
+      return session.backendToken
     }
 
-    console.error('Failed to get JWT token from backend')
-    cachedToken = null
-    tokenExpiry = null
     return null
-
   } catch (error) {
     console.error('Failed to get auth token:', error)
-    cachedToken = null
-    tokenExpiry = null
     return null
   }
 }

@@ -10,6 +10,13 @@ if (!API_BASE_URL) {
   throw new Error('NEXT_PUBLIC_API_URL environment variable is not set')
 }
 
+/**
+ * 서버사이드 전용 백엔드 URL (auth.ts에서 사용)
+ * NEXT_PUBLIC_ 접두사 없으므로 클라이언트에 노출되지 않음
+ */
+const BACKEND_URL = process.env.BACKEND_URL || API_BASE_URL
+
 export const env = {
   API_BASE_URL,
+  BACKEND_URL,
 } as const
