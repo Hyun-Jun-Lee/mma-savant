@@ -15,8 +15,8 @@ export function TypingIndicator({ isVisible }: TypingIndicatorProps) {
     <div className="flex justify-start mb-4 animate-in fade-in duration-200">
       <div className="flex items-center gap-3 max-w-xs">
         {/* Avatar */}
-        <div className="w-8 h-8 bg-white/10 backdrop-blur-sm rounded-full flex items-center justify-center border border-white/20 flex-shrink-0">
-          <Bot className="w-4 h-4 text-white" />
+        <div className="w-8 h-8 bg-violet-500/20 backdrop-blur-sm rounded-full flex items-center justify-center border border-white/[0.06] flex-shrink-0">
+          <Bot className="w-4 h-4 text-violet-400" />
         </div>
 
         {/* Typing animation */}

@@ -438,7 +438,131 @@ text-xs text-zinc-600, Clock 아이콘 h-3 w-3
 
 ---
 
-## 13. File Structure
+## 13. Chat UI
+
+AI 채팅 인터페이스 전용 패턴. **기존 디자인 토큰을 재사용**하며, 채팅 고유 요소만 추가 정의한다.
+
+### 13.1 Page Layout
+
+| 요소 | 값 | 비고 |
+|------|----|------|
+| 페이지 배경 | `bg-[#050507]` | 대시보드와 동일, 그래디언트 사용 금지 |
+| 콘텐츠 최대 너비 | `max-w-4xl` (메시지), `max-w-7xl` (그리드) | |
+| 페이지 높이 | `h-[calc(100vh-3.5rem)]` | 네비 제외 전체 높이 |
+| 상단 입력바 | `backdrop-blur-sm` + `border-b border-white/[0.06]` | 네비와 동일한 글래스 패턴 |
+
+### 13.2 Chat Bubbles
+
+유저와 AI 어시스턴트 메시지를 시각적으로 구분하는 버블 스타일.
+
+#### User Bubble
+
+| 요소 | 값 |
+|------|----|
+| 배경 | `bg-white/[0.06]` |
+| 테두리 | `border border-white/[0.06]` |
+| 텍스트 | `text-zinc-100` |
+| 아바타 배경 | `bg-white/[0.06]` |
+| 아바타 테두리 | `border border-white/[0.06]` |
+| 라운딩 | `rounded-lg` |
+
+#### Assistant Bubble
+
+| 요소 | 값 |
+|------|----|
+| 배경 | 없음 (투명) |
+| 텍스트 | `prose prose-invert prose-sm` (Tailwind Typography) |
+| 아바타 배경 | `bg-violet-500/20` |
+| 아바타 텍스트/아이콘 | `text-violet-400` |
+| 아바타 테두리 | `border border-white/[0.06]` |
+
+> AI 시맨틱 색상으로 `violet-500`을 사용한다. 기존 `CHART_COLORS.general`(`#8b5cf6`, violet-500)과 동일하여 별도 토큰 없이 재사용.
+
+#### Bubble 공통
+
+| 요소 | 값 |
+|------|----|
+| 아바타 크기 | `w-8 h-8` |
+| 입장 애니메이션 | `animate-in slide-in-from-bottom-2` |
+| 타임스탬프 | `text-xs text-zinc-500` |
+| 메시지 간격 | `gap-3` (아바타↔콘텐츠), `space-y-4` (메시지 간) |
+
+### 13.3 Session Cards (HistoryView)
+
+세션 목록과 히스토리 카드는 **대시보드 카드 패턴**을 그대로 따른다.
+
+| 요소 | 값 | 대시보드 동일 여부 |
+|------|----|----------------|
+| 카드 배경 | `bg-white/[0.03]` | ChartCard 동일 |
+| 카드 테두리 | `border border-white/[0.06]` | ChartCard 동일 |
+| 카드 호버 배경 | `hover:bg-white/[0.05]` | ChartCard 동일 |
+| 카드 호버 테두리 | `hover:border-white/[0.12]` | ChartCard 동일 |
+| 패딩 | `p-5` | ChartCard 동일 |
+| 라운딩 | `rounded-xl` | ChartCard 동일 |
+| 그리드 | `grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4` | 대시보드 그리드 |
+
+### 13.4 Input Area
+
+| 요소 | 값 | 비고 |
+|------|----|------|
+| 입력 배경 | `bg-white/[0.03]` | shadcn Input의 dark 패턴 |
+| 입력 텍스트 | `text-zinc-100` | |
+| 플레이스홀더 | `text-zinc-500` | |
+| 포커스 | `focus:ring-0 focus:outline-0` | 최소한의 포커스 |
+| 전송 버튼 배경 | `bg-white/[0.04]` | 필터 버튼 패턴 |
+| 전송 버튼 호버 | `hover:bg-white/[0.08]` | 강한 호버 패턴 |
+| 전송 아이콘 | `text-zinc-400 hover:text-zinc-100` | |
+| 높이 | `h-12` | |
+
+### 13.5 Session Sidebar
+
+| 요소 | 값 | 비고 |
+|------|----|------|
+| 배경 | `bg-[#050507]/95 backdrop-blur-md` | 네비게이션 글래스 패턴 응용 |
+| 오버레이 | `bg-black/50` | shadcn Dialog overlay |
+| 테두리 | `border-l border-white/[0.06]` | |
+| 그림자 | `shadow-lg` | |
+| 세션 아이템 기본 | `bg-white/[0.03]` + `border border-white/[0.06]` | 카드 패턴 |
+| 세션 아이템 활성 | `bg-white/10` + `border-white/[0.12]` | 활성 상태 패턴 |
+| 세션 아이템 호버 | `hover:bg-white/[0.05]` | 카드 호버 |
+
+### 13.6 Dialogs & Popups
+
+채팅 전용 다이얼로그(세션 상세, 에러, 사용량 제한)는 **shadcn Dialog**를 기반으로 한다.
+
+| 요소 | 값 | 비고 |
+|------|----|------|
+| 배경 | `bg-[#050507]` | 페이지 배경과 동일 |
+| 테두리 | `border border-white/[0.06]` | 카드 테두리 |
+| 라운딩 | `rounded-xl` | 카드 라운딩 |
+| 오버레이 | `bg-black/50` | shadcn 기본 |
+| 닫기 버튼 | `text-zinc-400 hover:text-zinc-100 hover:bg-white/[0.08]` | |
+| 에러 아이콘 | `bg-red-500/20 text-red-400` | Status 색상 |
+| 경고 아이콘 | `bg-amber-500/20 text-amber-400` | Status 색상 |
+
+### 13.7 Loading & Typing States
+
+| 요소 | 값 | 비고 |
+|------|----|------|
+| 로딩 카드 배경 | `bg-white/[0.03]` | 카드 패턴 |
+| 로딩 카드 테두리 | `border border-white/[0.06]` | 카드 테두리 |
+| 스켈레톤 | `bg-white/[0.06] animate-pulse` | 기존 Skeleton 패턴 |
+| 타이핑 인디케이터 점 | `w-2 h-2 bg-zinc-400 animate-bounce` | |
+| 타이핑 텍스트 | `text-xs text-zinc-400` | |
+
+### 13.8 QuestionAnswer Card (세션 상세 내 메시지)
+
+| 요소 | 값 | 비고 |
+|------|----|------|
+| 유저 메시지 배경 | `bg-white/[0.03]` | 카드 패턴 |
+| AI 메시지 배경 | `bg-violet-500/5` | AI 시맨틱 색상의 약한 배경 |
+| AI 메시지 테두리 | `border border-violet-500/10` | AI 시맨틱 색상의 약한 테두리 |
+| 유저 아이콘 박스 | `bg-white/[0.06]` | 아이콘 박스 패턴 |
+| AI 아이콘 박스 | `bg-violet-500/20` | AI 시맨틱 색상 |
+
+---
+
+## 14. File Structure
 
 ```
 src/

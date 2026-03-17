@@ -24,7 +24,7 @@ export function ErrorPopup() {
 
   return (
     <Dialog open={showErrorPopup} onOpenChange={handleClose}>
-      <DialogContent className="sm:max-w-md bg-zinc-900 border-zinc-800">
+      <DialogContent className="sm:max-w-md bg-[#050507] border-white/[0.06]">
         <DialogHeader className="text-center sm:text-center">
           <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-red-500/20">
             <AlertTriangle className="h-6 w-6 text-red-500" />
@@ -44,7 +44,7 @@ export function ErrorPopup() {
         <DialogFooter className="mt-4">
           <Button
             onClick={handleClose}
-            className="w-full bg-zinc-700 hover:bg-zinc-600 text-white"
+            className="w-full bg-white/[0.06] hover:bg-white/[0.12] text-white"
           >
             확인
           </Button>

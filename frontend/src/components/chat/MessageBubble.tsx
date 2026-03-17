@@ -31,12 +31,12 @@ export function MessageBubble({ message }: MessageBubbleProps) {
           {isUser ? (
             <>
               <AvatarImage src={user?.image || ""} alt={user?.name || ""} />
-              <AvatarFallback className="bg-zinc-600 text-white">
+              <AvatarFallback className="bg-white/[0.06] text-white border border-white/[0.06]">
                 <User className="w-4 h-4" />
               </AvatarFallback>
             </>
           ) : (
-            <AvatarFallback className="bg-white/10 text-white backdrop-blur-sm border border-white/20">
+            <AvatarFallback className="bg-violet-500/20 text-violet-400 border border-white/[0.06]">
               <Bot className="w-4 h-4" />
             </AvatarFallback>
           )}
@@ -44,13 +44,13 @@ export function MessageBubble({ message }: MessageBubbleProps) {
 
         {/* Message Content */}
         {isUser ? (
-          <Card className="p-3 shadow-sm bg-zinc-700 text-white border-zinc-600">
+          <Card className="p-3 shadow-sm bg-white/[0.06] text-white border-white/[0.06]">
             <div className="text-sm break-words prose prose-invert prose-sm max-w-none">
               <ReactMarkdown>{message.content}</ReactMarkdown>
             </div>
             
             {/* Timestamp */}
-            <div className="text-xs mt-2 opacity-70 text-zinc-300">
+            <div className="text-xs mt-2 text-zinc-500">
               {message.timestamp.toLocaleTimeString([], { 
                 hour: '2-digit', 
                 minute: '2-digit' 
@@ -66,7 +66,7 @@ export function MessageBubble({ message }: MessageBubbleProps) {
                 {/* 스트리밍 인디케이터 */}
                 {message.isStreaming && (
                   <div className="text-center">
-                    <span className="inline-block w-2 h-4 bg-blue-400 animate-pulse rounded" />
+                    <span className="inline-block w-2 h-4 bg-violet-400 animate-pulse rounded" />
                   </div>
                 )}
               </div>
@@ -80,7 +80,7 @@ export function MessageBubble({ message }: MessageBubbleProps) {
             )}
 
             {/* Timestamp */}
-            <div className="text-xs mt-2 opacity-70 text-zinc-400">
+            <div className="text-xs mt-2 text-zinc-500">
               {message.timestamp.toLocaleTimeString([], {
                 hour: '2-digit',
                 minute: '2-digit'

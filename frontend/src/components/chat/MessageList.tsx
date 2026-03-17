@@ -31,8 +31,8 @@ export function MessageList() {
       <div className="flex-1 flex items-center justify-center p-8">
         <div className="p-8 text-center max-w-md">
           <div className="mb-6">
-            <div className="w-16 h-16 mx-auto bg-white/10 backdrop-blur-sm rounded-full flex items-center justify-center border border-white/20">
-              <Bot className="w-8 h-8 text-white" />
+            <div className="w-16 h-16 mx-auto bg-violet-500/20 rounded-full flex items-center justify-center border border-white/[0.06]">
+              <Bot className="w-8 h-8 text-violet-400" />
             </div>
           </div>
           <h3 className="text-xl font-semibold text-white mb-3">
@@ -47,13 +47,13 @@ export function MessageList() {
           <div className="space-y-3">
             <p className="text-xs text-zinc-500 font-medium uppercase tracking-wider">Sample questions:</p>
             <div className="space-y-2 text-sm">
-              <div className="bg-white/5 backdrop-blur-sm border border-white/10 rounded-lg p-3 text-zinc-300 hover:bg-white/10 transition-colors cursor-pointer">
+              <div className="bg-white/[0.03] border border-white/[0.06] rounded-lg p-3 text-zinc-300 hover:bg-white/[0.05] transition-colors cursor-pointer">
                 {`"What are Jon Jones' key techniques?"`}
               </div>
-              <div className="bg-white/5 backdrop-blur-sm border border-white/10 rounded-lg p-3 text-zinc-300 hover:bg-white/10 transition-colors cursor-pointer">
+              <div className="bg-white/[0.03] border border-white/[0.06] rounded-lg p-3 text-zinc-300 hover:bg-white/[0.05] transition-colors cursor-pointer">
                 {`"What was UFC 300's main event?"`}
               </div>
-              <div className="bg-white/5 backdrop-blur-sm border border-white/10 rounded-lg p-3 text-zinc-300 hover:bg-white/10 transition-colors cursor-pointer">
+              <div className="bg-white/[0.03] border border-white/[0.06] rounded-lg p-3 text-zinc-300 hover:bg-white/[0.05] transition-colors cursor-pointer">
                 {`"Explain Brazilian Jiu-Jitsu basics"`}
               </div>
             </div>
@@ -64,8 +64,8 @@ export function MessageList() {
   }
 
   return (
-    <ScrollArea className="flex-1 bg-gradient-to-br from-zinc-900 via-gray-900 to-slate-900" ref={scrollAreaRef}>
-      <div className="p-4 max-w-4xl mx-auto min-h-full bg-gradient-to-br from-zinc-900 via-gray-900 to-slate-900">
+    <ScrollArea className="flex-1" ref={scrollAreaRef}>
+      <div className="p-4 max-w-4xl mx-auto min-h-full">
         {messages.map((message) => (
           <MessageBubble key={message.id} message={message} />
         ))}

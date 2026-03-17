@@ -67,19 +67,19 @@ export function MessageInput({
           disabled={isDisabled}
           className={cn(
             "h-full min-w-0 flex-1 resize-none overflow-hidden rounded-lg rounded-r-none border-none",
-            "bg-zinc-800 px-4 pr-2 text-base font-normal leading-normal text-white placeholder:text-zinc-400",
+            "bg-white/[0.03] px-4 pr-2 text-base font-normal leading-normal text-zinc-100 placeholder:text-zinc-500",
             "focus:border-none focus:outline-0 focus:ring-0",
             isDisabled && "opacity-50 cursor-not-allowed"
           )}
         />
-        <div className="flex items-center justify-center rounded-r-lg border-l-0 bg-zinc-800 !pr-2 pr-4">
+        <div className="flex items-center justify-center rounded-r-lg border-l-0 bg-white/[0.03] !pr-2 pr-4">
           <div className="flex items-center justify-end gap-4">
             <div className="flex items-center gap-1">
               <button
                 onClick={handleSend}
                 disabled={!canSend}
                 className={cn(
-                  "flex items-center justify-center p-1.5 text-zinc-400 hover:text-white transition-colors",
+                  "flex items-center justify-center p-1.5 text-zinc-400 hover:text-zinc-100 transition-colors",
                   !canSend && "opacity-50 cursor-not-allowed"
                 )}
               >

@@ -16,13 +16,13 @@ interface QuestionAnswerCardProps {
 export function QuestionAnswerCard({ userQuestion, onClick }: QuestionAnswerCardProps) {
   return (
     <Card
-      className="bg-zinc-800/50 backdrop-blur-sm border-zinc-700 hover:bg-zinc-800/70 hover:border-zinc-600 transition-all duration-300 cursor-pointer group"
+      className="bg-white/[0.03] border-white/[0.06] hover:bg-white/[0.05] hover:border-white/[0.12] transition-all duration-300 ease-out cursor-pointer group rounded-xl"
       onClick={onClick}
     >
       <CardContent className="p-6">
         <div className="flex items-start gap-3">
-          <div className="w-10 h-10 shrink-0 rounded-full bg-zinc-700 flex items-center justify-center">
-            <MessageSquare className="w-5 h-5 text-zinc-300" />
+          <div className="w-10 h-10 shrink-0 rounded-full bg-white/[0.06] flex items-center justify-center">
+            <MessageSquare className="w-5 h-5 text-zinc-400" />
           </div>
           <div className="flex-1">
             <div className="flex items-center justify-between mb-2">
