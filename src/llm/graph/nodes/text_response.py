@@ -72,7 +72,6 @@ async def text_response_node(state: MMAGraphState, llm) -> dict:
 
         if parsed:
             viz_data = parsed.get("visualization_data", {})
-            insights = parsed.get("insights", [])
             content = viz_data.get("content", response_text)
 
             LOGGER.info(f"✅ Text response generated: {len(content)} chars")
@@ -80,7 +79,7 @@ async def text_response_node(state: MMAGraphState, llm) -> dict:
             return {
                 "visualization_type": "text_summary",
                 "visualization_data": viz_data,
-                "insights": insights,
+                "insights": [],
                 "final_response": content,
                 "messages": [AIMessage(content=content)],
             }
