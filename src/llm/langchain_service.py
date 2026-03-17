@@ -2,30 +2,16 @@
 LangChain 기반 LLM 서비스 V2 - 리팩토링된 버전
 모듈화된 아키텍처로 다양한 LLM 프로바이더 지원 및 향상된 성능 모니터링
 """
-import os
-import asyncio
 import uuid
 import time
-from typing import List, Dict, Any, Optional, AsyncGenerator, Tuple
-from datetime import datetime
+from typing import Dict, Any, Optional, AsyncGenerator, Tuple
 from traceback import format_exc
-
-from langchain_core.messages import AIMessage, HumanMessage
 
 from config import Config
 from llm.model_factory import create_llm_with_callbacks, get_available_providers
 from llm.agent_manager import AgentManager
 from llm.exceptions import LLMException
-from llm.stream_processor import (
-    extract_safe_text_content,
-    clean_response_content,
-    create_final_result,
-    create_error_response,
-    validate_streaming_chunk
-)
-from common.utils import remove_timestamps_from_tool_result
-from conversation.message_manager import ChatHistory
-from database.connection.postgres_conn import get_async_db_context
+from llm.stream_processor import validate_streaming_chunk
 from common.logging_config import get_logger
 from common.utils import utc_now
 
@@ -37,21 +23,14 @@ class LangChainLLMService:
     LangChain LLM 서비스 V2 - 모듈화된 아키텍처
     """
 
-    def __init__(self, max_cache_size: int = 5, provider: Optional[str] = None):
+    def __init__(self, provider: Optional[str] = None):
         """
         서비스 초기화
 
         Args:
-            max_cache_size: 히스토리 캐시 크기
             provider: 사용할 LLM 프로바이더 (None이면 Config에서 결정)
         """
-        # 데이터베이스 세션 팩토리 저장 (ChatHistory 생성시 사용)
-        self.async_db_session_factory = get_async_db_context
-        self.max_cache_size = max_cache_size
-
         self.agent_manager = AgentManager()
-
-        # LLM 프로바이더 설정
         self.provider = provider or Config.LLM_PROVIDER
 
     async def generate_streaming_chat_response(
@@ -62,13 +41,8 @@ class LangChainLLMService:
         provider_override: Optional[str] = None
     ) -> AsyncGenerator[Dict[str, Any], None]:
         """
-        사용자 메시지에 대한 스트리밍 채팅 응답 생성 메인 진입점
-
-        Args:
-            user_message: 사용자 메시지
-            conversation_id: 세션 ID
-            user_id: 사용자 ID
-            provider_override: 프로바이더 오버라이드
+        사용자 메시지에 대한 스트리밍 채팅 응답 생성
+        1질문-1응답 구조: 히스토리 없이 매번 독립 실행
 
         Yields:
             Dict[str, Any]: 스트리밍 응답 청크들
@@ -76,217 +50,85 @@ class LangChainLLMService:
         message_id = str(uuid.uuid4())
         start_time = time.time()
 
-        # 필수 매개변수 검증
-        validation_error = await self._validate_streaming_parameters(conversation_id, user_id, message_id)
-        if validation_error:
-            yield validation_error
+        if not user_id:
+            LOGGER.error("User ID is required for streaming chat response")
+            yield {
+                "type": "error",
+                "error": "User ID is required",
+                "message_id": message_id,
+                "conversation_id": conversation_id,
+                "timestamp": utc_now().isoformat()
+            }
             return
 
         try:
-            # 채팅 히스토리 로드
-            history_result = await self._load_chat_history(conversation_id, user_id, message_id)
-            if isinstance(history_result, dict):  # 에러 응답인 경우
-                yield history_result
-                return
-            history = history_result
+            # LLM + 콜백 생성
+            selected_provider = provider_override or self.provider
+            llm, callback_handler = create_llm_with_callbacks(
+                message_id=message_id,
+                conversation_id=conversation_id,
+                provider=selected_provider
+            )
+            LOGGER.info(f"🤖 Using provider: {selected_provider}")
 
-            # Two-Phase 시스템 설정
-            llm, callback_handler, valid_chat_history = await self._setup_two_phase_system(
-                provider_override, message_id, conversation_id, history
+            # Phase 1 시작 신호
+            LOGGER.info("🚀 Starting Two-Phase execution...")
+            yield {
+                "type": "phase_start",
+                "phase": 1,
+                "description": "Analyzing query and collecting data",
+                "message_id": message_id,
+                "conversation_id": conversation_id,
+                "timestamp": utc_now().isoformat()
+            }
+
+            # Agent Two-Step 실행 + 결과 처리
+            result, execution_time = await self._execute_agent_two_step(
+                user_message, llm, callback_handler
             )
 
-            # 스트리밍 응답 실행
-            async for chunk in self._execute_streaming_response(
-                user_message, valid_chat_history, llm, callback_handler,
-                history, message_id, conversation_id, user_id
+            async for chunk in self._process_agent_result(
+                result, execution_time, message_id, conversation_id
             ):
-                yield chunk
+                if validate_streaming_chunk(chunk):
+                    yield chunk
+                else:
+                    LOGGER.warning(f"⚠️ Invalid streaming chunk filtered: {chunk}")
 
-        except Exception as e:
-            LOGGER.error(f"❌ Main execution error: {e}")
+        except LLMException as e:
+            LOGGER.error(f"❌ LLM execution failed: {e}")
             LOGGER.error(format_exc())
             yield {
+                "type": "error_response",
+                "error": True,
+                "error_class": e.error_class,
+                "traceback": format_exc(),
+                "message_id": message_id,
+                "conversation_id": conversation_id,
+                "timestamp": utc_now().isoformat()
+            }
+
+        except Exception as e:
+            LOGGER.error(f"❌ Execution error: {e}")
+            LOGGER.error(format_exc())
+            error_message = str(e)
+            if "rate_limit_error" in error_message or "429" in error_message:
+                LOGGER.warning("🚫 Rate limit exceeded")
+                error_message = "API 호출 한도를 초과했습니다. 잠시 후 다시 시도해주세요."
+            yield {
                 "type": "error",
-                "error": str(e),
+                "error": error_message,
                 "message_id": message_id,
                 "conversation_id": conversation_id,
                 "timestamp": utc_now().isoformat()
             }
 
         finally:
-            # 총 실행 시간 로깅
             total_time = time.time() - start_time
             LOGGER.info(f"⏱️ Total streaming function took: {total_time:.3f}s")
 
-    async def _validate_streaming_parameters(
-        self, conversation_id: Optional[int], user_id: Optional[int], message_id: str
-    ) -> Optional[Dict[str, Any]]:
-        """스트리밍 매개변수 검증"""
-        if not conversation_id:
-            LOGGER.error("Session ID is required for streaming chat response")
-            return create_error_response(
-                ValueError("Session ID is required"),
-                "unknown",
-                "unknown"
-            )
-
-        if not user_id:
-            LOGGER.error("User ID is required for streaming chat response")
-            return create_error_response(
-                ValueError("User ID is required"),
-                "unknown",
-                conversation_id
-            )
-
-        return None
-
-    async def _load_chat_history(
-        self, conversation_id : int, user_id: int, message_id: str
-    ) -> Any:
-        """채팅 히스토리 로드 및 에러 처리"""
-        try:
-            history_start = time.time()
-            # 매번 새로운 ChatHistory 인스턴스 생성 (새 conversation이므로)
-            history = ChatHistory(
-                conversation_id=conversation_id,
-                user_id=user_id,
-                async_db_session_factory=self.async_db_session_factory,
-                max_cache_size=self.max_cache_size
-            )
-            # 초기 로드
-            await history._ensure_loaded()
-            history_time = time.time() - history_start
-            LOGGER.info(f"⏱️ History loading: {history_time:.3f}s")
-            LOGGER.info(f"📚 Loaded {len(history.messages)} messages from cache")
-            return history
-
-        except Exception as e:
-            LOGGER.error(f"❌ Error loading chat history: {e}")
-            LOGGER.error(format_exc())
-            return {
-                "type": "error",
-                "error": f"Failed to load chat history: {str(e)}",
-                "message_id": message_id,
-                "conversation_id": conversation_id,
-                "timestamp": utc_now().isoformat()
-            }
-
-    async def _setup_two_phase_system(
-        self, provider_override: Optional[str], message_id: str,
-        conversation_id : int, history: Any
-    ) -> Tuple[Any, Any, List]:
-        """Two-Phase 시스템 설정"""
-        # LLM 및 콜백 생성
-        selected_provider = provider_override or self.provider
-        llm, callback_handler = create_llm_with_callbacks(
-            message_id=message_id,
-            conversation_id=conversation_id,
-            provider=selected_provider
-        )
-        LOGGER.info(f"🤖 Using provider for Two-Phase: {selected_provider}")
-
-        # 히스토리 검증
-        valid_chat_history = history.messages if hasattr(history, 'messages') else []
-        LOGGER.info(f"📚 Using {len(valid_chat_history)} valid messages for Two-Phase context")
-        LOGGER.info(f"🔧 Two-Phase system ready with ReAct agent and OpenRouter")
-
-        return llm, callback_handler, valid_chat_history
-
-    async def _execute_streaming_response(
-        self, user_message: str, chat_history: List, llm: Any,
-        callback_handler: Any, history: Any, message_id: str,
-        conversation_id : int, user_id: int
-    ) -> AsyncGenerator[Dict[str, Any], None]:
-        """스트리밍 응답 실행 및 검증"""
-        try:
-            async for chunk in self._execute_two_phase_with_streaming(
-                user_message=user_message,
-                chat_history=chat_history,
-                llm=llm,
-                callback_handler=callback_handler,
-                history=history,
-                message_id=message_id,
-                conversation_id=conversation_id,
-                user_id=user_id
-            ):
-                # 청크 유효성 검사
-                if validate_streaming_chunk(chunk):
-                    yield chunk
-                else:
-                    LOGGER.warning(f"⚠️ Invalid streaming chunk filtered: {chunk}")
-
-        except Exception as e:
-            LOGGER.error(f"❌ Error setting up Two-Phase system: {e}")
-            LOGGER.error(format_exc())
-            yield {
-                "type": "error",
-                "error": f"Failed to setup Two-Phase system: {str(e)}",
-                "message_id": message_id,
-                "conversation_id": conversation_id,
-                "timestamp": utc_now().isoformat(),
-                "two_phase_system": True
-            }
-
-    async def _execute_two_phase_with_streaming(
-        self,
-        user_message: str,
-        chat_history: List,
-        llm,
-        callback_handler,
-        history,
-        message_id: str,
-        conversation_id : int,
-        user_id: Optional[int] = None
-    ) -> AsyncGenerator[Dict[str, Any], None]:
-        """
-        Two-Phase 시스템 실행 및 스트리밍 처리 메인 진입점
-        """
-        try:
-            # Two-Phase 실행 준비 및 Phase start 신호
-            async for chunk in self._prepare_two_phase_execution(
-                user_message, history, message_id, conversation_id
-            ):
-                yield chunk
-
-            # Agent Two-Step 실행
-            result, execution_time = await self._execute_agent_two_step(
-                user_message, chat_history, llm, callback_handler
-            )
-
-            # Agent 실행 결과 처리 및 히스토리 저장
-            async for chunk in self._process_agent_result(
-                result, history, execution_time, message_id, conversation_id
-            ):
-                yield chunk
-
-        except Exception as e:
-            LOGGER.error(f"❌ Two-Phase streaming error: {e}")
-            error_response = self._handle_two_phase_error(e, message_id, conversation_id)
-            yield error_response
-
-    async def _prepare_two_phase_execution(
-        self, user_message: str, history: Any, message_id: str, conversation_id : int
-    ) -> AsyncGenerator[Dict[str, Any], None]:
-        """Two-Phase 실행 준비 및 Phase start 신호"""
-        LOGGER.info("🚀 Starting Two-Phase execution...")
-
-        # 사용자 메시지를 히스토리에 추가
-        user_msg = HumanMessage(content=user_message)
-        history.add_message(user_msg)
-
-        # Phase 1: Understanding and Collection
-        LOGGER.info("📝 Phase 1: Understanding and Collection")
-        yield {
-            "type": "phase_start",
-            "phase": 1,
-            "description": "Analyzing query and collecting data",
-            "message_id": message_id,
-            "conversation_id": conversation_id,
-            "timestamp": utc_now().isoformat()
-        }
-
     async def _execute_agent_two_step(
-        self, user_message: str, chat_history: List, llm: Any, callback_handler: Any
+        self, user_message: str, llm: Any, callback_handler: Any
     ) -> Tuple[Dict[str, Any], float]:
         """Agent Two-Step 실행 및 시간 측정"""
         two_phase_start = time.time()
@@ -295,30 +137,26 @@ class LangChainLLMService:
             user_query=user_message,
             llm=llm,
             callback_handler=callback_handler,
-            chat_history=chat_history
+            chat_history=[]
         )
 
-        # 에러 체크 - agent_manager에서 반환된 에러 응답 처리
-        if result.get("error"):
-            # error 필드가 truthy이면 에러로 처리, 필드 정규화
-            if "error_class" not in result:
-                result["error"] = True
-                result["error_class"] = "UnexpectedException"
-                result["traceback"] = result.get("error_details", {}).get("traceback", "")
-            execution_time = time.time() - two_phase_start
-            return result, execution_time
+        # agent_manager에서 반환된 에러 응답 필드 정규화
+        if result.get("error") and "error_class" not in result:
+            result["error"] = True
+            result["error_class"] = "UnexpectedException"
+            result["traceback"] = result.get("error_details", {}).get("traceback", "")
 
         execution_time = time.time() - two_phase_start
-        LOGGER.info("✅ Two-Phase execution completed")
-        LOGGER.info(f"⏱️ Total Two-Phase execution took: {execution_time:.3f}s")
+        if not result.get("error"):
+            LOGGER.info(f"✅ Two-Phase completed in {execution_time:.3f}s")
 
         return result, execution_time
 
     async def _process_agent_result(
-        self, result: Dict[str, Any], history: Any, execution_time: float,
-        message_id: str, conversation_id : int
+        self, result: Dict[str, Any], execution_time: float,
+        message_id: str, conversation_id: int
     ) -> AsyncGenerator[Dict[str, Any], None]:
-        """Agent 실행 결과 처리 및 히스토리 저장"""
+        """Agent 실행 결과 처리"""
         # 에러 응답인 경우 바로 반환
         if result.get("error"):
             yield {
@@ -333,61 +171,14 @@ class LangChainLLMService:
             }
             return
 
-        # AI 응답을 히스토리에 추가 (시각화 정보는 저장하지 않고 간단한 요약만)
-        summary_content = f"MMA 데이터 분석 완료: {result.get('visualization_type', 'unknown')} 차트, {result.get('row_count', 0)}개 데이터"
-        ai_message = AIMessage(
-            content=summary_content,
-            additional_kwargs={
-                "two_phase_system": True,
-                "visualization_type": result.get('visualization_type'),
-                "row_count": result.get('row_count', 0)
-            }
-        )
-        history.add_message(ai_message)
-
         # 최종 결과 반환
         yield {
-            **result,  # process_two_step의 결과 그대로 사용
+            **result,
             "type": "final_result",
             "message_id": message_id,
             "conversation_id": conversation_id,
             "timestamp": utc_now().isoformat(),
             "total_execution_time": execution_time
-        }
-
-    def _handle_two_phase_error(
-        self, error: Exception, message_id: str, conversation_id : int
-    ) -> Dict[str, Any]:
-        """Two-Phase 에러 처리 (LLMException 구조화 포함)"""
-        LOGGER.error(f"❌ Two-Phase execution failed: {error}")
-        LOGGER.error(format_exc())
-
-        # LLMException인 경우 구조화된 에러 응답 반환
-        if isinstance(error, LLMException):
-            return {
-                "type": "error_response",
-                "error": True,
-                "error_class": error.error_class,
-                "traceback": format_exc(),
-                "message_id": message_id,
-                "conversation_id": conversation_id,
-                "timestamp": utc_now().isoformat(),
-                "two_phase_system": True
-            }
-
-        # 일반 Exception 처리 (Rate limit 등)
-        error_message = str(error)
-        if "rate_limit_error" in error_message or "429" in error_message:
-            LOGGER.warning("🚫 Rate limit exceeded - reducing token usage recommended")
-            error_message = "API 호출 한도를 초과했습니다. 잠시 후 다시 시도해주세요."
-
-        return {
-            "type": "error",
-            "error": error_message,
-            "message_id": message_id,
-            "conversation_id": conversation_id,
-            "timestamp": utc_now().isoformat(),
-            "two_phase_system": True
         }
 
     def get_conversation_starter(self) -> str:
@@ -457,15 +248,13 @@ _langchain_service_v2 = None
 
 
 async def get_langchain_service(
-    provider: Optional[str] = None,
-    max_cache_size: int = 5
+    provider: Optional[str] = None
 ) -> LangChainLLMService:
     """
     글로벌 LangChain 서비스 V2 인스턴스 반환
 
     Args:
         provider: LLM 프로바이더 (새 인스턴스 생성 시에만 적용)
-        max_cache_size: 캐시 크기 (새 인스턴스 생성 시에만 적용)
 
     Returns:
         LangChainLLMService: 서비스 인스턴스
@@ -474,7 +263,6 @@ async def get_langchain_service(
 
     if _langchain_service_v2 is None:
         _langchain_service_v2 = LangChainLLMService(
-            max_cache_size=max_cache_size,
             provider=provider
         )
         LOGGER.info("✅ Two-Phase LangChain service V2 created")

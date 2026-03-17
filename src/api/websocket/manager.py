@@ -5,7 +5,7 @@ WebSocket 연결 관리자
 import json
 import uuid
 import asyncio
-from typing import Dict, List, Optional, Set, Tuple, Any
+from typing import Dict, Optional, Set, Any
 from traceback import format_exc
 
 from fastapi import WebSocket
@@ -16,7 +16,7 @@ from user.services import check_usage_limit, get_user_usage
 from conversation.services import get_or_create_session
 from llm.langchain_service import get_langchain_service, LangChainLLMService
 from common.logging_config import get_logger
-from common.utils import utc_now, parse_visualization_from_content
+from common.utils import utc_now
 
 LOGGER = get_logger(__name__)
 
@@ -58,53 +58,6 @@ class ConnectionManager:
         finally:
             self._initializing = False
 
-    
-    def _process_tool_result(self, result):
-        """
-        Tool 결과를 처리하여 created_at, updated_at 필드를 제거하고 구조화된 형태로 반환
-        """
-        
-        try:
-            # 결과가 문자열인 경우 JSON으로 파싱 시도
-            if isinstance(result, str):
-                try:
-                    parsed_result = json.loads(result)
-                except json.JSONDecodeError:
-                    # JSON이 아닌 경우 원본 문자열 반환 (길이 제한)
-                    return result[:500] + "..." if len(str(result)) > 500 else str(result)
-            else:
-                parsed_result = result
-            
-            # 리스트인 경우 각 항목에서 timestamp 필드들 제거
-            if isinstance(parsed_result, list):
-                cleaned_result = []
-                for item in parsed_result:
-                    if isinstance(item, dict):
-                        # created_at, updated_at 필드 제거
-                        cleaned_item = {k: v for k, v in item.items() 
-                                      if k not in ['created_at', 'updated_at']}
-                        cleaned_result.append(cleaned_item)
-                    else:
-                        cleaned_result.append(item)
-                return cleaned_result
-            
-            # 딕셔너리인 경우 timestamp 필드들 제거
-            elif isinstance(parsed_result, dict):
-                return {k: v for k, v in parsed_result.items() 
-                       if k not in ['created_at', 'updated_at']}
-            
-            # 기타 타입은 원본 반환
-            else:
-                result_str = str(parsed_result)
-                return result_str[:500] + "..." if len(result_str) > 500 else result_str
-                
-        except Exception as e:
-            LOGGER.warning(f"⚠️ Error processing tool result: {e}")
-            LOGGER.error(format_exc())
-            # 에러 발생 시 원본 문자열 반환 (길이 제한)
-            result_str = str(result)
-            return result_str[:500] + "..." if len(result_str) > 500 else result_str
-    
     async def connect(
         self,
         websocket: WebSocket,
@@ -256,7 +209,7 @@ class ConnectionManager:
     ) -> None:
         """
         사용자 메시지 처리 메인 진입점
-        스트리밍 방식으로 LLM 응답을 실시간 전송
+        1질문-1응답 구조: LLM 성공 후에만 세션 생성 + 메시지 저장
         """
         try:
             # 검증 단계
@@ -267,13 +220,12 @@ class ConnectionManager:
             if not is_within_limit:
                 return  # 제한 초과 시 처리 중단
 
-            content, conversation_id = await self._validate_message_data(connection_id, message_data)
-            validated_conversation_id = await self._validate_or_create_session(db, user.id, conversation_id, content)
+            content = await self._validate_message_data(connection_id, message_data)
 
-            # 응답 처리 (메시지 저장은 LLM 성공 후에만 수행)
-            await self._send_message_acknowledgment(connection_id, validated_conversation_id)
+            # 세션 생성 없이 바로 LLM 처리 (성공 후에만 DB 저장)
+            await self._send_typing_indicator(connection_id)
             await self._process_llm_streaming_response(
-                connection_id, content, validated_conversation_id, user.id, db
+                connection_id, content, user.id, db
             )
 
         except Exception as e:
@@ -324,10 +276,9 @@ class ConnectionManager:
             # 제한 체크 실패 시 안전하게 허용 (서비스 중단 방지)
             return True
 
-    async def _validate_message_data(self, connection_id: str, message_data: Dict[str, Any]) -> Tuple[str, Optional[int]]:
-        """메시지 내용과 대화 ID 검증"""
+    async def _validate_message_data(self, connection_id: str, message_data: Dict[str, Any]) -> str:
+        """메시지 내용 검증"""
         content = message_data.get("content", "").strip()
-        conversation_id = message_data.get("conversation_id")
 
         if not content:
             LOGGER.warning(f"❌ Empty message content from {connection_id}")
@@ -338,36 +289,10 @@ class ConnectionManager:
             })
             raise ValueError("Message content is required")
 
-        return content, conversation_id
+        return content
 
-    async def _validate_or_create_session(
-        self,
-        db: AsyncSession,
-        user_id: int,
-        conversation_id: Optional[int],
-        content: str
-    ) -> int:
-        """매번 새로운 conversation 생성 (질문-응답 쌍별로)"""
-        # 기존 세션 검증 로직 제거 - 항상 새 conversation 생성
-        session_response = await get_or_create_session(
-            db=db,
-            user_id=user_id,
-            content=content
-        )
-        LOGGER.info(f"✅ New conversation created for each question: conversation_id={session_response.id}")
-        return session_response.id
-
-    async def _send_message_acknowledgment(self, connection_id: str, conversation_id: int) -> None:
-        """메시지 수신 확인 및 타이핑 상태 시작"""
-        # 메시지 수신 확인
-        await self.send_to_connection(connection_id, {
-            "type": "message_received",
-            "message_id": str(uuid.uuid4()),
-            "conversation_id": conversation_id,
-            "timestamp": utc_now().isoformat()
-        })
-
-        # 타이핑 상태 시작
+    async def _send_typing_indicator(self, connection_id: str) -> None:
+        """타이핑 상태 시작"""
         await self.send_to_connection(connection_id, {
             "type": "typing",
             "is_typing": True,
@@ -378,64 +303,65 @@ class ConnectionManager:
         self,
         connection_id: str,
         content: str,
-        conversation_id: int,
         user_id: int,
         db: AsyncSession
     ) -> None:
-        """LLM 스트리밍 응답 처리"""
+        """
+        LLM 스트리밍 응답 처리
+        1질문-1응답 구조: conversation_id 없이 LLM 처리 후 성공 시에만 DB 저장
+        """
         # LLM 서비스 초기화 확인
         await self._ensure_llm_service()
 
         assistant_content = ""
         assistant_message_id = str(uuid.uuid4())
-        chunk_count = 0
         has_error = False
+        final_result_chunk = None  # 성공 후 실제 conversation_id와 함께 전송하기 위해 보류
 
         async for chunk in self.llm_service.generate_streaming_chat_response(
             user_message=content,
-            conversation_id=conversation_id,
+            conversation_id=0,  # placeholder — 1질문-1응답이므로 히스토리 항상 비어있음
             user_id=user_id
         ):
-            chunk_count += 1
-            LOGGER.info(f"📦 Received chunk #{chunk_count}: type={chunk.get('type', 'unknown')}")
-
             chunk_type = chunk.get("type")
-            if chunk_type == "start":
-                await self._handle_start_chunk(connection_id, chunk, assistant_message_id, conversation_id)
-            elif chunk_type == "content":
-                assistant_content += await self._handle_content_chunk(connection_id, chunk, assistant_message_id, conversation_id)
+
+            if chunk_type == "content":
+                assistant_content += await self._handle_content_chunk(
+                    connection_id, chunk, assistant_message_id, 0
+                )
             elif chunk_type == "final_result":
-                await self._handle_final_result_chunk(connection_id, chunk, assistant_message_id, conversation_id)
-            elif chunk_type == "end":
-                await self._handle_end_chunk(connection_id, chunk, assistant_message_id, conversation_id, len(assistant_content))
-            elif chunk_type == "error":
+                # 프론트엔드 전송 보류 — 성공 후 실제 conversation_id와 함께 전송
+                final_result_chunk = chunk
+            elif chunk_type in ("error", "error_response"):
                 has_error = True
-                await self._handle_error_chunk(connection_id, chunk, assistant_message_id, conversation_id)
-            elif chunk_type == "error_response":
-                has_error = True
-                await self._handle_error_response_chunk(connection_id, chunk, assistant_message_id, conversation_id)
+                if chunk_type == "error":
+                    await self._handle_error_chunk(connection_id, chunk, assistant_message_id, 0)
+                else:
+                    await self._handle_error_response_chunk(connection_id, chunk, assistant_message_id, 0)
 
-        # 에러가 없었을 때만 사용자 메시지 저장
-        print(f"(has_error: {has_error})")
-        print(f"(has error type : {type(has_error)}")
-        if not has_error:
-            await self._save_user_message(db, conversation_id, user_id, content)
-            print("(saved user message)")
+        # 성공 시: 세션 생성 → 메시지 저장 → 프론트엔드에 결과 전송
+        if not has_error and final_result_chunk:
+            conversation_id = await self._save_successful_conversation(
+                db, user_id, content, final_result_chunk, connection_id
+            )
 
-    async def _handle_start_chunk(
-        self,
-        connection_id: str,
-        chunk: Dict[str, Any],
-        assistant_message_id: str,
-        conversation_id: int
-    ) -> None:
-        """응답 시작 청크 처리"""
-        await self.send_to_connection(connection_id, {
-            "type": "response_start",
-            "message_id": assistant_message_id,
-            "conversation_id": conversation_id,
-            "timestamp": chunk["timestamp"]
-        })
+            # final_result를 실제 conversation_id로 프론트엔드에 전송
+            await self._send_final_result(
+                connection_id, final_result_chunk, assistant_message_id, conversation_id
+            )
+
+            # 타이핑 종료 + response_end 전송
+            await self.send_to_connection(connection_id, {
+                "type": "typing",
+                "is_typing": False,
+                "timestamp": utc_now().isoformat()
+            })
+            await self.send_to_connection(connection_id, {
+                "type": "response_end",
+                "message_id": assistant_message_id,
+                "conversation_id": conversation_id,
+                "timestamp": utc_now().isoformat()
+            })
 
     async def _handle_content_chunk(
         self,
@@ -463,14 +389,14 @@ class ConnectionManager:
             LOGGER.error(format_exc())
             raise
 
-    async def _handle_final_result_chunk(
+    async def _send_final_result(
         self,
         connection_id: str,
         chunk: Dict[str, Any],
         assistant_message_id: str,
         conversation_id: int
     ) -> None:
-        """최종 결과 청크 처리 (시각화 데이터 포함)"""
+        """최종 결과를 프론트엔드에 전송 (DB 저장 없음 — 호출자가 처리)"""
         final_content = chunk.get("content", "")
         final_message = {
             "type": "final_result",
@@ -478,7 +404,6 @@ class ConnectionManager:
             "message_id": assistant_message_id,
             "conversation_id": conversation_id,
             "timestamp": chunk["timestamp"],
-            # Frontend에서 사용하는 시각화 데이터
             "visualization_type": chunk.get("visualization_type"),
             "visualization_data": chunk.get("visualization_data"),
             "insights": chunk.get("insights", [])
@@ -492,63 +417,50 @@ class ConnectionManager:
             LOGGER.error(format_exc())
             raise
 
-        # Tool 결과 저장 (기존 로직 유지)
-        if "intermediate_steps" in chunk:
-            await self._process_tool_results(chunk["intermediate_steps"])
-
-        # 최종 어시스턴트 메시지를 데이터베이스에 저장
-        try:
-            user = self.connection_users.get(connection_id)
-            if user and final_content.strip():  # 빈 내용이 아닌 경우에만 저장
-                from conversation.repositories import add_message_to_session
-                from database.connection.postgres_conn import get_async_db
-
-                async for db in get_async_db():
-                    try:
-                        saved_message = await add_message_to_session(
-                            session=db,
-                            conversation_id=conversation_id,
-                            user_id=user.id,
-                            content=final_content,
-                            role="assistant"
-                        )
-                        if saved_message:
-                            LOGGER.info(f"✅ Final assistant message saved to DB: {assistant_message_id}")
-                        else:
-                            LOGGER.warning(f"❌ Failed to save final assistant message: {assistant_message_id}")
-                        break
-                    except Exception as save_error:
-                        LOGGER.error(f"❌ Error saving final message to DB: {save_error}")
-                        LOGGER.error(format_exc())
-            else:
-                LOGGER.warning(f"⚠️ Skipping message save: user={bool(user)}, content_length={len(final_content.strip())}")
-        except Exception as e:
-            LOGGER.error(f"❌ Error in final message save process: {e}")
-            LOGGER.error(format_exc())
-
-    async def _handle_end_chunk(
+    async def _save_successful_conversation(
         self,
-        connection_id: str,
-        chunk: Dict[str, Any],
-        assistant_message_id: str,
-        conversation_id: int,
-        total_content_length: int
-    ) -> None:
-        """응답 종료 청크 처리"""
-        # 타이핑 상태 종료
-        await self.send_to_connection(connection_id, {
-            "type": "typing",
-            "is_typing": False,
-            "timestamp": utc_now().isoformat()
-        })
+        db: AsyncSession,
+        user_id: int,
+        user_content: str,
+        final_result_chunk: Dict[str, Any],
+        connection_id: str
+    ) -> int:
+        """
+        LLM 성공 후 세션 생성 + 사용자/어시스턴트 메시지 일괄 저장
+        Returns: 생성된 conversation_id
+        """
+        from conversation.repositories import add_message_to_session
 
-        # 응답 종료 알림
-        await self.send_to_connection(connection_id, {
-            "type": "response_end",
-            "message_id": assistant_message_id,
-            "conversation_id": conversation_id,
-            "timestamp": chunk["timestamp"]
-        })
+        # 1. 세션 생성
+        session_response = await get_or_create_session(
+            db=db, user_id=user_id, content=user_content
+        )
+        conversation_id = session_response.id
+        LOGGER.info(f"✅ Conversation created after LLM success: conversation_id={conversation_id}")
+
+        # 2. 사용자 메시지 저장
+        await self._save_user_message(db, conversation_id, user_id, user_content)
+
+        # 3. 어시스턴트 메시지 저장
+        final_content = final_result_chunk.get("content", "")
+        if final_content.strip():
+            try:
+                saved = await add_message_to_session(
+                    session=db,
+                    conversation_id=conversation_id,
+                    user_id=user_id,
+                    content=final_content,
+                    role="assistant"
+                )
+                if saved:
+                    LOGGER.info(f"✅ Assistant message saved to DB: conversation_id={conversation_id}")
+                else:
+                    LOGGER.warning(f"❌ Failed to save assistant message: conversation_id={conversation_id}")
+            except Exception as e:
+                LOGGER.error(f"❌ Error saving assistant message: {e}")
+                LOGGER.error(format_exc())
+
+        return conversation_id
 
     async def _handle_error_chunk(
         self,
@@ -599,23 +511,6 @@ class ConnectionManager:
             "conversation_id": conversation_id,
             "timestamp": chunk["timestamp"]
         })
-
-    async def _process_tool_results(self, intermediate_steps: List[Any]) -> None:
-        """Tool 실행 결과 처리"""
-        if not intermediate_steps:
-            return
-
-        tool_info = []
-        for i, step in enumerate(intermediate_steps):
-            if len(step) >= 2:
-                action, result = step
-                processed_result = self._process_tool_result(result)
-
-                tool_info.append({
-                    "tool": getattr(action, 'tool', 'unknown'),
-                    "input": getattr(action, 'tool_input', {}),
-                    "result": processed_result
-                })
 
     async def _save_user_message(self, db: AsyncSession, conversation_id: int, user_id: int, content: str) -> None:
         """사용자 메시지를 데이터베이스에 즉시 저장"""
