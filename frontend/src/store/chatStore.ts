@@ -1,7 +1,7 @@
 import { create } from 'zustand'
 import { ChatStore, Message } from '@/types/chat'
 
-export const useChatStore = create<ChatStore>((set) => ({
+export const useChatStore = create<ChatStore>((set, get) => ({
   messages: [],
   isLoading: false,
   isConnected: false,
@@ -132,8 +132,19 @@ export const useChatStore = create<ChatStore>((set) => ({
   },
 
   // 세션 선택 액션들
-  selectSession: (sessionId) => set({ selectedSessionId: sessionId }),
+  selectSession: (sessionId) => {
+    const session = get().sessions.find(s => s.id === sessionId)
+    set({ selectedSessionId: sessionId, currentSession: session ?? null })
+  },
   deselectSession: () => set({ selectedSessionId: null }),
+  startNewChat: () => set({
+    currentSession: null,
+    selectedSessionId: null,
+    messages: [],
+    currentMessage: "",
+    isLoading: false,
+    isTyping: false,
+  }),
 
   // 사용량 제한 액션들
   setUsageLimit: (info) => set({ usageLimit: info }),

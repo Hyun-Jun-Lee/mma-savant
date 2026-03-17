@@ -33,6 +33,11 @@ export interface ChatMessageResponse {
   role: 'user' | 'assistant'
   timestamp: string
   conversation_id: number
+  tool_results?: Array<{
+    visualization_type?: string
+    visualization_data?: Record<string, unknown>
+    insights?: string[]
+  }>
 }
 
 export interface ChatHistoryResponse {

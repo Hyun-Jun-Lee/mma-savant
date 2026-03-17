@@ -8,7 +8,8 @@ import { useRouter } from 'next/navigation'
 import { useChatStore } from '@/store/chatStore'
 import { ChatApiService } from '@/services/chatApi'
 import { ApiError } from '@/lib/api'
-import { ChatSession, Message } from '@/types/chat'
+import { ChatSession, Message, VisualizationData } from '@/types/chat'
+import { processAssistantResponse } from '@/lib/visualizationParser'
 import { ChatSessionResponse } from '@/types/api'
 
 export function useChatSession() {
@@ -113,12 +114,54 @@ export function useChatSession() {
     setHistoryLoading(true)
     try {
       const response = await ChatApiService.getChatHistory(conversationId, limit, offset)
-      const messages: Message[] = response.messages.map(msg => ({
-        id: msg.id,
-        content: msg.content,
-        role: msg.role,
-        timestamp: new Date(msg.timestamp),
-      }))
+      const validVizTypes = ['table', 'bar_chart', 'pie_chart', 'line_chart', 'area_chart', 'radar_chart', 'scatter_plot', 'horizontal_bar', 'stacked_bar', 'ring_list', 'lollipop_chart'] as const
+
+      const messages: Message[] = response.messages.map(msg => {
+        if (msg.role === 'assistant') {
+          // 1) tool_results 우선 (StateGraph 응답)
+          const tr = msg.tool_results?.[0]
+          if (tr?.visualization_type && tr?.visualization_data) {
+            const vizData: VisualizationData | null = validVizTypes.includes(tr.visualization_type as typeof validVizTypes[number])
+              ? {
+                  selected_visualization: tr.visualization_type as VisualizationData['selected_visualization'],
+                  visualization_data: {
+                    title: String((tr.visualization_data as Record<string, unknown>).title || "분석 결과"),
+                    data: ((tr.visualization_data as Record<string, unknown>).data || tr.visualization_data) as Record<string, string | number>[],
+                    x_axis: (tr.visualization_data as Record<string, unknown>).x_axis as string | undefined,
+                    y_axis: (tr.visualization_data as Record<string, unknown>).y_axis as string | undefined,
+                  },
+                  insights: tr.insights || [],
+                }
+              : null
+            return {
+              id: msg.id,
+              content: msg.content,
+              role: msg.role as 'user' | 'assistant',
+              timestamp: new Date(msg.timestamp),
+              visualizationData: vizData,
+            }
+          }
+          // 2) fallback: content에서 시각화 파싱 (레거시)
+          const { visualizationData, textContent } = processAssistantResponse(msg.content)
+          let finalContent = textContent || ''
+          if (finalContent.includes('```json') || finalContent.includes('selected_visualization')) {
+            finalContent = ''
+          }
+          return {
+            id: msg.id,
+            content: finalContent,
+            role: msg.role as 'user' | 'assistant',
+            timestamp: new Date(msg.timestamp),
+            visualizationData,
+          }
+        }
+        return {
+          id: msg.id,
+          content: msg.content,
+          role: msg.role as 'user' | 'assistant',
+          timestamp: new Date(msg.timestamp),
+        }
+      })
       loadMessagesFromHistory(messages)
     } catch (error) {
       console.error('Failed to load chat history:', error)

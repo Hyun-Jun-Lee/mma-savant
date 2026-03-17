@@ -86,6 +86,7 @@ export interface ChatStore extends ChatState {
   // 세션 선택 액션들
   selectSession: (sessionId: number) => void
   deselectSession: () => void
+  startNewChat: () => void
   // 사용량 제한 액션들
   setUsageLimit: (info: UsageLimitInfo | null) => void
   setShowUsageLimitPopup: (show: boolean) => void
