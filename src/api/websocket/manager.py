@@ -12,7 +12,7 @@ from fastapi import WebSocket
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from user.models import UserModel
-from user.services import check_usage_limit, get_user_usage
+from user.services import check_usage_limit, get_user_usage, update_user_usage
 from conversation.services import get_or_create_session, get_session_history
 from llm.service import get_graph_service, MMAGraphService
 from common.logging_config import get_logger
@@ -474,6 +474,16 @@ class ConnectionManager:
             except Exception as e:
                 LOGGER.error(f"❌ Error saving assistant message: {e}")
                 LOGGER.error(format_exc())
+
+        # 사용량 증가 (LLM 성공 시 1회 차감)
+        try:
+            from user.dto import UserUsageUpdateDTO
+            await update_user_usage(db, UserUsageUpdateDTO(
+                user_id=user_id, increment_requests=1,
+            ))
+            LOGGER.info(f"📊 Usage incremented for user {user_id}")
+        except Exception as e:
+            LOGGER.error(f"❌ Failed to increment usage for user {user_id}: {e}")
 
         return conversation_id
 
