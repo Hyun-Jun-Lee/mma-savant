@@ -98,7 +98,8 @@ export default function SignUpPage() {
           ) : (
             <div className="space-y-4">
               <GoogleLoginButton
-                className="w-full bg-white text-zinc-900 hover:bg-zinc-100 font-medium border border-white/20 shadow-lg"
+                className="w-full bg-white dark:bg-white text-zinc-900 dark:text-zinc-900 hover:bg-zinc-100 dark:hover:bg-zinc-100 font-medium border border-white/20 shadow-lg"
+                variant="ghost"
                 size="lg"
               >
                 Continue with Google
