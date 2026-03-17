@@ -191,7 +191,7 @@ export function useSocket() {
 
       // 직접 시각화 데이터 구성 (content 파싱 대신)
       let visualizationData: VisualizationData | null = null
-      const validVisualizationTypes = ['table', 'bar_chart', 'pie_chart', 'line_chart', 'scatter_plot', 'text_summary'] as const
+      const validVisualizationTypes = ['table', 'bar_chart', 'pie_chart', 'line_chart', 'area_chart', 'radar_chart', 'scatter_plot', 'text_summary', 'horizontal_bar', 'stacked_bar', 'ring_list', 'lollipop_chart'] as const
       if (
         data.visualization_type &&
         data.visualization_data &&

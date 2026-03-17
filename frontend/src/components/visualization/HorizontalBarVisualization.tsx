@@ -39,11 +39,12 @@ export function HorizontalBarVisualization({ data, xAxis, yAxis }: HorizontalBar
     typeof sampleRow[key] === 'number'
   )
 
-  const categoryKey = xAxis || Object.keys(sampleRow).find(key =>
+  // 수평 바 차트: Y축=카테고리(이름), X축=값(숫자)
+  const categoryKey = yAxis || Object.keys(sampleRow).find(key =>
     typeof sampleRow[key] === 'string'
   ) || Object.keys(sampleRow)[0]
 
-  const valueKeys = yAxis ? [yAxis] : numericFields
+  const valueKeys = xAxis ? [xAxis] : numericFields
 
   const chartHeight = Math.max(320, data.length * 36)
 
