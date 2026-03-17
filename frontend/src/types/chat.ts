@@ -55,9 +55,8 @@ export interface ChatState {
   sessions: ChatSession[]
   sessionsLoading: boolean
   historyLoading: boolean
-  // 모달 상태
-  modalSessionId: number | null
-  isModalOpen: boolean
+  // 선택된 세션 상태
+  selectedSessionId: number | null
   // 사용량 제한 상태
   usageLimit: UsageLimitInfo | null
   showUsageLimitPopup: boolean
@@ -84,9 +83,9 @@ export interface ChatStore extends ChatState {
   setSessionsLoading: (loading: boolean) => void
   setHistoryLoading: (loading: boolean) => void
   loadMessagesFromHistory: (messages: Message[]) => void
-  // 모달 액션들
-  openModal: (sessionId: number) => void
-  closeModal: () => void
+  // 세션 선택 액션들
+  selectSession: (sessionId: number) => void
+  deselectSession: () => void
   // 사용량 제한 액션들
   setUsageLimit: (info: UsageLimitInfo | null) => void
   setShowUsageLimitPopup: (show: boolean) => void

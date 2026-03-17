@@ -1,7 +1,8 @@
 "use client"
 
-import { useState, useEffect } from "react"
-import { HistoryView } from "./HistoryView"
+import { useState, useEffect, useCallback } from "react"
+import { SessionListPanel } from "./SessionListPanel"
+import { SessionDetailPanel } from "./SessionDetailPanel"
 import { MessageInput } from "./MessageInput"
 import { UsageLimitPopup } from "./UsageLimitPopup"
 import { ErrorPopup } from "./ErrorPopup"
@@ -11,6 +12,7 @@ import { useSocket } from "@/hooks/useSocket"
 import { useChatSession } from "@/hooks/useChatSession"
 import { useUser } from "@/hooks/useUser"
 import { User } from "lucide-react"
+import { cn } from "@/lib/utils"
 
 export function ChatContainer() {
   const { addMessage, isLoading } = useChatStore()
@@ -19,6 +21,7 @@ export function ChatContainer() {
   const { loadSessions } = useChatSession()
   const { incrementUsage } = useUser()
   const [error, setError] = useState<string | null>(null)
+  const [showMobileDetail, setShowMobileDetail] = useState(false)
   const isLoggedIn = !!user
 
   // WebSocket 연결 완료 후 세션 목록 1회 로드
@@ -41,16 +44,19 @@ export function ChatContainer() {
         return
       }
 
-      // 사용자 메시지 추가 (기존 세션 카드들은 유지, 새 질문만 추가)
+      // 사용자 메시지 추가
       addMessage({
         content: message,
         role: "user",
       })
 
-      // 실시간 소켓을 통해 메시지 전송 (conversation_id는 WebSocket에서 처리)
+      // 모바일에서 스트리밍 화면 바로 보여주기
+      setShowMobileDetail(true)
+
+      // 실시간 소켓을 통해 메시지 전송
       await sendMessage(message)
 
-      // 사용량 증가 (비동기, 실패해도 채팅 기능에 영향 없음)
+      // 사용량 증가
       incrementUsage()
 
     } catch (error) {
@@ -59,17 +65,21 @@ export function ChatContainer() {
     }
   }
 
+  const handleSessionSelect = useCallback(() => {
+    setShowMobileDetail(true)
+  }, [])
+
+  const handleMobileBack = useCallback(() => {
+    setShowMobileDetail(false)
+  }, [])
 
   return (
-    <div className="relative flex h-[calc(100vh-3.5rem)] w-full flex-col overflow-hidden bg-gradient-to-br from-zinc-900 via-gray-900 to-slate-900">
-      {/* 배경 패턴 */}
-      <div className="fixed inset-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-gray-700/20 via-transparent to-transparent pointer-events-none" />
-      <div className="fixed inset-0 bg-grid-white/[0.02] bg-[size:50px_50px] pointer-events-none" />
+    <div className="relative flex h-[calc(100vh-3.5rem)] w-full flex-col overflow-hidden bg-[#050507]">
 
       {/* 상단 입력 영역 */}
-      <div className="flex-shrink-0 backdrop-blur-sm p-4 sm:px-10 border-b border-solid border-white/10 relative z-10">
+      <div className="flex-shrink-0 backdrop-blur-sm p-4 sm:px-10 border-b border-white/[0.06] relative z-10">
         <div className="mx-auto flex max-w-7xl items-center gap-3">
-          <div className="h-10 w-10 shrink-0 rounded-full bg-white/10 backdrop-blur-sm border border-white/20 flex items-center justify-center">
+          <div className="h-10 w-10 shrink-0 rounded-full bg-white/[0.06] border border-white/[0.06] flex items-center justify-center">
             <User className="w-5 h-5 text-white" />
           </div>
           <div className="flex-1">
@@ -80,7 +90,7 @@ export function ChatContainer() {
             />
           </div>
           {/* 연결 상태 */}
-          <div className="flex shrink-0 items-center gap-1.5 rounded-full border border-white/10 bg-white/5 px-2.5 py-1">
+          <div className="flex shrink-0 items-center gap-1.5 rounded-full border border-white/[0.06] bg-white/[0.03] px-2.5 py-1">
             <div className={`h-1.5 w-1.5 rounded-full ${isConnected ? 'bg-emerald-500 animate-pulse' : 'bg-red-500'}`} />
             <span className={`text-[11px] font-medium ${isConnected ? 'text-emerald-400' : 'text-red-400'}`}>
               {isConnected ? 'Connected' : 'Disconnected'}
@@ -98,10 +108,32 @@ export function ChatContainer() {
         </div>
       )}
 
-      {/* 메인 히스토리 뷰 */}
-      <main className="flex-1 overflow-y-auto relative z-10">
-        <HistoryView />
-      </main>
+      {/* 마스터-디테일 레이아웃 */}
+      <div className="flex flex-1 overflow-hidden relative z-10">
+        {/* 좌측: 세션 목록 */}
+        <div
+          className={cn(
+            "h-full border-r border-white/[0.06] flex-shrink-0",
+            "w-full md:w-80",
+            showMobileDetail ? "hidden md:block" : "block"
+          )}
+        >
+          <SessionListPanel onSessionSelect={handleSessionSelect} />
+        </div>
+
+        {/* 우측: 세션 상세 */}
+        <div
+          className={cn(
+            "h-full flex-1 min-w-0",
+            showMobileDetail ? "block" : "hidden md:block"
+          )}
+        >
+          <SessionDetailPanel
+            onBack={handleMobileBack}
+            showBackButton={showMobileDetail}
+          />
+        </div>
+      </div>
 
       {/* 사용량 제한 팝업 */}
       <UsageLimitPopup />

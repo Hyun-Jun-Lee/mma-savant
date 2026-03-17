@@ -12,7 +12,7 @@ export function useSocket() {
   const [isConnected, setIsConnected] = useState(false)
   const [isTyping, setIsTyping] = useState(false)
   const socketRef = useRef(getRealSocket())
-  const { addMessage, updateMessage, setConnected, setTyping, currentSession, setCurrentSession, setSessions, openModal, setUsageLimit, setShowUsageLimitPopup, setErrorInfo, setShowErrorPopup, clearChat } = useChatStore()
+  const { addMessage, updateMessage, setConnected, setTyping, currentSession, setCurrentSession, setSessions, selectSession, setUsageLimit, setShowUsageLimitPopup, setErrorInfo, setShowErrorPopup, clearChat } = useChatStore()
   const currentStreamingMessage = useRef<{
     id: string;
     content: string;
@@ -258,7 +258,7 @@ export function useSocket() {
         // 세션 목록 새로고침 후 해당 세션의 모달 자동 열기
         if (conversationId) {
           console.log('🔓 Opening modal for session:', conversationId)
-          openModal(conversationId)
+          selectSession(conversationId)
         }
       }, 100) // 최소한의 지연으로 바로 클리어
     })
@@ -314,7 +314,7 @@ export function useSocket() {
           // 세션 목록 새로고침 후 해당 세션의 모달 자동 열기
           if (conversationId) {
             console.log('🔓 Opening modal for session:', conversationId)
-            openModal(conversationId)
+            selectSession(conversationId)
           }
         }, 100) // 최소한의 지연으로 바로 클리어
       }

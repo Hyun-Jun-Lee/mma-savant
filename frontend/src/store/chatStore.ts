@@ -12,9 +12,8 @@ export const useChatStore = create<ChatStore>((set) => ({
   sessions: [],
   sessionsLoading: false,
   historyLoading: false,
-  // 모달 상태 초기값
-  modalSessionId: null,
-  isModalOpen: false,
+  // 선택된 세션 초기값
+  selectedSessionId: null,
   // 사용량 제한 상태 초기값
   usageLimit: null,
   showUsageLimitPopup: false,
@@ -107,7 +106,8 @@ export const useChatStore = create<ChatStore>((set) => ({
   
   removeSession: (sessionId) => set((state) => ({
     sessions: state.sessions.filter(s => s.id !== sessionId),
-    currentSession: state.currentSession?.id === sessionId ? null : state.currentSession
+    currentSession: state.currentSession?.id === sessionId ? null : state.currentSession,
+    selectedSessionId: state.selectedSessionId === sessionId ? null : state.selectedSessionId
   })),
   
   updateSession: (sessionId, updates) => set((state) => ({
@@ -131,9 +131,9 @@ export const useChatStore = create<ChatStore>((set) => ({
     set({ messages: convertedMessages })
   },
 
-  // 모달 액션들
-  openModal: (sessionId) => set({ modalSessionId: sessionId, isModalOpen: true }),
-  closeModal: () => set({ modalSessionId: null, isModalOpen: false }),
+  // 세션 선택 액션들
+  selectSession: (sessionId) => set({ selectedSessionId: sessionId }),
+  deselectSession: () => set({ selectedSessionId: null }),
 
   // 사용량 제한 액션들
   setUsageLimit: (info) => set({ usageLimit: info }),
