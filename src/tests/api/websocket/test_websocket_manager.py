@@ -9,142 +9,6 @@ from unittest.mock import AsyncMock, MagicMock, patch
 from api.websocket.manager import ConnectionManager
 
 
-class TestProcessToolResult:
-    """_process_tool_result 메서드 단위 테스트"""
-
-    def setup_method(self):
-        """각 테스트 전 ConnectionManager 인스턴스 생성"""
-        self.manager = ConnectionManager()
-
-    def test_process_string_input_short(self):
-        """짧은 문자열 입력 처리"""
-        result = self.manager._process_tool_result("hello world")
-        assert result == "hello world"
-
-    def test_process_string_input_long_truncates(self):
-        """긴 문자열 입력 시 500자로 제한"""
-        long_string = "a" * 600
-        result = self.manager._process_tool_result(long_string)
-
-        assert len(result) == 503  # 500 + "..."
-        assert result.endswith("...")
-
-    def test_process_json_string_to_dict(self):
-        """JSON 문자열 → 딕셔너리 파싱"""
-        json_str = '{"name": "test", "value": 123}'
-        result = self.manager._process_tool_result(json_str)
-
-        assert isinstance(result, dict)
-        assert result["name"] == "test"
-        assert result["value"] == 123
-
-    def test_process_dict_removes_timestamp_fields(self):
-        """딕셔너리에서 created_at, updated_at 필드 제거"""
-        input_dict = {
-            "id": 1,
-            "name": "Fighter",
-            "created_at": "2024-01-01T00:00:00",
-            "updated_at": "2024-01-02T00:00:00"
-        }
-        result = self.manager._process_tool_result(input_dict)
-
-        assert "id" in result
-        assert "name" in result
-        assert "created_at" not in result
-        assert "updated_at" not in result
-
-    def test_process_list_removes_timestamp_fields_from_items(self):
-        """리스트 내 딕셔너리에서 timestamp 필드 제거"""
-        input_list = [
-            {"id": 1, "name": "A", "created_at": "2024-01-01"},
-            {"id": 2, "name": "B", "updated_at": "2024-01-02"},
-            {"id": 3, "name": "C", "created_at": "2024-01-03", "updated_at": "2024-01-04"}
-        ]
-        result = self.manager._process_tool_result(input_list)
-
-        assert len(result) == 3
-        for item in result:
-            assert "created_at" not in item
-            assert "updated_at" not in item
-            assert "id" in item
-            assert "name" in item
-
-    def test_process_list_with_non_dict_items(self):
-        """리스트 내 비-딕셔너리 항목 유지"""
-        input_list = [1, "string", {"key": "value"}, None]
-        result = self.manager._process_tool_result(input_list)
-
-        assert result[0] == 1
-        assert result[1] == "string"
-        assert result[2] == {"key": "value"}
-        assert result[3] is None
-
-    def test_process_json_string_to_list(self):
-        """JSON 문자열 → 리스트 파싱 및 timestamp 제거"""
-        json_str = '[{"id": 1, "created_at": "2024-01-01"}, {"id": 2}]'
-        result = self.manager._process_tool_result(json_str)
-
-        assert isinstance(result, list)
-        assert len(result) == 2
-        assert "created_at" not in result[0]
-        assert result[1] == {"id": 2}
-
-    def test_process_invalid_json_returns_original_string(self):
-        """유효하지 않은 JSON 문자열 → 원본 문자열 반환"""
-        invalid_json = "not a json {string"
-        result = self.manager._process_tool_result(invalid_json)
-
-        assert result == invalid_json
-
-    def test_process_invalid_json_long_string_truncates(self):
-        """유효하지 않은 긴 JSON 문자열 → 500자 제한"""
-        invalid_json = "not a json " + "x" * 600
-        result = self.manager._process_tool_result(invalid_json)
-
-        assert len(result) == 503
-        assert result.endswith("...")
-
-    def test_process_other_types_returns_string_representation(self):
-        """기타 타입 → 문자열 변환"""
-        result_int = self.manager._process_tool_result(12345)
-        result_float = self.manager._process_tool_result(123.45)
-        result_bool = self.manager._process_tool_result(True)
-
-        assert result_int == "12345"
-        assert result_float == "123.45"
-        assert result_bool == "True"
-
-    def test_process_none_returns_string(self):
-        """None 입력 → 'None' 문자열 반환"""
-        result = self.manager._process_tool_result(None)
-        assert result == "None"
-
-    def test_process_empty_dict(self):
-        """빈 딕셔너리 처리"""
-        result = self.manager._process_tool_result({})
-        assert result == {}
-
-    def test_process_empty_list(self):
-        """빈 리스트 처리"""
-        result = self.manager._process_tool_result([])
-        assert result == []
-
-    def test_process_nested_dict_only_removes_top_level_timestamps(self):
-        """중첩 딕셔너리에서 최상위 timestamp만 제거"""
-        input_dict = {
-            "id": 1,
-            "created_at": "2024-01-01",
-            "nested": {
-                "created_at": "2024-01-02",  # 중첩된 created_at은 유지됨
-                "value": "test"
-            }
-        }
-        result = self.manager._process_tool_result(input_dict)
-
-        assert "created_at" not in result  # 최상위 제거
-        assert "created_at" in result["nested"]  # 중첩은 유지
-
-
 class TestValidateMessageData:
     """_validate_message_data 메서드 단위 테스트"""
 
@@ -154,33 +18,18 @@ class TestValidateMessageData:
         self.connection_id = "test-connection-id"
 
     @pytest.mark.asyncio
-    async def test_validate_valid_message_with_conversation_id(self):
-        """유효한 메시지 데이터 (conversation_id 포함)"""
+    async def test_validate_valid_message_with_content(self):
+        """유효한 메시지 데이터 → content 반환"""
         message_data = {
             "content": "Hello, world!",
-            "conversation_id": 123
         }
 
         with patch.object(self.manager, 'send_to_connection', new_callable=AsyncMock):
-            content, conversation_id = await self.manager._validate_message_data(
+            content = await self.manager._validate_message_data(
                 self.connection_id, message_data
             )
 
         assert content == "Hello, world!"
-        assert conversation_id == 123
-
-    @pytest.mark.asyncio
-    async def test_validate_valid_message_without_conversation_id(self):
-        """유효한 메시지 데이터 (conversation_id 없음)"""
-        message_data = {"content": "Hello, world!"}
-
-        with patch.object(self.manager, 'send_to_connection', new_callable=AsyncMock):
-            content, conversation_id = await self.manager._validate_message_data(
-                self.connection_id, message_data
-            )
-
-        assert content == "Hello, world!"
-        assert conversation_id is None
 
     @pytest.mark.asyncio
     async def test_validate_empty_content_raises_error(self):
@@ -223,28 +72,11 @@ class TestValidateMessageData:
         message_data = {"content": "  Hello  "}
 
         with patch.object(self.manager, 'send_to_connection', new_callable=AsyncMock):
-            content, _ = await self.manager._validate_message_data(
+            content = await self.manager._validate_message_data(
                 self.connection_id, message_data
             )
 
         assert content == "Hello"
-
-    @pytest.mark.asyncio
-    async def test_validate_conversation_id_none_vs_missing(self):
-        """conversation_id가 None vs 키 없음 → 둘 다 None 반환"""
-        message_data_none = {"content": "test", "conversation_id": None}
-        message_data_missing = {"content": "test"}
-
-        with patch.object(self.manager, 'send_to_connection', new_callable=AsyncMock):
-            _, conv_id_none = await self.manager._validate_message_data(
-                self.connection_id, message_data_none
-            )
-            _, conv_id_missing = await self.manager._validate_message_data(
-                self.connection_id, message_data_missing
-            )
-
-        assert conv_id_none is None
-        assert conv_id_missing is None
 
 
 class TestConnect:
