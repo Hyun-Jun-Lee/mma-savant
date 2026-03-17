@@ -189,6 +189,5 @@ def get_openrouter_llm(
             "HTTP-Referer": "https://mma-savant.com",
             "X-Title": "MMA Savant"
         },
-        callbacks=[callback_handler] if callback_handler else [],
-        streaming=True
+        streaming=True,
     )

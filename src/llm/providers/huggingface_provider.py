@@ -56,21 +56,19 @@ def get_huggingface_llm(
             endpoint_url=f"https://api-inference.huggingface.co/models/{model_name}",
             huggingfacehub_api_token=api_token,
             model_kwargs=model_kwargs,
-            callbacks=[callback_handler],
-            streaming=True  # 스트리밍 활성화
+            streaming=True,
         )
-        
+
     except Exception as e:
         print(f"❌ Error connecting to HuggingFace API for model '{model_name}': {e}")
         print(f"💡 Falling back to default model...")
-        
+
         # 기본 모델로 폴백
         return HuggingFaceEndpoint(
             endpoint_url="https://api-inference.huggingface.co/models/microsoft/DialoGPT-medium",
             huggingfacehub_api_token=api_token,
             model_kwargs=model_kwargs,
-            callbacks=[callback_handler],
-            streaming=True
+            streaming=True,
         )
 
 

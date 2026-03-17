@@ -1,11 +1,11 @@
 """
 LLM 모듈
-Claude API 통합 및 MMA 전문 대화 처리
+StateGraph 기반 MMA 전문 대화 처리
 """
 
-from .langchain_service import LangChainLLMService, get_langchain_service
+from .service import MMAGraphService, get_graph_service
 
 __all__ = [
-    "LangChainLLMService",
-    "get_langchain_service"
+    "MMAGraphService",
+    "get_graph_service",
 ]

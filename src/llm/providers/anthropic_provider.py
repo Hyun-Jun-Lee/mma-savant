@@ -17,5 +17,4 @@ def get_anthropic_llm(
         temperature=temperature,
         max_tokens=max_tokens,
         streaming=True,
-        callbacks=[callback_handler]
     )

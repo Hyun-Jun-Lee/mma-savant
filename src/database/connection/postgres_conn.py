@@ -130,15 +130,47 @@ ReadonlySessionLocal = sessionmaker(
 def get_readonly_db_context() -> Generator[Session, None, None]:
     """
     읽기 전용 데이터베이스 세션 (SELECT만 가능)
-    Two-Phase System Phase 1의 안전한 SQL 실행용
+    Two-Phase System Phase 1의 안전한 SQL 실행용 (동기)
     """
     session = ReadonlySessionLocal()
     try:
         yield session
-        # 읽기 전용이므로 commit 불필요
     except Exception as e:
-        # 읽기 작업이므로 rollback도 실질적으로 불필요하지만 안전을 위해 유지
         session.rollback()
         raise e
     finally:
         session.close()
+
+# ===== 읽기 전용 비동기 데이터베이스 연결 =====
+async_readonly_database_url = get_readonly_database_url().replace(
+    'postgresql://', 'postgresql+asyncpg://'
+)
+
+async_readonly_engine = create_async_engine(
+    async_readonly_database_url,
+    pool_size=Config.DB_READONLY_POOL_SIZE,
+    max_overflow=Config.DB_READONLY_MAX_OVERFLOW,
+    pool_pre_ping=True
+)
+
+AsyncReadonlySessionLocal = sessionmaker(
+    async_readonly_engine,
+    class_=AsyncSession,
+    autocommit=False,
+    autoflush=False
+)
+
+@asynccontextmanager
+async def get_async_readonly_db_context() -> AsyncGenerator[AsyncSession, None]:
+    """
+    읽기 전용 비동기 데이터베이스 세션 (SELECT만 가능)
+    LangGraph SQL 에이전트의 비동기 SQL 실행용
+    """
+    session = AsyncReadonlySessionLocal()
+    try:
+        yield session
+    except Exception as e:
+        await session.rollback()
+        raise e
+    finally:
+        await session.close()
