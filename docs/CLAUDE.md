@@ -12,7 +12,7 @@ MMA Savant는 MMA(종합격투기) 데이터 수집, 분석, AI 채팅 서비스
 |-----------|-----------|------|
 | **Frontend** | Next.js 15, React 19, TypeScript, Tailwind CSS 4 | `frontend/` |
 | **Backend API** | FastAPI, SQLAlchemy (async), PostgreSQL 16 | `src/` |
-| **LLM Agent** | LangChain, LangGraph, Anthropic/OpenRouter | `src/llm/` |
+| **LLM Agent** | LangGraph StateGraph, LangChain, Anthropic/OpenRouter | `src/llm/` |
 | **Data Collector** | Playwright, Prefect, httpx, Crawl4AI | `src/data_collector/` |
 | **Database** | PostgreSQL 16, Redis 8.0 (캐싱) | Docker |
 | **Infra** | Docker Compose, Nginx (리버스 프록시) | 프로젝트 루트 |
@@ -24,9 +24,9 @@ MMA Savant는 MMA(종합격투기) 데이터 수집, 분석, AI 채팅 서비스
                                 ↓                   ↓               ↓
                          NextAuth (Google)    WebSocket 채팅    Redis (캐싱)
                                 ↓                   ↓
-                         JWT 토큰 교환      LLM Agent (ReAct)
+                         JWT 토큰 교환      LangGraph StateGraph
                                                ↓
-                                        AI 응답 스트리밍
+                                        AI 응답 (final_result)
 ```
 
 ---
@@ -106,14 +106,26 @@ src/
 │       ├── postgres_conn.py  # async/sync 엔진, 세션 팩토리
 │       └── redis_conn.py     # Redis 클라이언트, 커넥션 풀
 │
-├── llm/                # LLM/AI 레이어
-│   ├── agent_manager.py     # 2-Phase ReAct 에이전트
-│   ├── langchain_service.py # LLM 서비스 팩토리
+├── llm/                # LLM/AI 레이어 (LangGraph StateGraph 기반)
+│   ├── service.py           # MMAGraphService (그래프 실행, 히스토리 관리)
 │   ├── model_factory.py     # 프로바이더별 모델 생성
-│   ├── prompts.py           # Phase 1/2 프롬프트 템플릿
-│   ├── stream_processor.py  # 응답 스트리밍 처리
-│   ├── providers/           # Anthropic, HuggingFace, OpenRouter, OpenAI
-│   └── tools/               # SQL 실행 도구 (LangChain Tool)
+│   ├── exceptions.py        # LLM 예외 클래스
+│   ├── chart_loader.py      # 차트 타입 로더
+│   ├── graph/               # StateGraph 정의
+│   │   ├── state.py         # MMAGraphState (TypedDict)
+│   │   ├── graph_builder.py # 그래프 조립 + 조건부 라우팅
+│   │   ├── prompts.py       # 노드별 프롬프트 템플릿
+│   │   └── nodes/           # 7개 노드
+│   │       ├── intent_classifier.py  # 의도 분류 (규칙+LLM 하이브리드)
+│   │       ├── context_enricher.py   # 후속 질문 → 독립 질문 변환
+│   │       ├── sql_agent.py          # SQL 도구 실행 (create_react_agent)
+│   │       ├── direct_response.py    # 일반 질문 직접 응답
+│   │       ├── result_analyzer.py    # 시각화 적합성 판단 (규칙 기반)
+│   │       ├── visualize.py          # 차트 데이터 생성
+│   │       └── text_response.py      # 텍스트 응답 생성
+│   ├── providers/           # Anthropic, HuggingFace, OpenRouter
+│   ├── callbacks/           # 프로바이더별 콜백 핸들러
+│   └── tools/               # SQL 실행 도구 (async 지원)
 │
 ├── data_collector/     # 데이터 수집 파이프라인
 │   ├── scrapers/       # Playwright/httpx 스크래퍼 (fighters, events, matches, rankings)
@@ -233,7 +245,7 @@ frontend/src/
 │   ├── useFighterDetail.ts  # 파이터 상세 데이터
 │   ├── useEventDetail.ts    # 이벤트 상세 데이터
 │   ├── useChatSession.ts    # 채팅 세션 CRUD
-│   ├── useSocket.ts         # WebSocket 스트리밍
+│   ├── useSocket.ts         # WebSocket 이벤트 (final_result, 멀티턴)
 │   ├── useUser.ts           # 사용자 프로필/사용량
 │   └── useChartFilter.ts    # 체급 필터 상태
 │
@@ -248,7 +260,7 @@ frontend/src/
 │
 ├── store/                   # Zustand 상태 관리
 │   ├── authStore.ts         # 인증 상태
-│   └── chatStore.ts         # 채팅 메시지, 세션, 스트리밍
+│   └── chatStore.ts         # 채팅 메시지, 세션, 멀티턴 상태
 │
 ├── types/                   # TypeScript 타입
 │   ├── dashboard.ts         # 대시보드 응답 타입 (40+ 인터페이스)
@@ -263,8 +275,8 @@ frontend/src/
 │   ├── api.ts               # fetch 래퍼 (Bearer 토큰, 에러 처리)
 │   ├── auth.ts              # NextAuth 설정 (Google OAuth)
 │   ├── utils.ts             # cn(), toTitleCase(), formatDate(), 색상 토큰
-│   ├── realSocket.ts        # Socket.IO 클라이언트
-│   └── visualizationParser.ts # AI 응답에서 차트 JSON 추출
+│   ├── realSocket.ts        # WebSocket 클라이언트 (이벤트 핸들링)
+│   └── visualizationParser.ts # 레거시 메시지 content에서 차트 JSON 추출
 │
 └── config/
     └── env.ts               # 환경 변수 (NEXT_PUBLIC_API_URL)
@@ -279,7 +291,7 @@ frontend/src/
 | `react-countup` 6.x | 숫자 카운트업 애니메이션 |
 | `zustand` 5.x | 상태 관리 (auth, chat) |
 | `next-auth` 5.x-beta | Google OAuth 인증 |
-| `socket.io-client` 4.x | WebSocket 실시간 채팅 |
+| Native WebSocket | 실시간 채팅 (멀티턴 대화) |
 | `leaflet` 1.9 | 이벤트 지도 시각화 |
 | `lucide-react` | 아이콘 |
 | `@radix-ui/*` | 헤드리스 UI 컴포넌트 |
@@ -326,17 +338,24 @@ frontend/src/
 
 **이벤트 흐름**:
 ```
-Client → "message" (질문)
-Server → "thinking_start" → "stream_chunk"(반복) → "stream_end"
+Client → "message" { content, conversation_id }
+Server → "typing" → "final_result" { content, visualization_type, visualization_data, insights, conversation_id } → "response_end"
+에러 시 → "error" 또는 "error_response" { error_class, traceback }
 ```
 
-**AI 에이전트**: 2-Phase ReAct 패턴
-- Phase 1: 의도 분석 + SQL 도구 실행 (LangGraph)
-- Phase 2: 결과 처리 + 시각화 데이터 생성
+**멀티턴 대화**: `conversation_id`가 있으면 기존 세션에 메시지 추가, 없으면 LLM 성공 후 새 세션 생성
+
+**AI 에이전트**: LangGraph StateGraph (7개 노드)
+```
+intent_classifier → [general]     → direct_response → END
+                  → [sql_needed]  → sql_agent → result_analyzer → [text]          → text_response → END
+                                                                 → [visualization] → visualize     → END
+                  → [followup]    → context_enricher → sql_agent → ...
+```
 
 **관련 파일**:
 - Frontend: `frontend/src/lib/realSocket.ts`, `frontend/src/hooks/useSocket.ts`
-- Backend: `src/api/websocket/manager.py`, `src/llm/agent_manager.py`
+- Backend: `src/api/websocket/manager.py`, `src/llm/service.py`, `src/llm/graph/`
 
 ---
 
