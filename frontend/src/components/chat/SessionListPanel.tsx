@@ -5,7 +5,7 @@ import { useChatStore } from "@/store/chatStore"
 import { useChatSession } from "@/hooks/useChatSession"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog"
-import { MessageSquare, Loader2, Trash2, Clock, AlertTriangle } from "lucide-react"
+import { MessageSquare, Loader2, Trash2, Clock, AlertTriangle, Plus } from "lucide-react"
 import { formatDistanceToNow } from "date-fns"
 import { ko } from "date-fns/locale"
 import { cn } from "@/lib/utils"
@@ -15,7 +15,7 @@ interface SessionListPanelProps {
 }
 
 export function SessionListPanel({ onSessionSelect }: SessionListPanelProps) {
-  const { messages, isTyping, sessions, sessionsLoading, selectedSessionId, selectSession } = useChatStore()
+  const { messages, isTyping, sessions, sessionsLoading, selectedSessionId, selectSession, startNewChat } = useChatStore()
   const { deleteSession } = useChatSession()
   const [deleteTarget, setDeleteTarget] = useState<{ id: number; title: string } | null>(null)
 
@@ -54,10 +54,17 @@ export function SessionListPanel({ onSessionSelect }: SessionListPanelProps) {
   }
 
   return (
-    <div className="flex h-full flex-col">
+    <div className="flex h-full flex-col bg-zinc-900/60">
       {/* 헤더 */}
-      <div className="flex-shrink-0 border-b border-white/[0.06] px-4 py-3">
+      <div className="flex-shrink-0 border-b border-zinc-700/50 bg-zinc-900/80 px-4 py-3 flex items-center justify-between">
         <h2 className="text-sm font-semibold text-zinc-400 uppercase tracking-wider">History</h2>
+        <button
+          onClick={startNewChat}
+          className="flex items-center gap-1.5 rounded-md border border-white/[0.08] bg-white/[0.03] px-2.5 py-1.5 text-xs font-medium text-zinc-300 hover:bg-white/[0.06] hover:text-white transition-colors"
+        >
+          <Plus className="w-3.5 h-3.5" />
+          New Chat
+        </button>
       </div>
 
       <ScrollArea className="flex-1">
@@ -137,7 +144,7 @@ export function SessionListPanel({ onSessionSelect }: SessionListPanelProps) {
       </ScrollArea>
 
       {/* 푸터 */}
-      <div className="flex-shrink-0 border-t border-white/[0.06] px-4 py-2">
+      <div className="flex-shrink-0 border-t border-zinc-700/50 bg-zinc-900/80 px-4 py-2">
         <p className="text-[11px] text-zinc-500 text-center">
           {sessions.length} sessions
         </p>

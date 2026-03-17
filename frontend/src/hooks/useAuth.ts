@@ -46,7 +46,6 @@ export function useAuth() {
         image: null,
       })
     } else {
-      if (lastUserIdRef.current === null && !user) return
       lastUserIdRef.current = null
       setUser(null)
     }

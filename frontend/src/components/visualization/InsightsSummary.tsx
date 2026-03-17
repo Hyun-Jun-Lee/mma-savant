@@ -37,7 +37,7 @@ export function InsightsSummary({ insights }: InsightsSummaryProps) {
           <div className="mt-0.5 shrink-0">
             {getInsightIcon(insight)}
           </div>
-          <div className="text-zinc-200 text-sm leading-relaxed">
+          <div className="text-zinc-200 text-sm leading-relaxed break-keep">
             {insight}
           </div>
         </div>
