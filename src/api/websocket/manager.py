@@ -306,7 +306,7 @@ class ConnectionManager:
                 db=db,
                 conversation_id=conversation_id,
                 user_id=user_id,
-                limit=20,
+                limit=10,
             )
             if history and history.messages:
                 LOGGER.info(

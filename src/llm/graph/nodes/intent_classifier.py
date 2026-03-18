@@ -39,7 +39,7 @@ async def intent_classifier_node(state: MMAGraphState, llm) -> dict:
 
         classify_messages = [
             SystemMessage(content=INTENT_CLASSIFIER_PROMPT),
-            *messages[-5:]  # 최근 5개 메시지만
+            *messages  # service 레이어에서 이미 10개로 제한됨
         ]
 
         result = await structured_llm.ainvoke(classify_messages)

@@ -57,8 +57,8 @@ class MMAGraphService:
             elif role == "assistant":
                 messages.append(AIMessage(content=content))
 
-        if len(messages) > 20:
-            messages = messages[-20:]
+        if len(messages) > 10:
+            messages = messages[-10:]
 
         return messages
 

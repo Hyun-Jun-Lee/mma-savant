@@ -20,7 +20,7 @@ async def direct_response_node(state: MMAGraphState, llm) -> dict:
     try:
         response_messages = [
             SystemMessage(content=DIRECT_RESPONSE_PROMPT),
-            *messages[-10:]  # 최근 10개 메시지
+            *messages  # service 레이어에서 이미 10개로 제한됨
         ]
 
         response = await llm.ainvoke(response_messages)

@@ -20,7 +20,7 @@ async def context_enricher_node(state: MMAGraphState, llm) -> dict:
     try:
         enricher_messages = [
             SystemMessage(content=CONTEXT_ENRICHER_PROMPT),
-            *messages  # 전체 대화 히스토리
+            *messages  # service 레이어에서 이미 10개로 제한됨
         ]
 
         rewritten = await llm.ainvoke(enricher_messages)
