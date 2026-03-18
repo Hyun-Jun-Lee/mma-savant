@@ -172,6 +172,24 @@ class TestIntentClassifier:
         assert result["intent"] == "sql_needed"
 
     @pytest.mark.asyncio
+    async def test_sql_needed_corrected_with_history(self):
+        """히스토리 있는데 sql_needed로 분류되면 followup으로 보정"""
+        from llm.graph.nodes.intent_classifier import intent_classifier_node, IntentClassification
+        mock_result = IntentClassification(intent="sql_needed")
+        mock_structured = AsyncMock(ainvoke=AsyncMock(return_value=mock_result))
+        mock_llm = MagicMock()
+        mock_llm.with_structured_output.return_value = mock_structured
+        state = {
+            "messages": [
+                HumanMessage(content="존 존스 전적"),
+                AIMessage(content="존 존스는 28승 1패입니다."),
+                HumanMessage(content="서브미션 승리 Top 5 알려줘"),
+            ]
+        }
+        result = await intent_classifier_node(state, llm=mock_llm)
+        assert result["intent"] == "followup"
+
+    @pytest.mark.asyncio
     async def test_general_classification(self):
         """LLM이 general로 분류한 경우"""
         from llm.graph.nodes.intent_classifier import intent_classifier_node, IntentClassification

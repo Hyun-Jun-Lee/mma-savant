@@ -50,6 +50,12 @@ async def intent_classifier_node(state: MMAGraphState, llm) -> dict:
             LOGGER.info("📋 Corrected followup → sql_needed (no history)")
             return {"intent": "sql_needed"}
 
+        # 히스토리 있는데 sql_needed로 분류된 경우 → followup으로 보정
+        # context_enricher를 거쳐야 이전 맥락이 반영됨
+        if result.intent == "sql_needed" and has_history:
+            LOGGER.info("📋 Corrected sql_needed → followup (has history)")
+            return {"intent": "followup"}
+
         return {"intent": result.intent}
 
     except Exception as e:
