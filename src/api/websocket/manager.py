@@ -444,12 +444,17 @@ class ConnectionManager:
         await self._save_user_message(db, conversation_id, user_id, user_content)
 
         # 어시스턴트 메시지 저장 (visualization_data를 tool_results로)
+        # 시각화 응답: content는 프론트용(빈 문자열), final_response는 히스토리용(데이터 요약)
         final_content = final_result_chunk.get("content", "")
+        final_response = final_result_chunk.get("final_response", "")
         viz_type = final_result_chunk.get("visualization_type")
         viz_data = final_result_chunk.get("visualization_data")
 
+        # DB 저장용 content: 프론트 content가 비어있으면 final_response 사용
+        save_content = final_content.strip() or final_response.strip() or ""
+
         # content 또는 시각화 데이터가 있으면 저장 (둘 다 없으면 스킵)
-        if final_content.strip() or (viz_type and viz_data):
+        if save_content or (viz_type and viz_data):
             tool_results = None
             if viz_type and viz_data:
                 tool_results = [{
@@ -463,7 +468,7 @@ class ConnectionManager:
                     session=db,
                     conversation_id=conversation_id,
                     user_id=user_id,
-                    content=final_content,
+                    content=save_content,
                     role="assistant",
                     tool_results=tool_results,
                 )

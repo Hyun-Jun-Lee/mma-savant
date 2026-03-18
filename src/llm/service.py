@@ -121,6 +121,7 @@ class MMAGraphService:
             yield {
                 "type": "final_result",
                 "content": content,
+                "final_response": final_response,
                 "visualization_type": visualization_type,
                 "visualization_data": visualization_data,
                 "insights": insights,

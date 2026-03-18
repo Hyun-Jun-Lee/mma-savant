@@ -10,6 +10,32 @@ from common.logging_config import get_logger
 
 LOGGER = get_logger(__name__)
 
+MAX_SUMMARY_ROWS = 10
+
+
+def _build_data_summary(sql_result: dict) -> str:
+    """SQL 쿼리와 결과를 히스토리용 텍스트로 변환
+
+    후속 질문에서 "1등 선수", "상위 3명" 등의 참조를 해석할 수 있도록
+    실행된 SQL 쿼리와 결과 데이터를 포함.
+    """
+    parts = []
+
+    query = sql_result.get("query", "")
+    if query:
+        parts.append(f"[SQL] {query}")
+
+    data = sql_result.get("data", [])
+    columns = sql_result.get("columns", [])
+    if data and columns:
+        rows = []
+        for i, row in enumerate(data[:MAX_SUMMARY_ROWS], 1):
+            values = [f"{col}: {row.get(col, '')}" for col in columns]
+            rows.append(f"{i}. " + ", ".join(values))
+        parts.append("[결과]\n" + "\n".join(rows))
+
+    return "\n".join(parts)
+
 
 def _build_visualize_input(state: MMAGraphState) -> str:
     """시각화 LLM 호출용 입력 데이터 구성"""
@@ -95,10 +121,15 @@ async def visualize_node(state: MMAGraphState, llm) -> dict:
                 viz_type = "text_summary"
 
             # 히스토리용 텍스트 요약 생성 (후속 질문의 맥락 제공)
+            # SQL 결과 데이터를 포함하여 "1등 선수" 등의 참조를 해석 가능하게 함
             title = viz_data.get("title", "")
-            summary = title
+            data_summary = _build_data_summary(state.get("sql_result", {}))
+            parts = [title]
+            if data_summary:
+                parts.append(data_summary)
             if insights:
-                summary = f"{title}\n" + "\n".join(f"- {i}" for i in insights)
+                parts.append("\n".join(f"- {i}" for i in insights))
+            summary = "\n".join(p for p in parts if p)
 
             LOGGER.info(f"✅ Visualization generated: {viz_type}")
 

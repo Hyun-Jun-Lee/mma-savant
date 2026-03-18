@@ -444,8 +444,8 @@ class TestMMAGraphService:
         from llm.service import MMAGraphService
         history = [{"role": "user", "content": f"msg{i}"} for i in range(30)]
         result = MMAGraphService.build_messages_from_history(history)
-        assert len(result) == 20
-        assert result[0].content == "msg10"
+        assert len(result) == 10
+        assert result[0].content == "msg20"
 
     def test_build_messages_ignores_unknown_roles(self):
         from llm.service import MMAGraphService
