@@ -450,8 +450,8 @@ class ConnectionManager:
         viz_type = final_result_chunk.get("visualization_type")
         viz_data = final_result_chunk.get("visualization_data")
 
-        # DB 저장용 content: 프론트 content가 비어있으면 final_response 사용
-        save_content = final_content.strip() or final_response.strip() or ""
+        # DB 저장용: final_response에 SQL 데이터가 포함되어 후속 질문의 맥락 제공
+        save_content = final_response.strip() or ""
 
         # content 또는 시각화 데이터가 있으면 저장 (둘 다 없으면 스킵)
         if save_content or (viz_type and viz_data):

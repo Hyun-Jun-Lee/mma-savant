@@ -13,12 +13,12 @@ from user import repositories as user_repo
 from user import services as user_service
 
 
-# HTTP Bearer 토큰 스키마
-security = HTTPBearer()
+# HTTP Bearer 토큰 스키마 (auto_error=False: 헤더 없을 때 403 대신 None 전달)
+security = HTTPBearer(auto_error=False)
 
 
 async def get_current_user_token(
-    credentials: HTTPAuthorizationCredentials = Depends(security)
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(security)
 ) -> TokenData:
     """
     JWT 토큰에서 사용자 정보 추출
