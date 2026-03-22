@@ -14,15 +14,15 @@ LOGGER = get_logger(__name__)
 def get_model_specific_params(model_name: str) -> Dict[str, Any]:
     """
     모델별 특화 파라미터 반환
-    
+
     Args:
         model_name: 모델 이름
-        
+
     Returns:
         Dict: 모델에 특화된 파라미터들
     """
     model_params = {}
-    
+
     # Llama-4-scout 모델 - extra_body로 특화 파라미터 전달
     if "llama-4-scout" in model_name.lower():
         model_params.update({
@@ -33,7 +33,7 @@ def get_model_specific_params(model_name: str) -> Dict[str, Any]:
             "min_rounds": 1,
             "max_rounds": 10
         })
-    
+
     # Llama-3 계열 모델들
     elif "llama-3" in model_name.lower():
         model_params.update({
@@ -41,14 +41,14 @@ def get_model_specific_params(model_name: str) -> Dict[str, Any]:
             "frequency_penalty": 0.0,
             "presence_penalty": 0.0
         })
-    
+
     # DeepSeek 모델들
     elif "deepseek" in model_name.lower():
         model_params.update({
             "top_p": 0.95,
             "temperature": 0.6
         })
-    
+
     # GPT-4 계열 모델들
     elif "gpt-4" in model_name.lower():
         model_params.update({
@@ -56,28 +56,28 @@ def get_model_specific_params(model_name: str) -> Dict[str, Any]:
             "frequency_penalty": 0.0,
             "presence_penalty": 0.0
         })
-    
+
     # Claude 계열 모델들
     elif "claude" in model_name.lower():
         model_params.update({
             "top_p": 0.9,
             "temperature": 0.7
         })
-    
+
     # Mixtral 모델들
     elif "mixtral" in model_name.lower():
         model_params.update({
             "top_p": 0.9,
             "temperature": 0.7
         })
-    
+
     # Gemini 모델들
     elif "gemini" in model_name.lower():
         model_params.update({
             "top_p": 0.95,
             "temperature": 0.7
         })
-    
+
     return model_params
 
 
@@ -86,10 +86,10 @@ def get_model_specific_params(model_name: str) -> Dict[str, Any]:
 def get_model_info(model_name: str) -> Dict[str, Any]:
     """
     모델 정보 및 권장 설정 반환
-    
+
     Args:
         model_name: 모델 이름
-        
+
     Returns:
         Dict: 모델 정보
     """
@@ -102,7 +102,7 @@ def get_model_info(model_name: str) -> Dict[str, Any]:
             "strengths": ["reasoning", "code", "math"],
             "recommended_temp": 0.7
         }
-    
+
     elif "deepseek" in model_name.lower():
         return {
             "provider": "DeepSeek",
@@ -112,7 +112,7 @@ def get_model_info(model_name: str) -> Dict[str, Any]:
             "strengths": ["reasoning", "code", "analysis"],
             "recommended_temp": 0.6
         }
-    
+
     elif "gpt-4" in model_name.lower():
         return {
             "provider": "OpenAI",
@@ -122,11 +122,11 @@ def get_model_info(model_name: str) -> Dict[str, Any]:
             "strengths": ["general", "creative", "analysis"],
             "recommended_temp": 0.7
         }
-    
+
     else:
         return {
             "provider": "Unknown",
-            "type": "chat", 
+            "type": "chat",
             "context_length": 4096,
             "description": "일반 채팅 모델",
             "strengths": ["general"],
