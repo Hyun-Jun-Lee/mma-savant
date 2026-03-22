@@ -5,7 +5,7 @@ import { getRealSocket } from '@/lib/realSocket'
 import { useChatStore } from '@/store/chatStore'
 import { VisualizationData } from '@/types/chat'
 import { ChatApiService } from '@/services/chatApi'
-import { ErrorResponse, getErrorMessage, logErrorDetails } from '@/types/error'
+import { ErrorResponse, logErrorDetails } from '@/types/error'
 
 export function useSocket() {
   const [isConnected, setIsConnected] = useState(false)
@@ -106,15 +106,7 @@ export function useSocket() {
       }
 
       // 텍스트 content 처리
-      let textContent = data.content ?? ""
-
-      // 시각화 데이터가 없을 때만 insights를 텍스트로 추가
-      if (!visualizationData && data.insights && data.insights.length > 0) {
-        if (textContent.trim().length > 0) {
-          textContent += "\n\n"
-        }
-        textContent += "**주요 인사이트:**\n" + data.insights.map(insight => `• ${insight}`).join('\n')
-      }
+      const textContent = data.content ?? ""
 
       // 완성된 메시지 추가
       addMessage({
@@ -143,14 +135,17 @@ export function useSocket() {
     // 에러 처리
     socket.on('error', (error: string) => {
       console.error('Socket error:', error)
+      setErrorInfo({ errorClass: 'UnexpectedException', message: '오류가 발생했습니다. 잠시 후 다시 시도해주세요.' })
+      setShowErrorPopup(true)
+      setIsTyping(false)
+      setTyping(false)
     })
 
     // 백엔드 에러 응답 처리
     socket.on('error_response', (errorData: ErrorResponse) => {
       logErrorDetails(errorData)
 
-      const userMessage = getErrorMessage(errorData.error_class)
-      setErrorInfo({ errorClass: errorData.error_class, message: userMessage })
+      setErrorInfo({ errorClass: errorData.error_class, message: '오류가 발생했습니다. 잠시 후 다시 시도해주세요.' })
       setShowErrorPopup(true)
 
       clearChat()

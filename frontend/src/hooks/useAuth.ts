@@ -54,10 +54,16 @@ export function useAuth() {
   // 일반 로그인 여부 확인
   const hasLocalToken = typeof window !== 'undefined' && AuthApiService.isAuthenticated()
 
+  // OAuth 세션: backendToken이 존재하고 만료되지 않았는지도 확인
+  const isOAuthValid = status === "authenticated"
+    && !!session?.user
+    && !!session.backendToken
+    && (!session.backendTokenExpiry || Date.now() < session.backendTokenExpiry - 60000)
+
   return {
     user,
     isLoading: status === "loading" || isLoading,
-    isAuthenticated: (status === "authenticated" && !!session?.user) || (hasLocalToken && isAuthenticated),
+    isAuthenticated: isOAuthValid || (hasLocalToken && isAuthenticated),
     session,
   }
 }

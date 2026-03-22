@@ -39,6 +39,11 @@ export function AuthGuard({
       return <>{fallback}</>
     }
 
+    // redirectTo가 설정된 경우 빈 화면 반환 (useEffect에서 리다이렉트 처리)
+    if (redirectTo) {
+      return null
+    }
+
     return (
       <div className="min-h-screen bg-gradient-to-br from-red-50 to-red-100 flex items-center justify-center p-4">
         <Card className="w-full max-w-md">

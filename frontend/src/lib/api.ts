@@ -105,6 +105,22 @@ async function apiRequest<T = unknown>(
     }
 
     if (!response.ok) {
+      // 401: 토큰 만료 또는 인증 실패 → 세션 정리 후 로그인 페이지로 이동
+      if (response.status === 401) {
+        AuthApiService.logout()
+        if (typeof window !== 'undefined') {
+          const csrfRes = await fetch('/api/auth/csrf')
+          const { csrfToken } = await csrfRes.json()
+          await fetch('/api/auth/signout', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            body: new URLSearchParams({ csrfToken, callbackUrl: '/auth/signin' }),
+          })
+          window.location.href = '/auth/signin'
+        }
+        return { status: 401 }
+      }
+
       throw new ApiError(
         errorData?.message || errorData?.detail || `HTTP ${response.status}: ${response.statusText}`,
         response.status,
