@@ -116,7 +116,7 @@ src/
 │   │   ├── graph_builder.py # 그래프 조립 + 조건부 라우팅
 │   │   ├── prompts.py       # 노드별 프롬프트 템플릿
 │   │   └── nodes/           # 7개 노드
-│   │       ├── intent_classifier.py  # 의도 분류 (규칙+LLM 하이브리드)
+│   │       ├── intent_classifier.py  # 의도 분류 (LLM + 코드 보정)
 │   │       ├── context_enricher.py   # 후속 질문 → 독립 질문 변환
 │   │       ├── sql_agent.py          # SQL 도구 실행 (create_react_agent)
 │   │       ├── direct_response.py    # 일반 질문 직접 응답
@@ -349,9 +349,10 @@ Server → "typing" → "final_result" { content, visualization_type, visualizat
 ```
 intent_classifier → [general]     → direct_response → END
                   → [sql_needed]  → sql_agent → result_analyzer → [text]          → text_response → END
-                                                                 → [visualization] → visualize     → END
-                  → [followup]    → context_enricher → sql_agent → ...
+                  → [followup]    → context_enricher ↗            → [visualization] → visualize     → END
 ```
+- `sql_needed`: 히스토리 없는 첫 질문에서만 발생
+- `followup`: 히스토리가 있으면 모든 데이터 질문이 followup으로 보정 → context_enricher → sql_agent
 
 **관련 파일**:
 - Frontend: `frontend/src/lib/realSocket.ts`, `frontend/src/hooks/useSocket.ts`
