@@ -15,6 +15,7 @@ class MMAGraphState(TypedDict):
 
     # SQL 실행 결과 (sql_agent 노드 출력)
     sql_result: Optional[dict]  # {query, data, columns, row_count, success}
+    agent_reasoning: Optional[str]  # sql_agent의 최종 텍스트 답변 (text 라우팅 시 재사용)
 
     # 시각화 판단 결과
     response_mode: Literal["visualization", "text"]

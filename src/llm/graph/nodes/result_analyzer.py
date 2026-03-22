@@ -38,13 +38,24 @@ def _rule_based_analysis(data: list, columns: list, row_count: int) -> str | Non
     return None
 
 
+_ID_SUFFIXES = {"id", "_id", "fighter_id", "event_id", "weight_class_id"}
+
+
+def _is_id_column(col_name: str) -> bool:
+    """식별자 컬럼인지 판별 (시각화 대상에서 제외)"""
+    lower = col_name.lower()
+    return lower in _ID_SUFFIXES or lower.endswith("_id")
+
+
 def _has_numeric_columns(data: list, columns: list) -> bool:
-    """데이터에 수치 컬럼이 있는지 확인"""
+    """시각화에 의미 있는 수치 컬럼이 있는지 확인 (id 컬럼 제외)"""
     if not data:
         return False
 
     first_row = data[0]
     for col in columns:
+        if _is_id_column(col):
+            continue
         val = first_row.get(col) if isinstance(first_row, dict) else None
         if isinstance(val, (int, float)):
             return True

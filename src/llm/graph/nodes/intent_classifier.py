@@ -1,23 +1,14 @@
-"""의도 분류 노드 - 사용자 질문을 general/sql_needed/followup으로 분류"""
-from typing import Literal
-
-from pydantic import BaseModel, Field
 from langchain_core.messages import SystemMessage
 
 from llm.graph.state import MMAGraphState
 from llm.graph.prompts import INTENT_CLASSIFIER_PROMPT
+from llm.graph.schemas import IntentClassification
 from common.logging_config import get_logger
 
 LOGGER = get_logger(__name__)
 
 
-class IntentClassification(BaseModel):
-    """사용자 질문의 의도 분류 결과"""
-    intent: Literal["general", "sql_needed", "followup"] = Field(
-        description="general: DB 조회 불필요, "
-                    "sql_needed: 통계/전적 등 DB 조회 필요, "
-                    "followup: 이전 대화를 참조하는 후속 질문"
-    )
+
 
 
 async def intent_classifier_node(state: MMAGraphState, llm) -> dict:

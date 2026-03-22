@@ -5,7 +5,7 @@ from langchain_core.messages import SystemMessage, HumanMessage, AIMessage
 
 from llm.graph.state import MMAGraphState
 from llm.graph.prompts import VISUALIZE_PROMPT
-from llm.chart_loader import validate_chart_id
+from llm.graph.schemas import ChartVisualizationOutput
 from common.logging_config import get_logger
 
 LOGGER = get_logger(__name__)
@@ -59,96 +59,45 @@ def _build_visualize_input(state: MMAGraphState) -> str:
 {json.dumps(sql_result.get('data', []), ensure_ascii=False, default=str)}"""
 
 
-def _parse_visualization_json(response_text: str) -> dict | None:
-    """LLM 응답에서 시각화 JSON 추출"""
-    import re
-
-    # 직접 JSON 파싱
-    try:
-        return json.loads(response_text.strip())
-    except json.JSONDecodeError:
-        pass
-
-    # ```json ... ``` 블록 추출
-    json_block = re.search(r'```json\s*(\{.*?\})\s*```', response_text, re.DOTALL)
-    if json_block:
-        try:
-            return json.loads(json_block.group(1))
-        except json.JSONDecodeError:
-            pass
-
-    # { ... } 패턴 추출
-    json_match = re.search(r'\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}', response_text, re.DOTALL)
-    if json_match:
-        try:
-            parsed = json.loads(json_match.group())
-            if "selected_visualization" in parsed or "visualization_data" in parsed:
-                return parsed
-        except json.JSONDecodeError:
-            pass
-
-    return None
-
-
 async def visualize_node(state: MMAGraphState, llm) -> dict:
     """
     시각화 데이터 생성 노드
 
     SQL 결과를 분석하여 최적의 차트 타입을 선택하고
     시각화 데이터를 구조화된 JSON으로 생성.
+    with_structured_output으로 스키마를 강제하여 파싱 안정성 보장.
     """
     try:
         input_text = _build_visualize_input(state)
 
-        response = await llm.ainvoke([
+        structured_llm = llm.with_structured_output(ChartVisualizationOutput)
+        result = await structured_llm.ainvoke([
             SystemMessage(content=VISUALIZE_PROMPT),
             HumanMessage(content=input_text),
         ])
 
-        response_text = response.content if hasattr(response, 'content') else str(response)
+        viz_type = result.selected_visualization
+        viz_data = result.visualization_data.model_dump()
+        insights = result.insights
 
-        # JSON 파싱
-        parsed = _parse_visualization_json(response_text)
+        # 히스토리용 텍스트 요약 생성 (후속 질문의 맥락 제공)
+        title = viz_data.get("title", "")
+        data_summary = _build_data_summary(state.get("sql_result", {}))
+        parts = [title]
+        if data_summary:
+            parts.append(data_summary)
+        if insights:
+            parts.append("\n".join(f"- {i}" for i in insights))
+        summary = "\n".join(p for p in parts if p)
 
-        if parsed:
-            viz_type = parsed.get("selected_visualization", "text_summary")
-            viz_data = parsed.get("visualization_data", {})
-            insights = parsed.get("insights", [])
+        LOGGER.info(f"✅ Visualization generated: {viz_type}")
 
-            # 차트 타입 검증
-            if not validate_chart_id(viz_type):
-                LOGGER.warning(f"⚠️ Invalid chart type: {viz_type}, falling back to text_summary")
-                viz_type = "text_summary"
-
-            # 히스토리용 텍스트 요약 생성 (후속 질문의 맥락 제공)
-            # SQL 결과 데이터를 포함하여 "1등 선수" 등의 참조를 해석 가능하게 함
-            title = viz_data.get("title", "")
-            data_summary = _build_data_summary(state.get("sql_result", {}))
-            parts = [title]
-            if data_summary:
-                parts.append(data_summary)
-            if insights:
-                parts.append("\n".join(f"- {i}" for i in insights))
-            summary = "\n".join(p for p in parts if p)
-
-            LOGGER.info(f"✅ Visualization generated: {viz_type}")
-
-            return {
-                "visualization_type": viz_type,
-                "visualization_data": viz_data,
-                "insights": insights,
-                "final_response": summary,
-                "messages": [AIMessage(content=summary)],
-            }
-
-        # JSON 파싱 실패 → text_summary fallback
-        LOGGER.warning("⚠️ Failed to parse visualization JSON, using text_summary")
         return {
-            "visualization_type": "text_summary",
-            "visualization_data": {"title": "", "content": response_text},
-            "insights": [],
-            "final_response": response_text,
-            "messages": [AIMessage(content=response_text)],
+            "visualization_type": viz_type,
+            "visualization_data": viz_data,
+            "insights": insights,
+            "final_response": summary,
+            "messages": [AIMessage(content=summary)],
         }
 
     except Exception as e:

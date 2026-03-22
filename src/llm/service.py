@@ -1,4 +1,5 @@
 """MMA Graph 서비스 - StateGraph 기반 LLM 응답 생성"""
+import asyncio
 import uuid
 import time
 from typing import Dict, Any, Optional, AsyncGenerator, List
@@ -14,6 +15,8 @@ from common.logging_config import get_logger
 from common.utils import utc_now
 
 LOGGER = get_logger(__name__)
+
+GRAPH_TIMEOUT_SECONDS = 60
 
 
 class MMAGraphService:
@@ -95,12 +98,15 @@ class MMAGraphService:
             messages = self.build_messages_from_history(chat_history)
             messages.append(HumanMessage(content=user_message))
 
-            # 그래프 실행
-            result = await self._compiled_graph.ainvoke({
-                "messages": messages,
-                "user_id": user_id,
-                "conversation_id": conversation_id or 0,
-            })
+            # 그래프 실행 (타임아웃 적용)
+            result = await asyncio.wait_for(
+                self._compiled_graph.ainvoke({
+                    "messages": messages,
+                    "user_id": user_id,
+                    "conversation_id": conversation_id or 0,
+                }),
+                timeout=GRAPH_TIMEOUT_SECONDS,
+            )
 
             execution_time = time.time() - start_time
 
@@ -110,13 +116,21 @@ class MMAGraphService:
             visualization_data = result.get("visualization_data")
             insights = result.get("insights", [])
 
-            # 시각화가 있으면 텍스트 content를 비움 (ChartRenderer가 insights를 표시)
+            # 프론트엔드용 content 추출
             if visualization_type and visualization_type != "text_summary" and visualization_data:
+                # 차트 시각화: 텍스트 content를 비움 (ChartRenderer가 표시)
                 content = ""
             else:
-                content = final_response
-                if not content and visualization_data:
-                    content = visualization_data.get("content", "")
+                # text_summary: visualization_data.content에서 깨끗한 텍스트 추출
+                if visualization_data and visualization_data.get("content"):
+                    content = visualization_data["content"]
+                else:
+                    raise LLMException(
+                        "visualization_data에 content 필드가 없습니다. "
+                        f"visualization_type={visualization_type}, "
+                        f"keys={list(visualization_data.keys()) if visualization_data else None}",
+                        error_class="MISSING_CONTENT_FIELD",
+                    )
 
             yield {
                 "type": "final_result",
@@ -145,7 +159,13 @@ class MMAGraphService:
 
         except Exception as e:
             LOGGER.error(f"❌ Graph execution error: {e}")
-            error_message = str(e)
+            if isinstance(e, asyncio.TimeoutError):
+                error_message = (
+                    f"응답 생성 시간이 {GRAPH_TIMEOUT_SECONDS}초를 초과했습니다. "
+                    "질문을 더 간단하게 바꿔서 다시 시도해주세요."
+                )
+            else:
+                error_message = str(e)
             if "rate_limit_error" in error_message or "429" in error_message:
                 error_message = "API 호출 한도를 초과했습니다. 잠시 후 다시 시도해주세요."
             yield {

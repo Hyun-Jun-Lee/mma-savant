@@ -1,7 +1,9 @@
 """SQL Agent 노드 - langgraph.prebuilt.create_react_agent 기반 SQL 실행"""
+import asyncio
 import json
 
 from langgraph.prebuilt import create_react_agent
+from langgraph.errors import GraphRecursionError
 from langchain_core.messages import SystemMessage
 
 from llm.graph.state import MMAGraphState
@@ -11,7 +13,7 @@ from common.logging_config import get_logger
 
 LOGGER = get_logger(__name__)
 
-
+SQL_AGENT_TIMEOUT_SECONDS = 30
 SQL_AGENT_RECURSION_LIMIT = 10
 
 
@@ -61,10 +63,13 @@ async def sql_agent_node(state: MMAGraphState, llm) -> dict:
     try:
         agent = _build_sql_agent(llm)
 
-        # 에이전트 실행 - recursion_limit으로 무한 루프 방지
-        result = await agent.ainvoke(
-            {"messages": messages},
-            config={"recursion_limit": SQL_AGENT_RECURSION_LIMIT},
+        # 에이전트 실행 - 타임아웃 + recursion_limit으로 무한 루프 방지
+        result = await asyncio.wait_for(
+            agent.ainvoke(
+                {"messages": messages},
+                config={"recursion_limit": SQL_AGENT_RECURSION_LIMIT},
+            ),
+            timeout=SQL_AGENT_TIMEOUT_SECONDS,
         )
 
         # 에이전트 출력 메시지에서 SQL 결과 추출
@@ -83,9 +88,41 @@ async def sql_agent_node(state: MMAGraphState, llm) -> dict:
             f"rows={sql_result.get('row_count', 0)}"
         )
 
+        # 중간 메시지(tool_call, tool_result)는 state에 누적하지 않음
+        # agent_reasoning을 별도 필드로 전달하여 text_response_node에서 재사용
         return {
             "sql_result": sql_result,
-            "messages": agent_messages,
+            "agent_reasoning": agent_reasoning,
+        }
+
+    except GraphRecursionError:
+        LOGGER.error(
+            f"❌ SQL Agent recursion limit reached ({SQL_AGENT_RECURSION_LIMIT})"
+        )
+        return {
+            "sql_result": {
+                "query": "",
+                "success": False,
+                "data": [],
+                "columns": [],
+                "row_count": 0,
+                "error": "SQL 쿼리 생성 과정이 너무 복잡합니다. 질문을 더 구체적으로 바꿔주세요.",
+            },
+        }
+
+    except asyncio.TimeoutError:
+        LOGGER.error(
+            f"❌ SQL Agent timed out after {SQL_AGENT_TIMEOUT_SECONDS}s"
+        )
+        return {
+            "sql_result": {
+                "query": "",
+                "success": False,
+                "data": [],
+                "columns": [],
+                "row_count": 0,
+                "error": f"SQL 쿼리 실행이 {SQL_AGENT_TIMEOUT_SECONDS}초를 초과했습니다. 질문을 더 간단하게 바꿔주세요.",
+            },
         }
 
     except Exception as e:
