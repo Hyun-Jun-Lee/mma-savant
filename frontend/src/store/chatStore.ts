@@ -134,7 +134,12 @@ export const useChatStore = create<ChatStore>((set, get) => ({
   // 세션 선택 액션들
   selectSession: (sessionId) => {
     const session = get().sessions.find(s => s.id === sessionId)
-    set({ selectedSessionId: sessionId, currentSession: session ?? null })
+    set({
+      selectedSessionId: sessionId,
+      currentSession: session ?? null,
+      messages: [],
+      currentMessage: "",
+    })
   },
   deselectSession: () => set({ selectedSessionId: null }),
   startNewChat: () => set({

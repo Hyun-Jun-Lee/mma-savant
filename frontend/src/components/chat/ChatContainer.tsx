@@ -10,6 +10,7 @@ import { useAuth } from "@/hooks/useAuth"
 import { useSocket } from "@/hooks/useSocket"
 import { useChatSession } from "@/hooks/useChatSession"
 import { useUser } from "@/hooks/useUser"
+import { PanelLeft } from "lucide-react"
 import { cn } from "@/lib/utils"
 
 export function ChatContainer() {
@@ -20,6 +21,7 @@ export function ChatContainer() {
   const { incrementUsage } = useUser()
   const [error, setError] = useState<string | null>(null)
   const [showMobileDetail, setShowMobileDetail] = useState(false)
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
   const isLoggedIn = !!user
 
   // WebSocket 연결 완료 후 세션 목록 1회 로드
@@ -74,19 +76,30 @@ export function ChatContainer() {
     clearChat()
   }, [deselectSession, clearChat])
 
+  const toggleSidebar = useCallback(() => {
+    setSidebarCollapsed(prev => !prev)
+  }, [])
+
   return (
     <div className="relative flex h-[calc(100vh-3.5rem)] w-full flex-col overflow-hidden bg-[#050507]">
       {/* 마스터-디테일 레이아웃 */}
       <div className="flex flex-1 overflow-hidden relative z-10">
-        {/* 좌측: 세션 목록 */}
+        {/* 좌측: 세션 목록 (접기/펼치기 가능) */}
         <div
           className={cn(
-            "h-full border-r border-zinc-700/50 flex-shrink-0",
-            "w-full md:w-80",
+            "h-full flex-shrink-0 transition-all duration-300 ease-in-out overflow-hidden",
+            sidebarCollapsed
+              ? "w-0 border-r-0"
+              : "w-full md:w-80 border-r border-zinc-700/50",
             showMobileDetail ? "hidden md:block" : "block"
           )}
         >
-          <SessionListPanel onSessionSelect={handleSessionSelect} />
+          <div className="h-full w-full md:w-80">
+            <SessionListPanel
+              onSessionSelect={handleSessionSelect}
+              onCollapse={toggleSidebar}
+            />
+          </div>
         </div>
 
         {/* 우측: 세션 상세 */}
@@ -96,6 +109,16 @@ export function ChatContainer() {
             showMobileDetail ? "block" : "hidden md:block"
           )}
         >
+          {/* 사이드바 펼치기 버튼 (접혀있을 때만 표시) */}
+          {sidebarCollapsed && (
+            <button
+              onClick={toggleSidebar}
+              className="absolute left-2 top-2 z-20 hidden md:flex items-center justify-center w-8 h-8 rounded-md border border-white/[0.08] bg-zinc-900/90 text-zinc-400 hover:text-white hover:bg-zinc-800 transition-colors"
+              title="사이드바 열기"
+            >
+              <PanelLeft className="w-4 h-4" />
+            </button>
+          )}
           <SessionDetailPanel
             onBack={handleMobileBack}
             showBackButton={showMobileDetail}

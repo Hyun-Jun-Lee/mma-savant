@@ -144,8 +144,8 @@ export function SessionDetailPanel({ onBack, showBackButton, onSendMessage, isCo
             <div className="flex-1">
               <MessageInput
                 onSendMessage={onSendMessage}
-                disabled={isLoading}
-                placeholder="궁금한 MMA 데이터를 질문해보세요..."
+                disabled={isLoading || !isConnected}
+                placeholder={isConnected ? "궁금한 MMA 데이터를 질문해보세요..." : "서버에 연결 중입니다..."}
               />
             </div>
             <div className="flex shrink-0 items-center gap-1.5 rounded-full border border-white/[0.06] bg-white/[0.03] px-2.5 py-1">

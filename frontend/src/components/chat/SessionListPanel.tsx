@@ -1,33 +1,24 @@
 "use client"
 
-import { useMemo, useState } from "react"
+import { useState } from "react"
 import { useChatStore } from "@/store/chatStore"
 import { useChatSession } from "@/hooks/useChatSession"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog"
-import { MessageSquare, Loader2, Trash2, Clock, AlertTriangle, Plus } from "lucide-react"
+import { MessageSquare, Loader2, Trash2, Clock, AlertTriangle, Plus, PanelLeftClose } from "lucide-react"
 import { formatDistanceToNow } from "date-fns"
 import { ko } from "date-fns/locale"
 import { cn } from "@/lib/utils"
 
 interface SessionListPanelProps {
   onSessionSelect?: (id: number) => void
+  onCollapse?: () => void
 }
 
-export function SessionListPanel({ onSessionSelect }: SessionListPanelProps) {
-  const { messages, isTyping, sessions, sessionsLoading, selectedSessionId, selectSession, startNewChat } = useChatStore()
+export function SessionListPanel({ onSessionSelect, onCollapse }: SessionListPanelProps) {
+  const { sessions, sessionsLoading, selectedSessionId, selectSession, startNewChat } = useChatStore()
   const { deleteSession } = useChatSession()
   const [deleteTarget, setDeleteTarget] = useState<{ id: number; title: string } | null>(null)
-
-  // 현재 진행 중인 질문 (응답이 아직 없는 사용자 메시지)
-  const currentPendingQuestion = useMemo(() => {
-    const userMessages = messages.filter(m => m.role === 'user')
-    const assistantMessages = messages.filter(m => m.role === 'assistant')
-    if (userMessages.length > assistantMessages.length) {
-      return userMessages[userMessages.length - 1]
-    }
-    return null
-  }, [messages])
 
   const handleSelectSession = (sessionId: number) => {
     selectSession(sessionId)
@@ -58,46 +49,34 @@ export function SessionListPanel({ onSessionSelect }: SessionListPanelProps) {
       {/* 헤더 */}
       <div className="flex-shrink-0 border-b border-zinc-700/50 bg-zinc-900/80 px-4 py-3 flex items-center justify-between">
         <h2 className="text-sm font-semibold text-zinc-400 uppercase tracking-wider">History</h2>
-        <button
-          onClick={startNewChat}
-          className="flex items-center gap-1.5 rounded-md border border-white/[0.08] bg-white/[0.03] px-2.5 py-1.5 text-xs font-medium text-zinc-300 hover:bg-white/[0.06] hover:text-white transition-colors"
-        >
-          <Plus className="w-3.5 h-3.5" />
-          New Chat
-        </button>
+        <div className="flex items-center gap-1.5">
+          <button
+            onClick={startNewChat}
+            className="flex items-center gap-1.5 rounded-md border border-white/[0.08] bg-white/[0.03] px-2.5 py-1.5 text-xs font-medium text-zinc-300 hover:bg-white/[0.06] hover:text-white transition-colors"
+          >
+            <Plus className="w-3.5 h-3.5" />
+            New Chat
+          </button>
+          {onCollapse && (
+            <button
+              onClick={onCollapse}
+              className="hidden md:flex items-center justify-center w-7 h-7 rounded-md text-zinc-500 hover:text-white hover:bg-white/[0.06] transition-colors"
+              title="사이드바 접기"
+            >
+              <PanelLeftClose className="w-4 h-4" />
+            </button>
+          )}
+        </div>
       </div>
 
-      <ScrollArea className="flex-1">
+      <ScrollArea className="flex-1 overflow-hidden">
         <div className="p-3 space-y-1.5">
-          {/* 현재 진행 중인 질문 */}
-          {currentPendingQuestion && (
-            <div className="rounded-lg border border-violet-500/20 bg-violet-500/5 p-3 animate-fade-in">
-              <div className="flex items-start gap-2.5">
-                <div className="mt-0.5 w-5 h-5 shrink-0 rounded-full bg-violet-500/20 flex items-center justify-center">
-                  {isTyping ? (
-                    <Loader2 className="w-3 h-3 text-violet-400 animate-spin" />
-                  ) : (
-                    <MessageSquare className="w-3 h-3 text-violet-400" />
-                  )}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm text-white font-medium line-clamp-1">
-                    {currentPendingQuestion.content}
-                  </p>
-                  <p className="text-xs text-violet-300 mt-1">
-                    {isTyping ? '응답 생성 중...' : '처리 중...'}
-                  </p>
-                </div>
-              </div>
-            </div>
-          )}
-
           {/* 세션 목록 */}
           {sessionsLoading ? (
             <div className="flex items-center justify-center py-8">
               <Loader2 className="w-5 h-5 animate-spin text-zinc-500" />
             </div>
-          ) : sessions.length === 0 && !currentPendingQuestion ? (
+          ) : sessions.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-8 text-zinc-500">
               <MessageSquare className="w-6 h-6 mb-2 opacity-50" />
               <p className="text-xs">No history</p>
