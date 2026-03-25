@@ -80,6 +80,10 @@ class Config:
     # Agent Settings
     AGENT_MAX_ITERATIONS: int = int(os.getenv("AGENT_MAX_ITERATIONS", "5"))
 
+    # Multi-Agent Model Settings (format: "provider/model_name")
+    MAIN_MODEL: str = os.getenv("MAIN_MODEL", "")
+    SUB_MODEL: str = os.getenv("SUB_MODEL", "")
+
 def get_database_url(is_test : bool = False) -> str:
     if is_test:
         return f"postgresql+asyncpg://{Config.DB_USER}:{Config.DB_PASSWORD}@{Config.DB_HOST}:{Config.DB_PORT}/{Config.TEST_DB_NAME}"

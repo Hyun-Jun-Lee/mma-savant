@@ -267,6 +267,77 @@ def get_openai_model_and_callback(
     raise NotImplementedError("OpenAI provider will be implemented in future versions")
 
 
+def _parse_model_spec(spec: str) -> tuple[str, str]:
+    """환경변수에서 프로바이더와 모델명을 분리
+
+    'openrouter/google/gemini-3-flash-preview'
+      -> ('openrouter', 'google/gemini-3-flash-preview')
+    'anthropic/claude-sonnet-4-5-20250929'
+      -> ('anthropic', 'claude-sonnet-4-5-20250929')
+    """
+    parts = spec.split("/", 1)
+    if len(parts) != 2:
+        raise ValueError(f"Invalid model spec: {spec}. Expected 'provider/model_name'")
+    return parts[0], parts[1]
+
+
+def _create_model_from_spec(provider: str, model_name: str):
+    """프로바이더와 모델명으로 LLM 인스턴스 생성 (콜백 없는 순수 모델)"""
+    if provider == LLMProvider.OPENROUTER.value:
+        from langchain_openai import ChatOpenAI
+        return ChatOpenAI(
+            model=model_name,
+            api_key=Config.OPENROUTER_API_KEY,
+            base_url=Config.OPENROUTER_BASE_URL,
+            temperature=Config.DEFAULT_TEMPERATURE,
+            max_tokens=Config.DEFAULT_MAX_TOKENS,
+            default_headers={
+                "HTTP-Referer": "https://mma-savant.com",
+                "X-Title": "MMA Savant",
+            },
+            streaming=True,
+        )
+    elif provider == LLMProvider.ANTHROPIC.value:
+        from langchain_anthropic import ChatAnthropic
+        return ChatAnthropic(
+            api_key=Config.ANTHROPIC_API_KEY,
+            model=model_name,
+            temperature=Config.DEFAULT_TEMPERATURE,
+            max_tokens=Config.DEFAULT_MAX_TOKENS,
+            streaming=True,
+        )
+    elif provider == LLMProvider.OPENAI.value:
+        from langchain_openai import ChatOpenAI
+        return ChatOpenAI(
+            model=model_name,
+            api_key=Config.OPENAI_API_KEY,
+            temperature=Config.DEFAULT_TEMPERATURE,
+            max_tokens=Config.DEFAULT_MAX_TOKENS,
+            streaming=True,
+        )
+    else:
+        available = [p.value for p in LLMProvider]
+        raise ValueError(f"Unsupported provider: {provider}. Available: {available}")
+
+
+def get_main_model():
+    """MAIN_MODEL 환경변수로 모델 생성"""
+    if not Config.MAIN_MODEL:
+        raise ValueError("MAIN_MODEL environment variable is not set")
+    provider, model_name = _parse_model_spec(Config.MAIN_MODEL)
+    LOGGER.info(f"🏭 Creating MAIN model: {provider}/{model_name}")
+    return _create_model_from_spec(provider, model_name)
+
+
+def get_sub_model():
+    """SUB_MODEL 환경변수로 모델 생성"""
+    if not Config.SUB_MODEL:
+        raise ValueError("SUB_MODEL environment variable is not set")
+    provider, model_name = _parse_model_spec(Config.SUB_MODEL)
+    LOGGER.info(f"🏭 Creating SUB model: {provider}/{model_name}")
+    return _create_model_from_spec(provider, model_name)
+
+
 def get_available_providers() -> List[str]:
     """
     사용 가능한 프로바이더 목록 반환

@@ -8,7 +8,7 @@ from traceback import format_exc
 from langchain_core.messages import HumanMessage, AIMessage
 
 from config import Config
-from llm.model_factory import create_llm_with_callbacks
+from llm.model_factory import create_llm_with_callbacks, get_main_model, get_sub_model
 from llm.graph import build_mma_graph
 from llm.exceptions import LLMException
 from common.logging_config import get_logger
@@ -32,20 +32,31 @@ class MMAGraphService:
         if self._compiled_graph is not None:
             return
 
-        llm, _ = create_llm_with_callbacks(
-            message_id="graph-init",
-            conversation_id=0,
-            provider=self.provider,
-        )
-        self._llm = llm
-        self._compiled_graph = build_mma_graph(llm)
-        LOGGER.info(f"✅ MMA Graph service initialized (provider: {self.provider})")
+        if Config.MAIN_MODEL and Config.SUB_MODEL:
+            main_llm = get_main_model()
+            sub_llm = get_sub_model()
+            self._llm = main_llm
+            self._compiled_graph = build_mma_graph(main_llm, sub_llm)
+            LOGGER.info(
+                f"✅ MMA Graph service initialized "
+                f"(main={Config.MAIN_MODEL}, sub={Config.SUB_MODEL})"
+            )
+        else:
+            llm, _ = create_llm_with_callbacks(
+                message_id="graph-init",
+                conversation_id=0,
+                provider=self.provider,
+            )
+            self._llm = llm
+            self._compiled_graph = build_mma_graph(llm)
+            LOGGER.info(f"✅ MMA Graph service initialized (provider: {self.provider})")
 
     @staticmethod
     def build_messages_from_history(chat_history: List) -> list:
         """
         DB 채팅 히스토리(ChatMessageResponse 리스트)를 LangChain 메시지로 변환.
-        최근 20개 메시지로 슬라이딩 윈도우 적용.
+        극단적 상황 방지를 위한 최대 100턴 상한 적용.
+        (실제 슬라이딩 윈도우는 ConversationManager 노드에서 처리)
         """
         if not chat_history:
             return []
@@ -60,8 +71,8 @@ class MMAGraphService:
             elif role == "assistant":
                 messages.append(AIMessage(content=content))
 
-        if len(messages) > 10:
-            messages = messages[-10:]
+        if len(messages) > 100:
+            messages = messages[-100:]
 
         return messages
 
@@ -116,21 +127,13 @@ class MMAGraphService:
             visualization_data = result.get("visualization_data")
             insights = result.get("insights", [])
 
-            # 프론트엔드용 content 추출
-            if visualization_type and visualization_type != "text_summary" and visualization_data:
-                # 차트 시각화: 텍스트 content를 비움 (ChartRenderer가 표시)
-                content = ""
-            else:
-                # text_summary: visualization_data.content에서 깨끗한 텍스트 추출
-                if visualization_data and visualization_data.get("content"):
-                    content = visualization_data["content"]
-                else:
-                    raise LLMException(
-                        "visualization_data에 content 필드가 없습니다. "
-                        f"visualization_type={visualization_type}, "
-                        f"keys={list(visualization_data.keys()) if visualization_data else None}",
-                        error_class="MISSING_CONTENT_FIELD",
-                    )
+            # text_response만 실행된 경우 또는 Critic 소진 시
+            # visualization_type/data가 없으므로 text_summary 폴백
+            if not visualization_type or not visualization_data:
+                visualization_type = "text_summary"
+                visualization_data = {"title": "", "content": final_response}
+
+            content = final_response
 
             yield {
                 "type": "final_result",

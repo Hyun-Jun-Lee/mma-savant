@@ -1,90 +1,126 @@
-"""MMA StateGraph 조립 및 컴파일"""
+"""MMA Multi-Agent StateGraph 조립 및 컴파일"""
 from functools import partial
 
 from langgraph.graph import StateGraph, START, END
+from langgraph.types import Send
 
-from llm.graph.state import MMAGraphState
+from llm.graph.state import MainState
 from llm.graph.nodes import (
-    intent_classifier_node,
+    conversation_manager_node,
+    supervisor_node,
     direct_response_node,
-    sql_agent_node,
-    context_enricher_node,
-    result_analyzer_node,
-    visualize_node,
+    mma_analysis_node,
+    fighter_comparison_node,
+    critic_node,
     text_response_node,
+    visualize_node,
 )
 from common.logging_config import get_logger
 
 LOGGER = get_logger(__name__)
 
 
-VALID_INTENTS = {"general", "sql_needed", "followup"}
-VALID_RESPONSE_MODES = {"visualization", "text"}
+# =============================================================================
+# 라우팅 함수
+# =============================================================================
 
+def supervisor_dispatch(state: MainState) -> list[Send]:
+    """Supervisor 라우팅 결과에 따라 에이전트를 동적으로 활성화
 
-def route_by_intent(state: MMAGraphState) -> str:
-    """의도 분류 결과에 따른 라우팅"""
-    intent = state.get("intent")
-    if intent not in VALID_INTENTS:
-        LOGGER.error(f"❌ Invalid intent: {intent!r}, expected one of {VALID_INTENTS}")
-        raise ValueError(f"Invalid intent: {intent!r}")
-    LOGGER.info(f"🔀 Routing by intent: {intent}")
-    return intent
-
-
-def route_by_response_mode(state: MMAGraphState) -> str:
-    """시각화 적합성 판단 결과에 따른 라우팅"""
-    mode = state.get("response_mode")
-    if mode not in VALID_RESPONSE_MODES:
-        LOGGER.error(f"❌ Invalid response_mode: {mode!r}, expected one of {VALID_RESPONSE_MODES}")
-        raise ValueError(f"Invalid response_mode: {mode!r}")
-    LOGGER.info(f"🔀 Routing by response_mode: {mode}")
-    return mode
-
-
-def build_mma_graph(llm):
+    Returns:
+        list[Send] — general이면 direct_response, 그 외 active_agents를 Send()
     """
-    MMA StateGraph 조립 및 컴파일
+    route = state.get("route", "mma_analysis")
+
+    if route == "general":
+        return [Send("direct_response", state)]
+
+    # 단일 또는 복수 에이전트를 동적으로 활성화
+    active_agents = state.get("active_agents", ["mma_analysis"])
+    return [Send(agent, state) for agent in active_agents]
+
+
+def critic_route(state: MainState):
+    """Critic 결과에 따른 3방향 라우팅
+
+    Returns:
+        list[Send] — 통과: 텍스트(항상) + 시각화(조건부) 병렬 Send
+        list[Send] — 재시도: active_agents 전체 재실행 Send
+        END — 3회 소진 또는 에러 응답 설정됨: 그래프 종료
+    """
+    if state.get("critic_passed", False):
+        # 통과 → 텍스트(항상) + 시각화(조건부) 병렬 실행
+        sends = [Send("text_response", state)]
+        if state.get("needs_visualization", False):
+            sends.append(Send("visualization", state))
+        return sends
+
+    if state.get("retry_count", 0) >= 3:
+        # 3회 소진 → END (critic_node에서 이미 final_response 설정됨)
+        return END
+
+    # 재시도 → 원래 활성화된 에이전트 전체를 Send()로 재실행
+    active_agents = state.get("active_agents", [])
+    if not active_agents:
+        return END
+    return [Send(agent, state) for agent in active_agents]
+
+
+# =============================================================================
+# 그래프 빌더
+# =============================================================================
+
+def build_mma_graph(main_llm, sub_llm=None):
+    """
+    MMA Multi-Agent StateGraph 조립 및 컴파일
 
     Args:
-        llm: LangChain LLM 인스턴스 (노드에서 사용)
+        main_llm: MAIN_MODEL LLM (MMA 분석, Fighter 비교, 텍스트 응답)
+        sub_llm: SUB_MODEL LLM (CM, Supervisor, Critic, 시각화, direct_response)
+                 None이면 main_llm을 모든 노드에 사용 (하위 호환)
 
     Returns:
         CompiledGraph: 컴파일된 그래프
     """
-    graph = StateGraph(MMAGraphState)
+    if sub_llm is None:
+        sub_llm = main_llm
 
-    # 노드 등록 (llm을 partial로 바인딩)
-    graph.add_node("intent_classifier", partial(intent_classifier_node, llm=llm))
-    graph.add_node("direct_response", partial(direct_response_node, llm=llm))
-    graph.add_node("sql_agent", partial(sql_agent_node, llm=llm))
-    graph.add_node("context_enricher", partial(context_enricher_node, llm=llm))
-    graph.add_node("result_analyzer", result_analyzer_node)  # 규칙 기반, LLM 불필요
-    graph.add_node("visualize", partial(visualize_node, llm=llm))
-    graph.add_node("text_response", partial(text_response_node, llm=llm))
+    graph = StateGraph(MainState)
 
-    # 에지 정의
-    graph.add_edge(START, "intent_classifier")
+    # ── 노드 등록 (partial로 LLM 바인딩) ──
+    graph.add_node("conversation_manager", partial(conversation_manager_node, llm=sub_llm))
+    graph.add_node("supervisor", partial(supervisor_node, llm=sub_llm))
+    graph.add_node("direct_response", partial(direct_response_node, llm=sub_llm))
+    graph.add_node("mma_analysis", partial(mma_analysis_node, llm=main_llm))
+    graph.add_node("fighter_comparison", partial(fighter_comparison_node, llm=main_llm))
+    graph.add_node("critic", partial(critic_node, llm=sub_llm))
+    graph.add_node("text_response", partial(text_response_node, llm=main_llm))
+    graph.add_node("visualization", partial(visualize_node, llm=sub_llm))
 
-    graph.add_conditional_edges("intent_classifier", route_by_intent, {
-        "general": "direct_response",
-        "sql_needed": "sql_agent",
-        "followup": "context_enricher",
-    })
+    # ── 순차 에지 ──
+    graph.add_edge(START, "conversation_manager")
+    graph.add_edge("conversation_manager", "supervisor")
 
-    graph.add_edge("context_enricher", "sql_agent")
-    graph.add_edge("sql_agent", "result_analyzer")
+    # ── fan-in 에지: 분석 에이전트들 → critic ──
+    graph.add_edge("mma_analysis", "critic")
+    graph.add_edge("fighter_comparison", "critic")
 
-    graph.add_conditional_edges("result_analyzer", route_by_response_mode, {
-        "visualization": "visualize",
-        "text": "text_response",
-    })
-
+    # ── 터미널 에지 ──
     graph.add_edge("direct_response", END)
-    graph.add_edge("visualize", END)
     graph.add_edge("text_response", END)
+    graph.add_edge("visualization", END)
+
+    # ── 동적 라우팅 (Send() 기반, path_map으로 가능한 타겟 노드 명시) ──
+    graph.add_conditional_edges(
+        "supervisor", supervisor_dispatch,
+        ["direct_response", "mma_analysis", "fighter_comparison"],
+    )
+    graph.add_conditional_edges(
+        "critic", critic_route,
+        ["text_response", "visualization", "mma_analysis", "fighter_comparison", END],
+    )
 
     compiled = graph.compile()
-    LOGGER.info("✅ MMA StateGraph compiled successfully")
+    LOGGER.info("✅ MMA Multi-Agent StateGraph compiled successfully")
 
     return compiled

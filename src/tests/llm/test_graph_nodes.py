@@ -1,327 +1,20 @@
-"""StateGraph 노드 단위 테스트"""
+"""StateGraph 노드 단위 테스트 — 멀티 에이전트 아키텍처"""
 import json
 import pytest
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock
 
 from langchain_core.messages import HumanMessage, AIMessage, ToolMessage
 
 
 # =============================================================================
-# result_analyzer 노드 테스트 (순수 규칙 기반)
+# mma_analysis 헬퍼 함수 테스트
 # =============================================================================
 
-class TestResultAnalyzer:
-    """result_analyzer_node 테스트 - 규칙 기반 시각화 판단"""
+class TestMmaAnalysisHelpers:
+    """mma_analysis 노드의 SQL 추출 테스트"""
 
-    @pytest.fixture
-    def state_factory(self):
-        def _make(data, columns, row_count, success=True):
-            return {
-                "messages": [HumanMessage(content="test")],
-                "sql_result": {
-                    "success": success,
-                    "data": data,
-                    "columns": columns,
-                    "row_count": row_count,
-                },
-            }
-        return _make
-
-    @pytest.mark.asyncio
-    async def test_no_sql_result_returns_text(self):
-        from llm.graph.nodes.result_analyzer import result_analyzer_node
-        state = {"messages": [], "sql_result": None}
-        result = await result_analyzer_node(state)
-        assert result["response_mode"] == "text"
-
-    @pytest.mark.asyncio
-    async def test_failed_sql_returns_text(self, state_factory):
-        from llm.graph.nodes.result_analyzer import result_analyzer_node
-        state = state_factory([], [], 0, success=False)
-        result = await result_analyzer_node(state)
-        assert result["response_mode"] == "text"
-
-    @pytest.mark.asyncio
-    async def test_zero_rows_returns_text(self, state_factory):
-        from llm.graph.nodes.result_analyzer import result_analyzer_node
-        state = state_factory([], [], 0)
-        result = await result_analyzer_node(state)
-        assert result["response_mode"] == "text"
-
-    @pytest.mark.asyncio
-    async def test_single_row_few_columns_returns_text(self, state_factory):
-        from llm.graph.nodes.result_analyzer import result_analyzer_node
-        state = state_factory(
-            [{"name": "Jones", "wins": 28}],
-            ["name", "wins"],
-            1,
-        )
-        result = await result_analyzer_node(state)
-        assert result["response_mode"] == "text"
-
-    @pytest.mark.asyncio
-    async def test_single_row_many_numeric_columns_returns_visualization(self, state_factory):
-        from llm.graph.nodes.result_analyzer import result_analyzer_node
-        state = state_factory(
-            [{"name": "Jones", "wins": 28, "losses": 1, "ko": 10, "sub": 7}],
-            ["name", "wins", "losses", "ko", "sub"],
-            1,
-        )
-        result = await result_analyzer_node(state)
-        assert result["response_mode"] == "visualization"
-
-    @pytest.mark.asyncio
-    async def test_single_row_many_text_columns_returns_text(self, state_factory):
-        from llm.graph.nodes.result_analyzer import result_analyzer_node
-        state = state_factory(
-            [{"a": "x", "b": "y", "c": "z", "d": "w"}],
-            ["a", "b", "c", "d"],
-            1,
-        )
-        result = await result_analyzer_node(state)
-        assert result["response_mode"] == "text"
-
-    @pytest.mark.asyncio
-    async def test_multiple_rows_with_numeric_returns_visualization(self, state_factory):
-        from llm.graph.nodes.result_analyzer import result_analyzer_node
-        state = state_factory(
-            [{"name": "A", "wins": 10}, {"name": "B", "wins": 8}],
-            ["name", "wins"],
-            2,
-        )
-        result = await result_analyzer_node(state)
-        assert result["response_mode"] == "visualization"
-
-    @pytest.mark.asyncio
-    async def test_multiple_rows_no_numeric_returns_text(self, state_factory):
-        from llm.graph.nodes.result_analyzer import result_analyzer_node
-        state = state_factory(
-            [{"name": "A", "team": "X"}, {"name": "B", "team": "Y"}],
-            ["name", "team"],
-            2,
-        )
-        result = await result_analyzer_node(state)
-        assert result["response_mode"] == "text"
-
-
-# =============================================================================
-# intent_classifier 노드 테스트
-# =============================================================================
-
-class TestIntentClassifier:
-    """intent_classifier_node LLM 기반 분류 테스트"""
-
-    @pytest.mark.asyncio
-    async def test_empty_messages_returns_general(self):
-        from llm.graph.nodes.intent_classifier import intent_classifier_node
-        state = {"messages": []}
-        result = await intent_classifier_node(state, llm=None)
-        assert result["intent"] == "general"
-
-    @pytest.mark.asyncio
-    async def test_llm_failure_returns_sql_needed(self):
-        """LLM 호출 실패 시 안전하게 sql_needed로 fallback"""
-        from llm.graph.nodes.intent_classifier import intent_classifier_node
-        mock_llm = MagicMock()
-        mock_llm.with_structured_output.side_effect = Exception("LLM error")
-        state = {"messages": [HumanMessage(content="존 존스 전적")]}
-        result = await intent_classifier_node(state, llm=mock_llm)
-        assert result["intent"] == "sql_needed"
-
-    @pytest.mark.asyncio
-    async def test_followup_corrected_without_history(self):
-        """히스토리 없는데 followup으로 분류되면 sql_needed로 보정"""
-        from llm.graph.nodes.intent_classifier import intent_classifier_node, IntentClassification
-        mock_result = IntentClassification(intent="followup")
-        mock_structured = AsyncMock(ainvoke=AsyncMock(return_value=mock_result))
-        mock_llm = MagicMock()
-        mock_llm.with_structured_output.return_value = mock_structured
-        # 메시지 1개만 → has_history=False
-        state = {"messages": [HumanMessage(content="그중에서 KO는?")]}
-        result = await intent_classifier_node(state, llm=mock_llm)
-        assert result["intent"] == "sql_needed"
-
-    @pytest.mark.asyncio
-    async def test_followup_allowed_with_history(self):
-        """히스토리 있으면 followup 분류 허용"""
-        from llm.graph.nodes.intent_classifier import intent_classifier_node, IntentClassification
-        mock_result = IntentClassification(intent="followup")
-        mock_structured = AsyncMock(ainvoke=AsyncMock(return_value=mock_result))
-        mock_llm = MagicMock()
-        mock_llm.with_structured_output.return_value = mock_structured
-        state = {
-            "messages": [
-                HumanMessage(content="존 존스 전적"),
-                AIMessage(content="존 존스는 28승 1패입니다."),
-                HumanMessage(content="그중에서 KO는?"),
-            ]
-        }
-        result = await intent_classifier_node(state, llm=mock_llm)
-        assert result["intent"] == "followup"
-
-    @pytest.mark.asyncio
-    async def test_sql_needed_classification(self):
-        """LLM이 sql_needed로 분류한 경우"""
-        from llm.graph.nodes.intent_classifier import intent_classifier_node, IntentClassification
-        mock_result = IntentClassification(intent="sql_needed")
-        mock_structured = AsyncMock(ainvoke=AsyncMock(return_value=mock_result))
-        mock_llm = MagicMock()
-        mock_llm.with_structured_output.return_value = mock_structured
-        state = {"messages": [HumanMessage(content="최근 경기가 언제야?")]}
-        result = await intent_classifier_node(state, llm=mock_llm)
-        assert result["intent"] == "sql_needed"
-
-    @pytest.mark.asyncio
-    async def test_sql_needed_corrected_with_history(self):
-        """히스토리 있는데 sql_needed로 분류되면 followup으로 보정"""
-        from llm.graph.nodes.intent_classifier import intent_classifier_node, IntentClassification
-        mock_result = IntentClassification(intent="sql_needed")
-        mock_structured = AsyncMock(ainvoke=AsyncMock(return_value=mock_result))
-        mock_llm = MagicMock()
-        mock_llm.with_structured_output.return_value = mock_structured
-        state = {
-            "messages": [
-                HumanMessage(content="존 존스 전적"),
-                AIMessage(content="존 존스는 28승 1패입니다."),
-                HumanMessage(content="서브미션 승리 Top 5 알려줘"),
-            ]
-        }
-        result = await intent_classifier_node(state, llm=mock_llm)
-        assert result["intent"] == "followup"
-
-    @pytest.mark.asyncio
-    async def test_general_classification(self):
-        """LLM이 general로 분류한 경우"""
-        from llm.graph.nodes.intent_classifier import intent_classifier_node, IntentClassification
-        mock_result = IntentClassification(intent="general")
-        mock_structured = AsyncMock(ainvoke=AsyncMock(return_value=mock_result))
-        mock_llm = MagicMock()
-        mock_llm.with_structured_output.return_value = mock_structured
-        state = {"messages": [HumanMessage(content="안녕하세요")]}
-        result = await intent_classifier_node(state, llm=mock_llm)
-        assert result["intent"] == "general"
-
-
-# =============================================================================
-# graph_builder 테스트
-# =============================================================================
-
-class TestGraphBuilder:
-    """build_mma_graph 조립 및 컴파일 테스트"""
-
-    def test_graph_compiles_with_mock_llm(self):
-        from llm.graph.graph_builder import build_mma_graph
-        mock_llm = MagicMock()
-        compiled = build_mma_graph(mock_llm)
-        assert compiled is not None
-
-    def test_route_by_intent_general(self):
-        from llm.graph.graph_builder import route_by_intent
-        assert route_by_intent({"intent": "general"}) == "general"
-
-    def test_route_by_intent_sql(self):
-        from llm.graph.graph_builder import route_by_intent
-        assert route_by_intent({"intent": "sql_needed"}) == "sql_needed"
-
-    def test_route_by_intent_followup(self):
-        from llm.graph.graph_builder import route_by_intent
-        assert route_by_intent({"intent": "followup"}) == "followup"
-
-    def test_route_by_intent_invalid_raises(self):
-        from llm.graph.graph_builder import route_by_intent
-        with pytest.raises(ValueError, match="Invalid intent"):
-            route_by_intent({})
-
-    def test_route_by_intent_unknown_value_raises(self):
-        from llm.graph.graph_builder import route_by_intent
-        with pytest.raises(ValueError, match="Invalid intent"):
-            route_by_intent({"intent": "unknown"})
-
-    def test_route_by_response_mode_visualization(self):
-        from llm.graph.graph_builder import route_by_response_mode
-        assert route_by_response_mode({"response_mode": "visualization"}) == "visualization"
-
-    def test_route_by_response_mode_text(self):
-        from llm.graph.graph_builder import route_by_response_mode
-        assert route_by_response_mode({"response_mode": "text"}) == "text"
-
-    def test_route_by_response_mode_invalid_raises(self):
-        from llm.graph.graph_builder import route_by_response_mode
-        with pytest.raises(ValueError, match="Invalid response_mode"):
-            route_by_response_mode({})
-
-    def test_route_by_response_mode_unknown_value_raises(self):
-        from llm.graph.graph_builder import route_by_response_mode
-        with pytest.raises(ValueError, match="Invalid response_mode"):
-            route_by_response_mode({"response_mode": "unknown"})
-
-
-# =============================================================================
-# visualize 노드 JSON 파싱 테스트
-# =============================================================================
-
-class TestVisualizeJsonParsing:
-    """visualize 노드의 JSON 파싱 로직 테스트"""
-
-    def test_direct_json(self):
-        from llm.graph.nodes.visualize import _parse_visualization_json
-        data = '{"selected_visualization": "bar_chart", "visualization_data": {"title": "t"}, "insights": []}'
-        result = _parse_visualization_json(data)
-        assert result["selected_visualization"] == "bar_chart"
-
-    def test_json_in_code_block(self):
-        from llm.graph.nodes.visualize import _parse_visualization_json
-        data = '```json\n{"selected_visualization": "pie_chart", "visualization_data": {}, "insights": []}\n```'
-        result = _parse_visualization_json(data)
-        assert result["selected_visualization"] == "pie_chart"
-
-    def test_invalid_json_returns_none(self):
-        from llm.graph.nodes.visualize import _parse_visualization_json
-        result = _parse_visualization_json("this is not json at all")
-        assert result is None
-
-    def test_json_with_extra_text(self):
-        from llm.graph.nodes.visualize import _parse_visualization_json
-        data = 'Here is the data: {"selected_visualization": "table", "visualization_data": {"title": "x"}} end'
-        result = _parse_visualization_json(data)
-        assert result is not None
-        assert result["selected_visualization"] == "table"
-
-
-# =============================================================================
-# text_response 노드 JSON 파싱 테스트
-# =============================================================================
-
-class TestTextResponseJsonParsing:
-    """text_response 노드의 JSON 파싱 로직 테스트"""
-
-    def test_direct_json(self):
-        from llm.graph.nodes.text_response import _parse_text_response_json
-        data = '{"visualization_data": {"content": "hello"}, "insights": ["a"]}'
-        result = _parse_text_response_json(data)
-        assert result["visualization_data"]["content"] == "hello"
-
-    def test_json_in_code_block(self):
-        from llm.graph.nodes.text_response import _parse_text_response_json
-        data = '```json\n{"visualization_data": {"content": "hi"}, "insights": []}\n```'
-        result = _parse_text_response_json(data)
-        assert result is not None
-
-    def test_invalid_json_returns_none(self):
-        from llm.graph.nodes.text_response import _parse_text_response_json
-        result = _parse_text_response_json("not json")
-        assert result is None
-
-
-# =============================================================================
-# sql_agent 노드 결과 추출 테스트
-# =============================================================================
-
-class TestSqlAgentExtraction:
-    """sql_agent 노드의 SQL 결과 추출 테스트"""
-
-    def test_extract_from_tool_message(self):
-        from llm.graph.nodes.sql_agent import _extract_sql_result_from_messages
+    def test_extract_sql_result_from_tool_message(self):
+        from llm.graph.nodes.mma_analysis import _extract_sql_result
         tool_content = json.dumps({
             "success": True, "data": [{"name": "test"}],
             "columns": ["name"], "row_count": 1, "query": "SELECT 1",
@@ -331,21 +24,109 @@ class TestSqlAgentExtraction:
             AIMessage(content="running query"),
             ToolMessage(content=tool_content, tool_call_id="1"),
         ]
-        result = _extract_sql_result_from_messages(messages)
+        result = _extract_sql_result(messages)
         assert result["success"] is True
         assert result["row_count"] == 1
 
     def test_no_tool_message_returns_failure(self):
-        from llm.graph.nodes.sql_agent import _extract_sql_result_from_messages
+        from llm.graph.nodes.mma_analysis import _extract_sql_result
         messages = [HumanMessage(content="test"), AIMessage(content="ok")]
-        result = _extract_sql_result_from_messages(messages)
+        result = _extract_sql_result(messages)
         assert result["success"] is False
 
-    def test_invalid_json_tool_message(self):
-        from llm.graph.nodes.sql_agent import _extract_sql_result_from_messages
-        messages = [ToolMessage(content="not json", tool_call_id="1")]
-        result = _extract_sql_result_from_messages(messages)
-        assert result["success"] is False
+    def test_extract_reasoning_from_ai_message(self):
+        from llm.graph.nodes.mma_analysis import _extract_reasoning
+        messages = [
+            HumanMessage(content="test"),
+            AIMessage(content=""),
+            AIMessage(content="Jones has 28 wins"),
+        ]
+        result = _extract_reasoning(messages)
+        assert result == "Jones has 28 wins"
+
+
+# =============================================================================
+# graph_builder 라우팅 테스트
+# =============================================================================
+
+class TestGraphBuilder:
+    """build_mma_graph 조립 및 라우팅 테스트"""
+
+    def test_graph_compiles_with_mock_llm(self):
+        from llm.graph.graph_builder import build_mma_graph
+        mock_llm = MagicMock()
+        compiled = build_mma_graph(mock_llm)
+        assert compiled is not None
+
+    def test_graph_compiles_with_dual_llm(self):
+        from llm.graph.graph_builder import build_mma_graph
+        compiled = build_mma_graph(MagicMock(), MagicMock())
+        assert compiled is not None
+
+    def test_supervisor_dispatch_general(self):
+        from llm.graph.graph_builder import supervisor_dispatch
+        sends = supervisor_dispatch({"route": "general"})
+        assert len(sends) == 1
+        assert sends[0].node == "direct_response"
+
+    def test_supervisor_dispatch_mma_analysis(self):
+        from llm.graph.graph_builder import supervisor_dispatch
+        sends = supervisor_dispatch({
+            "route": "mma_analysis",
+            "active_agents": ["mma_analysis"],
+        })
+        assert len(sends) == 1
+        assert sends[0].node == "mma_analysis"
+
+    def test_supervisor_dispatch_complex(self):
+        from llm.graph.graph_builder import supervisor_dispatch
+        sends = supervisor_dispatch({
+            "route": "complex",
+            "active_agents": ["mma_analysis", "fighter_comparison"],
+        })
+        assert len(sends) == 2
+        nodes = {s.node for s in sends}
+        assert nodes == {"mma_analysis", "fighter_comparison"}
+
+    def test_critic_route_passed_text_only(self):
+        from llm.graph.graph_builder import critic_route
+        sends = critic_route({
+            "critic_passed": True,
+            "needs_visualization": False,
+        })
+        assert len(sends) == 1
+        assert sends[0].node == "text_response"
+
+    def test_critic_route_passed_with_visualization(self):
+        from llm.graph.graph_builder import critic_route
+        sends = critic_route({
+            "critic_passed": True,
+            "needs_visualization": True,
+        })
+        assert len(sends) == 2
+        nodes = {s.node for s in sends}
+        assert nodes == {"text_response", "visualization"}
+
+    def test_critic_route_retry(self):
+        from llm.graph.graph_builder import critic_route
+        from langgraph.graph import END
+        sends = critic_route({
+            "critic_passed": False,
+            "retry_count": 1,
+            "active_agents": ["mma_analysis"],
+        })
+        assert sends != END
+        assert len(sends) == 1
+        assert sends[0].node == "mma_analysis"
+
+    def test_critic_route_exhausted(self):
+        from llm.graph.graph_builder import critic_route
+        from langgraph.graph import END
+        result = critic_route({
+            "critic_passed": False,
+            "retry_count": 3,
+        })
+        assert result == END
 
 
 # =============================================================================
@@ -440,12 +221,12 @@ class TestMMAGraphService:
         assert len(result) == 2
         assert result[0].content == "q1"
 
-    def test_build_messages_sliding_window(self):
+    def test_build_messages_sliding_window_100(self):
         from llm.service import MMAGraphService
-        history = [{"role": "user", "content": f"msg{i}"} for i in range(30)]
+        history = [{"role": "user", "content": f"msg{i}"} for i in range(150)]
         result = MMAGraphService.build_messages_from_history(history)
-        assert len(result) == 10
-        assert result[0].content == "msg20"
+        assert len(result) == 100
+        assert result[0].content == "msg50"
 
     def test_build_messages_ignores_unknown_roles(self):
         from llm.service import MMAGraphService
@@ -456,3 +237,35 @@ class TestMMAGraphService:
         ]
         result = MMAGraphService.build_messages_from_history(history)
         assert len(result) == 2
+
+
+# =============================================================================
+# state 모듈 테스트
+# =============================================================================
+
+class TestState:
+    """MainState, AgentResult, reduce_agent_results 테스트"""
+
+    def test_reduce_agent_results_empty_resets(self):
+        from llm.graph.state import reduce_agent_results
+        existing = [{"agent_name": "mma_analysis", "query": "q", "data": [],
+                     "columns": [], "row_count": 0, "needs_visualization": False,
+                     "reasoning": "r"}]
+        assert reduce_agent_results(existing, []) == []
+
+    def test_reduce_agent_results_merges(self):
+        from llm.graph.state import reduce_agent_results
+        a = {"agent_name": "mma_analysis", "query": "", "data": [],
+             "columns": [], "row_count": 0, "needs_visualization": False, "reasoning": ""}
+        b = {"agent_name": "fighter_comparison", "query": "", "data": [],
+             "columns": [], "row_count": 0, "needs_visualization": False, "reasoning": ""}
+        result = reduce_agent_results([a], [b])
+        assert len(result) == 2
+
+    def test_error_agent_result(self):
+        from llm.graph.state import _error_agent_result
+        r = _error_agent_result("test_agent", "something failed")
+        assert r["agent_name"] == "test_agent"
+        assert r["reasoning"] == "something failed"
+        assert r["row_count"] == 0
+        assert r["needs_visualization"] is False
