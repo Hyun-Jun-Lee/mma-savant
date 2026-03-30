@@ -19,10 +19,51 @@ class CriticLLMOutput(BaseModel):
     """Critic Phase B LLM 출력"""
     passed: bool = Field(description="검증 통과 여부")
     feedback: str = Field(default="", description="실패 시 구체적 사유")
-    needs_visualization: bool = Field(
-        default=False,
-        description="SQL 결과를 차트/테이블로 시각화하면 이해에 도움이 되는지 여부",
-    )
+
+
+# =============================================================================
+# 시각화 필요 여부 — 규칙 기반 판별
+# =============================================================================
+
+def _count_numeric_columns(row: dict) -> int:
+    """실질적 수치 컬럼 수 계산 (id류·boolean 제외)"""
+    count = 0
+    for key, val in row.items():
+        if isinstance(val, bool):
+            continue
+        if "id" in key.lower():
+            continue
+        if isinstance(val, (int, float)):
+            count += 1
+    return count
+
+
+def _should_visualize(agent_results: list[AgentResult]) -> bool:
+    """데이터 특성 기반 시각화 필요 여부 판별 (규칙 기반)
+
+    판별 기준:
+    - 3행 이상 + 수치 컬럼 1개 이상 → True (랭킹, 집계)
+    - 2행 + 수치 컬럼 2개 이상 → True (비교)
+    - 1행 + 수치 컬럼 4개 이상 → True (레이더 차트 등 다차원 프로필)
+    - 그 외 → False (텍스트 응답)
+    """
+    for result in agent_results:
+        row_count = result.get("row_count", 0)
+        data = result.get("data", [])
+
+        if row_count == 0 or not data:
+            continue
+
+        numeric_cols = _count_numeric_columns(data[0])
+
+        if row_count >= 3 and numeric_cols >= 1:
+            return True
+        if row_count == 2 and numeric_cols >= 2:
+            return True
+        if row_count == 1 and numeric_cols >= 4:
+            return True
+
+    return False
 
 
 # =============================================================================
@@ -169,14 +210,15 @@ async def critic_node(state: MainState, llm) -> dict:
         )
 
         if result.passed:
+            viz = _should_visualize(agent_results)
             LOGGER.info(
                 f"✅ Critic passed (Phase A + Phase B), "
-                f"needs_visualization={result.needs_visualization}"
+                f"needs_visualization={viz}"
             )
             return {
                 "critic_passed": True,
                 "critic_feedback": None,
-                "needs_visualization": result.needs_visualization,
+                "needs_visualization": viz,
             }
 
         LOGGER.info(f"❌ Critic Phase B failed: {result.feedback}")
@@ -188,7 +230,7 @@ async def critic_node(state: MainState, llm) -> dict:
         return {
             "critic_passed": True,
             "critic_feedback": None,
-            "needs_visualization": False,
+            "needs_visualization": _should_visualize(agent_results),
         }
 
 

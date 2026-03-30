@@ -12,7 +12,6 @@ class AgentResult(TypedDict):
     data: list[dict]                 # SQL 결과 데이터
     columns: list[str]               # 결과 컬럼명
     row_count: int                   # 결과 행 수
-    needs_visualization: bool        # 이 에이전트 결과의 시각화 필요 여부
     reasoning: str                   # 에이전트의 자연어 분석 (텍스트 응답 재사용 가능)
 
 
@@ -38,7 +37,6 @@ def _error_agent_result(agent_name: str, error: str) -> AgentResult:
         "data": [],
         "columns": [],
         "row_count": 0,
-        "needs_visualization": False,
         "reasoning": error,
     }
 
@@ -50,6 +48,7 @@ class MainState(TypedDict):
     messages: Annotated[list[BaseMessage], add_messages]
     compressed_messages: list[BaseMessage]  # 압축된 히스토리 (downstream 에이전트용)
     resolved_query: str              # Conversation Manager 출력
+    sql_context: list[dict]          # 이전 턴 SQL 결과 (conversation_manager 전용)
 
     # 라우팅
     route: Literal["general", "mma_analysis", "fighter_comparison", "complex"]

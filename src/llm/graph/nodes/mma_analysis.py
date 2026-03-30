@@ -97,7 +97,6 @@ async def mma_analysis_node(state: MainState, llm) -> dict:
                 "data": data,
                 "columns": columns,
                 "row_count": row_count,
-                "needs_visualization": False,
                 "reasoning": reasoning,
             }],
         }
