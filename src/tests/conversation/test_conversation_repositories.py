@@ -503,6 +503,57 @@ async def test_add_message_with_tool_results(clean_test_session: AsyncSession):
 
 
 @pytest.mark.asyncio
+async def test_add_message_with_visualization(clean_test_session: AsyncSession):
+    """visualization이 포함된 메시지 추가 테스트"""
+    # Given: 테스트 사용자와 세션 생성
+    test_user = await create_test_user(clean_test_session, "msg_viz")
+    chat_session = await conversation_repo.create_chat_session(
+        clean_test_session, user_id=test_user.id, title="시각화 테스트"
+    )
+    tool_results = [{"query": "SELECT id FROM fighter WHERE name='Test'", "data": [{"id": 1}]}]
+    visualization = [{"visualization_type": "bar_chart", "visualization_data": {"labels": ["A"]}, "insights": []}]
+
+    # When: tool_results + visualization 포함 메시지 추가
+    message = await conversation_repo.add_message_to_session(
+        clean_test_session,
+        conversation_id=chat_session.id,
+        user_id=test_user.id,
+        content="시각화 결과입니다",
+        role="assistant",
+        tool_results=tool_results,
+        visualization=visualization,
+    )
+
+    # Then: 두 필드 모두 저장됨
+    assert message is not None
+    assert message.tool_results == tool_results
+    assert message.visualization == visualization
+
+
+@pytest.mark.asyncio
+async def test_add_message_visualization_none_by_default(clean_test_session: AsyncSession):
+    """visualization 미지정 시 None인지 테스트"""
+    # Given: 테스트 사용자와 세션 생성
+    test_user = await create_test_user(clean_test_session, "msg_viz_none")
+    chat_session = await conversation_repo.create_chat_session(
+        clean_test_session, user_id=test_user.id, title="기본값 테스트"
+    )
+
+    # When: visualization 없이 메시지 추가
+    message = await conversation_repo.add_message_to_session(
+        clean_test_session,
+        conversation_id=chat_session.id,
+        user_id=test_user.id,
+        content="일반 메시지",
+        role="assistant",
+    )
+
+    # Then: visualization은 None
+    assert message is not None
+    assert message.visualization is None
+
+
+@pytest.mark.asyncio
 async def test_add_message_to_nonexistent_session(clean_test_session: AsyncSession):
     """존재하지 않는 세션에 메시지 추가 시 None 반환"""
     # Given: 테스트 사용자 생성

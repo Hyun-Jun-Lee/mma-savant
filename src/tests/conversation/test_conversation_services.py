@@ -682,6 +682,68 @@ async def test_add_message_with_tool_results(clean_test_session: AsyncSession):
 
 
 @pytest.mark.asyncio
+async def test_add_message_with_visualization(clean_test_session: AsyncSession):
+    """visualization이 포함된 메시지 추가 테스트 (서비스 레이어)"""
+    # Given: 테스트 사용자와 세션 생성
+    test_user = await create_test_user(clean_test_session, "msg_viz")
+    session_data = ChatSessionCreate(title="시각화 테스트")
+    session = await conv_svc.create_new_session(
+        db=clean_test_session,
+        user_id=test_user.id,
+        session_data=session_data
+    )
+    visualization = [{"visualization_type": "bar_chart", "visualization_data": {"labels": ["A"]}, "insights": []}]
+
+    # When: visualization 포함 메시지 추가
+    msg_data = ChatMessageCreate(
+        content="시각화 결과",
+        role="assistant",
+        conversation_id=session.id,
+        visualization=visualization,
+    )
+    message = await conv_svc.add_message(
+        db=clean_test_session,
+        conversation_id=session.id,
+        user_id=test_user.id,
+        message_data=msg_data
+    )
+
+    # Then: visualization 저장됨
+    assert message is not None
+    assert message.visualization == visualization
+
+
+@pytest.mark.asyncio
+async def test_add_assistant_response_with_visualization(clean_test_session: AsyncSession):
+    """add_assistant_response에서 visualization 전달 테스트"""
+    # Given: 테스트 사용자와 세션 생성
+    test_user = await create_test_user(clean_test_session, "asst_viz")
+    session_data = ChatSessionCreate(title="어시스턴트 시각화")
+    session = await conv_svc.create_new_session(
+        db=clean_test_session,
+        user_id=test_user.id,
+        session_data=session_data
+    )
+    tool_results = [{"query": "SELECT ...", "data": [{"id": 1}]}]
+    visualization = [{"visualization_type": "text_summary", "visualization_data": {"content": "요약"}, "insights": []}]
+
+    # When: tool_results + visualization과 함께 어시스턴트 응답 추가
+    message = await conv_svc.add_assistant_response(
+        db=clean_test_session,
+        conversation_id=session.id,
+        user_id=test_user.id,
+        response_content="분석 결과",
+        tool_results=tool_results,
+        visualization=visualization,
+    )
+
+    # Then: 두 필드 모두 저장됨
+    assert message is not None
+    assert message.tool_results == tool_results
+    assert message.visualization == visualization
+
+
+@pytest.mark.asyncio
 async def test_add_message_to_nonexistent_session(clean_test_session: AsyncSession):
     """존재하지 않는 세션에 메시지 추가 시 None 반환"""
     # Given: 테스트 사용자 생성

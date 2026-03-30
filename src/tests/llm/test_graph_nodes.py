@@ -228,6 +228,67 @@ class TestMMAGraphService:
         assert len(result) == 100
         assert result[0].content == "msg50"
 
+    def test_build_messages_no_sql_context_in_content(self):
+        """build_messages_from_history는 content에 SQL Context를 포함하지 않음"""
+        from llm.service import MMAGraphService
+
+        history = [
+            {"role": "user", "content": "웰터급 챔피언은?"},
+            {
+                "role": "assistant",
+                "content": "웰터급 챔피언은 Leon Edwards입니다.",
+                "tool_results": [{"query": "SELECT id FROM fighter", "data": [{"id": 2386}]}],
+            },
+        ]
+        result = MMAGraphService.build_messages_from_history(history)
+        assert len(result) == 2
+        assert isinstance(result[1], AIMessage)
+        assert "[SQL Context:" not in result[1].content
+        assert result[1].content == "웰터급 챔피언은 Leon Edwards입니다."
+
+    def test_extract_sql_context_from_dict_history(self):
+        """dict 형태 히스토리에서 SQL 컨텍스트 추출"""
+        from llm.service import MMAGraphService
+
+        history = [
+            {"role": "user", "content": "웰터급 챔피언은?"},
+            {
+                "role": "assistant",
+                "content": "웰터급 챔피언은 Leon Edwards입니다.",
+                "tool_results": [{"query": "SELECT id FROM fighter", "data": [{"id": 2386}]}],
+            },
+        ]
+        ctx = MMAGraphService.extract_sql_context(history)
+        assert len(ctx) == 1
+        assert ctx[0]["data"] == [{"id": 2386}]
+
+    def test_extract_sql_context_empty_when_no_tool_results(self):
+        """tool_results가 없으면 빈 리스트 반환"""
+        from llm.service import MMAGraphService
+
+        history = [
+            {"role": "assistant", "content": "일반 응답", "tool_results": None},
+        ]
+        ctx = MMAGraphService.extract_sql_context(history)
+        assert ctx == []
+
+    def test_extract_sql_context_from_object_history(self):
+        """객체 형태 히스토리에서도 SQL 컨텍스트 추출"""
+        from llm.service import MMAGraphService
+
+        class MockMsgWithTools:
+            def __init__(self, role, content, tool_results=None):
+                self.role = role
+                self.content = content
+                self.tool_results = tool_results
+
+        history = [
+            MockMsgWithTools("assistant", "결과", [{"query": "SELECT 1", "data": [{"id": 1}]}]),
+        ]
+        ctx = MMAGraphService.extract_sql_context(history)
+        assert len(ctx) == 1
+        assert ctx[0]["query"] == "SELECT 1"
+
     def test_build_messages_ignores_unknown_roles(self):
         from llm.service import MMAGraphService
         history = [
@@ -249,16 +310,15 @@ class TestState:
     def test_reduce_agent_results_empty_resets(self):
         from llm.graph.state import reduce_agent_results
         existing = [{"agent_name": "mma_analysis", "query": "q", "data": [],
-                     "columns": [], "row_count": 0, "needs_visualization": False,
-                     "reasoning": "r"}]
+                     "columns": [], "row_count": 0, "reasoning": "r"}]
         assert reduce_agent_results(existing, []) == []
 
     def test_reduce_agent_results_merges(self):
         from llm.graph.state import reduce_agent_results
         a = {"agent_name": "mma_analysis", "query": "", "data": [],
-             "columns": [], "row_count": 0, "needs_visualization": False, "reasoning": ""}
+             "columns": [], "row_count": 0, "reasoning": ""}
         b = {"agent_name": "fighter_comparison", "query": "", "data": [],
-             "columns": [], "row_count": 0, "needs_visualization": False, "reasoning": ""}
+             "columns": [], "row_count": 0, "reasoning": ""}
         result = reduce_agent_results([a], [b])
         assert len(result) == 2
 
@@ -268,4 +328,3 @@ class TestState:
         assert r["agent_name"] == "test_agent"
         assert r["reasoning"] == "something failed"
         assert r["row_count"] == 0
-        assert r["needs_visualization"] is False
