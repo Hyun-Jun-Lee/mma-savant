@@ -99,6 +99,7 @@ src/
 │   ├── base_model.py   # BaseModel (SQLAlchemy), BaseSchema (Pydantic)
 │   ├── models.py       # WeightClassSchema (16개 체급 매핑)
 │   ├── enums.py        # WeightClassEnum, LLMProvider
+│   ├── logging_config.py # get_logger() — 모듈별 로거 (stdout only, Docker 친화)
 │   └── utils.py        # utc_now, normalize_name, @with_retry 등
 │
 ├── database/           # DB 연결
@@ -106,26 +107,28 @@ src/
 │       ├── postgres_conn.py  # async/sync 엔진, 세션 팩토리
 │       └── redis_conn.py     # Redis 클라이언트, 커넥션 풀
 │
-├── llm/                # LLM/AI 레이어 (LangGraph StateGraph 기반)
+├── llm/                # LLM/AI 레이어 (LangGraph Multi-Agent 기반)
 │   ├── service.py           # MMAGraphService (그래프 실행, 히스토리 관리)
-│   ├── model_factory.py     # 프로바이더별 모델 생성
+│   ├── model_factory.py     # 프로바이더별 모델 생성 (dual model 지원)
 │   ├── exceptions.py        # LLM 예외 클래스
 │   ├── chart_loader.py      # 차트 타입 로더
 │   ├── graph/               # StateGraph 정의
-│   │   ├── state.py         # MMAGraphState (TypedDict)
-│   │   ├── graph_builder.py # 그래프 조립 + 조건부 라우팅
+│   │   ├── state.py         # MainState (TypedDict), AgentResult, reduce_agent_results
+│   │   ├── schemas.py       # VisualizationDecision, SupervisorRouting 등
+│   │   ├── graph_builder.py # 그래프 조립 + Send() 기반 라우팅
 │   │   ├── prompts.py       # 노드별 프롬프트 템플릿
-│   │   └── nodes/           # 7개 노드
-│   │       ├── intent_classifier.py  # 의도 분류 (LLM + 코드 보정)
-│   │       ├── context_enricher.py   # 후속 질문 → 독립 질문 변환
-│   │       ├── sql_agent.py          # SQL 도구 실행 (create_react_agent)
-│   │       ├── direct_response.py    # 일반 질문 직접 응답
-│   │       ├── result_analyzer.py    # 시각화 적합성 판단 (규칙 기반)
-│   │       ├── visualize.py          # 차트 데이터 생성
-│   │       └── text_response.py      # 텍스트 응답 생성
+│   │   └── nodes/           # 7개 노드 (멀티 에이전트)
+│   │       ├── conversation_manager.py  # 히스토리 압축 + 대명사 해소
+│   │       ├── supervisor.py            # LLM 라우터 (에이전트 디스패치)
+│   │       ├── mma_analysis.py          # MMA 분석 (create_react_agent + SQL)
+│   │       ├── fighter_comparison.py    # 선수 비교 (create_react_agent + SQL)
+│   │       ├── critic.py               # 하이브리드 검증 (Phase A 규칙 + Phase B LLM)
+│   │       ├── text_response.py         # SQL 결과 → 텍스트 응답 생성
+│   │       ├── visualize.py             # 차트 메타데이터 결정 + 데이터 구성
+│   │       └── direct_response.py       # 일반 질문 직접 응답
 │   ├── providers/           # Anthropic, HuggingFace, OpenRouter
 │   ├── callbacks/           # 프로바이더별 콜백 핸들러
-│   └── tools/               # SQL 실행 도구 (async 지원)
+│   └── tools/               # SQL 실행 도구 (async, read-only 검증)
 │
 ├── data_collector/     # 데이터 수집 파이프라인
 │   ├── scrapers/       # Playwright/httpx 스크래퍼 (fighters, events, matches, rankings)
@@ -232,7 +235,7 @@ frontend/src/
 │   ├── fighter/             # 파이터 상세 (프로필, 전적, 차트)
 │   ├── event/               # 이벤트 상세 (헤더, 요약, 파이트카드)
 │   ├── chat/                # 채팅 UI (메시지, 세션, 시각화)
-│   ├── visualization/       # AI 응답 차트 렌더러 (Bar, Line, Pie, Scatter, Table)
+│   ├── visualization/       # AI 응답 차트 렌더러 (12종: Bar, HorizontalBar, StackedBar, Line, Area, Pie, Radar, Scatter, Table, RingList, Lollipop + InsightsSummary)
 │   ├── auth/                # 인증 컴포넌트 (LoginForm, AuthGuard)
 │   ├── admin/               # 관리자 (UserTable, AdminStats)
 │   ├── layout/              # GlobalNav
@@ -275,6 +278,7 @@ frontend/src/
 │   ├── api.ts               # fetch 래퍼 (Bearer 토큰, 에러 처리)
 │   ├── auth.ts              # NextAuth 설정 (Google OAuth)
 │   ├── utils.ts             # cn(), toTitleCase(), formatDate(), 색상 토큰
+│   ├── chartTheme.ts        # Recharts 차트 테마 (AXIS_TICK, TOOLTIP_STYLE, getSemanticColor)
 │   ├── realSocket.ts        # WebSocket 클라이언트 (이벤트 핸들링)
 │   └── visualizationParser.ts # 레거시 메시지 content에서 차트 JSON 추출
 │
@@ -345,14 +349,28 @@ Server → "typing" → "final_result" { content, visualization_type, visualizat
 
 **멀티턴 대화**: `conversation_id`가 있으면 기존 세션에 메시지 추가, 없으면 LLM 성공 후 새 세션 생성
 
-**AI 에이전트**: LangGraph StateGraph (7개 노드)
+**AI 에이전트**: LangGraph Multi-Agent StateGraph (7개 노드, Send() 기반 동적 라우팅)
 ```
-intent_classifier → [general]     → direct_response → END
-                  → [sql_needed]  → sql_agent → result_analyzer → [text]          → text_response → END
-                  → [followup]    → context_enricher ↗            → [visualization] → visualize     → END
+conversation_manager (히스토리 압축 + 대명사 해소)
+  ↓
+supervisor (LLM 라우터)
+  ├─ general → direct_response → END
+  └─ mma_analysis / fighter_comparison / complex
+      ↓ (Send() 병렬 실행)
+  [mma_analysis, fighter_comparison] → fan-in
+      ↓
+  critic (Phase A 규칙 + Phase B LLM 검증)
+      ├─ passed → Send() 병렬: text_response + visualization(조건부) → END
+      ├─ failed (retry < 3) → Send() 에이전트 재실행
+      └─ exhausted (retry ≥ 3) → END
 ```
-- `sql_needed`: 히스토리 없는 첫 질문에서만 발생
-- `followup`: 히스토리가 있으면 모든 데이터 질문이 followup으로 보정 → context_enricher → sql_agent
+
+**핵심 아키텍처**:
+- `Send()` 기반 동적 fan-out: Supervisor가 활성 에이전트 결정 → 병렬 실행
+- `reduce_agent_results` 커스텀 리듀서: 병렬 결과 합산, 재시도 시 초기화
+- Critic 하이브리드 검증: Phase A(SQL 검증, 빈 데이터) → Phase B(LLM 의미 검증 + 시각화 판단)
+- Dual Model: MAIN_MODEL(SQL 에이전트, text_response) + SUB_MODEL(CM, Supervisor, Critic, visualization)
+- 시각화: LLM이 차트 타입/축/인사이트 결정, data는 agent_results에서 코드로 구성 (wide→long 자동 변환)
 
 **관련 파일**:
 - Frontend: `frontend/src/lib/realSocket.ts`, `frontend/src/hooks/useSocket.ts`
@@ -385,24 +403,36 @@ DB_HOST=localhost
 DB_PORT=5432
 DB_USER=postgres
 DB_PASSWORD=your_password
-DB_NAME=ufc_stats
+DB_NAME=savant_db
+DB_READONLY_USER=readonly_user     # SQL 에이전트용 읽기전용 계정
+DB_READONLY_PASSWORD=your_password
 
 # Redis
 REDIS_HOST=localhost
 REDIS_PORT=6379
+REDIS_PASSWORD=your_password       # 프로덕션 필수
 
 # Auth
-NEXTAUTH_SECRET=your_secret      # JWT 서명 (Frontend와 공유)
-ACCESS_TOKEN_EXPIRE_MINUTES=1440  # 24시간
+NEXTAUTH_SECRET=your_secret        # JWT 서명 (Frontend와 공유)
+TOKEN_ALGORITHM=HS256
+ACCESS_TOKEN_EXPIRE_MINUTES=1440   # 24시간
 
-# LLM
-LLM_PROVIDER=anthropic            # anthropic | openrouter | openai | huggingface
-ANTHROPIC_API_KEY=your_key
+# LLM (Dual Model — "provider/model_name" 형식)
+MAIN_MODEL=openrouter/google/gemini-2.5-flash-preview   # SQL 에이전트, text_response
+SUB_MODEL=openrouter/google/gemini-2.5-flash-preview    # CM, Supervisor, Critic, visualization
+# 또는 비워두면 LLM_PROVIDER 단일 모델로 폴백
+LLM_PROVIDER=openrouter
 OPENROUTER_API_KEY=your_key
+ANTHROPIC_API_KEY=your_key         # SUB_MODEL에 anthropic 사용 시
 
 # Admin
 ADMIN_USERNAME=admin
 ADMIN_PW=your_password
+
+# Server
+ENVIRONMENT=development            # development | production
+CORS_ORIGINS=http://localhost      # 프로덕션: 실제 도메인
+FRONTEND_URL=http://localhost:3000
 ```
 
 ### Frontend (`frontend/.env.local`)

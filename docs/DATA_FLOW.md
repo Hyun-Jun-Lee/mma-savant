@@ -99,8 +99,9 @@ flowchart TD
 
     B1 --> OUT1[/"compressed_messages = messages<br/>resolved_query = original_query"/]
 
-    B2 --> LLM1["LLM ainvoke<br/>CONVERSATION_MANAGER_PROMPT<br/>+ 전체 messages"]
-    LLM1 --> OUT2[/"compressed_messages = messages + resolved HumanMessage<br/>resolved_query = 맥락 해소된 질문"/]
+    B2 --> FMT["_format_history_as_text()<br/>히스토리→텍스트 변환"]
+    FMT --> LLM1["LLM ainvoke<br/>CONVERSATION_MANAGER_PROMPT<br/>+ 텍스트 컨텍스트 HumanMessage"]
+    LLM1 --> OUT2[/"compressed_messages = messages + resolved HumanMessage<br/>messages = [AIMessage(resolved)]<br/>resolved_query = 맥락 해소된 질문"/]
 
     B3 --> SLICE["history[:-6] → older (요약 대상)<br/>history[-6:] → recent (최근 3턴 원본)"]
     SLICE --> LLM2["LLM with_structured_output<br/>ConversationManagerOutput<br/>→ summary + resolved_query"]
@@ -153,6 +154,7 @@ flowchart LR
         F_RQ["resolved_query"]
         F_ROUTE["route + active_agents"]
         F_AR["agent_results<br/><i>custom reducer</i>"]
+        F_NV["needs_visualization<br/><i>Critic이 판단</i>"]
         F_CR["critic_passed<br/>critic_feedback<br/>retry_count"]
         F_FR["final_response"]
         F_VIZ["visualization_type<br/>visualization_data<br/>insights"]
@@ -173,6 +175,7 @@ flowchart LR
     CM_P --> F_RQ
     SUP_P --> F_ROUTE
     AGENTS_P --> F_AR
+    CRITIC_P --> F_NV
     CRITIC_P --> F_CR
     TR_P --> F_FR
     VIZ_P --> F_VIZ
@@ -182,6 +185,7 @@ flowchart LR
     F_RQ --> SUP_C
     F_ROUTE --> DISP_C
     F_AR --> CRIT_C
+    F_NV --> ROUTE_C
     F_CR --> ROUTE_C
     F_FR --> SVC_C
     F_VIZ --> SVC_C
@@ -235,10 +239,10 @@ flowchart LR
 ║  ① conversation_manager_node(state, llm=SUB)                10초 제한  ║
 ║     ├── 3분기 로직:                                                     ║
 ║     │    ├── history=0  → 패스스루 (compressed_messages = messages)     ║
-║     │    ├── history≤6  → 맥락 해소만 (compressed_messages = 전체)      ║
+║     │    ├── history≤6  → 맥락 해소만 (_format_history_as_text 텍스트)  ║
 ║     │    └── history>6  → LLM 압축 + 맥락 해소 (structured output)     ║
 ║     ├── 압축 시: older → 요약 SystemMessage, recent 3턴 원본 유지       ║
-║     ├── 출력: resolved_query + compressed_messages + messages 추가      ║
+║     ├── 출력: resolved_query + compressed_messages + messages(AIMessage)║
 ║     └── 에러 시: 최근 3턴 + 원본 질문 폴백 (이전 히스토리 버림)          ║
 ║                                                                        ║
 ║  ② supervisor_node(state, llm=SUB)                          10초 제한  ║
@@ -302,8 +306,11 @@ flowchart LR
 ║     │    ├── 값 범위 검증 (0~100%, 음수 체크)                           ║
 ║     │    └── 에러 AgentResult 감지                                     ║
 ║     ├── Phase B (LLM 기반, Phase A 통과 시에만):                       ║
-║     │    └── 질문-결과 정합성 검증 (structured output)                  ║
-║     └── 출력: critic_passed, critic_feedback, retry_count              ║
+║     │    ├── 질문-결과 정합성 검증 (structured output)                  ║
+║     │    └── 시각화 필요 여부 판단 (needs_visualization)                ║
+║     ├── 출력: critic_passed, critic_feedback, retry_count,             ║
+║     │         needs_visualization                                     ║
+║     └── Phase B LLM 실패 시: Phase A만 통과 → needs_visualization=F   ║
 ║                                                                        ║
 ║  ⑥ critic_route(state) ── 3방향 분기 ──                               ║
 ║     │                                                                  ║
@@ -328,7 +335,12 @@ flowchart LR
 ║      └── → END                                                        ║
 ║                                                                        ║
 ║  ⑦b visualize_node(state, llm=SUB)                      ← 조건부     ║
-║      ├── llm.with_structured_output(ChartVisualizationOutput)         ║
+║      ├── LLM: with_structured_output(VisualizationDecision)           ║
+║      │    └── 차트 타입/제목/x_axis/y_axis/인사이트만 결정 (data 없음)  ║
+║      ├── Data: agent_results에서 코드로 직접 구성                       ║
+║      │    ├── _merge_agent_data() → _strip_id_columns()               ║
+║      │    ├── _validate_axes(): LLM 축이 실제 컬럼에 없으면 None 보정  ║
+║      │    └── wide→long 변환: 1행 다중 숫자 컬럼 → category/value 행   ║
 ║      ├── 출력: visualization_type, visualization_data, insights       ║
 ║      ├── 에러 시: 시각화만 생략 (텍스트는 이미 완성)                     ║
 ║      └── → END                                                        ║
@@ -369,7 +381,7 @@ flowchart LR
 |------|------|------|
 | **WebSocket 계층** | `api/websocket/manager.py` | 연결 검증, 사용량 체크, 히스토리 로드, DB 저장, 이벤트 전송 |
 | **서비스 계층** | `llm/service.py` | 듀얼 LLM 초기화, LangChain 메시지 변환(100턴 상한), 그래프 `ainvoke` 실행, 결과 yield |
-| **그래프 계층** | `llm/graph/graph_builder.py` + 8개 노드 | 맥락 해소 → LLM 라우팅 → SQL 에이전트(병렬) → 검증 → 텍스트+시각화 응답 |
+| **그래프 계층** | `llm/graph/graph_builder.py` + 7개 노드 | 맥락 해소 → LLM 라우팅 → SQL 에이전트(병렬) → 검증(+시각화 판단) → 텍스트+시각화 응답 |
 
 ## 모델 배정
 
@@ -384,136 +396,6 @@ flowchart LR
 | Text Response | MAIN_MODEL | 한국어 분석 텍스트 생성 |
 | Visualization | SUB_MODEL | 차트 타입 선택 + JSON 스펙 |
 
-## StateGraph 노드 상세
-
-### ① conversation_manager_node
-- **파일**: `llm/graph/nodes/conversation_manager.py`
-- **모델**: SUB_MODEL | **타임아웃**: 10초
-- **역할**: 대명사 해소, 맥락 보완 + 히스토리 압축
-- **3분기 로직**:
-
-| 조건 | 동작 | compressed_messages |
-|------|------|---------------------|
-| `history == 0` | 패스스루 | `messages` 그대로 |
-| `history ≤ 6` | 맥락 해소만 (LLM `ainvoke`) | 전체 messages + resolved HumanMessage |
-| `history > 6` | 압축 + 맥락 해소 (`with_structured_output(ConversationManagerOutput)`) | 요약 SystemMessage + 최근 3턴(6 msgs) + resolved HumanMessage |
-
-- **압축 효과**: 20턴 대화 기준 ~80% 토큰 절감 (39 메시지 → 8 메시지)
-- **출력**: `resolved_query` + `compressed_messages` + `messages`에 HumanMessage 추가
-- **에러 폴백**: 최근 3턴 + 원본 질문만 사용 (이전 히스토리 버림 — 토큰 초과보다 안전)
-
-### ② supervisor_node
-- **파일**: `llm/graph/nodes/supervisor.py`
-- **모델**: SUB_MODEL | **타임아웃**: 10초
-- **방식**: `with_structured_output(SupervisorRouting)` → route + agents 결정
-- **라우팅 규칙**:
-
-| route | active_agents | 트리거 |
-|-------|---------------|--------|
-| `general` | `[]` | 일반 대화, MMA 상식, MMA 외 질문 |
-| `mma_analysis` | `["mma_analysis"]` | 단일 선수 스탯, 전적, 트렌드 |
-| `fighter_comparison` | `["fighter_comparison"]` | 선수 간 비교, 매치업 분석 |
-| `complex` | `["mma_analysis", "fighter_comparison"]` | 분석 + 비교 동시 필요 |
-
-- **에러 폴백**: `route="mma_analysis"` (데이터 기반 답변이 더 안전)
-
-### ③ supervisor_dispatch (라우팅 함수)
-- **방식**: LangGraph `Send()` API로 런타임 동적 fan-out
-- `general` → `Send("direct_response")`
-- 그 외 → `Send(agent) for agent in active_agents` (1개 또는 복수)
-
-### ④a direct_response_node
-- **파일**: `llm/graph/nodes/direct_response.py`
-- **모델**: SUB_MODEL
-- **트리거**: `route == "general"`
-- **메시지 소스**: `compressed_messages` 우선, 폴백 `messages`
-- **역할**: MMA 일반 지식 답변, 인사, MMA 외 질문 거절
-- **출력**: `final_response` + `visualization_type="text_summary"` → END
-
-### ④b mma_analysis_node
-- **파일**: `llm/graph/nodes/mma_analysis.py`
-- **모델**: MAIN_MODEL | **타임아웃**: 30초 | **재귀 제한**: 10회
-- **메시지 소스**: `compressed_messages` 우선, 폴백 `messages`
-- **방식**: `create_react_agent` (ReAct 루프) + SQL 도구
-- **프롬프트**: `get_phase1_prompt()` — DB 스키마 + 오늘 날짜 동적 주입
-- **도구**: `execute_sql_query_async()` (asyncpg 기반 읽기 전용)
-- **시각화 판단**: SQL 결과 특성에 따라 `needs_visualization` 결정
-- **출력**: `agent_results=[AgentResult]` (커스텀 reducer로 합산)
-- **재시도**: `critic_feedback` 존재 시 피드백을 포함하여 SQL 재생성
-
-### ④b fighter_comparison_node
-- **파일**: `llm/graph/nodes/fighter_comparison.py`
-- **모델**: MAIN_MODEL | **타임아웃**: 30초 | **재귀 제한**: 10회
-- **메시지 소스**: `compressed_messages` 우선, 폴백 `messages`
-- **방식**: `mma_analysis`와 동일 구조, 비교 전용 프롬프트 (`get_fighter_comparison_prompt()`)
-- **출력**: `agent_results=[AgentResult]` (`agent_name="fighter_comparison"`)
-
-### ⑤ critic_node
-- **파일**: `llm/graph/nodes/critic.py`
-- **모델**: SUB_MODEL (하이브리드) | **타임아웃**: 15초
-- **최대 재시도**: 3회
-- **Phase A (규칙 기반)**:
-  - SQL 구문 유효성 검사 (위험 키워드 감지)
-  - 빈 결과 감지 (`row_count == 0`)
-  - 값 범위 검증 (0~100%, 음수 체크)
-  - 에러 AgentResult 감지
-- **Phase B (LLM 기반)**: Phase A 통과 시에만 실행 → 질문-결과 정합성 검증
-- **통과 시**: `critic_passed=True`
-- **실패 시**: `retry_count += 1`, `agent_results=[]` (초기화), `critic_feedback` 설정
-- **3회 소진**: `final_response`에 에러 메시지 설정 → END
-
-### ⑥ critic_route (라우팅 함수)
-- **통과**: `Send("text_response")` + 조건부 `Send("visualization")`
-- **재시도**: `Send(active_agents)` — 원래 에이전트 전체 재실행
-- **3회 소진**: `END`
-
-### ⑦a text_response_node
-- **파일**: `llm/graph/nodes/text_response.py`
-- **모델**: MAIN_MODEL | **타임아웃**: 15초
-- **단일 에이전트**: `reasoning` 필드를 `final_response`로 재사용 (LLM 호출 생략)
-- **복수 에이전트**: 각 결과를 통합하여 LLM으로 텍스트 생성
-- **에러 폴백**: 첫 번째 `reasoning`을 그대로 사용
-
-### ⑦b visualize_node
-- **파일**: `llm/graph/nodes/visualize.py`
-- **모델**: SUB_MODEL
-- **실행 조건**: `needs_visualization=true`인 AgentResult가 하나라도 있을 때
-- **방식**: `with_structured_output(ChartVisualizationOutput)` → 차트 타입 + JSON 스펙
-- **출력**: `visualization_type`, `visualization_data`, `insights`
-- **에러 시**: 시각화만 생략 (텍스트 응답은 별도 노드에서 이미 완성)
-- **참고**: `final_response`와 `messages`는 설정하지 않음 (text_response가 담당)
-
-## State 핵심 필드 흐름
-
-```
-필드                  생산자                소비자
-─────────────────────────────────────────────────────────────
-messages             [CM] HumanMessage 추가  CM (압축 입력), add_messages reducer
-compressed_messages  [CM] 압축된 히스토리     에이전트들, Direct Response
-resolved_query       [CM]                   Supervisor, Critic, TextResponse
-route                [Supervisor]           supervisor_dispatch
-active_agents        [Supervisor]           supervisor_dispatch, critic_route
-agent_results        [에이전트들] reducer합산 Critic, TextResponse, Visualization
-critic_passed        [Critic]               critic_route
-critic_feedback      [Critic]               에이전트 재시도 시 참조
-retry_count          [Critic]               critic_route (최대 3)
-final_response       [TextResponse/Direct]  service.py → 프론트엔드
-visualization_type   [Visualization]        service.py → 프론트엔드
-visualization_data   [Visualization]        service.py → 프론트엔드
-insights             [Visualization]        service.py → 프론트엔드
-```
-
-## WebSocket 이벤트 흐름
-
-```
-[Server → Client]
-
-1. { type: "typing", is_typing: true }       ← 처리 시작
-2. { type: "final_result", content, ... }     ← 최종 결과
-3. { type: "typing", is_typing: false }       ← 타이핑 종료
-4. { type: "response_end", conversation_id }  ← 응답 완료
-```
-
 ## 멀티턴 대화 처리
 
 ```
@@ -523,7 +405,7 @@ insights             [Visualization]        service.py → 프론트엔드
 기존 대화 (conversation_id 있음):
   _load_chat_history() → build_messages_from_history() (100턴 상한)
   → Conversation Manager:
-     ├── history ≤ 6  → 맥락 해소만, compressed_messages = 전체
+     ├── history ≤ 6  → 맥락 해소만 (텍스트 컨텍스트), compressed_messages = 전체 + resolved
      └── history > 6  → 이전 대화 요약 + 최근 3턴 원본 + resolved query
   → downstream 에이전트는 compressed_messages 사용 (토큰 절감)
   → 기존 세션에 메시지 추가
@@ -533,6 +415,7 @@ insights             [Visualization]        service.py → 프론트엔드
   messages[:-1][-6:]  (recent) → 원본 유지 (최근 3턴)
   messages[-1]        (latest) → resolved_query로 재작성
   compressed_messages = [요약 SystemMessage, 최근 6개, resolved HumanMessage]
+  messages 반환 = [AIMessage(resolved_query)]  ← add_messages reducer로 추가
 ```
 
 ## Critic 재시도 루프
