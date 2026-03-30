@@ -183,6 +183,7 @@ CREATE TABLE IF NOT EXISTS message (
     content TEXT NOT NULL,
     role VARCHAR NOT NULL CHECK (role IN ('user', 'assistant')),
     tool_results JSONB,
+    visualization JSONB,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
 

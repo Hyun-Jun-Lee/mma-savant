@@ -13,7 +13,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from user.models import UserModel
 from user.services import check_usage_limit, get_user_usage, update_user_usage
-from conversation.services import get_or_create_session, get_session_history
+from conversation.services import get_or_create_session
+from conversation.repositories import get_recent_messages, add_message_direct
 from llm.service import get_graph_service, MMAGraphService
 from common.logging_config import get_logger
 from common.utils import utc_now
@@ -300,20 +301,19 @@ class ConnectionManager:
     async def _load_chat_history(
         self, db: AsyncSession, conversation_id: int, user_id: int
     ) -> list:
-        """기존 대화의 히스토리를 DB에서 로드"""
+        """기존 대화의 최신 히스토리를 DB에서 로드"""
         try:
-            history = await get_session_history(
-                db=db,
+            messages = await get_recent_messages(
+                session=db,
                 conversation_id=conversation_id,
-                user_id=user_id,
                 limit=10,
             )
-            if history and history.messages:
+            if messages:
                 LOGGER.info(
-                    f"📜 Loaded {len(history.messages)} history messages "
+                    f"📜 Loaded {len(messages)} recent messages "
                     f"for conversation {conversation_id}"
                 )
-                return history.messages
+                return [msg.to_response() for msg in messages]
         except Exception as e:
             LOGGER.error(f"❌ Failed to load chat history: {e}")
         return []
@@ -428,8 +428,6 @@ class ConnectionManager:
         - existing_conversation_id 있음: 기존 세션에 메시지 추가
         Returns: conversation_id
         """
-        from conversation.repositories import add_message_to_session
-
         if existing_conversation_id:
             conversation_id = existing_conversation_id
             LOGGER.info(f"📝 Appending to existing conversation: {conversation_id}")
@@ -443,9 +441,7 @@ class ConnectionManager:
         # 사용자 메시지 저장
         await self._save_user_message(db, conversation_id, user_id, user_content)
 
-        # 어시스턴트 메시지 저장 (visualization_data를 tool_results로)
-        # 시각화 응답: content는 프론트용(빈 문자열), final_response는 히스토리용(데이터 요약)
-        final_content = final_result_chunk.get("content", "")
+        # 어시스턴트 메시지 저장
         final_response = final_result_chunk.get("final_response", "")
         viz_type = final_result_chunk.get("visualization_type")
         viz_data = final_result_chunk.get("visualization_data")
@@ -455,27 +451,28 @@ class ConnectionManager:
 
         # content 또는 시각화 데이터가 있으면 저장 (둘 다 없으면 스킵)
         if save_content or (viz_type and viz_data):
-            tool_results = None
+            # SQL 에이전트 결과 → tool_results (히스토리 컨텍스트용)
+            tool_results = final_result_chunk.get("agent_results") or None
+
+            # 시각화 메타데이터 → visualization (프론트엔드 차트용)
+            visualization = None
             if viz_type and viz_data:
-                tool_results = [{
+                visualization = [{
                     "visualization_type": viz_type,
                     "visualization_data": viz_data,
                     "insights": final_result_chunk.get("insights", []),
                 }]
 
             try:
-                saved = await add_message_to_session(
+                saved = await add_message_direct(
                     session=db,
                     conversation_id=conversation_id,
-                    user_id=user_id,
                     content=save_content,
                     role="assistant",
                     tool_results=tool_results,
+                    visualization=visualization,
                 )
-                if saved:
-                    LOGGER.info(f"✅ Assistant message saved to DB: conversation_id={conversation_id}")
-                else:
-                    LOGGER.warning(f"❌ Failed to save assistant message: conversation_id={conversation_id}")
+                LOGGER.info(f"✅ Assistant message saved to DB: conversation_id={conversation_id}")
             except Exception as e:
                 LOGGER.error(f"❌ Error saving assistant message: {e}")
                 LOGGER.error(format_exc())
@@ -545,20 +542,13 @@ class ConnectionManager:
     async def _save_user_message(self, db: AsyncSession, conversation_id: int, user_id: int, content: str) -> None:
         """사용자 메시지를 데이터베이스에 즉시 저장"""
         try:
-            from conversation.repositories import add_message_to_session
-
-            saved_message = await add_message_to_session(
+            saved_message = await add_message_direct(
                 session=db,
                 conversation_id=conversation_id,
-                user_id=user_id,
                 content=content,
-                role="user"
+                role="user",
             )
-
-            if saved_message:
-                LOGGER.info(f"✅ User message saved to DB: conversation_id={conversation_id}")
-            else:
-                LOGGER.warning(f"❌ Failed to save user message: conversation_id={conversation_id}")
+            LOGGER.info(f"✅ User message saved to DB: conversation_id={conversation_id}")
 
         except Exception as e:
             LOGGER.error(f"❌ Error saving user message to DB: {e}")

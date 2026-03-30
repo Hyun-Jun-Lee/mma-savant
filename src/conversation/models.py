@@ -12,14 +12,6 @@ from common.base_model import BaseModel, BaseSchema
 ########## SCHEMA ###########
 #############################
 
-class ConversationSchema(BaseSchema):
-    user_id : int
-    messages : List[Dict]
-    tool_results : Optional[List[Dict]] = None
-
-    model_config = ConfigDict(from_attributes=True)
-
-
 # 채팅 세션 관리용 스키마들
 
 class ChatSessionCreate(BaseSchema):
@@ -44,6 +36,7 @@ class ChatMessageCreate(BaseSchema):
     role: str  # "user" or "assistant"
     conversation_id: int
     tool_results: Optional[List[Dict]] = None
+    visualization: Optional[List[Dict]] = None
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -55,6 +48,7 @@ class MessageSchema(BaseSchema):
     content: str
     role: str
     tool_results: Optional[List[Dict]] = None
+    visualization: Optional[List[Dict]] = None
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -67,6 +61,7 @@ class ChatMessageResponse(BaseSchema):
     timestamp: datetime
     conversation_id: int
     tool_results: Optional[List[Dict]] = None
+    visualization: Optional[List[Dict]] = None
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -101,7 +96,8 @@ class MessageModel(BaseModel):
     conversation_id = Column(Integer, ForeignKey("conversation.id"), nullable=False, index=True)
     content = Column(Text, nullable=False)
     role = Column(String, nullable=False)  # "user" or "assistant"
-    tool_results = Column(JSONB, nullable=True)  # tool 결과 저장
+    tool_results = Column(JSONB, nullable=True)  # SQL 에이전트 결과 (query + data)
+    visualization = Column(JSONB, nullable=True)  # 차트 메타데이터
 
     # 관계 설정
     conversation = relationship("ConversationModel", back_populates="message_records")
@@ -114,7 +110,8 @@ class MessageModel(BaseModel):
             role=self.role,
             timestamp=self.created_at,
             conversation_id=self.conversation_id,
-            tool_results=self.tool_results
+            tool_results=self.tool_results,
+            visualization=self.visualization,
         )
 
 
@@ -129,13 +126,6 @@ class ConversationModel(BaseModel):
     message_records = relationship("MessageModel", back_populates="conversation", cascade="all, delete-orphan", order_by="MessageModel.created_at")
     
 
-    @classmethod
-    def from_schema(cls, conversation: ConversationSchema):
-        return cls(
-            user_id=conversation.user_id,
-            title=getattr(conversation, 'title', None)
-        )
-    
     def to_session_response(self, last_message_at: Optional[datetime] = None) -> ChatSessionResponse:
         """채팅 세션 응답으로 변환"""
         return ChatSessionResponse(

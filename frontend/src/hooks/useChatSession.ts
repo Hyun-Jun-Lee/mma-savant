@@ -118,19 +118,19 @@ export function useChatSession() {
 
       const messages: Message[] = response.messages.map(msg => {
         if (msg.role === 'assistant') {
-          // 1) tool_results 우선 (StateGraph 응답)
-          const tr = msg.tool_results?.[0]
-          if (tr?.visualization_type && tr?.visualization_data) {
-            const vizData: VisualizationData | null = validVizTypes.includes(tr.visualization_type as typeof validVizTypes[number])
+          // 1) visualization 필드 우선 (차트 메타데이터)
+          const viz = msg.visualization?.[0]
+          if (viz?.visualization_type && viz?.visualization_data) {
+            const vizData: VisualizationData | null = validVizTypes.includes(viz.visualization_type as typeof validVizTypes[number])
               ? {
-                  selected_visualization: tr.visualization_type as VisualizationData['selected_visualization'],
+                  selected_visualization: viz.visualization_type as VisualizationData['selected_visualization'],
                   visualization_data: {
-                    title: String((tr.visualization_data as Record<string, unknown>).title || "분석 결과"),
-                    data: ((tr.visualization_data as Record<string, unknown>).data || tr.visualization_data) as Record<string, string | number>[],
-                    x_axis: (tr.visualization_data as Record<string, unknown>).x_axis as string | undefined,
-                    y_axis: (tr.visualization_data as Record<string, unknown>).y_axis as string | undefined,
+                    title: String((viz.visualization_data as Record<string, unknown>).title || "분석 결과"),
+                    data: ((viz.visualization_data as Record<string, unknown>).data || viz.visualization_data) as Record<string, string | number>[],
+                    x_axis: (viz.visualization_data as Record<string, unknown>).x_axis as string | undefined,
+                    y_axis: (viz.visualization_data as Record<string, unknown>).y_axis as string | undefined,
                   },
-                  insights: tr.insights || [],
+                  insights: viz.insights || [],
                 }
               : null
             return {

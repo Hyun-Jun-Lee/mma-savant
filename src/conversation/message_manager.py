@@ -5,7 +5,7 @@ from traceback import format_exc
 from common.logging_config import get_logger
 from langchain_core.chat_history import BaseChatMessageHistory
 from langchain_core.messages import BaseMessage, HumanMessage, AIMessage, ToolMessage, SystemMessage
-from conversation.repositories import add_message_to_session, get_chat_history
+from conversation.repositories import get_recent_messages
 
 
 LOGGER = get_logger(__name__)
@@ -106,24 +106,21 @@ class ChatHistory(BaseChatMessageHistory):
             return None
     
     async def _load_from_db(self) -> List[BaseMessage]:
-        """Repository를 통한 DB 로드"""
+        """Repository를 통한 DB 로드 — 최신 N개 메시지를 시간순으로 반환"""
         try:
-            
             async with self.async_db_session_factory() as session:
-                # Repository 함수 사용 (권한 확인 포함)
-                history = await get_chat_history(
+                messages = await get_recent_messages(
                     session=session,
                     conversation_id=self.conversation_id,
-                    user_id=self.user_id,
-                    limit=self.max_cache_size  # 캐시 크기만큼만 로드
+                    limit=self.max_cache_size,
                 )
-                
-                if not history:
+
+                if not messages:
                     return []
-                
-                # 메시지를 LangChain 형식으로 변환
+
+                # MessageModel → LangChain 형식으로 변환
                 langchain_messages = []
-                for msg in history.messages:
+                for msg in messages:
                     if msg.role == "user":
                         langchain_messages.append(HumanMessage(content=msg.content))
                     elif msg.role == "assistant":
@@ -134,9 +131,9 @@ class ChatHistory(BaseChatMessageHistory):
                             content=msg.content,
                             additional_kwargs=additional_kwargs
                         ))
-                
+
                 return langchain_messages
-                
+
         except Exception as e:
             LOGGER.error(f"❌ DB load error: {e}")
             LOGGER.error(format_exc())

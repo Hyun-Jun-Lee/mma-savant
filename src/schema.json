@@ -650,7 +650,13 @@
           "column": "tool_results",
           "type": "jsonb",
           "nullable": true,
-          "description": "AI tool execution results (SQL query results, etc.)"
+          "description": "SQL agent execution results (query, columns, data) for conversation context"
+        },
+        {
+          "column": "visualization",
+          "type": "jsonb",
+          "nullable": true,
+          "description": "Chart visualization metadata (visualization_type, visualization_data, insights)"
         }
       ]
     }

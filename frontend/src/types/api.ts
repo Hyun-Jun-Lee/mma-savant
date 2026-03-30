@@ -34,6 +34,10 @@ export interface ChatMessageResponse {
   timestamp: string
   conversation_id: number
   tool_results?: Array<{
+    query?: string
+    data?: Record<string, unknown>[]
+  }>
+  visualization?: Array<{
     visualization_type?: string
     visualization_data?: Record<string, unknown>
     insights?: string[]

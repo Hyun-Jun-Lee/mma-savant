@@ -124,7 +124,7 @@ async def add_message(
     message_data: ChatMessageCreate
 ) -> Optional[ChatMessageResponse]:
     """
-    채팅 세션에 메시지 추가 (tool_results 지원)
+    채팅 세션에 메시지 추가 (tool_results, visualization 지원)
     """
     return await conv_repo.add_message_to_session(
         session=db,
@@ -132,7 +132,8 @@ async def add_message(
         user_id=user_id,
         content=message_data.content,
         role=message_data.role,
-        tool_results=message_data.tool_results
+        tool_results=message_data.tool_results,
+        visualization=message_data.visualization,
     )
 
 
@@ -184,16 +185,18 @@ async def add_assistant_response(
     conversation_id: int,
     user_id: int,
     response_content: str,
-    tool_results: Optional[List[dict]] = None
+    tool_results: Optional[List[dict]] = None,
+    visualization: Optional[List[dict]] = None,
 ) -> Optional[ChatMessageResponse]:
     """
-    AI 어시스턴트 응답 메시지 추가 (tool_results 지원)
+    AI 어시스턴트 응답 메시지 추가 (tool_results, visualization 지원)
     """
     message_create = ChatMessageCreate(
         content=response_content,
         role="assistant",
         conversation_id=conversation_id,
-        tool_results=tool_results
+        tool_results=tool_results,
+        visualization=visualization,
     )
 
     return await add_message(

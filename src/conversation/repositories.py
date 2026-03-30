@@ -6,7 +6,7 @@ from sqlalchemy import select, update, desc, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from conversation.models import (
-    ConversationModel, ConversationSchema, MessageModel, MessageSchema,
+    ConversationModel, MessageModel,
     ChatSessionResponse, ChatMessageResponse, ChatHistoryResponse
 )
 from common.utils import utc_now
@@ -202,7 +202,8 @@ async def add_message_to_session(
     user_id: int,
     content: str,
     role: str,
-    tool_results: Optional[List[dict]] = None
+    tool_results: Optional[List[dict]] = None,
+    visualization: Optional[List[dict]] = None,
 ) -> Optional[ChatMessageResponse]:
     """
     채팅 세션에 새 메시지 추가 (새로운 Message 테이블 사용).
@@ -227,7 +228,8 @@ async def add_message_to_session(
         conversation_id=conversation_id,
         content=content,
         role=role,
-        tool_results=tool_results
+        tool_results=tool_results,
+        visualization=visualization,
     )
     
     session.add(new_message)
@@ -241,6 +243,61 @@ async def add_message_to_session(
     await session.commit()
     
     return saved_message
+
+
+async def get_recent_messages(
+    session: AsyncSession,
+    conversation_id: int,
+    limit: int = 10,
+) -> List[MessageModel]:
+    """
+    LLM 컨텍스트용: 최신 N개 메시지를 시간순(ASC)으로 반환.
+    WebSocket에서 이미 인증된 내부 호출 전용 — user_id 검증 없음.
+    """
+    result = await session.execute(
+        select(MessageModel)
+        .where(MessageModel.conversation_id == conversation_id)
+        .order_by(MessageModel.created_at.desc())
+        .limit(limit)
+    )
+    messages = list(result.scalars().all())
+    messages.reverse()
+    return messages
+
+
+async def add_message_direct(
+    session: AsyncSession,
+    conversation_id: int,
+    content: str,
+    role: str,
+    tool_results: Optional[List[dict]] = None,
+    visualization: Optional[List[dict]] = None,
+) -> ChatMessageResponse:
+    """
+    내부용: 세션 존재 확인 없이 메시지 직접 INSERT.
+    WebSocket 핸들러처럼 이미 conversation_id 유효성이 보장된 경우 사용.
+    """
+    message = MessageModel(
+        message_id=str(uuid.uuid4()),
+        conversation_id=conversation_id,
+        content=content,
+        role=role,
+        tool_results=tool_results,
+        visualization=visualization,
+    )
+    session.add(message)
+
+    # 대화 세션의 updated_at 갱신
+    await session.execute(
+        update(ConversationModel)
+        .where(ConversationModel.id == conversation_id)
+        .values(updated_at=utc_now())
+    )
+
+    await session.flush()
+    saved = message.to_response()
+    await session.commit()
+    return saved
 
 
 async def get_user_chat_sessions_count(session: AsyncSession, user_id: int) -> int:
