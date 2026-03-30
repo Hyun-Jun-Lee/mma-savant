@@ -1,5 +1,6 @@
 """Conversation Manager 노드 — 대명사 해소, 맥락 보강, 히스토리 압축"""
 import asyncio
+import json
 
 from langchain_core.messages import SystemMessage, HumanMessage, AIMessage
 
@@ -53,15 +54,19 @@ async def conversation_manager_node(state: MainState, llm) -> dict:
             "compressed_messages": list(messages),
         }
 
+    sql_context = state.get("sql_context", [])
+
     # --- Branch 2: 히스토리 짧음 (<=6) → 맥락 해소만 ---
     if len(history) <= COMPRESS_THRESHOLD:
-        return await _resolve_only(messages, original_query, llm)
+        return await _resolve_only(messages, original_query, llm, sql_context)
 
     # --- Branch 3: 히스토리 김 (>6) → 압축 + 맥락 해소 ---
-    return await _compress_and_resolve(messages, history, original_query, llm)
+    return await _compress_and_resolve(messages, history, original_query, llm, sql_context)
 
 
-def _format_history_as_text(messages: list, original_query: str) -> str:
+def _format_history_as_text(
+    messages: list, original_query: str, sql_context: list[dict] | None = None,
+) -> str:
     """대화 히스토리를 텍스트 컨텍스트로 포맷 (채팅이 아닌 작업 입력으로 인식시킴)"""
     history = messages[:-1]
     lines = []
@@ -69,17 +74,26 @@ def _format_history_as_text(messages: list, original_query: str) -> str:
         role = "사용자" if getattr(msg, "type", "") == "human" else "어시스턴트"
         lines.append(f"[{role}]: {msg.content}")
     history_text = "\n".join(lines)
-    return f"## 이전 대화\n{history_text}\n\n## 사용자의 최신 질문\n{original_query}"
+
+    parts = [f"## 이전 대화\n{history_text}"]
+
+    if sql_context:
+        ctx_str = json.dumps(sql_context, ensure_ascii=False, default=str)
+        parts.append(f"\n## 이전 SQL 결과 (엔티티 ID 참조용)\n{ctx_str}")
+
+    parts.append(f"\n## 사용자의 최신 질문\n{original_query}")
+    return "\n".join(parts)
 
 
 async def _resolve_only(
-    messages: list, original_query: str, llm
+    messages: list, original_query: str, llm,
+    sql_context: list[dict] | None = None,
 ) -> dict:
     """히스토리가 짧을 때: 맥락 해소만 수행"""
     try:
         cm_messages = [
             SystemMessage(content=CONVERSATION_MANAGER_PROMPT),
-            HumanMessage(content=_format_history_as_text(messages, original_query)),
+            HumanMessage(content=_format_history_as_text(messages, original_query, sql_context)),
         ]
 
         response = await asyncio.wait_for(
@@ -108,12 +122,20 @@ async def _resolve_only(
 
 
 async def _compress_and_resolve(
-    messages: list, history: list, original_query: str, llm
+    messages: list, history: list, original_query: str, llm,
+    sql_context: list[dict] | None = None,
 ) -> dict:
     """히스토리가 길 때: LLM으로 이전 대화 요약 + 맥락 해소를 동시 수행"""
     older = history[:-COMPRESS_THRESHOLD]   # 요약 대상
     recent = history[-COMPRESS_THRESHOLD:]  # 최근 3턴 원본 유지
     current_msg = messages[-1]              # 사용자 최신 메시지
+
+    sql_ctx_msg = []
+    if sql_context:
+        ctx_str = json.dumps(sql_context, ensure_ascii=False, default=str)
+        sql_ctx_msg = [SystemMessage(
+            content=f"--- 이전 SQL 결과 (엔티티 ID 참조용) ---\n{ctx_str}"
+        )]
 
     try:
         # 단일 structured output 호출로 요약 + 맥락 해소
@@ -123,6 +145,7 @@ async def _compress_and_resolve(
             *older,
             SystemMessage(content="--- 최근 대화 (원본 유지) ---"),
             *recent,
+            *sql_ctx_msg,
             SystemMessage(content="--- 사용자의 최신 질문 ---"),
             current_msg,
         ]

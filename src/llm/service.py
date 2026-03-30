@@ -1,5 +1,6 @@
 """MMA Graph 서비스 - StateGraph 기반 LLM 응답 생성"""
 import asyncio
+import json
 import uuid
 import time
 from typing import Dict, Any, Optional, AsyncGenerator, List
@@ -76,6 +77,25 @@ class MMAGraphService:
 
         return messages
 
+    @staticmethod
+    def extract_sql_context(chat_history: List) -> list[dict]:
+        """
+        DB 채팅 히스토리에서 SQL 컨텍스트(tool_results)를 추출.
+        conversation_manager 노드에서만 사용 (다른 노드에 전파하지 않음).
+        """
+        if not chat_history:
+            return []
+
+        sql_context = []
+        for msg in chat_history:
+            role = msg.role if hasattr(msg, "role") else msg.get("role", "")
+            tool_results = getattr(msg, "tool_results", None) if hasattr(msg, "role") else msg.get("tool_results")
+
+            if role == "assistant" and tool_results:
+                sql_context.extend(tool_results)
+
+        return sql_context
+
     async def generate_streaming_chat_response(
         self,
         user_message: str,
@@ -108,11 +128,13 @@ class MMAGraphService:
             # 히스토리 + 현재 메시지 구성
             messages = self.build_messages_from_history(chat_history)
             messages.append(HumanMessage(content=user_message))
+            sql_context = self.extract_sql_context(chat_history)
 
             # 그래프 실행 (타임아웃 적용)
             result = await asyncio.wait_for(
                 self._compiled_graph.ainvoke({
                     "messages": messages,
+                    "sql_context": sql_context,
                     "user_id": user_id,
                     "conversation_id": conversation_id or 0,
                 }),
@@ -126,6 +148,13 @@ class MMAGraphService:
             visualization_type = result.get("visualization_type")
             visualization_data = result.get("visualization_data")
             insights = result.get("insights", [])
+
+            # SQL 에이전트 결과 → compact 형태로 추출
+            agent_results_raw = result.get("agent_results", [])
+            compact_agent_results = [
+                {"query": r.get("query", ""), "data": r.get("data", [])}
+                for r in agent_results_raw if r.get("data")
+            ] or None
 
             # text_response만 실행된 경우 또는 Critic 소진 시
             # visualization_type/data가 없으므로 text_summary 폴백
@@ -142,6 +171,7 @@ class MMAGraphService:
                 "visualization_type": visualization_type,
                 "visualization_data": visualization_data,
                 "insights": insights,
+                "agent_results": compact_agent_results,
                 "message_id": message_id,
                 "conversation_id": conversation_id,
                 "timestamp": utc_now().isoformat(),
