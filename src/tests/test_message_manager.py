@@ -9,7 +9,6 @@ from typing import List
 from langchain_core.messages import HumanMessage, AIMessage, BaseMessage
 
 from conversation.message_manager import ChatHistory
-from conversation.models import ChatHistoryResponse, ChatMessageResponse
 
 
 class MockAsyncDBSession:
@@ -112,35 +111,19 @@ def mock_db_session_factory():
 
 
 @pytest.fixture
-def mock_chat_history():
-    """Mock 채팅 히스토리 응답"""
-    from datetime import datetime
-    
-    messages = [
-        ChatMessageResponse(
-            id="msg1",
-            content="Hello",
-            role="user",
-            timestamp=datetime.fromisoformat("2024-01-01T00:00:00"),
-            conversation_id=1,
-            tool_results=None
-        ),
-        ChatMessageResponse(
-            id="msg2",
-            content="Hi there!",
-            role="assistant",
-            timestamp=datetime.fromisoformat("2024-01-01T00:00:01"),
-            conversation_id=1,
-            tool_results=None
-        )
-    ]
+def mock_recent_messages():
+    """Mock MessageModel 리스트 (get_recent_messages 반환값)"""
 
-    return ChatHistoryResponse(
-        conversation_id=1,
-        messages=messages,
-        total_messages=2,
-        has_more=False
-    )
+    class MockMessageModel:
+        def __init__(self, role, content, tool_results=None):
+            self.role = role
+            self.content = content
+            self.tool_results = tool_results
+
+    return [
+        MockMessageModel(role="user", content="Hello"),
+        MockMessageModel(role="assistant", content="Hi there!"),
+    ]
 
 
 class TestChatHistory:
@@ -237,10 +220,10 @@ class TestChatHistory:
     
     
     @pytest.mark.asyncio
-    async def test_load_from_db(self, mock_db_session_factory, mock_chat_history):
+    async def test_load_from_db(self, mock_db_session_factory, mock_recent_messages):
         """DB에서 메시지 로드 테스트"""
-        with patch('conversation.message_manager.get_chat_history') as mock_get_chat_history:
-            mock_get_chat_history.return_value = mock_chat_history
+        with patch('conversation.message_manager.get_recent_messages') as mock_get:
+            mock_get.return_value = mock_recent_messages
 
             chat_history = ChatHistory(
                 conversation_id=123,
@@ -261,11 +244,10 @@ class TestChatHistory:
             assert isinstance(messages[1], AIMessage)
             assert chat_history._loaded is True
 
-            # get_chat_history가 호출되었는지 확인
-            mock_get_chat_history.assert_called_once()
-            call_args = mock_get_chat_history.call_args
+            # get_recent_messages가 호출되었는지 확인
+            mock_get.assert_called_once()
+            call_args = mock_get.call_args
             assert call_args.kwargs["conversation_id"] == 123
-            assert call_args.kwargs["user_id"] == 1
             assert call_args.kwargs["limit"] == 5
     
     @pytest.mark.asyncio
