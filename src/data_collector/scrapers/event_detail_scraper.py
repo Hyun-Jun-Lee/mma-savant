@@ -10,6 +10,23 @@ from match.models import MatchSchema
 from common.models import WeightClassSchema
 from common.utils import utc_now
 
+import re
+
+_PLURAL_SUFFIX = re.compile(r'(Punches|Elbows|Kicks|Knees|Headbutts|Slams)$')
+_PLURAL_TO_SINGULAR = {
+    'Punches': 'Punch',
+    'Elbows': 'Elbow',
+    'Kicks': 'Kick',
+    'Knees': 'Knee',
+    'Headbutts': 'Headbutt',
+    'Slams': 'Slam',
+}
+
+def _normalize_method(method: str) -> str:
+    """복수형 기술명을 단수형으로 통일 (KO/TKO-Punches → KO/TKO-Punch)"""
+    return _PLURAL_SUFFIX.sub(lambda m: _PLURAL_TO_SINGULAR[m.group()], method)
+
+
 async def scrap_event_detail(crawler_fn: Callable, event_url: str, event_id: int, fighter_name_to_id_map: Dict[str, int]) -> List[Dict]:
     """
     Extract event details from a UFC event detail page HTML file
@@ -115,6 +132,10 @@ async def scrap_event_detail(crawler_fn: Callable, event_url: str, event_id: int
                 method = '-'.join(method_list)
             else:
                 method = method_list[0] if method_list else None
+
+            # 복수형 → 단수형 정규화 (Punches→Punch, Elbows→Elbow 등)
+            if method:
+                method = _normalize_method(method)
 
             round_num_text = cols[8].get_text(strip=True)
             round_num = int(round_num_text) if round_num_text else None
