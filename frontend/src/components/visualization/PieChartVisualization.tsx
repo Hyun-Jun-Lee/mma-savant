@@ -90,9 +90,9 @@ export function PieChartVisualization({ data, xAxis, yAxis }: PieChartVisualizat
 
           <Tooltip
             {...TOOLTIP_STYLE}
-            formatter={(value: number) => [
+            formatter={(value: number, name: string) => [
               `${value.toLocaleString()} (${((value / total) * 100).toFixed(1)}%)`,
-              valueKey
+              name
             ]}
           />
           <Legend {...LEGEND_STYLE} />

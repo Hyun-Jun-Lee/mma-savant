@@ -19,6 +19,7 @@ import {
   CHART_MARGIN,
   getSemanticColor,
 } from "@/lib/chartTheme"
+import { pivotLongToWide, isSecondsField, formatSeconds } from "./pivotData"
 
 interface LineChartVisualizationProps {
   data: Record<string, string | number>[]
@@ -36,20 +37,40 @@ export function LineChartVisualization({ data, xAxis, yAxis }: LineChartVisualiz
   }
 
   const sampleRow = data[0]
-  const numericFields = Object.keys(sampleRow).filter(key =>
-    typeof sampleRow[key] === 'number'
-  )
 
-  const xAxisKey = xAxis || Object.keys(sampleRow)[0]
-  const yAxisKeys = yAxis ? [yAxis] : numericFields
+  const xAxisKey = xAxis || Object.keys(sampleRow).find(key =>
+    typeof sampleRow[key] === 'string'
+  ) || Object.keys(sampleRow)[0]
+
+  // Pivot long→wide if multi-series long format detected
+  const pivoted = pivotLongToWide(data, xAxisKey, yAxis)
+  const chartData = pivoted ? pivoted.data : data
+  const effectiveSample = chartData[0]
+
+  const numericFields = Object.keys(effectiveSample).filter(key =>
+    typeof effectiveSample[key] === 'number'
+  )
+  const yAxisKeys = pivoted ? pivoted.seriesKeys : (yAxis ? [yAxis] : numericFields)
+
+  const secondsMode = pivoted
+    ? isSecondsField(pivoted.valueColumn)
+    : yAxisKeys.some(k => isSecondsField(k))
 
   return (
     <div className="w-full h-80">
       <ResponsiveContainer width="100%" height="100%">
-        <LineChart data={data} margin={CHART_MARGIN}>
+        <LineChart data={chartData} margin={CHART_MARGIN}>
           <XAxis dataKey={xAxisKey} tick={AXIS_TICK} {...AXIS_PROPS} />
-          <YAxis tick={AXIS_TICK} {...AXIS_PROPS} />
-          <Tooltip cursor={TOOLTIP_CURSOR} {...TOOLTIP_STYLE} />
+          <YAxis
+            tick={AXIS_TICK}
+            {...AXIS_PROPS}
+            tickFormatter={secondsMode ? formatSeconds : undefined}
+          />
+          <Tooltip
+            cursor={TOOLTIP_CURSOR}
+            {...TOOLTIP_STYLE}
+            formatter={secondsMode ? (value: number) => formatSeconds(value) : undefined}
+          />
           {yAxisKeys.length > 1 && <Legend {...LEGEND_STYLE} />}
 
           {yAxisKeys.map((key, index) => {
@@ -71,7 +92,7 @@ export function LineChartVisualization({ data, xAxis, yAxis }: LineChartVisualiz
       </ResponsiveContainer>
 
       <div className="mt-2 text-xs text-zinc-500 text-center">
-        {data.length} data points • {yAxisKeys.join(", ")} trend
+        {chartData.length} data points • {yAxisKeys.join(", ")} trend
       </div>
     </div>
   )

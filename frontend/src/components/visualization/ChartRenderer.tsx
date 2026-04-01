@@ -1,9 +1,10 @@
 "use client"
 
+import { useMemo } from "react"
 import { motion } from "framer-motion"
 import { VisualizationData } from "@/types/chat"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { TableVisualization } from "./TableVisualization"
+import { normalizeData } from "./pivotData"
 import { BarChartVisualization } from "./BarChartVisualization"
 import { PieChartVisualization } from "./PieChartVisualization"
 import { LineChartVisualization } from "./LineChartVisualization"
@@ -15,7 +16,7 @@ import { StackedBarVisualization } from "./StackedBarVisualization"
 import { RingListVisualization } from "./RingListVisualization"
 import { LollipopVisualization } from "./LollipopVisualization"
 import { InsightsSummary } from "./InsightsSummary"
-import { BarChart3, PieChart, TrendingUp, Activity, Radar, ScatterChart, Table, MessageSquare, AlignLeft, Layers, Target, Minus } from "lucide-react"
+import { BarChart3, PieChart, TrendingUp, Activity, Radar, ScatterChart, MessageSquare, AlignLeft, Layers, Target, Minus } from "lucide-react"
 
 interface ChartRendererProps {
   data: VisualizationData
@@ -23,6 +24,12 @@ interface ChartRendererProps {
 
 export function ChartRenderer({ data }: ChartRendererProps) {
   const { selected_visualization, visualization_data, insights } = data
+
+  // SQL 결과의 문자열 숫자("19.09")를 실제 number로 정규화
+  const normalizedData = useMemo(
+    () => normalizeData(visualization_data.data),
+    [visualization_data.data],
+  )
 
   const getIcon = () => {
     switch (selected_visualization) {
@@ -38,8 +45,6 @@ export function ChartRenderer({ data }: ChartRendererProps) {
         return <Radar className="w-5 h-5" />
       case "scatter_plot":
         return <ScatterChart className="w-5 h-5" />
-      case "table":
-        return <Table className="w-5 h-5" />
       case "text_summary":
         return <MessageSquare className="w-5 h-5" />
       case "horizontal_bar":
@@ -57,14 +62,12 @@ export function ChartRenderer({ data }: ChartRendererProps) {
 
   const renderVisualization = () => {
     const commonProps = {
-      data: visualization_data.data,
+      data: normalizedData,
       xAxis: visualization_data.x_axis,
       yAxis: visualization_data.y_axis,
     }
 
     switch (selected_visualization) {
-      case "table":
-        return <TableVisualization {...commonProps} />
       case "bar_chart":
         return <BarChartVisualization {...commonProps} />
       case "pie_chart":
@@ -88,7 +91,7 @@ export function ChartRenderer({ data }: ChartRendererProps) {
       case "text_summary":
         return <InsightsSummary insights={insights} />
       default:
-        return <TableVisualization {...commonProps} />
+        return <BarChartVisualization {...commonProps} />
     }
   }
 

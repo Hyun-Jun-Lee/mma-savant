@@ -20,6 +20,7 @@ import {
   CHART_MARGIN,
   getSemanticColor,
 } from "@/lib/chartTheme"
+import { isSecondsField, formatSeconds } from "./pivotData"
 
 interface LollipopVisualizationProps {
   data: Record<string, string | number>[]
@@ -46,6 +47,7 @@ export function LollipopVisualization({ data, xAxis, yAxis }: LollipopVisualizat
   )
   const valueKey = yAxis || numericFields[0] || Object.keys(sampleRow)[1]
 
+  const secondsMode = isSecondsField(valueKey)
   const avg = data.reduce((sum, item) => sum + Number(item[valueKey] || 0), 0) / data.length
 
   return (
@@ -53,15 +55,23 @@ export function LollipopVisualization({ data, xAxis, yAxis }: LollipopVisualizat
       <ResponsiveContainer width="100%" height="100%">
         <BarChart data={data} margin={CHART_MARGIN}>
           <XAxis dataKey={categoryKey} tick={AXIS_TICK} {...AXIS_PROPS} />
-          <YAxis tick={AXIS_TICK} {...AXIS_PROPS} />
-          <Tooltip cursor={TOOLTIP_CURSOR} {...TOOLTIP_STYLE} />
+          <YAxis
+            tick={AXIS_TICK}
+            {...AXIS_PROPS}
+            tickFormatter={secondsMode ? formatSeconds : undefined}
+          />
+          <Tooltip
+            cursor={TOOLTIP_CURSOR}
+            {...TOOLTIP_STYLE}
+            formatter={secondsMode ? (value: number) => formatSeconds(value) : undefined}
+          />
 
           <ReferenceLine
             y={avg}
             stroke="#71717a"
             strokeDasharray="4 4"
             label={{
-              value: `Avg: ${avg.toFixed(1)}`,
+              value: secondsMode ? `Avg: ${formatSeconds(avg)}` : `Avg: ${avg.toFixed(1)}`,
               position: 'insideTopRight',
               fill: '#a1a1aa',
               fontSize: 11,
@@ -91,7 +101,7 @@ export function LollipopVisualization({ data, xAxis, yAxis }: LollipopVisualizat
         <span>{data.length} items</span>
         <span className="flex items-center gap-1">
           <span className="inline-block h-0.5 w-4 border-t border-dashed border-zinc-500" />
-          Avg: {avg.toFixed(1)}
+          Avg: {secondsMode ? formatSeconds(avg) : avg.toFixed(1)}
         </span>
       </div>
     </div>

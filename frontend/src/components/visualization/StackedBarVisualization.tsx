@@ -21,6 +21,7 @@ import {
   CHART_MARGIN,
   getSemanticColor,
 } from "@/lib/chartTheme"
+import { pivotLongToWide, isSecondsField, formatSeconds } from "./pivotData"
 
 interface StackedBarVisualizationProps {
   data: Record<string, string | number>[]
@@ -38,23 +39,40 @@ export function StackedBarVisualization({ data, xAxis, yAxis }: StackedBarVisual
   }
 
   const sampleRow = data[0]
-  const numericFields = Object.keys(sampleRow).filter(key =>
-    typeof sampleRow[key] === 'number'
-  )
 
   const categoryKey = xAxis || Object.keys(sampleRow).find(key =>
     typeof sampleRow[key] === 'string'
   ) || Object.keys(sampleRow)[0]
 
-  const stackKeys = yAxis ? [yAxis] : numericFields
+  // Pivot long→wide: method 같은 그룹 컬럼을 각각의 스택 Bar로 변환
+  const pivoted = pivotLongToWide(data, categoryKey, yAxis)
+  const chartData = pivoted ? pivoted.data : data
+  const effectiveSample = chartData[0]
+
+  const numericFields = Object.keys(effectiveSample).filter(key =>
+    typeof effectiveSample[key] === 'number'
+  )
+  const stackKeys = pivoted ? pivoted.seriesKeys : (yAxis ? [yAxis] : numericFields)
+
+  const secondsMode = pivoted
+    ? isSecondsField(pivoted.valueColumn)
+    : stackKeys.some(k => isSecondsField(k))
 
   return (
     <div className="w-full h-80">
       <ResponsiveContainer width="100%" height="100%">
-        <BarChart data={data} margin={CHART_MARGIN} barCategoryGap="20%">
+        <BarChart data={chartData} margin={CHART_MARGIN} barCategoryGap="20%">
           <XAxis dataKey={categoryKey} tick={AXIS_TICK} {...AXIS_PROPS} />
-          <YAxis tick={AXIS_TICK} {...AXIS_PROPS} />
-          <Tooltip cursor={TOOLTIP_CURSOR} {...TOOLTIP_STYLE} />
+          <YAxis
+            tick={AXIS_TICK}
+            {...AXIS_PROPS}
+            tickFormatter={secondsMode ? formatSeconds : undefined}
+          />
+          <Tooltip
+            cursor={TOOLTIP_CURSOR}
+            {...TOOLTIP_STYLE}
+            formatter={secondsMode ? (value: number) => formatSeconds(value) : undefined}
+          />
           <Legend {...LEGEND_STYLE} />
 
           {stackKeys.map((key, index) => (
@@ -71,7 +89,7 @@ export function StackedBarVisualization({ data, xAxis, yAxis }: StackedBarVisual
       </ResponsiveContainer>
 
       <div className="mt-2 text-xs text-zinc-500 text-center">
-        {data.length} items • stacked by {stackKeys.join(", ")}
+        {chartData.length} items • stacked by {stackKeys.join(", ")}
       </div>
     </div>
   )

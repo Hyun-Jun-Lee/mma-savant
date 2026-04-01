@@ -42,15 +42,15 @@ export function ScatterPlotVisualization({ data, xAxis, yAxis }: ScatterPlotVisu
   const xAxisKey = xAxis || numericFields[0] || Object.keys(sampleRow)[0]
   const yAxisKey = yAxis || numericFields[1] || Object.keys(sampleRow)[1]
 
-  // Use 3rd numeric field for bubble size if available
-  const zAxisKey = numericFields.find(k => k !== xAxisKey && k !== yAxisKey)
+  // 이름 컬럼: xAxis/yAxis에 해당하지 않는 문자열 필드
+  const nameKey = Object.keys(sampleRow).find(key =>
+    typeof sampleRow[key] === 'string' && key !== xAxisKey && key !== yAxisKey
+  ) || Object.keys(sampleRow)[0]
 
   const scatterData = data.map((item, index) => ({
     x: Number(item[xAxisKey]) || index,
     y: Number(item[yAxisKey]) || 0,
-    z: zAxisKey ? Number(item[zAxisKey]) || 50 : 50,
-    name: item.name || item[Object.keys(item)[0]] || `Point ${index + 1}`,
-    originalData: item
+    name: String(item[nameKey] || `Point ${index + 1}`),
   }))
 
   return (
@@ -71,15 +71,20 @@ export function ScatterPlotVisualization({ data, xAxis, yAxis }: ScatterPlotVisu
             tick={AXIS_TICK}
             {...AXIS_PROPS}
           />
-          <ZAxis type="number" dataKey="z" range={[40, 200]} />
           <Tooltip
             cursor={TOOLTIP_CURSOR_DASHED}
-            {...TOOLTIP_STYLE}
-            formatter={(value: number, name: string) => [
-              value.toLocaleString(),
-              name === "x" ? xAxisKey : name === "y" ? yAxisKey : name
-            ]}
-            labelFormatter={(label) => `${label}`}
+            content={({ payload }) => {
+              if (!payload || payload.length === 0) return null
+              const point = payload[0]?.payload
+              if (!point) return null
+              return (
+                <div style={TOOLTIP_STYLE.contentStyle} className="px-3 py-2">
+                  <p className="text-zinc-300 font-medium mb-1 capitalize">{point.name}</p>
+                  <p className="text-zinc-400 text-xs">{xAxisKey}: <span className="text-zinc-200">{Number(point.x).toLocaleString(undefined, { maximumFractionDigits: 1 })}</span></p>
+                  <p className="text-zinc-400 text-xs">{yAxisKey}: <span className="text-zinc-200">{Number(point.y).toLocaleString(undefined, { maximumFractionDigits: 1 })}</span></p>
+                </div>
+              )
+            }}
           />
           <Scatter
             name="Data Points"
