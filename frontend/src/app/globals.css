@@ -2,6 +2,8 @@
 @import "tw-animate-css";
 @import "leaflet/dist/leaflet.css";
 
+@plugin "@tailwindcss/typography";
+
 @custom-variant dark (&:is(.dark *));
 
 @theme inline {

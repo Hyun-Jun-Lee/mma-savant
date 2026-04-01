@@ -7,6 +7,7 @@ import { useAuth } from "@/hooks/useAuth"
 import { Bot, User } from "lucide-react"
 import { cn } from "@/lib/utils"
 import ReactMarkdown from "react-markdown"
+import remarkGfm from "remark-gfm"
 import { ChartRenderer } from "@/components/visualization/ChartRenderer"
 
 interface MessageBubbleProps {
@@ -46,7 +47,7 @@ export function MessageBubble({ message }: MessageBubbleProps) {
         {isUser ? (
           <Card className="p-3 shadow-sm bg-white/[0.06] text-white border-white/[0.06]">
             <div className="text-sm break-words prose prose-invert prose-sm max-w-none">
-              <ReactMarkdown>{message.content}</ReactMarkdown>
+              <ReactMarkdown remarkPlugins={[remarkGfm]}>{message.content}</ReactMarkdown>
             </div>
             
             {/* Timestamp */}
@@ -72,7 +73,7 @@ export function MessageBubble({ message }: MessageBubbleProps) {
               </div>
             ) : (
               <div className="text-sm break-words text-white prose prose-invert prose-sm max-w-none">
-                <ReactMarkdown>{message.content}</ReactMarkdown>
+                <ReactMarkdown remarkPlugins={[remarkGfm]}>{message.content}</ReactMarkdown>
                 {message.isStreaming && (
                   <span className="inline-block w-2 h-4 ml-1 bg-current animate-pulse rounded" />
                 )}

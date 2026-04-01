@@ -8,6 +8,7 @@ import { Bot, User, Loader2, ArrowLeft } from "lucide-react"
 import { formatDistanceToNow } from "date-fns"
 import { ko } from "date-fns/locale"
 import ReactMarkdown from "react-markdown"
+import remarkGfm from "remark-gfm"
 
 interface SessionDetailPanelProps {
   onBack?: () => void
@@ -91,7 +92,7 @@ export function SessionDetailPanel({ onBack, showBackButton, onSendMessage, isCo
 
                       {msg.content && msg.content.trim().length > 0 && (
                         <div className="prose prose-invert max-w-none text-sm break-keep">
-                          <ReactMarkdown>{msg.content}</ReactMarkdown>
+                          <ReactMarkdown remarkPlugins={[remarkGfm]}>{msg.content}</ReactMarkdown>
                           {msg.isStreaming && (
                             <span className="inline-block w-2 h-4 ml-1 bg-violet-400 animate-pulse rounded" />
                           )}
