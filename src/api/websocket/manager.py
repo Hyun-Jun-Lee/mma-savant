@@ -14,7 +14,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from user.models import UserModel
 from user.services import check_usage_limit, get_user_usage, update_user_usage
 from conversation.services import get_or_create_session
-from conversation.repositories import get_recent_messages, add_message_direct
+from conversation.repositories import (
+    get_recent_messages, add_message_direct,
+    get_conversation_compression, get_messages_after,
+    get_message_count_after, update_conversation_compression,
+)
 from llm.service import get_graph_service, MMAGraphService
 from common.logging_config import get_logger
 from common.utils import utc_now
@@ -300,23 +304,44 @@ class ConnectionManager:
 
     async def _load_chat_history(
         self, db: AsyncSession, conversation_id: int, user_id: int
-    ) -> list:
-        """기존 대화의 최신 히스토리를 DB에서 로드"""
+    ) -> dict:
+        """기존 대화의 히스토리를 DB에서 로드 (압축 데이터 포함).
+
+        Returns:
+            {"messages": list, "compressed_context": str|None, "compressed_sql_context": list|None}
+        """
         try:
-            messages = await get_recent_messages(
-                session=db,
-                conversation_id=conversation_id,
-                limit=10,
-            )
-            if messages:
+            compression = await get_conversation_compression(db, conversation_id)
+
+            if compression and compression["compressed_until_message_id"]:
+                messages = await get_messages_after(
+                    db, conversation_id, compression["compressed_until_message_id"],
+                )
+                LOGGER.info(
+                    f"📜 Loaded {len(messages)} messages after compression boundary "
+                    f"for conversation {conversation_id}"
+                )
+                return {
+                    "messages": [msg.to_response() for msg in messages],
+                    "compressed_context": compression["compressed_context"],
+                    "compressed_sql_context": compression["compressed_sql_context"],
+                }
+            else:
+                messages = await get_recent_messages(
+                    session=db, conversation_id=conversation_id, limit=10,
+                )
                 LOGGER.info(
                     f"📜 Loaded {len(messages)} recent messages "
                     f"for conversation {conversation_id}"
                 )
-                return [msg.to_response() for msg in messages]
+                return {
+                    "messages": [msg.to_response() for msg in messages] if messages else [],
+                    "compressed_context": None,
+                    "compressed_sql_context": None,
+                }
         except Exception as e:
             LOGGER.error(f"❌ Failed to load chat history: {e}")
-        return []
+            return {"messages": [], "compressed_context": None, "compressed_sql_context": None}
 
     async def _process_llm_streaming_response(
         self,
@@ -338,15 +363,17 @@ class ConnectionManager:
         final_result_chunk = None
 
         # 기존 대화인 경우 히스토리 로드
-        chat_history = []
+        chat_history_data = {"messages": [], "compressed_context": None, "compressed_sql_context": None}
         if conversation_id:
-            chat_history = await self._load_chat_history(db, conversation_id, user_id)
+            chat_history_data = await self._load_chat_history(db, conversation_id, user_id)
 
         async for chunk in self.llm_service.generate_streaming_chat_response(
             user_message=content,
             conversation_id=conversation_id or 0,
             user_id=user_id,
-            chat_history=chat_history,
+            chat_history=chat_history_data["messages"],
+            compressed_context=chat_history_data["compressed_context"],
+            compressed_sql_context=chat_history_data["compressed_sql_context"],
         ):
             chunk_type = chunk.get("type")
 
@@ -368,6 +395,9 @@ class ConnectionManager:
                 db, user_id, content, final_result_chunk, connection_id,
                 existing_conversation_id=conversation_id,
             )
+
+            # 그래프 완료 후 압축 (비동기, 실패 무시)
+            await self._maybe_compress_conversation(db, conversation_id)
 
             await self._send_final_result(
                 connection_id, final_result_chunk, assistant_message_id, conversation_id
@@ -488,6 +518,89 @@ class ConnectionManager:
             LOGGER.error(f"❌ Failed to increment usage for user {user_id}: {e}")
 
         return conversation_id
+
+    COMPRESS_THRESHOLD = 10  # 압축 트리거 메시지 수
+
+    async def _maybe_compress_conversation(
+        self, db: AsyncSession, conversation_id: int,
+    ) -> None:
+        """그래프 완료 후 대화 압축 실행 (필요 시).
+
+        - boundary 이후 메시지 수 <= COMPRESS_THRESHOLD → 스킵
+        - 압축 대상 메시지 분리 → LLM 압축 → DB 저장
+        - 실패 시 로그만 남기고 다음 턴에 재시도
+        """
+        try:
+            compression = await get_conversation_compression(db, conversation_id)
+
+            existing_boundary = (
+                compression["compressed_until_message_id"] if compression else None
+            )
+            existing_summary = (
+                compression["compressed_context"] if compression else None
+            )
+            existing_sql_ctx = (
+                compression["compressed_sql_context"] if compression else None
+            )
+
+            msg_count = await get_message_count_after(
+                db, conversation_id, existing_boundary,
+            )
+            if msg_count <= self.COMPRESS_THRESHOLD:
+                return
+
+            # boundary 이후 모든 메시지 로드
+            if existing_boundary:
+                all_messages = await get_messages_after(db, conversation_id, existing_boundary)
+            else:
+                all_messages = await get_recent_messages(db, conversation_id, limit=100)
+
+            if len(all_messages) <= self.COMPRESS_THRESHOLD:
+                return
+
+            # older (압축 대상) / recent (유지) 분리
+            split_idx = len(all_messages) - self.COMPRESS_THRESHOLD
+            older = all_messages[:split_idx]
+            new_boundary_msg = older[-1]  # 마지막 압축 대상 메시지
+
+            # older에서 sql_context 추출
+            new_sql_entries = []
+            older_as_dicts = []
+            for msg in older:
+                older_as_dicts.append({"role": msg.role, "content": msg.content})
+                if msg.role == "assistant" and msg.tool_results:
+                    new_sql_entries.extend(msg.tool_results)
+
+            # 기존 compressed_sql_context와 병합 (최대 10개)
+            merged_sql_ctx = (existing_sql_ctx or []) + new_sql_entries
+            merged_sql_ctx = merged_sql_ctx[-10:]
+
+            # LLM 압축 호출
+            new_summary = await self.llm_service.compress_conversation(
+                messages_to_compress=older_as_dicts,
+                existing_summary=existing_summary,
+                sql_context=merged_sql_ctx,
+            )
+
+            if new_summary is None:
+                LOGGER.warning(f"⚠️ Compression skipped for conversation {conversation_id}")
+                return
+
+            # DB 저장
+            await update_conversation_compression(
+                session=db,
+                conversation_id=conversation_id,
+                compressed_context=new_summary,
+                compressed_sql_context=merged_sql_ctx if merged_sql_ctx else None,
+                compressed_until_message_id=new_boundary_msg.message_id,
+            )
+            LOGGER.info(
+                f"✅ Conversation {conversation_id} compressed: "
+                f"{len(older)} msgs → summary, boundary={new_boundary_msg.message_id}"
+            )
+
+        except Exception as e:
+            LOGGER.warning(f"⚠️ Compression error for conversation {conversation_id}: {e}")
 
     async def _handle_error_chunk(
         self,

@@ -2,7 +2,7 @@ from typing import List, Optional
 import uuid
 from datetime import datetime
 
-from sqlalchemy import select, update, desc, func
+from sqlalchemy import select, update, desc, asc, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from conversation.models import (
@@ -320,4 +320,135 @@ async def get_total_conversations_count(session: AsyncSession) -> int:
         select(func.count(ConversationModel.id))
     )
 
+    return result.scalar() or 0
+
+
+# =========================================================================
+# 대화 압축 영속화 (Persistent Conversation Compression)
+# =========================================================================
+
+async def get_messages_after(
+    session: AsyncSession,
+    conversation_id: int,
+    after_message_id: str,
+) -> List[MessageModel]:
+    """
+    boundary message_id 이후의 메시지를 시간순(ASC) 반환.
+    boundary가 없으면 get_recent_messages(limit=10) 폴백.
+    """
+    # boundary 메시지의 created_at 조회
+    boundary_result = await session.execute(
+        select(MessageModel.created_at)
+        .where(
+            MessageModel.conversation_id == conversation_id,
+            MessageModel.message_id == after_message_id,
+        )
+    )
+    boundary_time = boundary_result.scalar_one_or_none()
+
+    if boundary_time is None:
+        return await get_recent_messages(session, conversation_id, limit=10)
+
+    result = await session.execute(
+        select(MessageModel)
+        .where(
+            MessageModel.conversation_id == conversation_id,
+            MessageModel.created_at > boundary_time,
+        )
+        .order_by(asc(MessageModel.created_at))
+    )
+    return list(result.scalars().all())
+
+
+async def get_conversation_compression(
+    session: AsyncSession,
+    conversation_id: int,
+) -> Optional[dict]:
+    """
+    conversation의 압축 메타데이터 반환.
+    압축 없으면 None.
+    """
+    result = await session.execute(
+        select(
+            ConversationModel.compressed_context,
+            ConversationModel.compressed_sql_context,
+            ConversationModel.compressed_until_message_id,
+        )
+        .where(ConversationModel.id == conversation_id)
+    )
+    row = result.one_or_none()
+    if row is None:
+        return None
+
+    compressed_context, compressed_sql_context, compressed_until_message_id = row
+    if not compressed_until_message_id:
+        return None
+
+    return {
+        "compressed_context": compressed_context,
+        "compressed_sql_context": compressed_sql_context,
+        "compressed_until_message_id": compressed_until_message_id,
+    }
+
+
+async def update_conversation_compression(
+    session: AsyncSession,
+    conversation_id: int,
+    compressed_context: str,
+    compressed_sql_context: Optional[list],
+    compressed_until_message_id: str,
+) -> None:
+    """압축 필드 3개 업데이트."""
+    await session.execute(
+        update(ConversationModel)
+        .where(ConversationModel.id == conversation_id)
+        .values(
+            compressed_context=compressed_context,
+            compressed_sql_context=compressed_sql_context,
+            compressed_until_message_id=compressed_until_message_id,
+            updated_at=utc_now(),
+        )
+    )
+    await session.commit()
+
+
+async def get_message_count_after(
+    session: AsyncSession,
+    conversation_id: int,
+    after_message_id: Optional[str] = None,
+) -> int:
+    """
+    boundary 이후 메시지 수 카운트.
+    boundary가 None이면 전체 메시지 수 반환.
+    """
+    if after_message_id is None:
+        result = await session.execute(
+            select(func.count(MessageModel.id))
+            .where(MessageModel.conversation_id == conversation_id)
+        )
+        return result.scalar() or 0
+
+    boundary_result = await session.execute(
+        select(MessageModel.created_at)
+        .where(
+            MessageModel.conversation_id == conversation_id,
+            MessageModel.message_id == after_message_id,
+        )
+    )
+    boundary_time = boundary_result.scalar_one_or_none()
+
+    if boundary_time is None:
+        result = await session.execute(
+            select(func.count(MessageModel.id))
+            .where(MessageModel.conversation_id == conversation_id)
+        )
+        return result.scalar() or 0
+
+    result = await session.execute(
+        select(func.count(MessageModel.id))
+        .where(
+            MessageModel.conversation_id == conversation_id,
+            MessageModel.created_at > boundary_time,
+        )
+    )
     return result.scalar() or 0

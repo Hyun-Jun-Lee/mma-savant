@@ -6,7 +6,7 @@ import time
 from typing import Dict, Any, Optional, AsyncGenerator, List
 from traceback import format_exc
 
-from langchain_core.messages import HumanMessage, AIMessage
+from langchain_core.messages import HumanMessage, AIMessage, SystemMessage
 
 from config import Config
 from llm.model_factory import create_llm_with_callbacks, get_main_model, get_sub_model
@@ -26,6 +26,7 @@ class MMAGraphService:
     def __init__(self, provider: Optional[str] = None):
         self.provider = provider or Config.LLM_PROVIDER
         self._llm = None
+        self._sub_llm = None
         self._compiled_graph = None
 
     async def initialize(self):
@@ -37,6 +38,7 @@ class MMAGraphService:
             main_llm = get_main_model()
             sub_llm = get_sub_model()
             self._llm = main_llm
+            self._sub_llm = sub_llm
             self._compiled_graph = build_mma_graph(main_llm, sub_llm)
             LOGGER.info(
                 f"✅ MMA Graph service initialized "
@@ -53,17 +55,25 @@ class MMAGraphService:
             LOGGER.info(f"✅ MMA Graph service initialized (provider: {self.provider})")
 
     @staticmethod
-    def build_messages_from_history(chat_history: List) -> list:
+    def build_messages_from_history(
+        chat_history: List,
+        compressed_context: Optional[str] = None,
+    ) -> list:
         """
         DB 채팅 히스토리(ChatMessageResponse 리스트)를 LangChain 메시지로 변환.
         극단적 상황 방지를 위한 최대 100턴 상한 적용.
         (실제 슬라이딩 윈도우는 ConversationManager 노드에서 처리)
         """
-        if not chat_history:
+        if not chat_history and not compressed_context:
             return []
 
         messages = []
-        for msg in chat_history:
+
+        # 압축된 이전 대화 요약이 있으면 SystemMessage로 맨 앞에 삽입
+        if compressed_context:
+            messages.append(SystemMessage(content=f"[이전 대화 요약] {compressed_context}"))
+
+        for msg in (chat_history or []):
             role = msg.role if hasattr(msg, "role") else msg.get("role", "")
             content = msg.content if hasattr(msg, "content") else msg.get("content", "")
 
@@ -102,6 +112,8 @@ class MMAGraphService:
         conversation_id: Optional[int] = None,
         user_id: Optional[int] = None,
         chat_history: Optional[List] = None,
+        compressed_context: Optional[str] = None,
+        compressed_sql_context: Optional[List[dict]] = None,
     ) -> AsyncGenerator[Dict[str, Any], None]:
         """
         StateGraph 실행 결과를 기존 인터페이스와 호환되는 형태로 yield.
@@ -126,9 +138,15 @@ class MMAGraphService:
             await self.initialize()
 
             # 히스토리 + 현재 메시지 구성
-            messages = self.build_messages_from_history(chat_history)
+            messages = self.build_messages_from_history(
+                chat_history, compressed_context=compressed_context,
+            )
             messages.append(HumanMessage(content=user_message))
+
             sql_context = self.extract_sql_context(chat_history)
+            if compressed_sql_context:
+                sql_context = compressed_sql_context + sql_context
+            sql_context = sql_context[-10:]  # 최대 10개
 
             # 그래프 실행 (타임아웃 적용)
             result = await asyncio.wait_for(
@@ -212,6 +230,49 @@ class MMAGraphService:
         finally:
             total_time = time.time() - start_time
             LOGGER.info(f"⏱️ Graph execution took: {total_time:.3f}s")
+
+    async def compress_conversation(
+        self,
+        messages_to_compress: list,
+        existing_summary: Optional[str] = None,
+        sql_context: Optional[list[dict]] = None,
+    ) -> Optional[str]:
+        """LLM 압축 실행. 실패 시 None 반환."""
+        from llm.graph.prompts import POST_GRAPH_COMPRESS_PROMPT
+        from llm.graph.schemas import CompressionOutput
+
+        await self.initialize()
+
+        compress_llm = self._sub_llm or self._llm
+        if not compress_llm:
+            LOGGER.error("❌ No LLM available for compression")
+            return None
+
+        # 대화 내용을 텍스트로 포맷
+        lines = []
+        if existing_summary:
+            lines.append(f"[기존 대화 요약] {existing_summary}")
+        for msg in messages_to_compress:
+            role = msg.get("role", "unknown")
+            content = msg.get("content", "")
+            label = "사용자" if role == "user" else "어시스턴트"
+            lines.append(f"[{label}]: {content}")
+
+        conversation_text = "\n".join(lines)
+
+        try:
+            structured_llm = compress_llm.with_structured_output(CompressionOutput)
+            result = await asyncio.wait_for(
+                structured_llm.ainvoke([
+                    SystemMessage(content=POST_GRAPH_COMPRESS_PROMPT),
+                    HumanMessage(content=conversation_text),
+                ]),
+                timeout=10,
+            )
+            return result.summary.strip()
+        except Exception as e:
+            LOGGER.warning(f"⚠️ Compression failed (will retry next turn): {e}")
+            return None
 
     async def health_check(self) -> Dict[str, Any]:
         """서비스 상태 확인"""

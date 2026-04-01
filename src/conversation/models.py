@@ -121,6 +121,11 @@ class ConversationModel(BaseModel):
     user_id = Column(Integer, ForeignKey("user.id"), nullable=False)
     title = Column(Text, nullable=True)  # 채팅 세션 제목
 
+    # 대화 압축 영속화
+    compressed_context = Column(Text, nullable=True)
+    compressed_sql_context = Column(JSONB, nullable=True)
+    compressed_until_message_id = Column(String, nullable=True)
+
     # 관계 설정
     user = relationship("UserModel", back_populates="conversations")
     message_records = relationship("MessageModel", back_populates="conversation", cascade="all, delete-orphan", order_by="MessageModel.created_at")

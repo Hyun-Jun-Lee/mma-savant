@@ -212,3 +212,8 @@ CREATE INDEX IF NOT EXISTS idx_message_conversation_id ON message(conversation_i
 CREATE INDEX IF NOT EXISTS idx_message_message_id ON message(message_id);
 CREATE INDEX IF NOT EXISTS idx_message_created_at ON message(created_at);
 CREATE INDEX IF NOT EXISTS idx_message_role ON message(role);
+
+-- 대화 압축 영속화 (Persistent Conversation Compression)
+ALTER TABLE conversation ADD COLUMN IF NOT EXISTS compressed_context TEXT;
+ALTER TABLE conversation ADD COLUMN IF NOT EXISTS compressed_sql_context JSONB;
+ALTER TABLE conversation ADD COLUMN IF NOT EXISTS compressed_until_message_id VARCHAR;

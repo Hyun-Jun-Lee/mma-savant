@@ -7,7 +7,7 @@ from pydantic import BaseModel, Field
 class VisualizationDecision(BaseModel):
     """시각화 결정 스키마 (LLM은 메타데이터만, data는 코드에서 agent_results로 구성)"""
     selected_visualization: Literal[
-        "table", "bar_chart", "horizontal_bar", "stacked_bar",
+        "bar_chart", "horizontal_bar", "stacked_bar",
         "pie_chart", "line_chart", "area_chart", "radar_chart",
         "scatter_plot", "ring_list", "lollipop_chart",
     ] = Field(description="차트 타입")
@@ -45,6 +45,11 @@ class ConversationManagerOutput(BaseModel):
     resolved_query: str = Field(
         description="맥락이 해소된 독립적 질문 (대명사·생략 대체)"
     )
+
+
+class CompressionOutput(BaseModel):
+    """Post-graph compression output"""
+    summary: str = Field(description="대화 요약 (1~3문장, 선수명/체급/핵심 데이터 포함)")
 
 
 class SupervisorRouting(BaseModel):
