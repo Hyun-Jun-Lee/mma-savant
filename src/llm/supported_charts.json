@@ -1,9 +1,4 @@
 {
-  "table": {
-      "description": "행과 열로 구성된 데이터 테이블",
-      "best_for": "정확한 수치 비교, 상세 정보 나열",
-      "data_requirements": "구조화된 다중 속성 데이터"
-  },
   "bar_chart": {
       "description": "카테고리별 수치를 세로 막대로 표현",
       "best_for": "카테고리 간 수치 비교 (항목 수 적을 때)",

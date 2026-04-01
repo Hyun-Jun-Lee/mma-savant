@@ -25,15 +25,28 @@ class CriticLLMOutput(BaseModel):
 # 시각화 필요 여부 — 규칙 기반 판별
 # =============================================================================
 
+def _is_numeric_value(val) -> bool:
+    """숫자 또는 숫자형 문자열 판별"""
+    if isinstance(val, bool):
+        return False
+    if isinstance(val, (int, float)):
+        return True
+    if isinstance(val, str):
+        try:
+            float(val)
+            return True
+        except ValueError:
+            return False
+    return False
+
+
 def _count_numeric_columns(row: dict) -> int:
     """실질적 수치 컬럼 수 계산 (id류·boolean 제외)"""
     count = 0
     for key, val in row.items():
-        if isinstance(val, bool):
-            continue
         if "id" in key.lower():
             continue
-        if isinstance(val, (int, float)):
+        if _is_numeric_value(val):
             count += 1
     return count
 
