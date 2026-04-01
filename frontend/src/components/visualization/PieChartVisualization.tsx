@@ -14,6 +14,7 @@ import {
   PIE_DONUT,
   LEGEND_STYLE,
   getSemanticColor,
+  fmtNum,
 } from "@/lib/chartTheme"
 
 interface PieChartVisualizationProps {
@@ -76,7 +77,7 @@ export function PieChartVisualization({ data, xAxis, yAxis }: PieChartVisualizat
             dominantBaseline="middle"
             className="fill-zinc-200 text-xl font-semibold"
           >
-            {total.toLocaleString()}
+            {fmtNum(total)}
           </text>
           <text
             x="50%"
@@ -91,7 +92,7 @@ export function PieChartVisualization({ data, xAxis, yAxis }: PieChartVisualizat
           <Tooltip
             {...TOOLTIP_STYLE}
             formatter={(value: number, name: string) => [
-              `${value.toLocaleString()} (${((value / total) * 100).toFixed(1)}%)`,
+              `${fmtNum(value)} (${((value / total) * 100).toFixed(1)}%)`,
               name
             ]}
           />
@@ -100,7 +101,7 @@ export function PieChartVisualization({ data, xAxis, yAxis }: PieChartVisualizat
       </ResponsiveContainer>
 
       <div className="mt-2 text-xs text-zinc-500 text-center">
-        {pieData.length} items total • Grand total: {total.toLocaleString()}
+        {pieData.length} items total • Grand total: {fmtNum(total)}
       </div>
     </div>
   )

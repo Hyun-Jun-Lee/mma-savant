@@ -77,3 +77,14 @@ export function getSemanticColor(label: string, index: number): string {
   // 4) Fallback: rotating palette
   return CHART_COLORS[index % CHART_COLORS.length]
 }
+
+/** 숫자를 소수점 1자리까지 표시 */
+export function fmtNum(value: number): string {
+  return value.toLocaleString(undefined, { maximumFractionDigits: 1 })
+}
+
+/** Recharts Tooltip/Axis 기본 포매터 (소수점 1자리) */
+export const defaultFormatter = (value: number) => fmtNum(value)
+
+/** Recharts Y축 기본 tickFormatter (소수점 1자리) */
+export const defaultTickFormatter = (value: number) => fmtNum(value)

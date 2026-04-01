@@ -22,6 +22,7 @@ import {
   getSemanticColor,
 } from "@/lib/chartTheme"
 import { pivotLongToWide, isSecondsField, formatSeconds } from "./pivotData"
+import { defaultFormatter, defaultTickFormatter } from "@/lib/chartTheme"
 
 interface StackedBarVisualizationProps {
   data: Record<string, string | number>[]
@@ -66,12 +67,12 @@ export function StackedBarVisualization({ data, xAxis, yAxis }: StackedBarVisual
           <YAxis
             tick={AXIS_TICK}
             {...AXIS_PROPS}
-            tickFormatter={secondsMode ? formatSeconds : undefined}
+            tickFormatter={secondsMode ? formatSeconds : defaultTickFormatter}
           />
           <Tooltip
             cursor={TOOLTIP_CURSOR}
             {...TOOLTIP_STYLE}
-            formatter={secondsMode ? (value: number) => formatSeconds(value) : undefined}
+            formatter={secondsMode ? (value: number) => formatSeconds(value) : defaultFormatter}
           />
           <Legend {...LEGEND_STYLE} />
 

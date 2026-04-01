@@ -2,7 +2,7 @@
 
 import { useState, useMemo } from "react"
 import { ChevronDown } from "lucide-react"
-import { CHART_COLORS } from "@/lib/chartTheme"
+import { CHART_COLORS, fmtNum } from "@/lib/chartTheme"
 
 interface RingListVisualizationProps {
   data: Record<string, string | number>[]
@@ -112,7 +112,7 @@ export function RingListVisualization({ data, xAxis, yAxis }: RingListVisualizat
                   <div className="mt-0.5 flex items-center gap-3 text-[11px]">
                     {otherNumericKeys.slice(0, 3).map(k => (
                       <span key={k}>
-                        <span className="font-medium text-zinc-400">{Number(item[k]).toLocaleString()}</span>
+                        <span className="font-medium text-zinc-400">{fmtNum(Number(item[k]))}</span>
                         <span className="ml-1 text-zinc-500">{k}</span>
                       </span>
                     ))}
@@ -121,7 +121,7 @@ export function RingListVisualization({ data, xAxis, yAxis }: RingListVisualizat
               </div>
 
               <span className="shrink-0 rounded-full border border-white/[0.08] bg-white/[0.04] px-2 py-0.5 text-[11px] font-medium text-zinc-300">
-                {hasPercentage ? `${val.toFixed(1)}%` : val.toLocaleString()}
+                {hasPercentage ? `${val.toFixed(1)}%` : fmtNum(val)}
               </span>
             </div>
           )

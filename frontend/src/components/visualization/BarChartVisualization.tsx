@@ -21,6 +21,7 @@ import {
   getSemanticColor,
 } from "@/lib/chartTheme"
 import { pivotLongToWide, isSecondsField, formatSeconds } from "./pivotData"
+import { defaultFormatter, defaultTickFormatter } from "@/lib/chartTheme"
 
 interface BarChartVisualizationProps {
   data: Record<string, string | number>[]
@@ -64,12 +65,12 @@ export function BarChartVisualization({ data, xAxis, yAxis }: BarChartVisualizat
           <YAxis
             tick={AXIS_TICK}
             {...AXIS_PROPS}
-            tickFormatter={secondsMode ? formatSeconds : undefined}
+            tickFormatter={secondsMode ? formatSeconds : defaultTickFormatter}
           />
           <Tooltip
             cursor={TOOLTIP_CURSOR}
             {...TOOLTIP_STYLE}
-            formatter={secondsMode ? (value: number) => formatSeconds(value) : undefined}
+            formatter={secondsMode ? (value: number) => formatSeconds(value) : defaultFormatter}
           />
           {yAxisKeys.length > 1 && <Legend {...LEGEND_STYLE} />}
 
