@@ -49,7 +49,7 @@ export function useAuth() {
       lastUserIdRef.current = null
       setUser(null)
     }
-  }, [session, status, setUser, setLoading, user])
+  }, [session, status, setUser, setLoading])
 
   // 일반 로그인 여부 확인
   const hasLocalToken = typeof window !== 'undefined' && AuthApiService.isAuthenticated()

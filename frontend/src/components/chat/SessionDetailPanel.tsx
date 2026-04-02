@@ -27,7 +27,7 @@ export function SessionDetailPanel({ onBack, showBackButton, onSendMessage, isCo
     if (scrollRef.current) {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight
     }
-  }, [messages])
+  }, [messages, isTyping])
 
   const selectedSessionTitle = sessions.find(s => s.id === selectedSessionId)?.title
 

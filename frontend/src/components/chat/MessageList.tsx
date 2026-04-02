@@ -23,7 +23,12 @@ export function MessageList() {
 
   // 새 메시지가 추가되거나 타이핑 상태가 변경될 때마다 스크롤을 맨 아래로
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: "smooth" })
+    requestAnimationFrame(() => {
+      const viewport = bottomRef.current?.closest('[data-slot="scroll-area-viewport"]') as HTMLElement | null
+      if (viewport) {
+        viewport.scrollTop = viewport.scrollHeight
+      }
+    })
   }, [messages, isTyping])
 
   if (messages.length === 0) {

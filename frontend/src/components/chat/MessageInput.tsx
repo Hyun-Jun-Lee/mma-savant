@@ -1,6 +1,6 @@
 "use client"
 
-import { useRef, useEffect } from "react"
+import { useState, useRef, useEffect } from "react"
 import { useChatStore } from "@/store/chatStore"
 import { Send, Loader2 } from "lucide-react"
 import { cn } from "@/lib/utils"
@@ -16,7 +16,9 @@ export function MessageInput({
   disabled = false,
   placeholder = "MMA에 대해 무엇이든 물어보세요... (Shift+Enter로 줄바꿈)"
 }: MessageInputProps) {
-  const { currentMessage, setCurrentMessage, isLoading, usageLimit } = useChatStore()
+  const [currentMessage, setCurrentMessage] = useState("")
+  const isLoading = useChatStore(state => state.isLoading)
+  const usageLimit = useChatStore(state => state.usageLimit)
   const textareaRef = useRef<HTMLInputElement>(null)
 
   const handleSend = () => {
