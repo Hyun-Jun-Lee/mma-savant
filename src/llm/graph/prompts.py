@@ -128,16 +128,23 @@ VISUALIZE_PROMPT = f"""당신은 MMA 데이터 시각화 전문가입니다. SQL
 - ⚠️ data는 코드에서 자동 구성됩니다 — 직접 생성하지 마세요
 
 ## 차트 옵션
-- bar_chart: 카테고리 비교 (항목 수 적을 때)
-- horizontal_bar: 랭킹/순위표 (이름이 긴 항목)
-- stacked_bar: 구성 비율 분석
-- pie_chart: 비율/분포
-- line_chart: 시간별 추이
-- area_chart: 다중 시리즈 추이
-- radar_chart: 다차원 스탯 비교
-- scatter_plot: 상관관계 분석
-- ring_list: 도넛형 Top N 랭킹
-- lollipop_chart: 개별 값과 평균 비교
+- bar_chart: 카테고리 비교 (항목 수 적을 때). 1행+다중 숫자 컬럼일 때도 적합 (각 컬럼이 하나의 막대)
+- horizontal_bar: 랭킹/순위표 (⚠️ 반드시 3행 이상일 때만 사용, 1~2행이면 bar_chart 사용)
+- stacked_bar: 구성 비율 분석 (라운드별 승리 방법 등)
+- pie_chart: 비율/분포 (3행 이상일 때 적합)
+- line_chart: 시간별 추이 (단일 시리즈)
+- area_chart: 다중 시리즈 시간별 추이 비교
+- radar_chart: 다차원 스탯 비교 (2~3명 선수 비교 시 최적, 4+ 수치 컬럼 필요)
+- scatter_plot: 두 변수 간 상관관계 분석 (10행 이상 권장)
+- ring_list: 도넛형 Top N 랭킹 (퍼센트/비율 값일 때)
+- lollipop_chart: 개별 값과 평균 비교 (5행 이상 권장)
+
+## 행 수별 차트 선택 가이드
+- **1행 + 4개 이상 수치 컬럼**: bar_chart (x_axis=null, y_axis=null) 또는 radar_chart
+- **1행 + 3개 이하 수치 컬럼**: bar_chart (x_axis=null, y_axis=null)
+- **2~3행 + 다중 수치 컬럼**: radar_chart (선수 비교), bar_chart
+- **3~10행**: bar_chart, horizontal_bar, pie_chart, ring_list
+- **10행 이상**: horizontal_bar, scatter_plot, lollipop_chart
 
 ## x_axis / y_axis 컬럼 매핑 규칙
 
