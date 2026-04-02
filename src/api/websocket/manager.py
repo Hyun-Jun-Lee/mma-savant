@@ -517,6 +517,9 @@ class ConnectionManager:
         except Exception as e:
             LOGGER.error(f"❌ Failed to increment usage for user {user_id}: {e}")
 
+        # 모든 작업 성공 후 단일 commit (트랜잭션 원자성 보장)
+        await db.commit()
+
         return conversation_id
 
     COMPRESS_THRESHOLD = 10  # 압축 트리거 메시지 수
@@ -594,6 +597,7 @@ class ConnectionManager:
                 compressed_sql_context=merged_sql_ctx if merged_sql_ctx else None,
                 compressed_until_message_id=new_boundary_msg.message_id,
             )
+            await db.commit()
             LOGGER.info(
                 f"✅ Conversation {conversation_id} compressed: "
                 f"{len(older)} msgs → summary, boundary={new_boundary_msg.message_id}"

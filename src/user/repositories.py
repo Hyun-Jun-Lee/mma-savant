@@ -147,8 +147,7 @@ async def update_user_usage(session: AsyncSession, user_id: int, increment: int 
     )
     
     await session.flush()
-    await session.commit()
-    
+
     # 업데이트된 사용자 정보 반환
     return await get_user_by_id(session, user_id)
 
@@ -222,7 +221,6 @@ async def deactivate_user(session: AsyncSession, user_id: int) -> bool:
         .values(is_active=False)
     )
     await session.flush()
-    await session.commit()
     return result.rowcount > 0
 
 
@@ -236,7 +234,6 @@ async def activate_user(session: AsyncSession, user_id: int) -> bool:
         .values(is_active=True)
     )
     await session.flush()
-    await session.commit()
     return result.rowcount > 0
 
 
@@ -295,7 +292,6 @@ async def update_daily_limit(
         .values(daily_request_limit=limit, updated_at=utc_now())
     )
     await session.flush()
-    await session.commit()
 
     result = await session.execute(
         select(UserModel).where(UserModel.id == user_id)
@@ -317,7 +313,6 @@ async def update_admin_status(
         .values(is_admin=is_admin, updated_at=utc_now())
     )
     await session.flush()
-    await session.commit()
 
     result = await session.execute(
         select(UserModel).where(UserModel.id == user_id)
@@ -339,7 +334,6 @@ async def update_active_status(
         .values(is_active=is_active, updated_at=utc_now())
     )
     await session.flush()
-    await session.commit()
 
     result = await session.execute(
         select(UserModel).where(UserModel.id == user_id)

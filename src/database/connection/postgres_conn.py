@@ -14,7 +14,8 @@ async_engine = create_async_engine(
     DATABASE_URL, pool_size=Config.DB_POOL_SIZE, max_overflow=Config.DB_MAX_OVERFLOW
 )
 AsyncSessionLocal = sessionmaker(
-    async_engine, class_=AsyncSession, autocommit=False, autoflush=False
+    async_engine, class_=AsyncSession, autocommit=False, autoflush=False,
+    expire_on_commit=False,
 )
 
 # 동기 엔진 (LangChain Tools용)

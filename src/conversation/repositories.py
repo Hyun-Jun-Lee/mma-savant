@@ -34,7 +34,6 @@ async def create_chat_session(
     session.add(db_conversation)
     await session.flush()
     session_response = db_conversation.to_session_response()
-    await session.commit()
 
     return session_response
 
@@ -112,7 +111,6 @@ async def delete_chat_session(
 
     await session.delete(conversation)
     await session.flush()
-    await session.commit()
     return True
 
 
@@ -138,7 +136,6 @@ async def update_chat_session_title(
     )
 
     await session.flush()
-    await session.commit()
 
     # 업데이트된 세션 조회
     return await get_chat_session_by_id(session, conversation_id, user_id)
@@ -240,8 +237,7 @@ async def add_message_to_session(
     
     await session.flush()
     saved_message = new_message.to_response()
-    await session.commit()
-    
+
     return saved_message
 
 
@@ -296,7 +292,6 @@ async def add_message_direct(
 
     await session.flush()
     saved = message.to_response()
-    await session.commit()
     return saved
 
 
@@ -409,7 +404,7 @@ async def update_conversation_compression(
             updated_at=utc_now(),
         )
     )
-    await session.commit()
+    await session.flush()
 
 
 async def get_message_count_after(
