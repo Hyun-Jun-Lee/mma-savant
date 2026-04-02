@@ -28,7 +28,7 @@ def test_get_supported_charts_returns_dict_with_expected_charts():
 
     # Then: 모든 예상 차트 타입이 포함되어야 한다
     expected_charts = {
-        "table", "bar_chart", "pie_chart",
+        "bar_chart", "pie_chart",
         "line_chart", "scatter_plot", "text_summary",
         "area_chart", "radar_chart", "stacked_bar",
         "horizontal_bar", "lollipop_chart", "ring_list",
@@ -83,15 +83,15 @@ def test_get_supported_charts_json_decode_error_returns_fallback():
 # get_chart_info() 테스트
 # =============================================================================
 
-def test_get_chart_info_returns_correct_info_for_table():
-    """table 차트 ID로 조회하면 올바른 정보를 반환한다"""
-    # Given: table 차트 정보를 조회할 때
+def test_get_chart_info_returns_correct_info_for_text_summary():
+    """text_summary 차트 ID로 조회하면 올바른 정보를 반환한다"""
+    # Given: text_summary 차트 정보를 조회할 때
     # When: get_chart_info를 호출하면
-    result = get_chart_info("table")
+    result = get_chart_info("text_summary")
 
-    # Then: table의 정보가 반환되어야 한다
+    # Then: text_summary의 정보가 반환되어야 한다
     assert isinstance(result, dict)
-    assert result["description"] == "행과 열로 구성된 데이터 테이블"
+    assert result["description"] == "핵심 정보를 텍스트로 요약"
     assert "best_for" in result
     assert "data_requirements" in result
 
@@ -141,7 +141,7 @@ def test_get_chart_list_contains_all_expected_charts():
 
     # Then: 모든 예상 차트가 포함되어야 한다
     expected_charts = {
-        "table", "bar_chart", "pie_chart",
+        "bar_chart", "pie_chart",
         "line_chart", "scatter_plot", "text_summary",
         "area_chart", "radar_chart", "stacked_bar",
         "horizontal_bar", "lollipop_chart", "ring_list",
@@ -156,18 +156,18 @@ def test_get_chart_list_has_correct_length():
     result = get_chart_list()
 
     # Then: 8개의 차트가 있어야 한다
-    assert len(result) == 12
+    assert len(result) == 11
 
 
 # =============================================================================
 # validate_chart_id() 테스트
 # =============================================================================
 
-def test_validate_chart_id_returns_true_for_table():
-    """table 차트 ID는 유효하다고 반환한다"""
-    # Given: table 차트 ID를 검증할 때
+def test_validate_chart_id_returns_true_for_bar_chart():
+    """bar_chart 차트 ID는 유효하다고 반환한다"""
+    # Given: bar_chart 차트 ID를 검증할 때
     # When: validate_chart_id를 호출하면
-    result = validate_chart_id("table")
+    result = validate_chart_id("bar_chart")
 
     # Then: True가 반환되어야 한다
     assert result is True
@@ -226,7 +226,7 @@ def test_get_charts_for_prompt_contains_all_chart_ids():
 
     # Then: 모든 차트 ID가 포함되어야 한다
     expected_charts = [
-        "table", "bar_chart", "pie_chart",
+        "bar_chart", "pie_chart",
         "line_chart", "scatter_plot", "text_summary",
         "area_chart", "radar_chart", "stacked_bar",
         "horizontal_bar", "lollipop_chart", "ring_list",
