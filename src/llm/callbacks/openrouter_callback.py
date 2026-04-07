@@ -2,8 +2,8 @@ import asyncio
 import time
 from typing import Dict, Any, List
 
-from langchain.callbacks.base import AsyncCallbackHandler
-from langchain.schema import LLMResult
+from langchain_core.callbacks import AsyncCallbackHandler
+from langchain_core.outputs import LLMResult
 
 from common.utils import utc_now
 

@@ -11,7 +11,7 @@ from common.logging_config import get_logger
 
 LOGGER = get_logger(__name__)
 
-CRITIC_TIMEOUT_SECONDS = 15
+CRITIC_TIMEOUT_SECONDS = 20
 MAX_RETRIES = 3
 
 
