@@ -9,6 +9,8 @@ from common.logging_config import get_logger
 
 LOGGER = get_logger(__name__)
 
+MAX_RESULT_ROWS = 100
+
 
 def execute_sql_query(query: str) -> str:
     """
@@ -32,6 +34,10 @@ def execute_sql_query(query: str) -> str:
             columns = result.keys()
 
             data = [dict(zip(columns, row)) for row in rows]
+
+            if len(data) > MAX_RESULT_ROWS:
+                LOGGER.warning(f"⚠️ [SQL Tool] Result truncated: {len(data)} → {MAX_RESULT_ROWS} rows")
+                data = data[:MAX_RESULT_ROWS]
 
             response = {
                 "query": cleaned_query,
@@ -80,6 +86,10 @@ async def execute_sql_query_async(query: str) -> str:
             columns = result.keys()
 
             data = [dict(zip(columns, row)) for row in rows]
+
+            if len(data) > MAX_RESULT_ROWS:
+                LOGGER.warning(f"⚠️ [SQL Tool] Result truncated (async): {len(data)} → {MAX_RESULT_ROWS} rows")
+                data = data[:MAX_RESULT_ROWS]
 
             response = {
                 "query": cleaned_query,
