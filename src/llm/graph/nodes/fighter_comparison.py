@@ -2,16 +2,16 @@
 import asyncio
 import json
 
-from langgraph.prebuilt import create_react_agent
 from langgraph.errors import GraphRecursionError
 from langchain_core.messages import HumanMessage
 
+from llm.graph.react_agent import build_react_agent
 from llm.graph.state import MainState, _error_agent_result
 from llm.graph.nodes.mma_analysis import (
     _extract_sql_result,
     _extract_reasoning,
 )
-from llm.tools.sql_tool import create_sql_tool
+from llm.tools.sql_tool import execute_raw_sql_query
 from llm.prompts import get_fighter_comparison_prompt
 from common.logging_config import get_logger
 
@@ -23,16 +23,16 @@ FC_AGENT_RECURSION_LIMIT = 10
 
 def _build_comparison_agent(llm):
     """Fighter 비교 SQL 에이전트 생성"""
-    tools = [create_sql_tool()]
+    tools = [execute_raw_sql_query]
     system_prompt = get_fighter_comparison_prompt()
-    return create_react_agent(model=llm, tools=tools, prompt=system_prompt)
+    return build_react_agent(model=llm, tools=tools, prompt=system_prompt)
 
 
 async def fighter_comparison_node(state: MainState, llm) -> dict:
     """
     Fighter 비교 에이전트 노드
 
-    MMA 분석과 동일한 구조로 create_react_agent를 사용하되,
+    MMA 분석과 동일한 구조로 build_react_agent를 사용하되,
     비교 전용 프롬프트로 다중 선수 비교에 특화.
     """
     messages = state.get("compressed_messages") or state.get("messages", [])

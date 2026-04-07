@@ -2,12 +2,13 @@
 import asyncio
 import json
 
-from langgraph.prebuilt import create_react_agent
 from langgraph.errors import GraphRecursionError
+
+from llm.graph.react_agent import build_react_agent
 from langchain_core.messages import HumanMessage
 
 from llm.graph.state import MainState, _error_agent_result
-from llm.tools.sql_tool import create_sql_tool
+from llm.tools.sql_tool import execute_raw_sql_query
 from llm.prompts import get_phase1_prompt
 from common.logging_config import get_logger
 
@@ -44,16 +45,16 @@ def _extract_reasoning(messages) -> str:
 
 def _build_agent(llm):
     """MMA 분석 SQL 에이전트 생성"""
-    tools = [create_sql_tool()]
+    tools = [execute_raw_sql_query]
     system_prompt = get_phase1_prompt()
-    return create_react_agent(model=llm, tools=tools, prompt=system_prompt)
+    return build_react_agent(model=llm, tools=tools, prompt=system_prompt)
 
 
 async def mma_analysis_node(state: MainState, llm) -> dict:
     """
     MMA 분석 에이전트 노드
 
-    create_react_agent로 SQL 쿼리를 실행하고 결과를 AgentResult로 반환.
+    build_react_agent로 SQL 쿼리를 실행하고 결과를 AgentResult로 반환.
     Critic 피드백이 있으면 메시지에 포함하여 재실행.
     """
     messages = state.get("compressed_messages") or state.get("messages", [])
