@@ -40,7 +40,7 @@ def supervisor_dispatch(state: MainState) -> list[Send]:
     return [Send(agent, state) for agent in active_agents]
 
 
-def critic_route(state: MainState):
+def critic_route(state: MainState) -> list[Send] | str:
     """Critic 결과에 따른 3방향 라우팅
 
     Returns:
