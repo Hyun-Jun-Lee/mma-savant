@@ -6,7 +6,7 @@ import time
 from typing import Dict, Any, Optional, AsyncGenerator, List
 from traceback import format_exc
 
-from langchain_core.messages import HumanMessage, AIMessage, SystemMessage
+from langchain_core.messages import HumanMessage, AIMessage, AIMessageChunk, SystemMessage
 
 from config import Config
 from llm.model_factory import create_llm_with_callbacks, get_main_model, get_sub_model
@@ -106,6 +106,9 @@ class MMAGraphService:
 
         return sql_context
 
+    # 토큰 스트리밍 대상 노드
+    _STREAMING_NODES = frozenset(("text_response", "direct_response"))
+
     async def generate_streaming_chat_response(
         self,
         user_message: str,
@@ -116,10 +119,14 @@ class MMAGraphService:
         compressed_sql_context: Optional[List[dict]] = None,
     ) -> AsyncGenerator[Dict[str, Any], None]:
         """
-        StateGraph 실행 결과를 기존 인터페이스와 호환되는 형태로 yield.
+        StateGraph 실행 결과를 토큰 단위로 스트리밍.
 
         Yields:
-            Dict[str, Any]: type=final_result | error | error_response
+            stream_start  — 그래프 처리 시작
+            stream_token   — text_response/direct_response의 LLM 토큰
+            stream_visualization — visualization 노드 완료 시
+            final_result   — 그래프 완전 완료 (DB 저장용, 하위 호환)
+            error / error_response — 에러
         """
         message_id = str(uuid.uuid4())
         start_time = time.time()
@@ -148,43 +155,105 @@ class MMAGraphService:
                 sql_context = compressed_sql_context + sql_context
             sql_context = sql_context[-10:]  # 최대 10개
 
-            # 그래프 실행 (타임아웃 적용)
-            result = await asyncio.wait_for(
-                self._compiled_graph.ainvoke({
-                    "messages": messages,
-                    "sql_context": sql_context,
-                    "user_id": user_id,
-                    "conversation_id": conversation_id or 0,
-                }),
-                timeout=GRAPH_TIMEOUT_SECONDS,
-            )
+            graph_input = {
+                "messages": messages,
+                "sql_context": sql_context,
+                "user_id": user_id,
+                "conversation_id": conversation_id or 0,
+            }
+
+            # stream_start 알림
+            yield {
+                "type": "stream_start",
+                "message_id": message_id,
+                "conversation_id": conversation_id,
+                "timestamp": utc_now().isoformat(),
+            }
+
+            # 토큰 스트리밍 + 최종 state 수신
+            has_streamed_tokens = False
+            streamed_content = ""
+            viz_sent = False
+            final_state: dict = {}
+
+            async with asyncio.timeout(GRAPH_TIMEOUT_SECONDS):
+                async for part in self._compiled_graph.astream(
+                    graph_input,
+                    stream_mode=["messages", "values"],
+                    version="v2",
+                ):
+                    part_type = part["type"]
+
+                    if part_type == "messages":
+                        chunk, metadata = part["data"]
+                        node = metadata.get("langgraph_node", "")
+
+                        # text_response / direct_response 노드의 토큰만 전송
+                        if node in self._STREAMING_NODES and isinstance(chunk, AIMessageChunk):
+                            token = chunk.content
+                            if token:
+                                has_streamed_tokens = True
+                                streamed_content += token
+                                yield {
+                                    "type": "stream_token",
+                                    "token": token,
+                                    "message_id": message_id,
+                                    "conversation_id": conversation_id,
+                                }
+
+                    elif part_type == "values":
+                        final_state = part["data"]
+
+                        # visualization 데이터 도착 시 즉시 전송
+                        viz_type = final_state.get("visualization_type")
+                        viz_data = final_state.get("visualization_data")
+                        if viz_type and viz_data and not viz_sent:
+                            # text_summary는 시각화가 아니므로 전송하지 않음
+                            if viz_type != "text_summary":
+                                viz_sent = True
+                                yield {
+                                    "type": "stream_visualization",
+                                    "message_id": message_id,
+                                    "conversation_id": conversation_id,
+                                    "visualization_type": viz_type,
+                                    "visualization_data": viz_data,
+                                    "insights": final_state.get("insights", []),
+                                }
 
             execution_time = time.time() - start_time
 
             # 결과 추출
-            final_response = result.get("final_response", "")
-            visualization_type = result.get("visualization_type")
-            visualization_data = result.get("visualization_data")
-            insights = result.get("insights", [])
+            final_response = final_state.get("final_response", "")
+
+            # Fast path: LLM 호출 없이 reasoning 재사용된 경우
+            # → 토큰 스트리밍 없이 완성 텍스트를 단일 stream_token으로 전송
+            if not has_streamed_tokens and final_response:
+                yield {
+                    "type": "stream_token",
+                    "token": final_response,
+                    "message_id": message_id,
+                    "conversation_id": conversation_id,
+                }
+
+            visualization_type = final_state.get("visualization_type")
+            visualization_data = final_state.get("visualization_data")
+            insights = final_state.get("insights", [])
 
             # SQL 에이전트 결과 → compact 형태로 추출
-            agent_results_raw = result.get("agent_results", [])
+            agent_results_raw = final_state.get("agent_results", [])
             compact_agent_results = [
                 {"query": r.get("query", ""), "data": r.get("data", [])}
                 for r in agent_results_raw if r.get("data")
             ] or None
 
-            # text_response만 실행된 경우 또는 Critic 소진 시
-            # visualization_type/data가 없으므로 text_summary 폴백
+            # text_summary 폴백
             if not visualization_type or not visualization_data:
                 visualization_type = "text_summary"
                 visualization_data = {"title": "", "content": final_response}
 
-            content = final_response
-
             yield {
                 "type": "final_result",
-                "content": content,
+                "content": final_response,
                 "final_response": final_response,
                 "visualization_type": visualization_type,
                 "visualization_data": visualization_data,
@@ -210,7 +279,7 @@ class MMAGraphService:
 
         except Exception as e:
             LOGGER.error(f"❌ Graph execution error: {e}")
-            if isinstance(e, asyncio.TimeoutError):
+            if isinstance(e, (asyncio.TimeoutError, TimeoutError)):
                 error_message = (
                     f"응답 생성 시간이 {GRAPH_TIMEOUT_SECONDS}초를 초과했습니다. "
                     "질문을 더 간단하게 바꿔서 다시 시도해주세요."

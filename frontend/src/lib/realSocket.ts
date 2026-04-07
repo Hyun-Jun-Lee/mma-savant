@@ -148,6 +148,29 @@ class RealSocket extends EventEmitter {
         this.emit('typing', { isTyping: Boolean(data.is_typing) })
         break
 
+      case 'stream_start':
+        this.emit('stream_start', {
+          message_id: data.message_id as string,
+          timestamp: data.timestamp as string,
+        })
+        break
+
+      case 'stream_token':
+        this.emit('stream_token', {
+          message_id: data.message_id as string,
+          token: data.token as string,
+        })
+        break
+
+      case 'stream_visualization':
+        this.emit('stream_visualization', {
+          message_id: data.message_id as string,
+          visualization_type: data.visualization_type as string,
+          visualization_data: data.visualization_data as Record<string, unknown>,
+          insights: data.insights as string[],
+        })
+        break
+
       case 'final_result':
         this.emit('typing', { isTyping: false })
         this.emit('final_result', {

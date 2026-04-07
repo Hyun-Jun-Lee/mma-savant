@@ -367,28 +367,57 @@ class ConnectionManager:
         if conversation_id:
             chat_history_data = await self._load_chat_history(db, conversation_id, user_id)
 
-        async for chunk in self.llm_service.generate_streaming_chat_response(
-            user_message=content,
-            conversation_id=conversation_id or 0,
-            user_id=user_id,
-            chat_history=chat_history_data["messages"],
-            compressed_context=chat_history_data["compressed_context"],
-            compressed_sql_context=chat_history_data["compressed_sql_context"],
-        ):
-            chunk_type = chunk.get("type")
+        try:
+            async for chunk in self.llm_service.generate_streaming_chat_response(
+                user_message=content,
+                conversation_id=conversation_id or 0,
+                user_id=user_id,
+                chat_history=chat_history_data["messages"],
+                compressed_context=chat_history_data["compressed_context"],
+                compressed_sql_context=chat_history_data["compressed_sql_context"],
+            ):
+                chunk_type = chunk.get("type")
 
-            if chunk_type == "final_result":
-                final_result_chunk = chunk
-            elif chunk_type in ("error", "error_response"):
-                has_error = True
-                if chunk_type == "error":
-                    await self._handle_error_chunk(
-                        connection_id, chunk, assistant_message_id, conversation_id or 0
-                    )
-                else:
-                    await self._handle_error_response_chunk(
-                        connection_id, chunk, assistant_message_id, conversation_id or 0
-                    )
+                if chunk_type == "stream_start":
+                    await self.send_to_connection(connection_id, {
+                        "type": "stream_start",
+                        "message_id": assistant_message_id,
+                        "timestamp": chunk["timestamp"],
+                    })
+
+                elif chunk_type == "stream_token":
+                    await self.send_to_connection(connection_id, {
+                        "type": "stream_token",
+                        "message_id": assistant_message_id,
+                        "token": chunk["token"],
+                    })
+
+                elif chunk_type == "stream_visualization":
+                    await self.send_to_connection(connection_id, {
+                        "type": "stream_visualization",
+                        "message_id": assistant_message_id,
+                        "visualization_type": chunk["visualization_type"],
+                        "visualization_data": chunk["visualization_data"],
+                        "insights": chunk.get("insights", []),
+                    })
+
+                elif chunk_type == "final_result":
+                    final_result_chunk = chunk
+
+                elif chunk_type in ("error", "error_response"):
+                    has_error = True
+                    if chunk_type == "error":
+                        await self._handle_error_chunk(
+                            connection_id, chunk, assistant_message_id, conversation_id or 0
+                        )
+                    else:
+                        await self._handle_error_response_chunk(
+                            connection_id, chunk, assistant_message_id, conversation_id or 0
+                        )
+
+        except ConnectionError:
+            LOGGER.warning(f"🔌 WebSocket disconnected during streaming for {connection_id}")
+            return
 
         if not has_error and final_result_chunk:
             conversation_id = await self._save_successful_conversation(
