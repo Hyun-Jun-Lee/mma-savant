@@ -22,6 +22,7 @@ from conversation.repositories import (
 from llm.service import get_graph_service, MMAGraphService
 from common.logging_config import get_logger
 from common.utils import utc_now
+from common.ws_types import ErrorCode, WSErrorPayload
 
 LOGGER = get_logger(__name__)
 
@@ -239,11 +240,12 @@ class ConnectionManager:
         user = self.connection_users.get(connection_id)
         if not user:
             LOGGER.error(f"❌ User not found for connection {connection_id}")
-            await self.send_to_connection(connection_id, {
-                "type": "error",
-                "error": "User not found",
-                "timestamp": utc_now().isoformat()
-            })
+            await self.send_to_connection(connection_id, WSErrorPayload(
+                error="User not found",
+                error_code=ErrorCode.VALIDATION_ERROR,
+                recoverable=False,
+                timestamp=utc_now().isoformat(),
+            ).to_ws_message())
             raise ValueError(f"User not found for connection {connection_id}")
         return user
 
@@ -276,8 +278,12 @@ class ConnectionManager:
 
         except Exception as e:
             LOGGER.error(f"❌ Error checking usage limit for user {user_id}: {e}")
-            # 제한 체크 실패 시 안전하게 허용 (서비스 중단 방지)
-            return True
+            await self.send_to_connection(connection_id, WSErrorPayload(
+                error="서비스에 일시적인 문제가 발생했습니다. 잠시 후 다시 시도해주세요.",
+                error_code=ErrorCode.USAGE_CHECK_FAILED,
+                recoverable=True,
+            ).to_ws_message())
+            return False
 
     async def _validate_message_data(self, connection_id: str, message_data: Dict[str, Any]) -> str:
         """메시지 내용 검증"""
@@ -285,11 +291,12 @@ class ConnectionManager:
 
         if not content:
             LOGGER.warning(f"❌ Empty message content from {connection_id}")
-            await self.send_to_connection(connection_id, {
-                "type": "error",
-                "error": "Message content is required",
-                "timestamp": utc_now().isoformat()
-            })
+            await self.send_to_connection(connection_id, WSErrorPayload(
+                error="Message content is required",
+                error_code=ErrorCode.VALIDATION_ERROR,
+                recoverable=True,
+                timestamp=utc_now().isoformat(),
+            ).to_ws_message())
             raise ValueError("Message content is required")
 
         return content
@@ -535,6 +542,15 @@ class ConnectionManager:
             except Exception as e:
                 LOGGER.error(f"❌ Error saving assistant message: {e}")
                 LOGGER.error(format_exc())
+                try:
+                    await self.send_to_connection(connection_id, WSErrorPayload(
+                        type="warning",
+                        error="응답이 저장되지 않았습니다. 이 대화는 기록에 남지 않을 수 있습니다.",
+                        error_code=ErrorCode.SAVE_FAILED,
+                        recoverable=True,
+                    ).to_ws_message())
+                except Exception:
+                    pass
 
         # 사용량 증가 (LLM 성공 시 1회 차감)
         try:
@@ -651,13 +667,14 @@ class ConnectionManager:
         })
 
         # 에러 메시지 전송
-        await self.send_to_connection(connection_id, {
-            "type": "error",
-            "error": chunk["error"],
-            "message_id": assistant_message_id,
-            "conversation_id": conversation_id,
-            "timestamp": chunk["timestamp"]
-        })
+        await self.send_to_connection(connection_id, WSErrorPayload(
+            error=chunk["error"],
+            error_code=chunk.get("error_code") or ErrorCode.LLM_ERROR,
+            recoverable=True,
+            message_id=assistant_message_id,
+            conversation_id=conversation_id,
+            timestamp=chunk["timestamp"],
+        ).to_ws_message())
 
     async def _handle_error_response_chunk(
         self,
@@ -706,11 +723,12 @@ class ConnectionManager:
         LOGGER.error(f"❌ Error handling user message: {error}")
         LOGGER.error(format_exc())
 
-        await self.send_to_connection(connection_id, {
-            "type": "error",
-            "error": f"Failed to process message: {str(error)}",
-            "timestamp": utc_now().isoformat()
-        })
+        await self.send_to_connection(connection_id, WSErrorPayload(
+            error=f"Failed to process message: {str(error)}",
+            error_code=ErrorCode.INTERNAL_ERROR,
+            recoverable=True,
+            timestamp=utc_now().isoformat(),
+        ).to_ws_message())
     
     def get_connection_count(self) -> int:
         """활성 연결 수 반환"""
