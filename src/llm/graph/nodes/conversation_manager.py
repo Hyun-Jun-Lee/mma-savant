@@ -105,7 +105,7 @@ async def _resolve_only(
         }
 
     except Exception as e:
-        LOGGER.error(f"❌ Resolve-only failed: {e}")
+        LOGGER.warning(f"⚠️ Resolve-only fallback to original query: {e}")
         return {
             "resolved_query": original_query,
             "compressed_messages": list(messages) + [HumanMessage(content=original_query)],

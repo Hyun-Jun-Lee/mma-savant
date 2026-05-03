@@ -47,7 +47,13 @@ def redis_connection() -> redis.Redis:
             socket_connect_timeout=Config.REDIS_SOCKET_CONNECT_TIMEOUT,
             retry_on_timeout=Config.REDIS_RETRY_ON_TIMEOUT
         )
-        yield new_client
+        try:
+            new_client.ping()
+            LOGGER.info("Redis 재연결 성공")
+            yield new_client
+        except redis.ConnectionError:
+            LOGGER.error("Redis 재연결 실패")
+            raise
     except Exception as e:
         LOGGER.error(f"Redis 오류 발생: {str(e)}")
         LOGGER.error(format_exc())
