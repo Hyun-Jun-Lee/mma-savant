@@ -427,18 +427,24 @@ class TestCheckUsageLimit:
                     assert call_args[1]["remaining_requests"] == 0
 
     @pytest.mark.asyncio
-    async def test_check_usage_error_returns_true_for_service_continuity(self, mock_db_session):
-        """사용량 체크 에러 시 서비스 중단 방지를 위해 True 반환"""
+    async def test_check_usage_error_returns_false_for_fail_closed(self, mock_db_session):
+        """사용량 체크 에러 시 fail-closed: False 반환 + 에러 메시지 전송"""
         with patch('api.websocket.manager.check_usage_limit', new_callable=AsyncMock) as mock_check:
             mock_check.side_effect = Exception("Database error")
 
-            with patch.object(self.manager, 'send_to_connection', new_callable=AsyncMock):
+            with patch.object(self.manager, 'send_to_connection', new_callable=AsyncMock) as mock_send:
                 result = await self.manager._check_usage_limit(
                     self.connection_id, mock_db_session, user_id=1
                 )
 
-            # 에러 발생 시에도 True 반환 (서비스 중단 방지)
-            assert result is True
+            # fail-closed: 에러 발생 시 False 반환
+            assert result is False
+            # 에러 메시지가 전송되었는지 확인
+            mock_send.assert_called_once()
+            sent_msg = mock_send.call_args[0][1]
+            assert sent_msg["type"] == "error"
+            assert sent_msg["error_code"] == "USAGE_CHECK_FAILED"
+            assert sent_msg["recoverable"] is True
 
     @pytest.mark.asyncio
     async def test_check_usage_calls_get_user_usage_only_when_exceeded(self, mock_db_session):

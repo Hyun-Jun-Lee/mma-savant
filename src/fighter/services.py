@@ -53,7 +53,7 @@ async def get_fighter_by_id(session: AsyncSession, fighter_id: int) -> FighterWi
     except FighterValidationError:
         raise
     except Exception as e:
-        raise FighterQueryError("get_fighter_by_id", {"fighter_id": fighter_id}, str(e))
+        raise FighterQueryError("get_fighter_by_id", {"fighter_id": fighter_id}, str(e)) from e
     
 
 async def get_fighter_ranking_by_weight_class(session: AsyncSession, weight_class_name: str) -> WeightClassRankingsDTO:
@@ -92,7 +92,7 @@ async def get_fighter_ranking_by_weight_class(session: AsyncSession, weight_clas
     except FighterValidationError:
         raise
     except Exception as e:
-        raise FighterQueryError("get_fighter_ranking_by_weight_class", {"weight_class_name": weight_class_name}, str(e))
+        raise FighterQueryError("get_fighter_ranking_by_weight_class", {"weight_class_name": weight_class_name}, str(e)) from e
 
 async def get_top_fighters_by_record(session: AsyncSession, record: Literal["win", "loss", "draw"], weight_class_id: int = None, limit: int = 10) -> WeightClassRankingsDTO:
     """
@@ -131,7 +131,7 @@ async def get_top_fighters_by_record(session: AsyncSession, record: Literal["win
     except FighterValidationError:
         raise
     except Exception as e:
-        raise FighterQueryError("get_top_fighters_by_record", {"record": record, "weight_class_id": weight_class_id, "limit": limit}, str(e))
+        raise FighterQueryError("get_top_fighters_by_record", {"record": record, "weight_class_id": weight_class_id, "limit": limit}, str(e)) from e
 
 async def search_fighters(session: AsyncSession, search_term: str, limit: int = 10) -> List[FighterWithRankingsDTO]:
     """
@@ -158,7 +158,7 @@ async def search_fighters(session: AsyncSession, search_term: str, limit: int = 
     except FighterValidationError:
         raise
     except Exception as e:
-        raise FighterSearchError({"search_term": search_term, "limit": limit}, str(e))
+        raise FighterSearchError({"search_term": search_term, "limit": limit}, str(e)) from e
 
 async def get_all_champions(session: AsyncSession) -> List[FighterWithRankingsDTO]:
     """
@@ -176,7 +176,7 @@ async def get_all_champions(session: AsyncSession) -> List[FighterWithRankingsDT
         return results
     
     except Exception as e:
-        raise FighterQueryError("get_all_champions", {}, str(e))
+        raise FighterQueryError("get_all_champions", {}, str(e)) from e
 
 
 # ===========================
@@ -405,4 +405,4 @@ async def get_fighter_detail(session: AsyncSession, fighter_id: int) -> FighterD
     except FighterValidationError:
         raise
     except Exception as e:
-        raise FighterQueryError("get_fighter_detail", {"fighter_id": fighter_id}, str(e))
+        raise FighterQueryError("get_fighter_detail", {"fighter_id": fighter_id}, str(e)) from e

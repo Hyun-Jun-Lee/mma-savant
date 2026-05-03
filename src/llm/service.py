@@ -14,6 +14,7 @@ from llm.graph import build_mma_graph
 from llm.exceptions import LLMException
 from common.logging_config import get_logger
 from common.utils import utc_now
+from common.ws_types import ErrorCode
 
 LOGGER = get_logger(__name__)
 
@@ -271,6 +272,7 @@ class MMAGraphService:
                 "type": "error_response",
                 "error": True,
                 "error_class": e.error_class,
+                "error_code": ErrorCode.LLM_ERROR,
                 "traceback": format_exc(),
                 "message_id": message_id,
                 "conversation_id": conversation_id,
@@ -284,13 +286,17 @@ class MMAGraphService:
                     f"응답 생성 시간이 {GRAPH_TIMEOUT_SECONDS}초를 초과했습니다. "
                     "질문을 더 간단하게 바꿔서 다시 시도해주세요."
                 )
+                error_code = ErrorCode.LLM_TIMEOUT
             else:
                 error_message = str(e)
+                error_code = ErrorCode.LLM_ERROR
             if "rate_limit_error" in error_message or "429" in error_message:
                 error_message = "API 호출 한도를 초과했습니다. 잠시 후 다시 시도해주세요."
+                error_code = ErrorCode.LLM_RATE_LIMIT
             yield {
                 "type": "error",
                 "error": error_message,
+                "error_code": error_code,
                 "message_id": message_id,
                 "conversation_id": conversation_id,
                 "timestamp": utc_now().isoformat(),

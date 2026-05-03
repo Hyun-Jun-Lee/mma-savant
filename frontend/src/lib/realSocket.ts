@@ -19,8 +19,26 @@ class RealSocket extends EventEmitter {
   private connected = false
   private reconnectAttempts = 0
   private maxReconnectAttempts = 5
-  private reconnectDelay = 1000
   private conversationId: number | null = null
+  private reconnectTimer: ReturnType<typeof setTimeout> | null = null
+  private intentionalDisconnect = false
+
+  private getBackoffDelay(): number {
+    const delay = 1000 * Math.pow(2, this.reconnectAttempts)
+    const jitter = Math.random() * 1000
+    return Math.min(delay + jitter, 30000)
+  }
+
+  private scheduleReconnect() {
+    if (this.intentionalDisconnect) return
+    if (this.reconnectAttempts >= this.maxReconnectAttempts) {
+      this.emit('error', '서버 연결에 실패했습니다. 페이지를 새로고침해주세요.')
+      return
+    }
+    const delay = this.getBackoffDelay()
+    this.reconnectAttempts++
+    this.reconnectTimer = setTimeout(() => this.connect(this.conversationId ?? undefined), delay)
+  }
 
   async connect(conversationId?: number) {
     try {
@@ -62,6 +80,7 @@ class RealSocket extends EventEmitter {
       this.socket.onopen = () => {
         this.connected = true
         this.reconnectAttempts = 0
+        this.intentionalDisconnect = false
         this.emit('connect')
       }
 
@@ -69,10 +88,12 @@ class RealSocket extends EventEmitter {
         this.connected = false
         this.emit('disconnect')
 
-        // 특정 에러 코드는 재연결하지 않음
-        if (event.code === 4001 || event.code === 4003 || event.code === 1006) {
+        // 인증 관련 에러 코드는 재연결하지 않음
+        if (event.code === 4001 || event.code === 4003) {
           return
         }
+
+        this.scheduleReconnect()
       }
 
       this.socket.onerror = (error) => {
@@ -96,6 +117,12 @@ class RealSocket extends EventEmitter {
   }
 
   disconnect() {
+    this.intentionalDisconnect = true
+    if (this.reconnectTimer) {
+      clearTimeout(this.reconnectTimer)
+      this.reconnectTimer = null
+    }
+    this.reconnectAttempts = 0
     if (this.socket) {
       this.socket.close()
       this.socket = null
@@ -193,8 +220,19 @@ class RealSocket extends EventEmitter {
         })
         break
 
+      case 'warning':
+        this.emit('warning', {
+          error: data.error,
+          error_code: data.error_code,
+          recoverable: data.recoverable ?? true,
+        })
+        break
+
       case 'error':
-        this.emit('error', String(data.error || 'Unknown error'))
+        this.emit('error', String(data.error || 'Unknown error'), {
+          error_code: data.error_code,
+          recoverable: data.recoverable,
+        })
         break
 
       case 'error_response':

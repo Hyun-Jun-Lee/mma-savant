@@ -5,7 +5,8 @@ import { getRealSocket } from '@/lib/realSocket'
 import { useChatStore } from '@/store/chatStore'
 import { VisualizationData } from '@/types/chat'
 import { ChatApiService } from '@/services/chatApi'
-import { ErrorResponse, logErrorDetails } from '@/types/error'
+import { ErrorResponse, logErrorDetails, getWSErrorMessage } from '@/types/error'
+import { showWarning } from '@/lib/toast'
 
 export function useSocket() {
   const [isConnected, setIsConnected] = useState(false)
@@ -249,6 +250,11 @@ export function useSocket() {
       setShowUsageLimitPopup(true)
       setIsTyping(false)
       setTyping(false)
+    })
+
+    // 백엔드 warning 처리 (recoverable 경고)
+    socket.on('warning', (data: { error?: string; error_code?: string; recoverable?: boolean }) => {
+      showWarning({ message: data.error || getWSErrorMessage(data.error_code) })
     })
 
     // 연결되지 않은 경우에만 연결 시도

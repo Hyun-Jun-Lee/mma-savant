@@ -6,6 +6,7 @@
 import { useCallback, useState } from 'react'
 import { UserApiService } from '@/services/userApi'
 import { handleApiError, ApiError } from '@/lib/api'
+import { showError } from '@/lib/toast'
 import { UserProfileResponse, UserProfileUpdate, UsageResponse } from '@/types/api'
 
 export function useUser() {
@@ -27,7 +28,7 @@ export function useUser() {
       // 인증 오류가 아닌 경우에만 알림 표시
       const isAuthError = error instanceof ApiError && error.status === 401
       if (!isAuthError) {
-        alert(`프로필 로드 실패: ${handleApiError(error)}`)
+        showError({ message: `프로필 로드 실패: ${handleApiError(error)}` })
       }
       return null
     } finally {
@@ -46,7 +47,7 @@ export function useUser() {
       return true
     } catch (error) {
       console.error('Failed to update user profile:', error)
-      alert(`프로필 업데이트 실패: ${handleApiError(error)}`)
+      showError({ message: `프로필 업데이트 실패: ${handleApiError(error)}` })
       return false
     } finally {
       setIsUpdating(false)
@@ -100,7 +101,7 @@ export function useUser() {
       return profile
     } catch (error) {
       console.error('Failed to get user by ID:', error)
-      alert(`사용자 조회 실패: ${handleApiError(error)}`)
+      showError({ message: `사용자 조회 실패: ${handleApiError(error)}` })
       return null
     }
   }, [])
