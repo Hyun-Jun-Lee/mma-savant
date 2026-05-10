@@ -13,6 +13,7 @@ from fighter.dto import (
 )
 from fighter.models import FighterSchema
 from fighter import repositories as fighter_repo
+from common.utils import _calculate_percentage
 from match import repositories as match_repo
 from fighter.exceptions import (
     FighterNotFoundError, FighterValidationError, FighterQueryError,
@@ -288,8 +289,8 @@ async def get_fighter_detail(session: AsyncSession, fighter_id: int) -> FighterD
         # === Stats ===
         match_count = basic_agg.match_count
         if match_count > 0:
-            sig_acc = round(basic_agg.sig_str_landed / basic_agg.sig_str_attempted * 100, 1) if basic_agg.sig_str_attempted > 0 else 0.0
-            td_acc = round(basic_agg.td_landed / basic_agg.td_attempted * 100, 1) if basic_agg.td_attempted > 0 else 0.0
+            sig_acc = _calculate_percentage(basic_agg.sig_str_landed, basic_agg.sig_str_attempted)
+            td_acc = _calculate_percentage(basic_agg.td_landed, basic_agg.td_attempted)
             avg_ctrl = basic_agg.control_time_seconds // match_count if match_count > 0 else 0
 
             striking = StrikingStatsDTO(

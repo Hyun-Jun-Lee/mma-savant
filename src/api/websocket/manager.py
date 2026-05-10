@@ -26,6 +26,16 @@ from common.ws_types import ErrorCode, WSErrorPayload
 
 LOGGER = get_logger(__name__)
 
+
+def _ws_message(msg_type: str, message_id: str = "", **extra) -> dict:
+    """WebSocket 메시지 공통 구조 생성 헬퍼"""
+    msg = {"type": msg_type, "timestamp": utc_now().isoformat()}
+    if message_id:
+        msg["message_id"] = message_id
+    msg.update(extra)
+    return msg
+
+
 class ConnectionManager:
     """WebSocket 연결 관리자"""
     
@@ -303,11 +313,7 @@ class ConnectionManager:
 
     async def _send_typing_indicator(self, connection_id: str) -> None:
         """타이핑 상태 시작"""
-        await self.send_to_connection(connection_id, {
-            "type": "typing",
-            "is_typing": True,
-            "timestamp": utc_now().isoformat()
-        })
+        await self.send_to_connection(connection_id, _ws_message("typing", is_typing=True))
 
     async def _load_chat_history(
         self, db: AsyncSession, conversation_id: int, user_id: int
@@ -386,27 +392,22 @@ class ConnectionManager:
                 chunk_type = chunk.get("type")
 
                 if chunk_type == "stream_start":
-                    await self.send_to_connection(connection_id, {
-                        "type": "stream_start",
-                        "message_id": assistant_message_id,
-                        "timestamp": chunk["timestamp"],
-                    })
+                    await self.send_to_connection(connection_id, _ws_message(
+                        "stream_start", assistant_message_id, timestamp=chunk["timestamp"],
+                    ))
 
                 elif chunk_type == "stream_token":
-                    await self.send_to_connection(connection_id, {
-                        "type": "stream_token",
-                        "message_id": assistant_message_id,
-                        "token": chunk["token"],
-                    })
+                    await self.send_to_connection(connection_id, _ws_message(
+                        "stream_token", assistant_message_id, token=chunk["token"],
+                    ))
 
                 elif chunk_type == "stream_visualization":
-                    await self.send_to_connection(connection_id, {
-                        "type": "stream_visualization",
-                        "message_id": assistant_message_id,
-                        "visualization_type": chunk["visualization_type"],
-                        "visualization_data": chunk["visualization_data"],
-                        "insights": chunk.get("insights", []),
-                    })
+                    await self.send_to_connection(connection_id, _ws_message(
+                        "stream_visualization", assistant_message_id,
+                        visualization_type=chunk["visualization_type"],
+                        visualization_data=chunk["visualization_data"],
+                        insights=chunk.get("insights", []),
+                    ))
 
                 elif chunk_type == "final_result":
                     final_result_chunk = chunk
@@ -439,17 +440,10 @@ class ConnectionManager:
                 connection_id, final_result_chunk, assistant_message_id, conversation_id
             )
 
-            await self.send_to_connection(connection_id, {
-                "type": "typing",
-                "is_typing": False,
-                "timestamp": utc_now().isoformat()
-            })
-            await self.send_to_connection(connection_id, {
-                "type": "response_end",
-                "message_id": assistant_message_id,
-                "conversation_id": conversation_id,
-                "timestamp": utc_now().isoformat()
-            })
+            await self.send_to_connection(connection_id, _ws_message("typing", is_typing=False))
+            await self.send_to_connection(connection_id, _ws_message(
+                "response_end", assistant_message_id, conversation_id=conversation_id,
+            ))
 
     async def _send_final_result(
         self,
@@ -660,11 +654,7 @@ class ConnectionManager:
     ) -> None:
         """에러 청크 처리"""
         # 타이핑 상태 종료
-        await self.send_to_connection(connection_id, {
-            "type": "typing",
-            "is_typing": False,
-            "timestamp": utc_now().isoformat()
-        })
+        await self.send_to_connection(connection_id, _ws_message("typing", is_typing=False))
 
         # 에러 메시지 전송
         await self.send_to_connection(connection_id, WSErrorPayload(
@@ -685,11 +675,7 @@ class ConnectionManager:
     ) -> None:
         """구조화된 에러 응답 청크 처리 (LLMException 기반)"""
         # 타이핑 상태 종료
-        await self.send_to_connection(connection_id, {
-            "type": "typing",
-            "is_typing": False,
-            "timestamp": utc_now().isoformat()
-        })
+        await self.send_to_connection(connection_id, _ws_message("typing", is_typing=False))
 
         # 구조화된 에러 응답 전송 (프론트엔드가 기대하는 형식)
         await self.send_to_connection(connection_id, {

@@ -95,17 +95,6 @@ def get_readonly_database_url():
     readonly_user = Config.DB_READONLY_USER
     readonly_password = Config.DB_READONLY_PASSWORD
 
-    # DB_READONLY_PASSWORD가 설정되지 않은 경우 경고 후 기본값 사용
-    if not readonly_password:
-        import warnings
-        warnings.warn(
-            "DB_READONLY_PASSWORD is not set in environment variables. "
-            "Please set it for production use. Using temporary default.",
-            UserWarning
-        )
-        # 개발 환경용 임시 값 (프로덕션에서는 반드시 환경변수 설정 필요)
-        readonly_password = "temp_readonly_pass"
-
     host = Config.DB_HOST
     port = Config.DB_PORT
     db_name = Config.DB_NAME
