@@ -51,36 +51,20 @@ def invalidate_all_cache() -> int:
 
 
 def _cache_key(
-    tab: str,
+    name: str,
     weight_class_id: Optional[int] = None,
     min_fights: Optional[int] = None,
     limit: Optional[int] = None,
     ufc_only: bool = False,
+    chart: bool = False,
 ) -> str:
-    suffix = f":{weight_class_id}" if weight_class_id is not None else ":all"
-    if min_fights is not None and min_fights != 10:
-        suffix += f":mf{min_fights}"
-    if limit is not None and limit != 10:
-        suffix += f":l{limit}"
-    if ufc_only:
-        suffix += ":ufc"
-    return f"dashboard:{tab}{suffix}"
-
-
-def _chart_cache_key(
-    chart_name: str,
-    weight_class_id: Optional[int] = None,
-    min_fights: Optional[int] = None,
-    limit: Optional[int] = None,
-    ufc_only: bool = False,
-) -> str:
-    """차트별 캐시 키 생성."""
+    prefix = f"dashboard:chart:{name}" if chart else f"dashboard:{name}"
     wc = str(weight_class_id) if weight_class_id is not None else "all"
-    key = f"dashboard:chart:{chart_name}:{wc}"
+    key = f"{prefix}:{wc}"
     if min_fights is not None and min_fights != 10:
-        key += f":{min_fights}"
+        key += f":mf{min_fights}"
     if limit is not None and limit != 10:
-        key += f":{limit}"
+        key += f":l{limit}"
     if ufc_only:
         key += ":ufc"
     return key
@@ -106,23 +90,14 @@ def _set_cache(key: str, data: dict) -> None:
 T = TypeVar("T", bound=BaseModel)
 
 
-def _parse_cached(cache_key: str, model: Type[T], cached: dict) -> Optional[T]:
+def _parse_cached_data(
+    cache_key: str, model: Type[T], cached: dict, is_list: bool = False,
+) -> Optional[T | List[T]]:
     """캐시 데이터를 DTO로 변환. 실패 시 stale 캐시를 삭제하고 None 반환."""
     try:
+        if is_list:
+            return [model(**item) for item in cached["items"]]
         return model(**cached)
-    except ValidationError:
-        logger.warning(f"Stale cache detected for {cache_key}, deleting")
-        try:
-            redis_client.delete(cache_key)
-        except Exception:
-            pass
-        return None
-
-
-def _parse_cached_list(cache_key: str, model: Type[T], cached: dict) -> Optional[List[T]]:
-    """캐시 데이터에서 items 리스트를 DTO 리스트로 변환."""
-    try:
-        return [model(**item) for item in cached["items"]]
     except (ValidationError, KeyError, TypeError):
         logger.warning(f"Stale cache detected for {cache_key}, deleting")
         try:
@@ -147,7 +122,7 @@ async def get_home(session: AsyncSession) -> HomeResponseDTO:
                 pass
             cached = None
     if cached:
-        result = _parse_cached(cache_key, HomeResponseDTO, cached)
+        result = _parse_cached_data(cache_key, HomeResponseDTO, cached)
         if result:
             return result
 
@@ -211,10 +186,10 @@ async def get_chart_finish_methods(
     session: AsyncSession,
     weight_class_id: Optional[int] = None,
 ) -> List[FinishMethodDTO]:
-    cache_key = _chart_cache_key("finish_methods", weight_class_id)
+    cache_key = _cache_key("finish_methods", weight_class_id, chart=True)
     cached = _get_cached(cache_key)
     if cached:
-        parsed = _parse_cached_list(cache_key, FinishMethodDTO, cached)
+        parsed = _parse_cached_data(cache_key, FinishMethodDTO, cached, is_list=True)
         if parsed is not None:
             return parsed
 
@@ -231,10 +206,10 @@ async def get_chart_fight_duration(
     session: AsyncSession,
     weight_class_id: Optional[int] = None,
 ) -> FightDurationDTO:
-    cache_key = _chart_cache_key("fight_duration", weight_class_id)
+    cache_key = _cache_key("fight_duration", weight_class_id, chart=True)
     cached = _get_cached(cache_key)
     if cached:
-        parsed = _parse_cached(cache_key, FightDurationDTO, cached)
+        parsed = _parse_cached_data(cache_key, FightDurationDTO, cached)
         if parsed is not None:
             return parsed
 
@@ -259,7 +234,7 @@ async def get_chart_leaderboard(
     weight_class_id: Optional[int] = None,
     ufc_only: bool = False,
 ) -> LeaderboardDTO:
-    cache_key = _chart_cache_key("leaderboard", weight_class_id, ufc_only=ufc_only)
+    cache_key = _cache_key("leaderboard", weight_class_id, ufc_only=ufc_only, chart=True)
     cached = _get_cached(cache_key)
     if cached:
         if "lose_streak" not in cached:
@@ -269,7 +244,7 @@ async def get_chart_leaderboard(
                 pass
             cached = None
     if cached:
-        parsed = _parse_cached(cache_key, LeaderboardDTO, cached)
+        parsed = _parse_cached_data(cache_key, LeaderboardDTO, cached)
         if parsed is not None:
             return parsed
 
@@ -295,10 +270,10 @@ async def get_chart_strike_targets(
     session: AsyncSession,
     weight_class_id: Optional[int] = None,
 ) -> List[StrikeTargetDTO]:
-    cache_key = _chart_cache_key("strike_targets", weight_class_id)
+    cache_key = _cache_key("strike_targets", weight_class_id, chart=True)
     cached = _get_cached(cache_key)
     if cached:
-        parsed = _parse_cached_list(cache_key, StrikeTargetDTO, cached)
+        parsed = _parse_cached_data(cache_key, StrikeTargetDTO, cached, is_list=True)
         if parsed is not None:
             return parsed
 
@@ -317,10 +292,10 @@ async def get_chart_striking_accuracy(
     min_fights: int = 10,
     limit: int = 10,
 ) -> StrikingAccuracyLeaderboardDTO:
-    cache_key = _chart_cache_key("striking_accuracy", weight_class_id, min_fights, limit)
+    cache_key = _cache_key("striking_accuracy", weight_class_id, min_fights, limit, chart=True)
     cached = _get_cached(cache_key)
     if cached:
-        parsed = _parse_cached(cache_key, StrikingAccuracyLeaderboardDTO, cached)
+        parsed = _parse_cached_data(cache_key, StrikingAccuracyLeaderboardDTO, cached)
         if parsed is not None:
             return parsed
 
@@ -345,10 +320,10 @@ async def get_chart_ko_tko_leaders(
     weight_class_id: Optional[int] = None,
     limit: int = 10,
 ) -> List[KoTkoLeaderDTO]:
-    cache_key = _chart_cache_key("ko_tko_leaders", weight_class_id, limit=limit)
+    cache_key = _cache_key("ko_tko_leaders", weight_class_id, limit=limit, chart=True)
     cached = _get_cached(cache_key)
     if cached:
-        parsed = _parse_cached_list(cache_key, KoTkoLeaderDTO, cached)
+        parsed = _parse_cached_data(cache_key, KoTkoLeaderDTO, cached, is_list=True)
         if parsed is not None:
             return parsed
 
@@ -367,10 +342,10 @@ async def get_chart_sig_strikes(
     min_fights: int = 10,
     limit: int = 10,
 ) -> SigStrikesLeaderboardDTO:
-    cache_key = _chart_cache_key("sig_strikes", weight_class_id, min_fights, limit)
+    cache_key = _cache_key("sig_strikes", weight_class_id, min_fights, limit, chart=True)
     cached = _get_cached(cache_key)
     if cached:
-        parsed = _parse_cached(cache_key, SigStrikesLeaderboardDTO, cached)
+        parsed = _parse_cached_data(cache_key, SigStrikesLeaderboardDTO, cached)
         if parsed is not None:
             return parsed
 
@@ -398,10 +373,10 @@ async def get_chart_takedown_accuracy(
     min_fights: int = 10,
     limit: int = 10,
 ) -> TakedownLeaderboardDTO:
-    cache_key = _chart_cache_key("takedown_accuracy", weight_class_id, min_fights, limit)
+    cache_key = _cache_key("takedown_accuracy", weight_class_id, min_fights, limit, chart=True)
     cached = _get_cached(cache_key)
     if cached:
-        parsed = _parse_cached(cache_key, TakedownLeaderboardDTO, cached)
+        parsed = _parse_cached_data(cache_key, TakedownLeaderboardDTO, cached)
         if parsed is not None:
             return parsed
 
@@ -425,10 +400,10 @@ async def get_chart_submission_techniques(
     session: AsyncSession,
     weight_class_id: Optional[int] = None,
 ) -> List[SubmissionTechniqueDTO]:
-    cache_key = _chart_cache_key("sub_techniques", weight_class_id)
+    cache_key = _cache_key("sub_techniques", weight_class_id, chart=True)
     cached = _get_cached(cache_key)
     if cached:
-        parsed = _parse_cached_list(cache_key, SubmissionTechniqueDTO, cached)
+        parsed = _parse_cached_data(cache_key, SubmissionTechniqueDTO, cached, is_list=True)
         if parsed is not None:
             return parsed
 
@@ -447,10 +422,10 @@ async def get_chart_ground_strikes(
     min_fights: int = 10,
     limit: int = 10,
 ) -> List[GroundStrikesDTO]:
-    cache_key = _chart_cache_key("ground_strikes", weight_class_id, min_fights, limit)
+    cache_key = _cache_key("ground_strikes", weight_class_id, min_fights, limit, chart=True)
     cached = _get_cached(cache_key)
     if cached:
-        parsed = _parse_cached_list(cache_key, GroundStrikesDTO, cached)
+        parsed = _parse_cached_data(cache_key, GroundStrikesDTO, cached, is_list=True)
         if parsed is not None:
             return parsed
 
@@ -469,10 +444,10 @@ async def get_chart_submission_efficiency(
     min_fights: int = 10,
     limit: int = 10,
 ) -> SubmissionEfficiencyDTO:
-    cache_key = _chart_cache_key("sub_efficiency", weight_class_id, min_fights, limit)
+    cache_key = _cache_key("sub_efficiency", weight_class_id, min_fights, limit, chart=True)
     cached = _get_cached(cache_key)
     if cached:
-        parsed = _parse_cached(cache_key, SubmissionEfficiencyDTO, cached)
+        parsed = _parse_cached_data(cache_key, SubmissionEfficiencyDTO, cached)
         if parsed is not None:
             return parsed
 
@@ -495,10 +470,10 @@ async def get_chart_submission_efficiency(
 async def get_chart_category_leaders(
     session: AsyncSession,
 ) -> List[CategoryLeaderDTO]:
-    cache_key = _chart_cache_key("category_leaders")
+    cache_key = _cache_key("category_leaders", chart=True)
     cached = _get_cached(cache_key)
     if cached:
-        parsed = _parse_cached_list(cache_key, CategoryLeaderDTO, cached)
+        parsed = _parse_cached_data(cache_key, CategoryLeaderDTO, cached, is_list=True)
         if parsed is not None:
             return parsed
 
@@ -514,10 +489,10 @@ async def get_chart_category_leaders(
 async def get_chart_event_map(
     session: AsyncSession,
 ) -> List[EventMapDTO]:
-    cache_key = _chart_cache_key("event-map")
+    cache_key = _cache_key("event-map", chart=True)
     cached = _get_cached(cache_key)
     if cached:
-        parsed = _parse_cached_list(cache_key, EventMapDTO, cached)
+        parsed = _parse_cached_data(cache_key, EventMapDTO, cached, is_list=True)
         if parsed is not None:
             return parsed
 
@@ -534,10 +509,10 @@ async def get_chart_nationality_distribution(
     session: AsyncSession,
     weight_class_id: Optional[int] = None,
 ) -> List[NationalityDistributionDTO]:
-    cache_key = _chart_cache_key("nationality", weight_class_id)
+    cache_key = _cache_key("nationality", weight_class_id, chart=True)
     cached = _get_cached(cache_key)
     if cached:
-        parsed = _parse_cached_list(cache_key, NationalityDistributionDTO, cached)
+        parsed = _parse_cached_data(cache_key, NationalityDistributionDTO, cached, is_list=True)
         if parsed is not None:
             return parsed
 
@@ -556,10 +531,10 @@ async def get_chart_finish_rate_trend(
     session: AsyncSession,
     weight_class_id: Optional[int] = None,
 ) -> List[FinishRateTrendDTO]:
-    cache_key = _chart_cache_key("finish_rate_trend", weight_class_id)
+    cache_key = _cache_key("finish_rate_trend", weight_class_id, chart=True)
     cached = _get_cached(cache_key)
     if cached:
-        parsed = _parse_cached_list(cache_key, FinishRateTrendDTO, cached)
+        parsed = _parse_cached_data(cache_key, FinishRateTrendDTO, cached, is_list=True)
         if parsed is not None:
             return parsed
 
@@ -579,10 +554,10 @@ async def get_chart_knockdown_leaders(
     weight_class_id: Optional[int] = None,
     limit: int = 10,
 ) -> List[KnockdownLeaderDTO]:
-    cache_key = _chart_cache_key("knockdown_leaders", weight_class_id, limit=limit)
+    cache_key = _cache_key("knockdown_leaders", weight_class_id, limit=limit, chart=True)
     cached = _get_cached(cache_key)
     if cached:
-        parsed = _parse_cached_list(cache_key, KnockdownLeaderDTO, cached)
+        parsed = _parse_cached_data(cache_key, KnockdownLeaderDTO, cached, is_list=True)
         if parsed is not None:
             return parsed
 
@@ -598,10 +573,10 @@ async def get_chart_knockdown_leaders(
 async def get_chart_sig_strikes_by_wc(
     session: AsyncSession,
 ) -> List[SigStrikesByWeightClassDTO]:
-    cache_key = _chart_cache_key("sig_strikes_by_wc")
+    cache_key = _cache_key("sig_strikes_by_wc", chart=True)
     cached = _get_cached(cache_key)
     if cached:
-        parsed = _parse_cached_list(cache_key, SigStrikesByWeightClassDTO, cached)
+        parsed = _parse_cached_data(cache_key, SigStrikesByWeightClassDTO, cached, is_list=True)
         if parsed is not None:
             return parsed
 
@@ -620,10 +595,10 @@ async def get_chart_strike_exchange(
     min_fights: int = 10,
     limit: int = 10,
 ) -> StrikeExchangeLeaderboardDTO:
-    cache_key = _chart_cache_key("strike_exchange", weight_class_id, min_fights, limit)
+    cache_key = _cache_key("strike_exchange", weight_class_id, min_fights, limit, chart=True)
     cached = _get_cached(cache_key)
     if cached:
-        parsed = _parse_cached(cache_key, StrikeExchangeLeaderboardDTO, cached)
+        parsed = _parse_cached_data(cache_key, StrikeExchangeLeaderboardDTO, cached)
         if parsed is not None:
             return parsed
 
@@ -647,10 +622,10 @@ async def get_chart_stance_winrate(
     session: AsyncSession,
     weight_class_id: Optional[int] = None,
 ) -> List[StanceWinrateDTO]:
-    cache_key = _chart_cache_key("stance_winrate", weight_class_id)
+    cache_key = _cache_key("stance_winrate", weight_class_id, chart=True)
     cached = _get_cached(cache_key)
     if cached:
-        parsed = _parse_cached_list(cache_key, StanceWinrateDTO, cached)
+        parsed = _parse_cached_data(cache_key, StanceWinrateDTO, cached, is_list=True)
         if parsed is not None:
             return parsed
 
@@ -671,10 +646,10 @@ async def get_chart_td_attempts_leaders(
     min_fights: int = 10,
     limit: int = 10,
 ) -> TdAttemptsLeaderboardDTO:
-    cache_key = _chart_cache_key("td_attempts_leaders", weight_class_id, min_fights, limit)
+    cache_key = _cache_key("td_attempts_leaders", weight_class_id, min_fights, limit, chart=True)
     cached = _get_cached(cache_key)
     if cached:
-        parsed = _parse_cached(cache_key, TdAttemptsLeaderboardDTO, cached)
+        parsed = _parse_cached_data(cache_key, TdAttemptsLeaderboardDTO, cached)
         if parsed is not None:
             return parsed
 
@@ -699,10 +674,10 @@ async def get_chart_td_sub_correlation(
     session: AsyncSession,
     weight_class_id: Optional[int] = None,
 ) -> TdSubCorrelationDTO:
-    cache_key = _chart_cache_key("td_sub_correlation", weight_class_id)
+    cache_key = _cache_key("td_sub_correlation", weight_class_id, chart=True)
     cached = _get_cached(cache_key)
     if cached:
-        parsed = _parse_cached(cache_key, TdSubCorrelationDTO, cached)
+        parsed = _parse_cached_data(cache_key, TdSubCorrelationDTO, cached)
         if parsed is not None:
             return parsed
 
@@ -732,10 +707,10 @@ async def get_chart_td_defense_leaders(
     min_fights: int = 10,
     limit: int = 10,
 ) -> TdDefenseLeaderboardDTO:
-    cache_key = _chart_cache_key("td_defense_leaders", weight_class_id, min_fights, limit)
+    cache_key = _cache_key("td_defense_leaders", weight_class_id, min_fights, limit, chart=True)
     cached = _get_cached(cache_key)
     if cached:
-        parsed = _parse_cached(cache_key, TdDefenseLeaderboardDTO, cached)
+        parsed = _parse_cached_data(cache_key, TdDefenseLeaderboardDTO, cached)
         if parsed is not None:
             return parsed
 
@@ -776,7 +751,7 @@ async def get_overview(
                 pass
             cached = None
     if cached:
-        result = _parse_cached(cache_key, OverviewResponseDTO, cached)
+        result = _parse_cached_data(cache_key, OverviewResponseDTO, cached)
         if result:
             return result
 
@@ -814,7 +789,7 @@ async def get_striking(
     cache_key = _cache_key("striking", weight_class_id, min_fights, limit)
     cached = _get_cached(cache_key)
     if cached:
-        result = _parse_cached(cache_key, StrikingResponseDTO, cached)
+        result = _parse_cached_data(cache_key, StrikingResponseDTO, cached)
         if result:
             return result
 
@@ -856,7 +831,7 @@ async def get_grappling(
     cache_key = _cache_key("grappling", weight_class_id, min_fights, limit)
     cached = _get_cached(cache_key)
     if cached:
-        result = _parse_cached(cache_key, GrapplingResponseDTO, cached)
+        result = _parse_cached_data(cache_key, GrapplingResponseDTO, cached)
         if result:
             return result
 
