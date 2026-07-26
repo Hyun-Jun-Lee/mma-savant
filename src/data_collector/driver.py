@@ -1,3 +1,4 @@
+import asyncio
 from typing import Optional, Callable, Dict, Any
 import logging
 
@@ -19,27 +20,32 @@ class PlaywrightDriver:
     def __init__(self):
         if not hasattr(self, 'playwright'):
             self.playwright = None
+            self._init_lock = asyncio.Lock()
 
     async def initialize(self, headless: bool = True) -> None:
         """비동기적으로 Playwright 브라우저를 초기화합니다"""
         if self._browser is None:
-            self.playwright = await async_playwright().start()
+            async with self._init_lock:
+                if self._browser is not None:
+                    return
+
+                self.playwright = await async_playwright().start()
             
-            # 봇 감지 방지를 위한 브라우저 실행 옵션
-            browser_options = {
-                "headless": headless,
-                "args": [
-                    "--disable-blink-features=AutomationControlled",
-                    "--no-sandbox",
-                    "--disable-infobars",
-                    "--disable-extensions",
-                    "--disable-dev-shm-usage",
-                    "--disable-gpu",
-                ],
-            }
+                # 봇 감지 방지를 위한 브라우저 실행 옵션
+                browser_options = {
+                    "headless": headless,
+                    "args": [
+                        "--disable-blink-features=AutomationControlled",
+                        "--no-sandbox",
+                        "--disable-infobars",
+                        "--disable-extensions",
+                        "--disable-dev-shm-usage",
+                        "--disable-gpu",
+                    ],
+                }
             
-            self._browser = await self.playwright.chromium.launch(**browser_options)
-            logging.info("Playwright browser initialized with anti-bot detection")
+                self._browser = await self.playwright.chromium.launch(**browser_options)
+                logging.info("Playwright browser initialized with anti-bot detection")
 
     async def new_page(self) -> Page:
         """스텔스 설정으로 새 페이지를 생성합니다"""

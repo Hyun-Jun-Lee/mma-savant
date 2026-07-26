@@ -3,7 +3,11 @@ import asyncio
 from prefect import flow
 from prefect.logging import get_run_logger
 
-from data_collector.crawler import crawl_with_httpx
+from data_collector.crawler import (
+    close_playwright_crawler,
+    crawl_with_httpx,
+    crawl_with_playwright,
+)
 from dashboard.services import invalidate_all_cache
 from data_collector.workflows.tasks import (
     scrap_all_fighter_task,
@@ -25,49 +29,52 @@ async def run_ufc_stats_flow():
     logger.info("Start UFC stats scraping")
     logger.info("======================")
 
-    # scrape fighters
-    logger.info("Fighters scraping started")
-    await scrap_all_fighter_task(crawl_with_httpx)
-    logger.info("Fighters scraping completed")
+    try:
+        # scrape fighters
+        logger.info("Fighters scraping started")
+        await scrap_all_fighter_task(crawl_with_playwright)
+        logger.info("Fighters scraping completed")
 
-    # enrich fighter nationality
-    logger.info("Fighter nationality enrichment started")
-    await enrich_fighter_nationality_task(crawl_with_httpx)
-    logger.info("Fighter nationality enrichment completed")
+        # enrich fighter nationality
+        logger.info("Fighter nationality enrichment started")
+        await enrich_fighter_nationality_task(crawl_with_httpx)
+        logger.info("Fighter nationality enrichment completed")
 
-    # scrape events
-    logger.info("Events scraping started")
-    await scrap_all_events_task(crawl_with_httpx)
-    logger.info("Events scraping completed")
+        # scrape events
+        logger.info("Events scraping started")
+        await scrap_all_events_task(crawl_with_playwright)
+        logger.info("Events scraping completed")
 
-    # scrape upcoming events
-    logger.info("Upcoming events scraping started")
-    await scrap_upcoming_events_task(crawl_with_httpx)
-    logger.info("Upcoming events scraping completed")
+        # scrape upcoming events
+        logger.info("Upcoming events scraping started")
+        await scrap_upcoming_events_task(crawl_with_playwright)
+        logger.info("Upcoming events scraping completed")
 
-    # enrich event geocoding
-    logger.info("Event geocoding enrichment started")
-    await enrich_event_geocoding_task()
-    logger.info("Event geocoding enrichment completed")
+        # enrich event geocoding
+        logger.info("Event geocoding enrichment started")
+        await enrich_event_geocoding_task()
+        logger.info("Event geocoding enrichment completed")
 
-    # scrape event details
-    logger.info("Event details scraping started")
-    await scrap_event_detail_task(crawl_with_httpx)
-    logger.info("Event details scraping completed")
+        # scrape event details
+        logger.info("Event details scraping started")
+        await scrap_event_detail_task(crawl_with_playwright)
+        logger.info("Event details scraping completed")
 
-    # scrape match details
-    logger.info("Match details scraping started")
-    await scrap_match_detail_task(crawl_with_httpx)
-    logger.info("Match details scraping completed")
+        # scrape match details
+        logger.info("Match details scraping started")
+        await scrap_match_detail_task(crawl_with_playwright)
+        logger.info("Match details scraping completed")
 
-    # scrape rankings
-    logger.info("Rankings scraping started")
-    await scrap_rankings_task(crawl_with_httpx)
-    logger.info("Rankings scraping completed")
+        # scrape rankings
+        logger.info("Rankings scraping started")
+        await scrap_rankings_task(crawl_with_playwright)
+        logger.info("Rankings scraping completed")
 
-    # invalidate dashboard cache so stale data is not served
-    deleted = invalidate_all_cache()
-    logger.info(f"Dashboard cache invalidated ({deleted} keys deleted)")
+        # invalidate dashboard cache so stale data is not served
+        deleted = invalidate_all_cache()
+        logger.info(f"Dashboard cache invalidated ({deleted} keys deleted)")
+    finally:
+        await close_playwright_crawler()
 
     logger.info("======================")
     logger.info("UFC stats scraping completed")
@@ -76,5 +83,4 @@ async def run_ufc_stats_flow():
 
 if __name__ == "__main__":
     asyncio.run(run_ufc_stats_flow())
-
 
