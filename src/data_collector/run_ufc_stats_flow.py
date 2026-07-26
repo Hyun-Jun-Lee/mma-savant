@@ -2,11 +2,15 @@ import asyncio
 import time
 import os
 import argparse
-from typing import Callable, List, Optional
+from typing import List, Optional
 import logging
 from datetime import datetime
 
-from data_collector.crawler import crawl_with_crawl4ai, crawl_with_httpx
+from data_collector.crawler import (
+    close_playwright_crawler,
+    crawl_with_httpx,
+    crawl_with_playwright,
+)
 from data_collector.workflows.tasks import (
     scrap_all_events_task,
     scrap_upcoming_events_task,
@@ -30,6 +34,7 @@ TASK_MAP = {
 
 # 전체 실행 순서
 ALL_TASKS = ["fighters", "events", "upcoming-events", "event-detail", "match-detail", "rankings"]
+PLAYWRIGHT_TASKS = {"fighters", "events", "upcoming-events", "event-detail", "match-detail", "rankings"}
 
 
 def setup_logging():
@@ -92,15 +97,19 @@ async def run_ufc_stats_flow(tasks: Optional[List[str]] = None):
     LOGGER.info(f"UFC 통계 크롤링 시작 - 태스크: {tasks_to_run}")
     start_time = time.time()
 
-    for task_name in tasks_to_run:
-        if task_name not in TASK_MAP:
-            LOGGER.warning(f"Unknown task: {task_name}, skipping...")
-            continue
+    try:
+        for task_name in tasks_to_run:
+            if task_name not in TASK_MAP:
+                LOGGER.warning(f"Unknown task: {task_name}, skipping...")
+                continue
 
-        display_name, task_fn = TASK_MAP[task_name]
-        LOGGER.info(f"{display_name} scraping started")
-        await task_fn(crawl_with_httpx)
-        LOGGER.info(f"{display_name} scraping completed")
+            display_name, task_fn = TASK_MAP[task_name]
+            crawler_fn = crawl_with_playwright if task_name in PLAYWRIGHT_TASKS else crawl_with_httpx
+            LOGGER.info(f"{display_name} scraping started")
+            await task_fn(crawler_fn)
+            LOGGER.info(f"{display_name} scraping completed")
+    finally:
+        await close_playwright_crawler()
 
     end_time = time.time()
     LOGGER.info(f"UFC 통계 크롤링 완료 - Total time: {end_time - start_time:.2f} seconds")
