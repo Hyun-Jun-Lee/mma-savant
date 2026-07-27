@@ -21,6 +21,11 @@ COPY src/pyproject.toml src/uv.lock* ./
 # 의존성 설치
 RUN uv sync --frozen --no-dev
 
+# Playwright 패키지만으로는 브라우저 바이너리가 포함되지 않으므로,
+# flow_serve/API 이미지 안에 Chromium과 런타임 의존성을 함께 설치한다.
+RUN uv run playwright install --with-deps chromium \
+    && rm -rf /var/lib/apt/lists/*
+
 # 소스 코드 복사
 COPY src/ ./
 
