@@ -1,10 +1,21 @@
+import logging
+import re
+from datetime import datetime
 from typing import List
 
-from sqlalchemy import select
+from sqlalchemy import delete, select
 
 from common.utils import normalize_name
-from fighter.models import FighterSchema, RankingSchema, FighterModel, RankingModel
+from fighter.models import (
+    FighterSchema,
+    RankingSchema,
+    FighterModel,
+    RankingModel,
+    FighterPromotionRecordModel,
+    FighterMethodRecordModel,
+)
 from event.models import EventSchema, EventModel
+from data_collector.scrapers.tapology_scraper import TapologyBoutMetadata, TapologyFighterProfile
 from match.models import (
     MatchSchema, 
     FighterMatchSchema, 
@@ -15,6 +26,24 @@ from match.models import (
     BasicMatchStatModel,
     SigStrMatchStatModel
 )
+
+TAPOLOGY_MATCH_FIELDS = {
+    "bout_status",
+    "cancellation_reason",
+    "tapology_bout_url",
+    "tapology_last_scraped_at",
+}
+
+TAPOLOGY_FIGHTER_PROFILE_FIELDS = {
+    "born",
+    "fighting_out_of",
+    "affiliation",
+    "gym",
+    "current_streak",
+    "last_fight_name",
+    "last_fight_date",
+    "last_fight_promotion",
+}
 
 async def save_fighters(session, fighters: List[FighterSchema]):
 
@@ -84,6 +113,10 @@ async def save_match(session, match: MatchSchema) -> MatchSchema:
     if existing_model:
         # 업데이트
         for key, value in match.model_dump(exclude={'id', 'created_at', 'updated_at'}).items():
+            if key in TAPOLOGY_MATCH_FIELDS and value is None and getattr(existing_model, key, None) is not None:
+                continue
+            if key == "is_title_bout" and value is False and getattr(existing_model, key, None) is True:
+                continue
             setattr(existing_model, key, value)
         return_model = existing_model
     else:
@@ -95,6 +128,141 @@ async def save_match(session, match: MatchSchema) -> MatchSchema:
     await session.commit()
     await session.refresh(return_model)
     return return_model.to_schema()
+
+
+async def save_tapology_fighter_enrichment(
+    session,
+    fighter_id: int,
+    tapology_url: str | None,
+    profile: TapologyFighterProfile,
+    scraped_at: datetime,
+) -> FighterSchema | None:
+    existing_model_query = await session.execute(
+        select(FighterModel).where(FighterModel.id == fighter_id)
+    )
+    existing_model = existing_model_query.scalar_one_or_none()
+    if existing_model is None:
+        return None
+
+    if tapology_url:
+        existing_model.tapology_url = tapology_url
+
+    for key in TAPOLOGY_FIGHTER_PROFILE_FIELDS:
+        value = getattr(profile, key, None)
+        if value is None and getattr(existing_model, key, None) is not None:
+            continue
+        setattr(existing_model, key, value)
+
+    existing_model.tapology_last_scraped_at = scraped_at
+
+    await session.execute(
+        delete(FighterPromotionRecordModel)
+        .where(FighterPromotionRecordModel.fighter_id == fighter_id)
+    )
+    await session.execute(
+        delete(FighterMethodRecordModel)
+        .where(FighterMethodRecordModel.fighter_id == fighter_id)
+    )
+
+    for record in profile.promotion_records:
+        session.add(FighterPromotionRecordModel(
+            fighter_id=fighter_id,
+            promotion_name=record.promotion_name,
+            wins=record.wins,
+            losses=record.losses,
+            draws=record.draws,
+            no_contests=record.no_contests,
+        ))
+
+    for record in profile.method_records:
+        session.add(FighterMethodRecordModel(
+            fighter_id=fighter_id,
+            scope=record.scope,
+            result=record.result,
+            method_category=record.method_category,
+            count=record.count,
+        ))
+
+    await session.commit()
+    await session.refresh(existing_model)
+    return existing_model.to_schema()
+
+
+async def save_tapology_match_enrichment(
+    session,
+    match_id: int,
+    tapology_bout_url: str | None,
+    metadata: TapologyBoutMetadata,
+    scraped_at: datetime,
+    logger: logging.Logger | None = None,
+) -> MatchSchema | None:
+    logger = logger or logging.getLogger(__name__)
+    existing_model_query = await session.execute(
+        select(MatchModel).where(MatchModel.id == match_id)
+    )
+    existing_model = existing_model_query.scalar_one_or_none()
+    if existing_model is None:
+        return None
+
+    fighter_rows = await session.execute(
+        select(FighterMatchModel, FighterModel)
+        .join(FighterModel, FighterModel.id == FighterMatchModel.fighter_id)
+        .where(FighterMatchModel.match_id == match_id)
+    )
+    fighter_matches = fighter_rows.all()
+    has_ufcstats_result = any(fighter_match.result for fighter_match, _ in fighter_matches)
+    tapology_cancelled = metadata.bout_status in {"cancelled", "canceled", "postponed"}
+
+    existing_model.is_title_bout = metadata.is_title_bout
+    if tapology_bout_url:
+        existing_model.tapology_bout_url = tapology_bout_url
+    existing_model.tapology_last_scraped_at = scraped_at
+
+    if tapology_cancelled and has_ufcstats_result:
+        logger.warning(
+            "Tapology cancellation conflicts with UFCStats result; preserving match status. match_id=%s url=%s",
+            match_id,
+            tapology_bout_url,
+        )
+    else:
+        if metadata.bout_status is not None:
+            existing_model.bout_status = metadata.bout_status
+        if metadata.cancellation_reason is not None:
+            existing_model.cancellation_reason = metadata.cancellation_reason
+
+    fighter_match_by_name = {
+        _normalize_match_name(fighter.name): fighter_match
+        for fighter_match, fighter in fighter_matches
+    }
+
+    for fighter_metadata in metadata.fighter_metadata:
+        if not fighter_metadata.fighter_name:
+            continue
+        fighter_match = fighter_match_by_name.get(_normalize_match_name(fighter_metadata.fighter_name))
+        if fighter_match is None:
+            logger.warning(
+                "Tapology fighter-side metadata did not match local fighter. match_id=%s fighter=%s",
+                match_id,
+                fighter_metadata.fighter_name,
+            )
+            continue
+
+        if fighter_metadata.weigh_in_result is not None:
+            fighter_match.weigh_in_result = fighter_metadata.weigh_in_result
+        if fighter_metadata.fight_night_weight is not None:
+            fighter_match.fight_night_weight = fighter_metadata.fight_night_weight
+        if fighter_metadata.weight_gain is not None:
+            fighter_match.weight_gain = fighter_metadata.weight_gain
+
+    await session.commit()
+    await session.refresh(existing_model)
+    return existing_model.to_schema()
+
+
+def _normalize_match_name(value: str) -> str:
+    normalized = normalize_name(value)
+    normalized = re.sub(r"[^a-z0-9]+", " ", normalized)
+    return re.sub(r"\s+", " ", normalized).strip()
     
 
 async def save_fighter_match(session, fighter_id: int, match_id: int, result: str) -> FighterMatchSchema:

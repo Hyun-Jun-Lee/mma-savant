@@ -13,17 +13,16 @@ import logging
 import random
 import re
 import sys
-
-import time
+from typing import Awaitable, Callable
+from urllib.parse import quote_plus, urljoin
 
 import psycopg2
-import requests as http_requests
 from bs4 import BeautifulSoup
-from fake_useragent import UserAgent
 from playwright.async_api import async_playwright
 from text_unidecode import unidecode
 
 from config import Config
+from data_collector.clients.tapology import TapologyClient
 
 logging.basicConfig(
     level=logging.INFO,
@@ -32,14 +31,10 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+TAPOLOGY_BASE_URL = "https://www.tapology.com"
+
 # 한국어/영어 hometown 라벨
 HOMETOWN_LABELS = {"hometown", "고향"}
-
-# Tapology 설정
-_ua = UserAgent()
-TAPOLOGY_BASE_DELAY = (2.0, 4.0)  # 요청 간 기본 딜레이 (초)
-TAPOLOGY_CIRCUIT_BREAKER_THRESHOLD = 5  # 연속 실패 N회 시 일시 중단
-TAPOLOGY_CIRCUIT_BREAKER_COOLDOWN = 60  # 중단 시 대기 시간 (초)
 
 # ISO 3166-1 alpha-2 → 국가명 매핑
 ISO_TO_COUNTRY: dict[str, str] = {
@@ -89,111 +84,91 @@ def _strip_nickname(display_name: str) -> str:
     return result.strip()
 
 
-class TapologyClient:
-    """Tapology 국적 조회 클라이언트.
+def _select_tapology_fighter_path(
+    search_html: str,
+    name: str,
+    nickname: str | None = None,
+) -> str | None:
+    soup = BeautifulSoup(search_html, "html.parser")
+    links = soup.select('a[href*="/fightcenter/fighters/"]')
+    if not links:
+        return None
 
-    - requests.Session으로 쿠키/커넥션 유지
-    - fake_useragent로 매 요청마다 UA 로테이션
-    - 연속 실패 시 circuit breaker로 일시 중단
-    - 요청 간 2~4초 랜덤 딜레이
-    """
+    name_lower = name.lower().strip()
+    candidates: list[tuple[str, str]] = []
+    for link in links:
+        display = link.get_text(strip=True)
+        clean = _strip_nickname(display).lower().strip()
+        if clean == name_lower:
+            candidates.append((link["href"], display))
 
-    def __init__(self) -> None:
-        self._session = http_requests.Session()
-        self._consecutive_failures = 0
+    if not candidates:
+        return None
 
-    def _get_headers(self) -> dict[str, str]:
-        return {"User-Agent": _ua.random}
+    if len(candidates) > 1 and nickname:
+        nick_lower = nickname.lower()
+        for href, display in candidates:
+            if nick_lower in display.lower():
+                return href
 
-    def _request(self, url: str) -> http_requests.Response | None:
-        """HTTP GET with circuit breaker."""
-        if self._consecutive_failures >= TAPOLOGY_CIRCUIT_BREAKER_THRESHOLD:
-            logger.warning(
-                "Circuit breaker open (%d consecutive failures), "
-                "cooling down %ds...",
-                self._consecutive_failures,
-                TAPOLOGY_CIRCUIT_BREAKER_COOLDOWN,
-            )
-            time.sleep(TAPOLOGY_CIRCUIT_BREAKER_COOLDOWN)
-            self._consecutive_failures = 0
+    return candidates[0][0]
 
-        try:
-            resp = self._session.get(
-                url, headers=self._get_headers(), timeout=10,
-            )
-            if resp.status_code == 200:
-                self._consecutive_failures = 0
-                return resp
-            logger.warning("Tapology %d for %s", resp.status_code, url)
-            self._consecutive_failures += 1
-            return None
-        except Exception as e:
-            logger.warning("Tapology request error for %s: %s", url, e)
-            self._consecutive_failures += 1
-            return None
 
-    def fetch_nationality(
-        self, name: str, nickname: str | None = None,
-    ) -> str | None:
-        """Tapology 검색 → 상세 페이지에서 국기 ISO 코드로 국가명을 반환한다."""
-        # 1) 검색
-        search_term = name.replace(" ", "+")
-        resp = self._request(
-            f"https://www.tapology.com/search?term={search_term}",
-        )
-        if not resp:
-            return None
+def _extract_nationality_from_tapology_profile(detail_html: str) -> str | None:
+    detail_soup = BeautifulSoup(detail_html, "html.parser")
+    flag_img = detail_soup.select_one('img[src*="/flags/"]')
+    if not flag_img:
+        return None
 
-        soup = BeautifulSoup(resp.text, "html.parser")
-        links = soup.select('a[href*="/fightcenter/fighters/"]')
-        if not links:
-            return None
+    match = re.search(r"/flags/([A-Z]{2})", flag_img["src"])
+    if not match:
+        return None
 
-        # 2) 이름 매칭으로 후보 필터링
-        name_lower = name.lower().strip()
-        candidates: list[tuple[str, str]] = []
-        for a in links:
-            display = a.get_text(strip=True)
-            clean = _strip_nickname(display).lower().strip()
-            if clean == name_lower:
-                candidates.append((a["href"], display))
+    iso_code = match.group(1)
+    return ISO_TO_COUNTRY.get(iso_code)
 
-        if not candidates:
-            return None
 
-        # 3) 후보가 여러 명이고 nickname이 있으면 nickname으로 구분
-        detail_path = candidates[0][0]
-        if len(candidates) > 1 and nickname:
-            nick_lower = nickname.lower()
-            for href, display in candidates:
-                if nick_lower in display.lower():
-                    detail_path = href
-                    break
+def fetch_nationality_with_tapology_client(
+    client: TapologyClient,
+    name: str,
+    nickname: str | None = None,
+) -> str | None:
+    """Tapology 검색 → 상세 페이지에서 국기 ISO 코드로 국가명을 반환한다."""
+    search_html = client.fetch_search_page(name)
+    if not search_html:
+        return None
 
-        # 요청 간 딜레이
-        time.sleep(random.uniform(*TAPOLOGY_BASE_DELAY))
+    detail_path = _select_tapology_fighter_path(search_html, name, nickname)
+    if not detail_path:
+        return None
 
-        # 4) 상세 페이지에서 첫 번째 국기 ISO 코드 추출
-        detail_resp = self._request(
-            f"https://www.tapology.com{detail_path}",
-        )
-        if not detail_resp:
-            return None
+    detail_html = client.fetch_fighter_detail_page(detail_path)
+    if not detail_html:
+        return None
 
-        detail_soup = BeautifulSoup(detail_resp.text, "html.parser")
-        flag_img = detail_soup.select_one('img[src*="/flags/"]')
-        if not flag_img:
-            return None
+    return _extract_nationality_from_tapology_profile(detail_html)
 
-        match = re.search(r"/flags/([A-Z]{2})", flag_img["src"])
-        if not match:
-            return None
 
-        iso_code = match.group(1)
-        return ISO_TO_COUNTRY.get(iso_code)
+async def fetch_nationality_with_tapology_crawler(
+    crawler_fn: Callable[[str], Awaitable[str | None]],
+    name: str,
+    nickname: str | None = None,
+) -> str | None:
+    """crawler_fn으로 Tapology 검색/상세 페이지를 조회해 국가명을 반환한다."""
+    search_url = f"{TAPOLOGY_BASE_URL}/search?term={quote_plus(name)}"
+    search_html = await crawler_fn(search_url)
+    if not search_html:
+        return None
 
-    def close(self) -> None:
-        self._session.close()
+    detail_path = _select_tapology_fighter_path(search_html, name, nickname)
+    if not detail_path:
+        return None
+
+    detail_html = await crawler_fn(urljoin(TAPOLOGY_BASE_URL, detail_path))
+    if not detail_html:
+        return None
+
+    return _extract_nationality_from_tapology_profile(detail_html)
 
 
 async def fetch_nationality_from_tapology(
@@ -201,16 +176,35 @@ async def fetch_nationality_from_tapology(
     nickname: str | None = None,
     *,
     client: TapologyClient | None = None,
+    crawler_fn: Callable[[str], Awaitable[str | None]] | None = None,
 ) -> str | None:
     """Tapology 국적 조회의 async wrapper.
 
+    crawler_fn을 전달하면 Playwright 등 공유 크롤러를 사용한다.
     client를 전달하면 세션을 재사용한다. 전달하지 않으면 일회용 세션을 생성한다.
     """
+    if crawler_fn:
+        return await fetch_nationality_with_tapology_crawler(
+            crawler_fn,
+            name,
+            nickname,
+        )
+
     if client:
-        return await asyncio.to_thread(client.fetch_nationality, name, nickname)
+        return await asyncio.to_thread(
+            fetch_nationality_with_tapology_client,
+            client,
+            name,
+            nickname,
+        )
     c = TapologyClient()
     try:
-        return await asyncio.to_thread(c.fetch_nationality, name, nickname)
+        return await asyncio.to_thread(
+            fetch_nationality_with_tapology_client,
+            c,
+            name,
+            nickname,
+        )
     finally:
         c.close()
 

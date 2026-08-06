@@ -1,3 +1,4 @@
+import logging
 import httpx
 import traceback
 from typing import Any, Optional
@@ -64,6 +65,18 @@ async def crawl_with_httpx(url: str) -> str:
             response = await client.get(url, headers=headers)
             response.raise_for_status()
             return response.text
+        except httpx.HTTPStatusError as e:
+            status_code = e.response.status_code
+            if status_code in {403, 404}:
+                logging.warning(
+                    "크롤링 대상 페이지 접근 불가 또는 없음(status=%s): %s",
+                    status_code,
+                    e.response.url,
+                )
+                return None
+
+            print(f"크롤링 중 오류 발생: {traceback.format_exc()}")
+            return None
         except Exception as e:
             print(f"크롤링 중 오류 발생: {traceback.format_exc()}")
             return None

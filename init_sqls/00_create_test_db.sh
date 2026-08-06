@@ -42,11 +42,52 @@ psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$TEST_DB_NAME" <<-
         belt BOOLEAN DEFAULT FALSE,
         detail_url VARCHAR,
         nationality VARCHAR,
+        tapology_url VARCHAR,
+        born VARCHAR,
+        fighting_out_of VARCHAR,
+        affiliation VARCHAR,
+        gym VARCHAR,
+        current_streak VARCHAR,
+        last_fight_name VARCHAR,
+        last_fight_date DATE,
+        last_fight_promotion VARCHAR,
+        tapology_last_scraped_at TIMESTAMP,
         wins INTEGER DEFAULT 0,
         losses INTEGER DEFAULT 0,
         draws INTEGER DEFAULT 0,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );
+
+    -- fighter_promotion_record 테이블
+    CREATE TABLE IF NOT EXISTS fighter_promotion_record (
+        id SERIAL PRIMARY KEY,
+        fighter_id INTEGER NOT NULL,
+        promotion_name VARCHAR NOT NULL,
+        wins INTEGER DEFAULT 0,
+        losses INTEGER DEFAULT 0,
+        draws INTEGER DEFAULT 0,
+        no_contests INTEGER DEFAULT 0,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+
+        CONSTRAINT fk_fighter_promotion_record_fighter
+            FOREIGN KEY (fighter_id) REFERENCES fighter(id) ON DELETE CASCADE
+    );
+
+    -- fighter_method_record 테이블
+    CREATE TABLE IF NOT EXISTS fighter_method_record (
+        id SERIAL PRIMARY KEY,
+        fighter_id INTEGER NOT NULL,
+        scope VARCHAR NOT NULL DEFAULT 'all_career',
+        result VARCHAR NOT NULL,
+        method_category VARCHAR NOT NULL,
+        count INTEGER DEFAULT 0,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+
+        CONSTRAINT fk_fighter_method_record_fighter
+            FOREIGN KEY (fighter_id) REFERENCES fighter(id) ON DELETE CASCADE
     );
 
     -- weight_class 테이블
@@ -80,6 +121,11 @@ psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$TEST_DB_NAME" <<-
         time VARCHAR,
         "order" INTEGER,
         is_main_event BOOLEAN,
+        is_title_bout BOOLEAN DEFAULT FALSE,
+        bout_status VARCHAR,
+        cancellation_reason VARCHAR,
+        tapology_bout_url VARCHAR,
+        tapology_last_scraped_at TIMESTAMP,
         detail_url VARCHAR,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -111,6 +157,9 @@ psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$TEST_DB_NAME" <<-
         fighter_id INTEGER,
         match_id INTEGER,
         result VARCHAR,
+        weigh_in_result VARCHAR,
+        fight_night_weight VARCHAR,
+        weight_gain VARCHAR,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
 
@@ -214,8 +263,16 @@ psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$TEST_DB_NAME" <<-
 
     -- 인덱스 생성
     CREATE INDEX IF NOT EXISTS idx_fighter_name ON fighter(name);
+    CREATE INDEX IF NOT EXISTS idx_fighter_tapology_url ON fighter(tapology_url);
+    CREATE INDEX IF NOT EXISTS idx_fighter_promotion_record_fighter_id ON fighter_promotion_record(fighter_id);
+    CREATE INDEX IF NOT EXISTS idx_fighter_promotion_record_name ON fighter_promotion_record(promotion_name);
+    CREATE UNIQUE INDEX IF NOT EXISTS uq_fighter_promotion_record_key ON fighter_promotion_record(fighter_id, promotion_name);
+    CREATE INDEX IF NOT EXISTS idx_fighter_method_record_fighter_id ON fighter_method_record(fighter_id);
+    CREATE UNIQUE INDEX IF NOT EXISTS uq_fighter_method_record_key ON fighter_method_record(fighter_id, scope, result, method_category);
     CREATE INDEX IF NOT EXISTS idx_match_event_id ON match(event_id);
     CREATE INDEX IF NOT EXISTS idx_match_weight_class_id ON match(weight_class_id);
+    CREATE INDEX IF NOT EXISTS idx_match_tapology_bout_url ON match(tapology_bout_url);
+    CREATE INDEX IF NOT EXISTS idx_match_bout_status ON match(bout_status);
     CREATE INDEX IF NOT EXISTS idx_fighter_match_fighter_id ON fighter_match(fighter_id);
     CREATE INDEX IF NOT EXISTS idx_fighter_match_match_id ON fighter_match(match_id);
     CREATE INDEX IF NOT EXISTS idx_ranking_fighter_id ON ranking(fighter_id);
