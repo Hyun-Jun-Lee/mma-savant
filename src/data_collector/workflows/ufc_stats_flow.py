@@ -5,7 +5,6 @@ from prefect.logging import get_run_logger
 
 from data_collector.crawler import (
     close_playwright_crawler,
-    crawl_with_httpx,
     crawl_with_playwright,
 )
 from dashboard.services import invalidate_all_cache
@@ -18,6 +17,8 @@ from data_collector.workflows.tasks import (
     scrap_rankings_task,
     enrich_fighter_nationality_task,
     enrich_event_geocoding_task,
+    enrich_fighter_tapology_profile_task,
+    enrich_match_tapology_metadata_task,
 )
 
 
@@ -37,8 +38,13 @@ async def run_ufc_stats_flow():
 
         # enrich fighter nationality
         logger.info("Fighter nationality enrichment started")
-        await enrich_fighter_nationality_task(crawl_with_httpx)
+        await enrich_fighter_nationality_task(crawl_with_playwright)
         logger.info("Fighter nationality enrichment completed")
+
+        # enrich Tapology fighter profiles
+        logger.info("Tapology fighter profile enrichment started")
+        await enrich_fighter_tapology_profile_task(crawl_with_playwright)
+        logger.info("Tapology fighter profile enrichment completed")
 
         # scrape events
         logger.info("Events scraping started")
@@ -65,6 +71,11 @@ async def run_ufc_stats_flow():
         await scrap_match_detail_task(crawl_with_playwright)
         logger.info("Match details scraping completed")
 
+        # enrich Tapology bout metadata
+        logger.info("Tapology bout metadata enrichment started")
+        await enrich_match_tapology_metadata_task(crawl_with_playwright)
+        logger.info("Tapology bout metadata enrichment completed")
+
         # scrape rankings
         logger.info("Rankings scraping started")
         await scrap_rankings_task(crawl_with_playwright)
@@ -83,4 +94,3 @@ async def run_ufc_stats_flow():
 
 if __name__ == "__main__":
     asyncio.run(run_ufc_stats_flow())
-
