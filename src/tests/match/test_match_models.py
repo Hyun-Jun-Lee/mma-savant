@@ -295,6 +295,7 @@ class TestMatchModelTransformations:
         assert match_schema.time == "3:24"
         assert match_schema.order == 8
         assert match_schema.is_main_event is False
+        assert match_schema.is_title_bout is False
         assert match_schema.detail_url == "http://example.com/match/123"
 
 

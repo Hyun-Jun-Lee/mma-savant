@@ -126,7 +126,7 @@ class MatchModel(BaseModel):
             time=self.time,
             order=self.order,
             is_main_event=self.is_main_event,
-            is_title_bout=self.is_title_bout,
+            is_title_bout=bool(self.is_title_bout),
             bout_status=self.bout_status,
             cancellation_reason=self.cancellation_reason,
             tapology_bout_url=self.tapology_bout_url,
