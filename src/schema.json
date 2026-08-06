@@ -14,7 +14,9 @@
       "description": "UFC fighter basic information and records",
       "relationships": {
         "fighter_match": "1:N - Fighter participates in multiple matches",
-        "ranking": "1:N - Fighter can have rankings in multiple weight classes"
+        "ranking": "1:N - Fighter can have rankings in multiple weight classes",
+        "fighter_promotion_record": "1:N - Fighter can have Tapology career records by promotion",
+        "fighter_method_record": "1:N - Fighter can have Tapology career records by result method"
       },
       "columns": [
         {
@@ -122,6 +124,151 @@
           "type": "character varying",
           "nullable": true,
           "description": "Fighter nationality / country"
+        },
+        {
+          "column": "tapology_url",
+          "type": "character varying",
+          "nullable": true,
+          "description": "URL to fighter profile on Tapology"
+        },
+        {
+          "column": "born",
+          "type": "character varying",
+          "nullable": true,
+          "description": "Birthplace or born information from Tapology"
+        },
+        {
+          "column": "fighting_out_of",
+          "type": "character varying",
+          "nullable": true,
+          "description": "Fighter's fighting-out-of location from Tapology"
+        },
+        {
+          "column": "affiliation",
+          "type": "character varying",
+          "nullable": true,
+          "description": "Fighter affiliation from Tapology"
+        },
+        {
+          "column": "gym",
+          "type": "character varying",
+          "nullable": true,
+          "description": "Fighter gym or team from Tapology"
+        },
+        {
+          "column": "current_streak",
+          "type": "character varying",
+          "nullable": true,
+          "description": "Current career streak from Tapology"
+        },
+        {
+          "column": "last_fight_name",
+          "type": "character varying",
+          "nullable": true,
+          "description": "Most recent Tapology fight label"
+        },
+        {
+          "column": "last_fight_date",
+          "type": "date",
+          "nullable": true,
+          "description": "Date of most recent Tapology fight"
+        },
+        {
+          "column": "last_fight_promotion",
+          "type": "character varying",
+          "nullable": true,
+          "description": "Promotion of most recent Tapology fight"
+        },
+        {
+          "column": "tapology_last_scraped_at",
+          "type": "timestamp without time zone",
+          "nullable": true,
+          "description": "Timestamp when Tapology fighter enrichment last succeeded"
+        }
+      ]
+    },
+    "fighter_promotion_record": {
+      "description": "Tapology career record split by promotion",
+      "relationships": {
+        "fighter": "N:1 - Promotion record belongs to one fighter"
+      },
+      "columns": [
+        {
+          "column": "fighter_id",
+          "type": "integer",
+          "nullable": false,
+          "description": "Foreign key to fighter"
+        },
+        {
+          "column": "promotion_name",
+          "type": "character varying",
+          "nullable": false,
+          "description": "Promotion name from Tapology"
+        },
+        {
+          "column": "wins",
+          "type": "integer",
+          "nullable": true,
+          "description": "Wins in this promotion"
+        },
+        {
+          "column": "losses",
+          "type": "integer",
+          "nullable": true,
+          "description": "Losses in this promotion"
+        },
+        {
+          "column": "draws",
+          "type": "integer",
+          "nullable": true,
+          "description": "Draws in this promotion"
+        },
+        {
+          "column": "no_contests",
+          "type": "integer",
+          "nullable": true,
+          "description": "No-contests in this promotion"
+        }
+      ]
+    },
+    "fighter_method_record": {
+      "description": "Tapology career record split by result and method category",
+      "relationships": {
+        "fighter": "N:1 - Method record belongs to one fighter"
+      },
+      "columns": [
+        {
+          "column": "fighter_id",
+          "type": "integer",
+          "nullable": false,
+          "description": "Foreign key to fighter"
+        },
+        {
+          "column": "scope",
+          "type": "character varying",
+          "nullable": false,
+          "description": "Record scope",
+          "value_format": {"possible_values": ["all_career"]}
+        },
+        {
+          "column": "result",
+          "type": "character varying",
+          "nullable": false,
+          "description": "Result side for this method bucket",
+          "value_format": {"possible_values": ["win", "loss"]}
+        },
+        {
+          "column": "method_category",
+          "type": "character varying",
+          "nullable": false,
+          "description": "Method category",
+          "value_format": {"possible_values": ["ko_tko", "submission", "decision", "dq", "other"]}
+        },
+        {
+          "column": "count",
+          "type": "integer",
+          "nullable": true,
+          "description": "Number of career fights in this result/method bucket"
         }
       ]
     },
@@ -199,6 +346,37 @@
           "type": "boolean",
           "nullable": true,
           "description": "Is this the main event"
+        },
+        {
+          "column": "is_title_bout",
+          "type": "boolean",
+          "nullable": true,
+          "description": "Whether this fight is a title bout"
+        },
+        {
+          "column": "bout_status",
+          "type": "character varying",
+          "nullable": true,
+          "description": "Tapology-derived bout status",
+          "value_format": {"possible_values": ["scheduled", "completed", "cancelled", "postponed", "unknown"]}
+        },
+        {
+          "column": "cancellation_reason",
+          "type": "character varying",
+          "nullable": true,
+          "description": "Cancellation or postponement reason from Tapology when available"
+        },
+        {
+          "column": "tapology_bout_url",
+          "type": "character varying",
+          "nullable": true,
+          "description": "URL to Tapology bout page"
+        },
+        {
+          "column": "tapology_last_scraped_at",
+          "type": "timestamp without time zone",
+          "nullable": true,
+          "description": "Timestamp when Tapology bout enrichment last succeeded"
         },
         {
           "column": "order",
@@ -287,6 +465,24 @@
               "nc"
             ]
           }
+        },
+        {
+          "column": "weigh_in_result",
+          "type": "character varying",
+          "nullable": true,
+          "description": "Tapology weigh-in result for this fighter in this match"
+        },
+        {
+          "column": "fight_night_weight",
+          "type": "character varying",
+          "nullable": true,
+          "description": "Tapology fight-night weight for this fighter in this match"
+        },
+        {
+          "column": "weight_gain",
+          "type": "character varying",
+          "nullable": true,
+          "description": "Tapology weight gain from weigh-in to fight night for this fighter in this match"
         }
       ]
     },

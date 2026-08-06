@@ -8,7 +8,12 @@ from common.base_model import BaseModel
 # 2. 의존성이 적은 모델부터 (Foreign Key 관계 고려)
 from common.models import WeightClassModel
 from event.models import EventModel
-from fighter.models import FighterModel, RankingModel
+from fighter.models import (
+    FighterModel,
+    RankingModel,
+    FighterPromotionRecordModel,
+    FighterMethodRecordModel,
+)
 
 # 3. Match 관련 모델들 (의존성 순서 고려)
 from match.models import (

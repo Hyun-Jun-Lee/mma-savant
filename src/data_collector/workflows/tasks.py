@@ -32,12 +32,16 @@ from data_collector.workflows.data_store import (
     save_sig_str_match_stat,
     save_rankings
 )
+from data_collector.workflows.tapology_tasks import (
+    enrich_fighter_tapology_profile_task,
+    enrich_match_tapology_metadata_task,
+)
+from data_collector.clients import TapologyClient
 from data_collector.scripts.scrape_nationality import (
     slugify_name,
     parse_hometown_from_html,
     extract_nationality,
     fetch_nationality_from_tapology,
-    TapologyClient,
 )
 
 RANDOM_DELAY = random.randint(1, 5)
@@ -321,7 +325,7 @@ async def enrich_fighter_nationality_task(crawler_fn: Callable) -> None:
 
             # 1) Tapology (MMA 전문 DB, 높은 커버리지)
             nationality = await fetch_nationality_from_tapology(
-                name, nickname, client=tapology_client,
+                name, nickname, client=tapology_client, crawler_fn=crawler_fn,
             )
             if nationality:
                 async with get_async_db_context() as session:

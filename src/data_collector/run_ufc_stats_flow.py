@@ -19,6 +19,8 @@ from data_collector.workflows.tasks import (
     scrap_match_detail_task,
     scrap_rankings_task,
     enrich_fighter_nationality_task,
+    enrich_fighter_tapology_profile_task,
+    enrich_match_tapology_metadata_task,
 )
 
 # 태스크 매핑
@@ -30,11 +32,23 @@ TASK_MAP = {
     "match-detail": ("Match details", scrap_match_detail_task),
     "rankings": ("Rankings", scrap_rankings_task),
     "nationality": ("Fighter nationality", enrich_fighter_nationality_task),
+    "tapology-profiles": ("Tapology fighter profiles", enrich_fighter_tapology_profile_task),
+    "tapology-bouts": ("Tapology bout metadata", enrich_match_tapology_metadata_task),
 }
 
 # 전체 실행 순서
 ALL_TASKS = ["fighters", "events", "upcoming-events", "event-detail", "match-detail", "rankings"]
-PLAYWRIGHT_TASKS = {"fighters", "events", "upcoming-events", "event-detail", "match-detail", "rankings"}
+PLAYWRIGHT_TASKS = {
+    "fighters",
+    "events",
+    "upcoming-events",
+    "event-detail",
+    "match-detail",
+    "rankings",
+    "nationality",
+    "tapology-profiles",
+    "tapology-bouts",
+}
 
 
 def setup_logging():
@@ -134,6 +148,8 @@ Available tasks:
   match-detail     - 매치 상세 정보 크롤링
   rankings         - 랭킹 정보 크롤링
   nationality      - 파이터 국적 enrichment (Tapology + UFC.com fallback)
+  tapology-profiles - Tapology fighter profile enrichment
+  tapology-bouts   - Tapology bout metadata enrichment
         """
     )
     parser.add_argument(

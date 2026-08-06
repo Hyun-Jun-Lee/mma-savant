@@ -1,7 +1,7 @@
-from datetime import date
+from datetime import date, datetime
 from typing import Optional
 
-from sqlalchemy import Column, String, Float, Integer, Boolean, ForeignKey
+from sqlalchemy import Column, String, Float, Integer, Boolean, ForeignKey, Date, DateTime, UniqueConstraint
 from sqlalchemy.orm import relationship
 from pydantic import ConfigDict
 
@@ -25,12 +25,44 @@ class FighterSchema(BaseSchema):
     birthdate: Optional[date] = None
     detail_url: Optional[str] = None
     nationality: Optional[str] = None
+    tapology_url: Optional[str] = None
+    born: Optional[str] = None
+    fighting_out_of: Optional[str] = None
+    affiliation: Optional[str] = None
+    gym: Optional[str] = None
+    current_streak: Optional[str] = None
+    last_fight_name: Optional[str] = None
+    last_fight_date: Optional[date] = None
+    last_fight_promotion: Optional[str] = None
+    tapology_last_scraped_at: Optional[datetime] = None
 
     wins: int = 0
     losses: int = 0
     draws: int = 0
 
     model_config = ConfigDict(from_attributes=True)
+
+
+class FighterPromotionRecordSchema(BaseSchema):
+    fighter_id: int
+    promotion_name: str
+    wins: int = 0
+    losses: int = 0
+    draws: int = 0
+    no_contests: int = 0
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class FighterMethodRecordSchema(BaseSchema):
+    fighter_id: int
+    scope: str = "all_career"
+    result: str
+    method_category: str
+    count: int = 0
+
+    model_config = ConfigDict(from_attributes=True)
+
 
 class RankingSchema(BaseSchema):
     fighter_id: int
@@ -59,6 +91,16 @@ class FighterModel(BaseModel):
     belt = Column(Boolean, default=False)
     detail_url = Column(String)
     nationality = Column(String)
+    tapology_url = Column(String)
+    born = Column(String)
+    fighting_out_of = Column(String)
+    affiliation = Column(String)
+    gym = Column(String)
+    current_streak = Column(String)
+    last_fight_name = Column(String)
+    last_fight_date = Column(Date)
+    last_fight_promotion = Column(String)
+    tapology_last_scraped_at = Column(DateTime)
 
     wins = Column(Integer, default=0)
     losses = Column(Integer, default=0)
@@ -67,6 +109,8 @@ class FighterModel(BaseModel):
     fighter_matches = relationship("FighterMatchModel", back_populates="fighter")
     matches = relationship("MatchModel", secondary="fighter_match", viewonly=True)
     rankings = relationship("RankingModel", back_populates="fighter")
+    promotion_records = relationship("FighterPromotionRecordModel", back_populates="fighter")
+    method_records = relationship("FighterMethodRecordModel", back_populates="fighter")
 
     @classmethod
     def from_schema(cls, fighter: FighterSchema) -> None:
@@ -87,6 +131,16 @@ class FighterModel(BaseModel):
             detail_url=fighter.detail_url,
             birthdate=fighter.birthdate,
             nationality=fighter.nationality,
+            tapology_url=fighter.tapology_url,
+            born=fighter.born,
+            fighting_out_of=fighter.fighting_out_of,
+            affiliation=fighter.affiliation,
+            gym=fighter.gym,
+            current_streak=fighter.current_streak,
+            last_fight_name=fighter.last_fight_name,
+            last_fight_date=fighter.last_fight_date,
+            last_fight_promotion=fighter.last_fight_promotion,
+            tapology_last_scraped_at=fighter.tapology_last_scraped_at,
         )   
         
     def to_schema(self) -> FighterSchema:
@@ -109,9 +163,97 @@ class FighterModel(BaseModel):
             detail_url=self.detail_url,
             birthdate=self.birthdate,
             nationality=self.nationality,
+            tapology_url=self.tapology_url,
+            born=self.born,
+            fighting_out_of=self.fighting_out_of,
+            affiliation=self.affiliation,
+            gym=self.gym,
+            current_streak=self.current_streak,
+            last_fight_name=self.last_fight_name,
+            last_fight_date=self.last_fight_date,
+            last_fight_promotion=self.last_fight_promotion,
+            tapology_last_scraped_at=self.tapology_last_scraped_at,
             created_at=self.created_at,
             updated_at=self.updated_at,
         )
+
+
+class FighterPromotionRecordModel(BaseModel):
+    __tablename__ = "fighter_promotion_record"
+    __table_args__ = (
+        UniqueConstraint("fighter_id", "promotion_name", name="uq_fighter_promotion_record_key"),
+    )
+
+    fighter_id = Column(Integer, ForeignKey("fighter.id"), nullable=False)
+    promotion_name = Column(String, nullable=False)
+    wins = Column(Integer, default=0)
+    losses = Column(Integer, default=0)
+    draws = Column(Integer, default=0)
+    no_contests = Column(Integer, default=0)
+
+    fighter = relationship("FighterModel", back_populates="promotion_records")
+
+    @classmethod
+    def from_schema(cls, record: FighterPromotionRecordSchema) -> "FighterPromotionRecordModel":
+        return cls(
+            fighter_id=record.fighter_id,
+            promotion_name=record.promotion_name,
+            wins=record.wins,
+            losses=record.losses,
+            draws=record.draws,
+            no_contests=record.no_contests,
+        )
+
+    def to_schema(self) -> FighterPromotionRecordSchema:
+        return FighterPromotionRecordSchema(
+            id=self.id,
+            fighter_id=self.fighter_id,
+            promotion_name=self.promotion_name,
+            wins=self.wins,
+            losses=self.losses,
+            draws=self.draws,
+            no_contests=self.no_contests,
+            created_at=self.created_at,
+            updated_at=self.updated_at,
+        )
+
+
+class FighterMethodRecordModel(BaseModel):
+    __tablename__ = "fighter_method_record"
+    __table_args__ = (
+        UniqueConstraint("fighter_id", "scope", "result", "method_category", name="uq_fighter_method_record_key"),
+    )
+
+    fighter_id = Column(Integer, ForeignKey("fighter.id"), nullable=False)
+    scope = Column(String, nullable=False, default="all_career")
+    result = Column(String, nullable=False)
+    method_category = Column(String, nullable=False)
+    count = Column(Integer, default=0)
+
+    fighter = relationship("FighterModel", back_populates="method_records")
+
+    @classmethod
+    def from_schema(cls, record: FighterMethodRecordSchema) -> "FighterMethodRecordModel":
+        return cls(
+            fighter_id=record.fighter_id,
+            scope=record.scope,
+            result=record.result,
+            method_category=record.method_category,
+            count=record.count,
+        )
+
+    def to_schema(self) -> FighterMethodRecordSchema:
+        return FighterMethodRecordSchema(
+            id=self.id,
+            fighter_id=self.fighter_id,
+            scope=self.scope,
+            result=self.result,
+            method_category=self.method_category,
+            count=self.count,
+            created_at=self.created_at,
+            updated_at=self.updated_at,
+        )
+
 
 class RankingModel(BaseModel):
     __tablename__ = "ranking"
