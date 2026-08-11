@@ -90,7 +90,12 @@ class TapologyBoutEnrichmentStats:
     failed: int = 0
 
 
-@task(retries=2, cache_policy=NO_CACHE)
+@task(
+    name="tapology-profiles",
+    task_run_name="tapology-profiles",
+    retries=2,
+    cache_policy=NO_CACHE,
+)
 async def enrich_fighter_tapology_profile_task(
     crawler_fn: Callable | None = None,
     batch_size: int = 50,
@@ -163,7 +168,12 @@ async def enrich_fighter_tapology_profile_task(
     )
 
 
-@task(retries=2, cache_policy=NO_CACHE)
+@task(
+    name="tapology-bouts",
+    task_run_name="tapology-bouts",
+    retries=2,
+    cache_policy=NO_CACHE,
+)
 async def enrich_match_tapology_metadata_task(
     crawler_fn: Callable | None = None,
     batch_size: int = 50,

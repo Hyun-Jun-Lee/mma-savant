@@ -20,6 +20,7 @@ from data_collector.workflows.tasks import (
     scrap_match_detail_task,
     scrap_rankings_task,
     enrich_fighter_nationality_task,
+    enrich_event_geocoding_task,
     enrich_fighter_tapology_profile_task,
     enrich_match_tapology_metadata_task,
 )
@@ -33,6 +34,7 @@ TASK_MAP = {
     "match-detail": ("Match details", scrap_match_detail_task),
     "rankings": ("Rankings", scrap_rankings_task),
     "nationality": ("Fighter nationality", enrich_fighter_nationality_task),
+    "event-geocoding": ("Event geocoding", enrich_event_geocoding_task),
     "tapology-profiles": ("Tapology fighter profiles", enrich_fighter_tapology_profile_task),
     "tapology-bouts": ("Tapology bout metadata", enrich_match_tapology_metadata_task),
 }
@@ -40,14 +42,19 @@ TASK_MAP = {
 # 전체 실행 순서
 ALL_TASKS = [
     "fighters",
+    "nationality",
     "tapology-profiles",
     "events",
     "upcoming-events",
+    "event-geocoding",
     "event-detail",
     "match-detail",
     "tapology-bouts",
     "rankings",
 ]
+NO_CRAWLER_TASKS = {
+    "event-geocoding",
+}
 PLAYWRIGHT_TASKS = {
     "fighters",
     "events",
@@ -137,7 +144,10 @@ async def run_ufc_stats_flow(tasks: Optional[List[str]] = None):
             else:
                 crawler_fn = crawl_with_httpx
             LOGGER.info(f"{display_name} scraping started")
-            await task_fn(crawler_fn)
+            if task_name in NO_CRAWLER_TASKS:
+                await task_fn()
+            else:
+                await task_fn(crawler_fn)
             LOGGER.info(f"{display_name} scraping completed")
     finally:
         await close_playwright_crawler()
@@ -165,6 +175,7 @@ Available tasks:
   match-detail     - 매치 상세 정보 크롤링
   rankings         - 랭킹 정보 크롤링
   nationality      - 파이터 국적 enrichment (Tapology + UFC.com fallback)
+  event-geocoding  - 이벤트 위치 geocoding enrichment
   tapology-profiles - Tapology fighter profile enrichment
   tapology-bouts   - Tapology bout metadata enrichment
         """

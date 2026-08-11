@@ -65,7 +65,12 @@ async def replace_rankings_if_not_empty(session, rankings, logger: logging.Logge
     return True
 
 
-@task(retries=3, cache_policy=NO_CACHE)
+@task(
+    name="fighters",
+    task_run_name="fighters",
+    retries=3,
+    cache_policy=NO_CACHE,
+)
 async def scrap_all_fighter_task(crawler_fn: Callable) -> None:
     logger = get_run_logger()
     logger.info("scrap_all_fighter_task started")
@@ -90,7 +95,12 @@ async def scrap_all_fighter_task(crawler_fn: Callable) -> None:
     logger.info("scrap_all_fighter_task completed")
 
 
-@task(retries=3, cache_policy=NO_CACHE)
+@task(
+    name="events",
+    task_run_name="events",
+    retries=3,
+    cache_policy=NO_CACHE,
+)
 async def scrap_all_events_task(crawler_fn: Callable, batch_size: int = 30) -> None:
     logger = get_run_logger()
     all_events_url = "http://ufcstats.com/statistics/events/completed?page=all"
@@ -125,7 +135,12 @@ async def scrap_all_events_task(crawler_fn: Callable, batch_size: int = 30) -> N
     logger.info(f"scrap_all_events_task completed: {saved_count}/{total_events} events saved")
 
 
-@task(retries=3, cache_policy=NO_CACHE)
+@task(
+    name="upcoming-events",
+    task_run_name="upcoming-events",
+    retries=3,
+    cache_policy=NO_CACHE,
+)
 async def scrap_upcoming_events_task(crawler_fn: Callable, batch_size: int = 30) -> None:
     logger = get_run_logger()
     upcoming_events_url = "http://ufcstats.com/statistics/events/upcoming?page=all"
@@ -204,7 +219,12 @@ async def process_event_detail(
                 return
             logger.info(f"[{idx+1}/{total_events}] - event_id: {event_id} event detail scraping completed : {saved_match_count} matches saved")
 
-@task(retries=3, cache_policy=NO_CACHE)
+@task(
+    name="event-detail",
+    task_run_name="event-detail",
+    retries=3,
+    cache_policy=NO_CACHE,
+)
 async def scrap_event_detail_task(crawler_fn: Callable) -> None:
     logger = get_run_logger()
     logger.info("scrap_event_detail_task started")
@@ -264,7 +284,12 @@ async def process_detail_url(
         logger.info(f"[{idx+1}/{total_urls}] - detail_url: {detail_url} match detail scraping completed")
 
 
-@task(retries=3, cache_policy=NO_CACHE)
+@task(
+    name="match-detail",
+    task_run_name="match-detail",
+    retries=3,
+    cache_policy=NO_CACHE,
+)
 async def scrap_match_detail_task(crawler_fn: Callable) -> None:
     logger = get_run_logger()
     logger.info("scrap_match_detail_task started")
@@ -290,7 +315,12 @@ async def scrap_match_detail_task(crawler_fn: Callable) -> None:
     logger.info("scrap_match_detail_task completed")
 
 
-@task(retries=3, cache_policy=NO_CACHE)
+@task(
+    name="rankings",
+    task_run_name="rankings",
+    retries=3,
+    cache_policy=NO_CACHE,
+)
 async def scrap_rankings_task(crawler_fn: Callable) -> None:
     logger = get_run_logger()
     logger.info("scrap_rankings_task started")
@@ -313,7 +343,12 @@ async def scrap_rankings_task(crawler_fn: Callable) -> None:
             logger.error(format_exc())
 
 
-@task(retries=2, cache_policy=NO_CACHE)
+@task(
+    name="nationality",
+    task_run_name="nationality",
+    retries=2,
+    cache_policy=NO_CACHE,
+)
 async def enrich_fighter_nationality_task(crawler_fn: Callable) -> None:
     """Tapology를 1차 소스로 사용하고, UFC.com을 fallback으로 사용한다."""
     logger = get_run_logger()
@@ -407,7 +442,12 @@ async def enrich_fighter_nationality_task(crawler_fn: Callable) -> None:
     )
 
 
-@task(retries=2, cache_policy=NO_CACHE)
+@task(
+    name="event-geocoding",
+    task_run_name="event-geocoding",
+    retries=2,
+    cache_policy=NO_CACHE,
+)
 async def enrich_event_geocoding_task() -> None:
     from geopy.geocoders import Nominatim
     from geopy.extra.rate_limiter import RateLimiter
