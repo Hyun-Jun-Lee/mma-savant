@@ -105,6 +105,7 @@ psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$TEST_DB_NAME" <<-
         location VARCHAR,
         event_date DATE,
         url VARCHAR,
+        tapology_url VARCHAR,
         latitude FLOAT,
         longitude FLOAT,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,

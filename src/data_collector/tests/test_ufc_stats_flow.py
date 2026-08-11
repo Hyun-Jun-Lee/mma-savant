@@ -9,9 +9,10 @@ class _DummyLogger:
 
 
 @pytest.mark.asyncio
-async def test_scheduled_flow_runs_tapology_enrichment_with_playwright(monkeypatch):
+async def test_scheduled_flow_runs_tapology_enrichment_with_scrapling(monkeypatch):
     calls = []
     playwright_crawler = object()
+    tapology_crawler = object()
 
     def make_task(name):
         async def task(crawler_fn):
@@ -27,6 +28,7 @@ async def test_scheduled_flow_runs_tapology_enrichment_with_playwright(monkeypat
 
     monkeypatch.setattr(ufc_stats_flow, "get_run_logger", lambda: _DummyLogger())
     monkeypatch.setattr(ufc_stats_flow, "crawl_with_playwright", playwright_crawler)
+    monkeypatch.setattr(ufc_stats_flow, "crawl_tapology_with_scrapling", tapology_crawler)
     monkeypatch.setattr(ufc_stats_flow, "invalidate_all_cache", lambda: 0)
     monkeypatch.setattr(ufc_stats_flow, "close_playwright_crawler", close_playwright)
 
@@ -54,13 +56,13 @@ async def test_scheduled_flow_runs_tapology_enrichment_with_playwright(monkeypat
     assert calls == [
         ("fighters", playwright_crawler),
         ("nationality", playwright_crawler),
-        ("tapology-profiles", playwright_crawler),
+        ("tapology-profiles", tapology_crawler),
         ("events", playwright_crawler),
         ("upcoming-events", playwright_crawler),
         ("geocoding", None),
         ("event-detail", playwright_crawler),
         ("match-detail", playwright_crawler),
-        ("tapology-bouts", playwright_crawler),
+        ("tapology-bouts", tapology_crawler),
         ("rankings", playwright_crawler),
         ("close", None),
     ]

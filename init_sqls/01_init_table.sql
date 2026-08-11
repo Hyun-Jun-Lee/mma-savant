@@ -79,6 +79,7 @@ CREATE TABLE IF NOT EXISTS event (
     location VARCHAR,
     event_date DATE,
     url VARCHAR,
+    tapology_url VARCHAR,
     latitude FLOAT,
     longitude FLOAT,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,

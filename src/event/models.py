@@ -16,6 +16,7 @@ class EventSchema(BaseSchema):
     location: str = None
     event_date: Optional[date] = None
     url: Optional[str] = None
+    tapology_url: Optional[str] = None
     latitude: Optional[float] = None
     longitude: Optional[float] = None
 
@@ -32,6 +33,7 @@ class EventModel(BaseModel):
     location = Column(String)
     event_date = Column(Date)
     url = Column(String)
+    tapology_url = Column(String)
     latitude = Column(Float)
     longitude = Column(Float)
 
@@ -44,6 +46,7 @@ class EventModel(BaseModel):
             location=event.location,
             event_date=event.event_date,
             url=event.url,
+            tapology_url=event.tapology_url,
             latitude=event.latitude,
             longitude=event.longitude,
         )
@@ -56,6 +59,7 @@ class EventModel(BaseModel):
             location=self.location,
             event_date=self.event_date,
             url=self.url,
+            tapology_url=self.tapology_url,
             latitude=self.latitude,
             longitude=self.longitude,
             created_at=self.created_at,

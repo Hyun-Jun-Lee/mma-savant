@@ -1,6 +1,7 @@
 import httpx
 import pytest
 
+from data_collector import crawler
 from data_collector.crawler import _selector_for_url, crawl_with_httpx
 
 
@@ -73,3 +74,63 @@ async def test_crawl_with_httpx_warns_without_traceback_for_expected_missing_pag
     assert result is None
     assert f"status={status_code}" in caplog.text
     assert "Traceback" not in capsys.readouterr().out
+
+
+class _FetcherWithCloudflareSolver:
+    @staticmethod
+    def fetch(url, solve_cloudflare=False):
+        return None
+
+
+class _FetcherWithoutCloudflareSolver:
+    @staticmethod
+    def fetch(url):
+        return None
+
+
+class _FetcherWithKwargs:
+    @staticmethod
+    def fetch(url, **kwargs):
+        return None
+
+
+def test_tapology_scrapling_options_enable_cloudflare_solver_when_supported():
+    kwargs = crawler._build_tapology_scrapling_fetch_kwargs(_FetcherWithCloudflareSolver)
+
+    assert kwargs["solve_cloudflare"] is True
+
+
+def test_tapology_scrapling_options_enable_cloudflare_solver_for_kwargs_fetcher():
+    kwargs = crawler._build_tapology_scrapling_fetch_kwargs(_FetcherWithKwargs)
+
+    assert kwargs["solve_cloudflare"] is True
+
+
+def test_tapology_scrapling_options_skip_cloudflare_solver_when_unsupported():
+    kwargs = crawler._build_tapology_scrapling_fetch_kwargs(_FetcherWithoutCloudflareSolver)
+
+    assert "solve_cloudflare" not in kwargs
+
+
+@pytest.mark.asyncio
+async def test_tapology_scrapling_crawler_waits_before_fetch(monkeypatch):
+    calls = []
+
+    async def fake_sleep(delay):
+        calls.append(("sleep", delay))
+
+    def fake_fetch(url):
+        calls.append(("fetch", url))
+        return "<html></html>"
+
+    monkeypatch.setattr(crawler.random, "uniform", lambda start, end: 3.25)
+    monkeypatch.setattr(crawler.asyncio, "sleep", fake_sleep)
+    monkeypatch.setattr(crawler, "_fetch_tapology_with_scrapling", fake_fetch)
+
+    html = await crawler.crawl_tapology_with_scrapling("https://www.tapology.com/search?term=test")
+
+    assert html == "<html></html>"
+    assert calls == [
+        ("sleep", 3.25),
+        ("fetch", "https://www.tapology.com/search?term=test"),
+    ]

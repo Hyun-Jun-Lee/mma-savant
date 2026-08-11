@@ -18,6 +18,13 @@
         "fighter_promotion_record": "1:N - Fighter can have Tapology career records by promotion",
         "fighter_method_record": "1:N - Fighter can have Tapology career records by result method"
       },
+      "indexes": [
+        {
+          "name": "idx_fighter_tapology_url",
+          "columns": ["tapology_url"],
+          "description": "Lookup index for Tapology fighter profile matching"
+        }
+      ],
       "columns": [
         {
           "column": "name",
@@ -190,8 +197,41 @@
     "fighter_promotion_record": {
       "description": "Tapology career record split by promotion",
       "relationships": {
-        "fighter": "N:1 - Promotion record belongs to one fighter"
+        "fighter": "N:1 - Promotion record belongs to one fighter with ON DELETE CASCADE"
       },
+      "constraints": [
+        {
+          "name": "fk_fighter_promotion_record_fighter",
+          "type": "foreign_key",
+          "columns": ["fighter_id"],
+          "references": "fighter(id)",
+          "on_delete": "CASCADE"
+        },
+        {
+          "name": "uq_fighter_promotion_record_key",
+          "type": "unique",
+          "columns": ["fighter_id", "promotion_name"],
+          "description": "One promotion-level Tapology record per fighter and promotion"
+        }
+      ],
+      "indexes": [
+        {
+          "name": "idx_fighter_promotion_record_fighter_id",
+          "columns": ["fighter_id"],
+          "description": "Lookup index for all Tapology promotion records for a fighter"
+        },
+        {
+          "name": "idx_fighter_promotion_record_name",
+          "columns": ["promotion_name"],
+          "description": "Lookup index for aggregation by promotion"
+        },
+        {
+          "name": "uq_fighter_promotion_record_key",
+          "columns": ["fighter_id", "promotion_name"],
+          "unique": true,
+          "description": "Idempotent upsert key for Tapology promotion records"
+        }
+      ],
       "columns": [
         {
           "column": "fighter_id",
@@ -234,8 +274,36 @@
     "fighter_method_record": {
       "description": "Tapology career record split by result and method category",
       "relationships": {
-        "fighter": "N:1 - Method record belongs to one fighter"
+        "fighter": "N:1 - Method record belongs to one fighter with ON DELETE CASCADE"
       },
+      "constraints": [
+        {
+          "name": "fk_fighter_method_record_fighter",
+          "type": "foreign_key",
+          "columns": ["fighter_id"],
+          "references": "fighter(id)",
+          "on_delete": "CASCADE"
+        },
+        {
+          "name": "uq_fighter_method_record_key",
+          "type": "unique",
+          "columns": ["fighter_id", "scope", "result", "method_category"],
+          "description": "One method-level Tapology record per fighter, scope, result, and method category"
+        }
+      ],
+      "indexes": [
+        {
+          "name": "idx_fighter_method_record_fighter_id",
+          "columns": ["fighter_id"],
+          "description": "Lookup index for all Tapology method records for a fighter"
+        },
+        {
+          "name": "uq_fighter_method_record_key",
+          "columns": ["fighter_id", "scope", "result", "method_category"],
+          "unique": true,
+          "description": "Idempotent upsert key for Tapology method records"
+        }
+      ],
       "columns": [
         {
           "column": "fighter_id",
@@ -308,6 +376,12 @@
           "description": "URL to event detail page on source site"
         },
         {
+          "column": "tapology_url",
+          "type": "character varying",
+          "nullable": true,
+          "description": "URL to event detail page on Tapology"
+        },
+        {
           "column": "latitude",
           "type": "double precision",
           "nullable": true,
@@ -328,6 +402,18 @@
         "fighter_match": "1:N - Match has multiple fighter participants (usually 2)",
         "weight_class": "N:1 - Match belongs to one weight class"
       },
+      "indexes": [
+        {
+          "name": "idx_match_tapology_bout_url",
+          "columns": ["tapology_bout_url"],
+          "description": "Lookup index for Tapology bout matching"
+        },
+        {
+          "name": "idx_match_bout_status",
+          "columns": ["bout_status"],
+          "description": "Lookup index for scheduled, completed, cancelled, and postponed Tapology bout status"
+        }
+      ],
       "columns": [
         {
           "column": "event_id",
@@ -432,7 +518,7 @@
       ]
     },
     "fighter_match": {
-      "description": "Junction table linking fighters to matches with results",
+      "description": "Junction table linking fighters to matches with results and fighter-side Tapology weigh-in metadata",
       "relationships": {
         "fighter": "N:1 - References one fighter",
         "match": "N:1 - References one match",

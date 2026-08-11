@@ -9,6 +9,7 @@ from datetime import datetime
 from data_collector.crawler import (
     close_playwright_crawler,
     crawl_with_httpx,
+    crawl_tapology_with_scrapling,
     crawl_with_playwright,
 )
 from data_collector.workflows.tasks import (
@@ -37,7 +38,16 @@ TASK_MAP = {
 }
 
 # 전체 실행 순서
-ALL_TASKS = ["fighters", "events", "upcoming-events", "event-detail", "match-detail", "rankings"]
+ALL_TASKS = [
+    "fighters",
+    "tapology-profiles",
+    "events",
+    "upcoming-events",
+    "event-detail",
+    "match-detail",
+    "tapology-bouts",
+    "rankings",
+]
 PLAYWRIGHT_TASKS = {
     "fighters",
     "events",
@@ -46,6 +56,8 @@ PLAYWRIGHT_TASKS = {
     "match-detail",
     "rankings",
     "nationality",
+}
+SCRAPLING_TASKS = {
     "tapology-profiles",
     "tapology-bouts",
 }
@@ -118,7 +130,12 @@ async def run_ufc_stats_flow(tasks: Optional[List[str]] = None):
                 continue
 
             display_name, task_fn = TASK_MAP[task_name]
-            crawler_fn = crawl_with_playwright if task_name in PLAYWRIGHT_TASKS else crawl_with_httpx
+            if task_name in SCRAPLING_TASKS:
+                crawler_fn = crawl_tapology_with_scrapling
+            elif task_name in PLAYWRIGHT_TASKS:
+                crawler_fn = crawl_with_playwright
+            else:
+                crawler_fn = crawl_with_httpx
             LOGGER.info(f"{display_name} scraping started")
             await task_fn(crawler_fn)
             LOGGER.info(f"{display_name} scraping completed")

@@ -1,5 +1,6 @@
 import asyncio
 import logging
+import re
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta
@@ -19,13 +20,16 @@ from data_collector.scrapers.tapology_scraper import (
     parse_tapology_fighter_profile,
 )
 from data_collector.workflows.data_store import (
+    save_tapology_event_url,
     save_tapology_fighter_enrichment,
     save_tapology_match_enrichment,
 )
 from data_collector.workflows.tapology_matcher import (
     MatchState,
     match_tapology_bout,
+    match_tapology_event_candidates,
     parse_tapology_bout_candidates,
+    parse_tapology_event_candidates,
     parse_tapology_fighter_candidates,
     match_tapology_fighter_candidates,
 )
@@ -36,6 +40,17 @@ from match.models import FighterMatchModel, MatchModel
 
 ProfileSaver = Callable[[int, str | None, TapologyFighterProfile, datetime], Awaitable[object]]
 BoutSaver = Callable[[int, str | None, TapologyBoutMetadata, datetime], Awaitable[object]]
+EventUrlSaver = Callable[[int, str], Awaitable[object]]
+
+_TAPOLOGY_CHALLENGE_MARKERS = (
+    "just a moment...",
+    "checking if the site connection is secure",
+    "cf-challenge",
+    "challenge-platform",
+    "/cdn-cgi/challenge-platform/",
+    "cf-browser-verification",
+    "cloudflare ray id",
+)
 
 
 @dataclass
@@ -53,6 +68,8 @@ class TapologyLocalBout:
     event_date: date | None
     tapology_bout_url: str | None
     fighters: list[TapologyLocalBoutFighter]
+    event_id: int | None = None
+    event_tapology_url: str | None = None
 
 
 @dataclass
@@ -171,12 +188,17 @@ async def enrich_match_tapology_metadata_task(
                     logger,
                 )
 
+        async def save_event_url(event_id: int, tapology_url: str) -> object:
+            async with get_async_db_context() as session:
+                return await save_tapology_event_url(session, event_id, tapology_url)
+
         stats = await enrich_match_tapology_metadata_batch(
             bouts,
             client,
             save_bout,
             logger,
             crawler_fn=crawler_fn,
+            save_event_url=save_event_url,
         )
     finally:
         client.close()
@@ -261,6 +283,8 @@ async def select_matches_for_tapology_bout_enrichment(
                 event_date=event.event_date,
                 tapology_bout_url=match.tapology_bout_url,
                 fighters=fighters,
+                event_id=event.id,
+                event_tapology_url=event.tapology_url,
             )
         )
 
@@ -285,18 +309,51 @@ async def enrich_fighter_tapology_profile_batch(
                 match_result = match_tapology_fighter_candidates(fighter, [])
             else:
                 search_html = await _fetch_tapology_search_page(client, crawler_fn, fighter.name)
+                if not search_html:
+                    stats.failed += 1
+                    logger.warning(
+                        "Tapology profile search fetch failed for fighter_id=%s name=%s",
+                        fighter.id,
+                        fighter.name,
+                    )
+                    continue
+                if _is_tapology_challenge_page(search_html):
+                    stats.failed += 1
+                    logger.warning(
+                        "Tapology profile search blocked by challenge for fighter_id=%s name=%s title=%s",
+                        fighter.id,
+                        fighter.name,
+                        _extract_html_title(search_html),
+                    )
+                    continue
+                candidates = parse_tapology_fighter_candidates(search_html)
+                if not candidates:
+                    stats.skipped += 1
+                    logger.warning(
+                        "Skipping Tapology profile enrichment for fighter_id=%s name=%s "
+                        "state=%s reason=no_candidates title=%s excerpt=%s",
+                        fighter.id,
+                        fighter.name,
+                        MatchState.NOT_FOUND,
+                        _extract_html_title(search_html),
+                        _compact_html_excerpt(search_html),
+                    )
+                    continue
                 match_result = match_tapology_fighter_candidates(
                     fighter,
-                    parse_tapology_fighter_candidates(search_html or ""),
+                    candidates,
                 )
             if match_result.state != MatchState.MATCHED or not match_result.url:
                 stats.skipped += 1
                 logger.warning(
-                    "Skipping Tapology profile enrichment for fighter_id=%s name=%s state=%s reason=%s",
+                    "Skipping Tapology profile enrichment for fighter_id=%s name=%s "
+                    "state=%s reason=%s candidate_count=%d candidates=%s",
                     fighter.id,
                     fighter.name,
                     match_result.state,
                     match_result.reason,
+                    len(match_result.candidates),
+                    _format_candidate_preview(match_result.candidates),
                 )
                 continue
 
@@ -305,6 +362,15 @@ async def enrich_fighter_tapology_profile_batch(
             if not html:
                 stats.failed += 1
                 logger.warning("Tapology profile page fetch failed for %s", match_result.url)
+                continue
+            if _is_tapology_challenge_page(html):
+                stats.failed += 1
+                logger.warning(
+                    "Tapology profile page blocked by challenge for fighter_id=%s url=%s title=%s",
+                    fighter.id,
+                    match_result.url,
+                    _extract_html_title(html),
+                )
                 continue
 
             profile = parse_tapology_fighter_profile(html)
@@ -328,9 +394,12 @@ async def enrich_match_tapology_metadata_batch(
     save_bout: BoutSaver,
     logger: logging.Logger,
     crawler_fn: Callable | None = None,
+    save_event_url: EventUrlSaver | None = None,
 ) -> TapologyBoutEnrichmentStats:
     stats = TapologyBoutEnrichmentStats(total=len(bouts))
     scraped_at = utc_now()
+    event_url_cache: dict[tuple[int | None, str | None, date | None], str | None] = {}
+    event_page_cache: dict[str, str | None] = {}
 
     for index, bout in enumerate(bouts, 1):
         fighter_names = [fighter.name for fighter in bout.fighters]
@@ -345,30 +414,43 @@ async def enrich_match_tapology_metadata_batch(
         try:
             bout_url = bout.tapology_bout_url
             if not bout_url:
-                search_html = await _fetch_tapology_search_page(client, crawler_fn, _build_bout_search_term(bout))
-                candidates = parse_tapology_bout_candidates(search_html or "")
-                match_result = match_tapology_bout(
-                    candidates,
-                    fighter_names=fighter_names,
-                    event_date=bout.event_date,
-                    event_name=bout.event_name,
+                bout_url = await _resolve_tapology_bout_url_from_event_page(
+                    bout,
+                    client,
+                    logger,
+                    crawler_fn,
+                    save_event_url,
+                    event_url_cache,
+                    event_page_cache,
                 )
-                if match_result.state != MatchState.MATCHED or not match_result.url:
-                    stats.skipped += 1
-                    logger.warning(
-                        "Skipping Tapology bout enrichment for match_id=%s state=%s reason=%s",
-                        bout.match_id,
-                        match_result.state,
-                        match_result.reason,
+                if not bout_url:
+                    bout_url, direct_search_failed = await _resolve_tapology_bout_url_from_direct_search(
+                        bout,
+                        client,
+                        logger,
+                        crawler_fn,
                     )
+                if not bout_url:
+                    if direct_search_failed:
+                        stats.failed += 1
+                    else:
+                        stats.skipped += 1
                     continue
-                bout_url = match_result.url
 
             stats.matched += 1
             html = await _fetch_tapology_bout_detail_page(client, crawler_fn, bout_url)
             if not html:
                 stats.failed += 1
                 logger.warning("Tapology bout page fetch failed for %s", bout_url)
+                continue
+            if _is_tapology_challenge_page(html):
+                stats.failed += 1
+                logger.warning(
+                    "Tapology bout page blocked by challenge for match_id=%s url=%s title=%s",
+                    bout.match_id,
+                    bout_url,
+                    _extract_html_title(html),
+                )
                 continue
 
             metadata = parse_tapology_bout_metadata(html, fighter_names=fighter_names)
@@ -390,6 +472,256 @@ def _build_bout_search_term(bout: TapologyLocalBout) -> str:
     if bout.event_name:
         return f"{fighter_part} {bout.event_name}"
     return fighter_part
+
+
+async def _resolve_tapology_bout_url_from_event_page(
+    bout: TapologyLocalBout,
+    client: TapologyClient,
+    logger: logging.Logger,
+    crawler_fn: Callable | None,
+    save_event_url: EventUrlSaver | None,
+    event_url_cache: dict[tuple[int | None, str | None, date | None], str | None],
+    event_page_cache: dict[str, str | None],
+) -> str | None:
+    fighter_names = [fighter.name for fighter in bout.fighters]
+    event_url = await _resolve_tapology_event_url(
+        bout,
+        client,
+        logger,
+        crawler_fn,
+        save_event_url,
+        event_url_cache,
+    )
+    if not event_url:
+        return None
+
+    if event_url in event_page_cache:
+        event_html = event_page_cache[event_url]
+    else:
+        event_html = await _fetch_tapology_event_detail_page(client, crawler_fn, event_url)
+        event_page_cache[event_url] = event_html
+
+    if not event_html:
+        logger.warning(
+            "Tapology event page fetch failed for match_id=%s event=%s event_url=%s",
+            bout.match_id,
+            bout.event_name,
+            event_url,
+        )
+        return None
+    if _is_tapology_challenge_page(event_html):
+        logger.warning(
+            "Tapology event page blocked by challenge for match_id=%s event=%s event_url=%s title=%s",
+            bout.match_id,
+            bout.event_name,
+            event_url,
+            _extract_html_title(event_html),
+        )
+        return None
+
+    candidates = parse_tapology_bout_candidates(event_html)
+    for candidate in candidates:
+        if candidate.parsed_date is None:
+            candidate.parsed_date = bout.event_date
+    match_result = match_tapology_bout(
+        candidates,
+        fighter_names=fighter_names,
+        event_date=bout.event_date,
+        event_name=bout.event_name,
+    )
+    if match_result.state == MatchState.MATCHED and match_result.url:
+        logger.info(
+            "Tapology bout matched from event page match_id=%s event_url=%s bout_url=%s",
+            bout.match_id,
+            event_url,
+            match_result.url,
+        )
+        return match_result.url
+
+    logger.warning(
+        "Skipping Tapology event-page bout match for match_id=%s state=%s reason=%s "
+        "event_url=%s candidate_count=%d candidates=%s",
+        bout.match_id,
+        match_result.state,
+        match_result.reason,
+        event_url,
+        len(match_result.candidates),
+        _format_candidate_preview(match_result.candidates),
+    )
+    return None
+
+
+async def _resolve_tapology_event_url(
+    bout: TapologyLocalBout,
+    client: TapologyClient,
+    logger: logging.Logger,
+    crawler_fn: Callable | None,
+    save_event_url: EventUrlSaver | None,
+    event_url_cache: dict[tuple[int | None, str | None, date | None], str | None],
+) -> str | None:
+    if bout.event_tapology_url:
+        return bout.event_tapology_url
+    if not bout.event_name:
+        return None
+
+    cache_key = (bout.event_id, bout.event_name, bout.event_date)
+    if cache_key in event_url_cache:
+        return event_url_cache[cache_key]
+
+    search_html = await _fetch_tapology_search_page(client, crawler_fn, bout.event_name)
+    if not search_html:
+        logger.warning(
+            "Tapology event search fetch failed for match_id=%s event=%s",
+            bout.match_id,
+            bout.event_name,
+        )
+        event_url_cache[cache_key] = None
+        return None
+    if _is_tapology_challenge_page(search_html):
+        logger.warning(
+            "Tapology event search blocked by challenge for match_id=%s event=%s title=%s",
+            bout.match_id,
+            bout.event_name,
+            _extract_html_title(search_html),
+        )
+        event_url_cache[cache_key] = None
+        return None
+
+    candidates = parse_tapology_event_candidates(search_html)
+    match_result = match_tapology_event_candidates(
+        candidates,
+        event_name=bout.event_name,
+        event_date=bout.event_date,
+    )
+    if match_result.state == MatchState.MATCHED and match_result.url:
+        event_url_cache[cache_key] = match_result.url
+        if bout.event_id is not None and save_event_url is not None:
+            await save_event_url(bout.event_id, match_result.url)
+        logger.info(
+            "Tapology event matched for match_id=%s event=%s event_url=%s",
+            bout.match_id,
+            bout.event_name,
+            match_result.url,
+        )
+        return match_result.url
+
+    logger.warning(
+        "Tapology event match skipped for match_id=%s event=%s state=%s reason=%s "
+        "candidate_count=%d candidates=%s",
+        bout.match_id,
+        bout.event_name,
+        match_result.state,
+        match_result.reason,
+        len(match_result.candidates),
+        _format_candidate_preview(match_result.candidates),
+    )
+    event_url_cache[cache_key] = None
+    return None
+
+
+async def _resolve_tapology_bout_url_from_direct_search(
+    bout: TapologyLocalBout,
+    client: TapologyClient,
+    logger: logging.Logger,
+    crawler_fn: Callable | None,
+) -> tuple[str | None, bool]:
+    fighter_names = [fighter.name for fighter in bout.fighters]
+    search_term = _build_bout_search_term(bout)
+    search_html = await _fetch_tapology_search_page(client, crawler_fn, search_term)
+    if not search_html:
+        logger.warning(
+            "Tapology bout search fetch failed for match_id=%s fighters=%s event=%s search_term=%s",
+            bout.match_id,
+            fighter_names,
+            bout.event_name,
+            search_term,
+        )
+        return None, True
+    if _is_tapology_challenge_page(search_html):
+        logger.warning(
+            "Tapology bout search blocked by challenge for match_id=%s fighters=%s event=%s "
+            "search_term=%s title=%s",
+            bout.match_id,
+            fighter_names,
+            bout.event_name,
+            search_term,
+            _extract_html_title(search_html),
+        )
+        return None, True
+
+    candidates = parse_tapology_bout_candidates(search_html)
+    if not candidates:
+        logger.warning(
+            "Skipping Tapology direct bout search for match_id=%s state=%s reason=no_candidates "
+            "search_term=%s title=%s excerpt=%s",
+            bout.match_id,
+            MatchState.NOT_FOUND,
+            search_term,
+            _extract_html_title(search_html),
+            _compact_html_excerpt(search_html),
+        )
+        return None, False
+
+    match_result = match_tapology_bout(
+        candidates,
+        fighter_names=fighter_names,
+        event_date=bout.event_date,
+        event_name=bout.event_name,
+    )
+    if match_result.state == MatchState.MATCHED and match_result.url:
+        logger.info(
+            "Tapology bout matched from direct search match_id=%s search_term=%s bout_url=%s",
+            bout.match_id,
+            search_term,
+            match_result.url,
+        )
+        return match_result.url, False
+
+    logger.warning(
+        "Skipping Tapology direct bout match for match_id=%s state=%s reason=%s "
+        "search_term=%s candidate_count=%d candidates=%s",
+        bout.match_id,
+        match_result.state,
+        match_result.reason,
+        search_term,
+        len(match_result.candidates),
+        _format_candidate_preview(match_result.candidates),
+    )
+    return None, False
+
+
+def _is_tapology_challenge_page(html: str | None) -> bool:
+    if not html:
+        return False
+    normalized = html.lower()
+    return any(marker in normalized for marker in _TAPOLOGY_CHALLENGE_MARKERS)
+
+
+def _extract_html_title(html: str | None) -> str | None:
+    if not html:
+        return None
+    match = re.search(r"<title[^>]*>(.*?)</title>", html, flags=re.IGNORECASE | re.DOTALL)
+    if not match:
+        return None
+    return re.sub(r"\s+", " ", match.group(1)).strip() or None
+
+
+def _compact_html_excerpt(html: str, *, limit: int = 160) -> str:
+    text = re.sub(r"<[^>]+>", " ", html)
+    text = re.sub(r"\s+", " ", text).strip()
+    return text[:limit]
+
+
+def _format_candidate_preview(candidates: list | tuple) -> str:
+    preview = []
+    for candidate in candidates[:3]:
+        text = (
+            getattr(candidate, "display_name", None)
+            or getattr(candidate, "text", None)
+            or getattr(candidate, "url", "")
+        )
+        preview.append(str(text))
+    return " | ".join(preview)
 
 
 async def _fetch_tapology_search_page(
@@ -420,3 +752,13 @@ async def _fetch_tapology_bout_detail_page(
     if crawler_fn:
         return await crawler_fn(path_or_url)
     return await asyncio.to_thread(client.fetch_bout_detail_page, path_or_url)
+
+
+async def _fetch_tapology_event_detail_page(
+    client: TapologyClient,
+    crawler_fn: Callable | None,
+    path_or_url: str,
+) -> str | None:
+    if crawler_fn:
+        return await crawler_fn(path_or_url)
+    return await asyncio.to_thread(client.fetch_event_detail_page, path_or_url)

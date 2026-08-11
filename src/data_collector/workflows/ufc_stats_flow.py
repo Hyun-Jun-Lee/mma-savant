@@ -5,6 +5,7 @@ from prefect.logging import get_run_logger
 
 from data_collector.crawler import (
     close_playwright_crawler,
+    crawl_tapology_with_scrapling,
     crawl_with_playwright,
 )
 from dashboard.services import invalidate_all_cache
@@ -43,7 +44,7 @@ async def run_ufc_stats_flow():
 
         # enrich Tapology fighter profiles
         logger.info("Tapology fighter profile enrichment started")
-        await enrich_fighter_tapology_profile_task(crawl_with_playwright)
+        await enrich_fighter_tapology_profile_task(crawl_tapology_with_scrapling)
         logger.info("Tapology fighter profile enrichment completed")
 
         # scrape events
@@ -73,7 +74,7 @@ async def run_ufc_stats_flow():
 
         # enrich Tapology bout metadata
         logger.info("Tapology bout metadata enrichment started")
-        await enrich_match_tapology_metadata_task(crawl_with_playwright)
+        await enrich_match_tapology_metadata_task(crawl_tapology_with_scrapling)
         logger.info("Tapology bout metadata enrichment completed")
 
         # scrape rankings

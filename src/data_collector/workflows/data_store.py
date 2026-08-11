@@ -3,7 +3,7 @@ import re
 from datetime import datetime
 from typing import List
 
-from sqlalchemy import delete, select
+from sqlalchemy import select
 
 from common.utils import normalize_name
 from fighter.models import (
@@ -11,8 +11,6 @@ from fighter.models import (
     RankingSchema,
     FighterModel,
     RankingModel,
-    FighterPromotionRecordModel,
-    FighterMethodRecordModel,
 )
 from event.models import EventSchema, EventModel
 from data_collector.scrapers.tapology_scraper import TapologyBoutMetadata, TapologyFighterProfile
@@ -104,6 +102,21 @@ async def save_events(session, events: List[EventSchema]):
     
     await session.commit()
 
+
+async def save_tapology_event_url(session, event_id: int, tapology_url: str) -> EventSchema | None:
+    existing_model_query = await session.execute(
+        select(EventModel).where(EventModel.id == event_id)
+    )
+    existing_model = existing_model_query.scalar_one_or_none()
+    if existing_model is None:
+        return None
+
+    existing_model.tapology_url = tapology_url
+
+    await session.commit()
+    await session.refresh(existing_model)
+    return existing_model.to_schema()
+
 async def save_match(session, match: MatchSchema) -> MatchSchema:
     existing_model_query = await session.execute(
         select(MatchModel).where(MatchModel.detail_url == match.detail_url)
@@ -154,34 +167,6 @@ async def save_tapology_fighter_enrichment(
         setattr(existing_model, key, value)
 
     existing_model.tapology_last_scraped_at = scraped_at
-
-    await session.execute(
-        delete(FighterPromotionRecordModel)
-        .where(FighterPromotionRecordModel.fighter_id == fighter_id)
-    )
-    await session.execute(
-        delete(FighterMethodRecordModel)
-        .where(FighterMethodRecordModel.fighter_id == fighter_id)
-    )
-
-    for record in profile.promotion_records:
-        session.add(FighterPromotionRecordModel(
-            fighter_id=fighter_id,
-            promotion_name=record.promotion_name,
-            wins=record.wins,
-            losses=record.losses,
-            draws=record.draws,
-            no_contests=record.no_contests,
-        ))
-
-    for record in profile.method_records:
-        session.add(FighterMethodRecordModel(
-            fighter_id=fighter_id,
-            scope=record.scope,
-            result=record.result,
-            method_category=record.method_category,
-            count=record.count,
-        ))
 
     await session.commit()
     await session.refresh(existing_model)
@@ -251,8 +236,6 @@ async def save_tapology_match_enrichment(
             fighter_match.weigh_in_result = fighter_metadata.weigh_in_result
         if fighter_metadata.fight_night_weight is not None:
             fighter_match.fight_night_weight = fighter_metadata.fight_night_weight
-        if fighter_metadata.weight_gain is not None:
-            fighter_match.weight_gain = fighter_metadata.weight_gain
 
     await session.commit()
     await session.refresh(existing_model)

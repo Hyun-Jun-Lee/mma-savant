@@ -63,6 +63,24 @@ class TapologyBoutMatchResult:
     reason: str | None = None
 
 
+@dataclass
+class TapologyEventCandidate:
+    url: str
+    display_name: str
+    normalized_name: str
+    parsed_date: date | None = None
+
+
+@dataclass
+class TapologyEventMatchResult:
+    state: MatchState
+    url: str | None = None
+    display_name: str | None = None
+    confidence: float = 0.0
+    candidates: list[TapologyEventCandidate] = field(default_factory=list)
+    reason: str | None = None
+
+
 def match_tapology_fighter(
     fighter: FighterSchema,
     client: TapologySearchClient,
@@ -177,9 +195,10 @@ def parse_tapology_bout_candidates(html: str) -> list[TapologyBoutCandidate]:
 
     for link in soup.select('a[href*="/fightcenter/bouts/"]'):
         href = link.get("href")
-        text = _clean_text(link.get_text(" ", strip=True))
-        if not href or not text:
+        link_text = _clean_text(link.get_text(" ", strip=True))
+        if not href:
             continue
+        text = _clean_text(f"{link_text} {_slug_text_from_url(href)}")
 
         url = _absolute_url(href)
         if url in seen_urls:
@@ -198,6 +217,108 @@ def parse_tapology_bout_candidates(html: str) -> list[TapologyBoutCandidate]:
     return candidates
 
 
+def parse_tapology_event_candidates(search_html: str) -> list[TapologyEventCandidate]:
+    soup = BeautifulSoup(search_html, "html.parser")
+    candidates: list[TapologyEventCandidate] = []
+    seen_urls: set[str] = set()
+
+    for link in soup.select('a[href*="/fightcenter/events/"]'):
+        href = link.get("href")
+        display_name = _clean_text(link.get_text(" ", strip=True))
+        if not href or not display_name:
+            continue
+
+        url = _absolute_url(href)
+        if url in seen_urls:
+            continue
+        seen_urls.add(url)
+
+        candidates.append(
+            TapologyEventCandidate(
+                url=url,
+                display_name=display_name,
+                normalized_name=_normalize_match_name(display_name),
+                parsed_date=_extract_date(display_name),
+            )
+        )
+
+    return candidates
+
+
+def match_tapology_event_candidates(
+    candidates: Iterable[TapologyEventCandidate],
+    *,
+    event_name: str | None,
+    event_date: date | None,
+) -> TapologyEventMatchResult:
+    candidate_list = list(candidates)
+    if not candidate_list:
+        return TapologyEventMatchResult(state=MatchState.NOT_FOUND, reason="no_candidates")
+
+    normalized_event_name = _normalize_match_name(event_name or "")
+    scored: list[tuple[TapologyEventCandidate, float, bool, bool, bool, bool]] = []
+    for candidate in candidate_list:
+        exact_name = bool(normalized_event_name and candidate.normalized_name == normalized_event_name)
+        contained_name = bool(
+            normalized_event_name
+            and (
+                normalized_event_name in candidate.normalized_name
+                or candidate.normalized_name in normalized_event_name
+            )
+        )
+        ufc_number_matches = _ufc_event_number_matches(normalized_event_name, candidate.normalized_name)
+        date_matches = _date_matches_with_tolerance(candidate.parsed_date, event_date)
+
+        score = 0.0
+        if exact_name:
+            score += 0.7
+        elif contained_name:
+            score += 0.55
+        if ufc_number_matches:
+            score += 0.2
+        if date_matches:
+            score += 0.3
+
+        scored.append((candidate, score, exact_name, contained_name, ufc_number_matches, date_matches))
+
+    high_confidence = [
+        candidate
+        for candidate, score, exact_name, contained_name, ufc_number_matches, date_matches in scored
+        if (exact_name or contained_name or ufc_number_matches) and score >= 0.7
+    ]
+    if len(high_confidence) == 1:
+        candidate = high_confidence[0]
+        return TapologyEventMatchResult(
+            state=MatchState.MATCHED,
+            url=candidate.url,
+            display_name=candidate.display_name,
+            confidence=0.95,
+            candidates=high_confidence,
+            reason="event_name_and_optional_date",
+        )
+    if len(high_confidence) > 1:
+        logger.warning("Ambiguous Tapology event match for event=%s date=%s", event_name, event_date)
+        return TapologyEventMatchResult(
+            state=MatchState.AMBIGUOUS,
+            candidates=high_confidence,
+            reason="multiple_high_confidence_events",
+        )
+
+    name_only = [
+        candidate
+        for candidate, _, exact_name, contained_name, _, _ in scored
+        if exact_name or contained_name
+    ]
+    if name_only:
+        return TapologyEventMatchResult(
+            state=MatchState.LOW_CONFIDENCE,
+            candidates=name_only,
+            reason="event_name_without_sufficient_confidence",
+        )
+
+    return TapologyEventMatchResult(state=MatchState.NOT_FOUND, reason="no_event_name_match")
+
+
 def match_tapology_bout(
     candidates: Iterable[TapologyBoutCandidate],
     *,
@@ -212,7 +333,7 @@ def match_tapology_bout(
     scored: list[tuple[TapologyBoutCandidate, float, bool, bool, bool]] = []
     for candidate in candidate_list:
         pair_matches = _fighter_pair_matches(candidate, fighter_names)
-        date_matches = event_date is not None and candidate.parsed_date == event_date
+        date_matches = _date_matches_with_tolerance(candidate.parsed_date, event_date)
         event_matches = _event_name_matches(candidate, event_name)
 
         score = 0.0
@@ -274,7 +395,40 @@ def _filter_by_nickname(
 
 def _fighter_pair_matches(candidate: TapologyBoutCandidate, fighter_names: Iterable[str]) -> bool:
     normalized_text = candidate.normalized_text
-    return all(_normalize_match_name(name) in normalized_text for name in fighter_names)
+    return all(_name_tokens_match(name, normalized_text) for name in fighter_names)
+
+
+def _name_tokens_match(name: str, normalized_text: str) -> bool:
+    normalized_name = _normalize_match_name(name)
+    if not normalized_name:
+        return False
+    if normalized_name in normalized_text:
+        return True
+
+    position = 0
+    for token in normalized_name.split():
+        match_position = normalized_text.find(token, position)
+        if match_position == -1:
+            return False
+        position = match_position + len(token)
+    return True
+
+
+def _date_matches_with_tolerance(
+    candidate_date: date | None,
+    event_date: date | None,
+    *,
+    tolerance_days: int = 1,
+) -> bool:
+    if candidate_date is None or event_date is None:
+        return False
+    return abs((candidate_date - event_date).days) <= tolerance_days
+
+
+def _ufc_event_number_matches(event_name: str, candidate_name: str) -> bool:
+    event_match = re.search(r"\bufc\s+(\d+)\b", event_name)
+    candidate_match = re.search(r"\bufc\s+(\d+)\b", candidate_name)
+    return bool(event_match and candidate_match and event_match.group(1) == candidate_match.group(1))
 
 
 def _event_name_matches(candidate: TapologyBoutCandidate, event_name: str | None) -> bool:
@@ -312,7 +466,7 @@ def _extract_date(text: str) -> date | None:
 
 
 def _normalize_match_name(value: str) -> str:
-    without_nickname = re.sub(r'"[^"]*"', "", value)
+    without_nickname = re.sub(r'["\u201c\u201d][^"\u201c\u201d]*["\u201c\u201d]', "", value)
     without_nickname = re.sub(r"\([^)]*\)", "", without_nickname)
     normalized = normalize_name(without_nickname)
     normalized = re.sub(r"[^a-z0-9]+", " ", normalized)
@@ -320,7 +474,7 @@ def _normalize_match_name(value: str) -> str:
 
 
 def _extract_nickname(value: str) -> str | None:
-    match = re.search(r'"([^"]+)"', value)
+    match = re.search(r'["\u201c\u201d]([^"\u201c\u201d]+)["\u201c\u201d]', value)
     if match:
         return match.group(1).strip()
     match = re.search(r"\((?:\"?)([^)\"]+)(?:\"?)\)", value)
@@ -331,6 +485,12 @@ def _extract_nickname(value: str) -> str | None:
 
 def _absolute_url(path_or_url: str) -> str:
     return urljoin(f"{TAPOLOGY_BASE_URL}/", path_or_url)
+
+
+def _slug_text_from_url(path_or_url: str) -> str:
+    slug = path_or_url.rstrip("/").rsplit("/", 1)[-1]
+    slug = re.sub(r"^\d+-", "", slug)
+    return slug.replace("-", " ")
 
 
 def _clean_text(value: str) -> str:
