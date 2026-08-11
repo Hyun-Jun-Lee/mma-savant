@@ -6,6 +6,7 @@ import traceback
 from bs4 import BeautifulSoup
 
 from match.models import BasicMatchStatSchema, SigStrMatchStatSchema, FighterMatchSchema
+from data_collector.scrapers.fighter_lookup import resolve_fighter_id
 
 def parse_stat_with_of(text: str, kind: str) -> Dict[str, str]:
     """
@@ -113,7 +114,11 @@ async def scrap_match_basic_statistics(crawler_fn: Callable, match_detail_url: s
         fighter_text = cols[0].get_text(strip=False).lstrip()
         fighters = [name.strip() for name in fighter_text.split('\n') if name.strip()]
         fighter_1, fighter_2 = fighters[:2]
-        fighter_1_id, fighter_2_id = fighter_dict.get(fighter_1.lower().strip(), 0), fighter_dict.get(fighter_2.lower().strip(), 0)
+        fighter_links = cols[0].find_all('a')
+        fighter_1_link = fighter_links[0].get("href") if len(fighter_links) > 0 else None
+        fighter_2_link = fighter_links[1].get("href") if len(fighter_links) > 1 else None
+        fighter_1_id = resolve_fighter_id(fighter_1, fighter_1_link, fighter_dict) or 0
+        fighter_2_id = resolve_fighter_id(fighter_2, fighter_2_link, fighter_dict) or 0
         fighter_1_match = fighter_match_dict.get(fighter_1_id, None)
         fighter_2_match = fighter_match_dict.get(fighter_2_id, None)
         
@@ -210,9 +215,17 @@ async def scrap_match_significant_strikes(crawler_fn: Callable, match_detail_url
         fighter_text = cols[0].get_text(strip=False).lstrip()
         fighters = [name.strip() for name in fighter_text.split('\n') if name.strip()]
         fighter_1, fighter_2 = fighters[:2]
-        fighter_1_id, fighter_2_id = fighter_dict.get(fighter_1.lower().strip(), 0), fighter_dict.get(fighter_2.lower().strip(), 0)
+        fighter_links = cols[0].find_all('a')
+        fighter_1_link = fighter_links[0].get("href") if len(fighter_links) > 0 else None
+        fighter_2_link = fighter_links[1].get("href") if len(fighter_links) > 1 else None
+        fighter_1_id = resolve_fighter_id(fighter_1, fighter_1_link, fighter_dict) or 0
+        fighter_2_id = resolve_fighter_id(fighter_2, fighter_2_link, fighter_dict) or 0
         fighter_1_match = fighter_match_dict.get(fighter_1_id, None)
         fighter_2_match = fighter_match_dict.get(fighter_2_id, None)
+
+        if not fighter_1_match or not fighter_2_match:
+            logging.warning(f"매치 정보를 찾을 수 없습니다: {fighter_1} vs {fighter_2}, - {match_detail_url}")
+            continue
 
         # 모든 타격 데이터 추출
         head_data = [head.strip() for head in cols[3].get_text(strip=False).lstrip().split('\n') if head.strip()]
