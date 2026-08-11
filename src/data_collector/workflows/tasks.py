@@ -1,5 +1,6 @@
 import asyncio
 import random
+from collections import defaultdict
 from typing import List, Callable
 from traceback import format_exc
 import logging
@@ -45,6 +46,23 @@ from data_collector.scripts.scrape_nationality import (
 )
 
 RANDOM_DELAY = random.randint(1, 5)
+
+
+def build_fighter_lookup(fighters):
+    fighter_lookup = defaultdict(list)
+    for fighter in fighters:
+        fighter_lookup[fighter.name.lower().strip()].append(fighter)
+    return dict(fighter_lookup)
+
+
+async def replace_rankings_if_not_empty(session, rankings, logger: logging.Logger) -> bool:
+    if not rankings:
+        logger.warning("No rankings collected; preserving existing ranking table")
+        return False
+
+    await delete_all_rankings(session)
+    await save_rankings(session, rankings)
+    return True
 
 
 @task(retries=3, cache_policy=NO_CACHE)
@@ -194,7 +212,7 @@ async def scrap_event_detail_task(crawler_fn: Callable) -> None:
         events_list = await get_events(session)
         all_fighters = await get_all_fighter(session, page_size=None)
 
-    fighter_name_to_id_map = {fighter.name: fighter.id for fighter in all_fighters}
+    fighter_name_to_id_map = build_fighter_lookup(all_fighters)
 
     semaphore = asyncio.Semaphore(3)
 
@@ -255,7 +273,7 @@ async def scrap_match_detail_task(crawler_fn: Callable) -> None:
         all_fighters = await get_all_fighter(session, page_size=None)
         fighter_match_dict = await get_match_fighter_mapping(session)
 
-    fighter_name_to_id_map = {fighter.name: fighter.id for fighter in all_fighters}
+    fighter_name_to_id_map = build_fighter_lookup(all_fighters)
 
     semaphore = asyncio.Semaphore(3)
 
@@ -287,9 +305,9 @@ async def scrap_rankings_task(crawler_fn: Callable) -> None:
             return
 
         try:
-            await delete_all_rankings(session)
-            await save_rankings(session, rankings)
-            logger.info(f"scrap_rankings_task completed : {len(rankings)} rankings saved")
+            saved = await replace_rankings_if_not_empty(session, rankings, logger)
+            if saved:
+                logger.info(f"scrap_rankings_task completed : {len(rankings)} rankings saved")
         except Exception as e:
             logger.error(f"scrap_rankings_task failed: {str(e)}")
             logger.error(format_exc())

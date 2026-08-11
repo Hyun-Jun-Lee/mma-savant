@@ -65,6 +65,19 @@ class BlockingTapologyClient(FakeTapologyClient):
         raise AssertionError("crawler_fn should fetch Tapology event detail pages")
 
 
+class NoopTapologyClient:
+    def close(self) -> None:
+        pass
+
+
+class FakeDbContext:
+    async def __aenter__(self):
+        return object()
+
+    async def __aexit__(self, exc_type, exc, tb):
+        return None
+
+
 TAPOLOGY_CHALLENGE_HTML = """
 <html>
   <head><title>Just a moment...</title></head>
@@ -264,6 +277,41 @@ async def test_enrich_fighter_tapology_profile_batch_treats_challenge_search_as_
     assert stats.skipped == 0
     assert stats.failed == 1
     assert "blocked by challenge" in caplog.text
+
+
+@pytest.mark.asyncio
+async def test_enrich_fighter_tapology_profile_task_walks_all_batches(monkeypatch):
+    seen_after_ids = []
+    processed_ids = []
+
+    async def select_batch(session, *, batch_size, stale_days, after_id=None):
+        seen_after_ids.append(after_id)
+        if after_id is None:
+            return [
+                FighterSchema(id=1, name="First Fighter"),
+                FighterSchema(id=2, name="Second Fighter"),
+            ]
+        if after_id == 2:
+            return [FighterSchema(id=5, name="Fifth Fighter")]
+        return []
+
+    async def enrich_batch(fighters, client, save_profile, logger, crawler_fn=None):
+        processed_ids.extend(fighter.id for fighter in fighters)
+        return tapology_tasks.TapologyProfileEnrichmentStats(
+            total=len(fighters),
+            updated=len(fighters),
+        )
+
+    monkeypatch.setattr(tapology_tasks, "get_run_logger", lambda: logging.getLogger(__name__))
+    monkeypatch.setattr(tapology_tasks, "get_async_db_context", lambda: FakeDbContext())
+    monkeypatch.setattr(tapology_tasks, "TapologyClient", NoopTapologyClient)
+    monkeypatch.setattr(tapology_tasks, "select_fighters_for_tapology_profile_enrichment", select_batch)
+    monkeypatch.setattr(tapology_tasks, "enrich_fighter_tapology_profile_batch", enrich_batch)
+
+    await tapology_tasks.enrich_fighter_tapology_profile_task.fn(batch_size=2)
+
+    assert seen_after_ids == [None, 2, 5]
+    assert processed_ids == [1, 2, 5]
 
 
 @pytest.mark.asyncio
@@ -694,3 +742,54 @@ async def test_enrich_match_tapology_metadata_batch_treats_challenge_search_as_f
     assert stats.skipped == 0
     assert stats.failed == 1
     assert "blocked by challenge" in caplog.text
+
+
+@pytest.mark.asyncio
+async def test_enrich_match_tapology_metadata_task_walks_all_batches(monkeypatch):
+    seen_after_ids = []
+    processed_match_ids = []
+
+    def bout(match_id: int) -> tapology_tasks.TapologyLocalBout:
+        return tapology_tasks.TapologyLocalBout(
+            match_id=match_id,
+            event_name="UFC Test",
+            event_date=datetime(2026, 1, 1).date(),
+            tapology_bout_url=None,
+            fighters=[
+                tapology_tasks.TapologyLocalBoutFighter(1, 1, "Fighter One"),
+                tapology_tasks.TapologyLocalBoutFighter(2, 2, "Fighter Two"),
+            ],
+        )
+
+    async def select_batch(session, *, batch_size, stale_days, after_id=None):
+        seen_after_ids.append(after_id)
+        if after_id is None:
+            return [bout(10), bout(20)]
+        if after_id == 20:
+            return [bout(25)]
+        return []
+
+    async def enrich_batch(
+        bouts,
+        client,
+        save_bout,
+        logger,
+        crawler_fn=None,
+        save_event_url=None,
+    ):
+        processed_match_ids.extend(local_bout.match_id for local_bout in bouts)
+        return tapology_tasks.TapologyBoutEnrichmentStats(
+            total=len(bouts),
+            updated=len(bouts),
+        )
+
+    monkeypatch.setattr(tapology_tasks, "get_run_logger", lambda: logging.getLogger(__name__))
+    monkeypatch.setattr(tapology_tasks, "get_async_db_context", lambda: FakeDbContext())
+    monkeypatch.setattr(tapology_tasks, "TapologyClient", NoopTapologyClient)
+    monkeypatch.setattr(tapology_tasks, "select_matches_for_tapology_bout_enrichment", select_batch)
+    monkeypatch.setattr(tapology_tasks, "enrich_match_tapology_metadata_batch", enrich_batch)
+
+    await tapology_tasks.enrich_match_tapology_metadata_task.fn(batch_size=2)
+
+    assert seen_after_ids == [None, 20, 25]
+    assert processed_match_ids == [10, 20, 25]

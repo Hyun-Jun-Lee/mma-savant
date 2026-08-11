@@ -9,6 +9,7 @@ from bs4 import BeautifulSoup
 from match.models import MatchSchema
 from common.models import WeightClassSchema
 from common.utils import utc_now
+from data_collector.scrapers.fighter_lookup import resolve_fighter_id
 
 import re
 
@@ -87,11 +88,16 @@ async def scrap_event_detail(crawler_fn: Callable, event_url: str, event_id: int
             continue
             
         # Extract fighter information
-        fighter_text = cols[1].get_text(strip=False).lstrip().replace('\n', '')
-        fighters = [f.strip() for f in fighter_text.split('  ') if f.strip()]
-        fighter_1, fighter_2 = fighters
-        fighter_1_id = fighter_name_to_id_map.get(fighter_1.lower().strip())
-        fighter_2_id = fighter_name_to_id_map.get(fighter_2.lower().strip())
+        fighter_links = cols[1].find_all('a')
+        fighters = [link.get_text(strip=True) for link in fighter_links if link.get_text(strip=True)]
+        if len(fighters) < 2:
+            fighter_text = cols[1].get_text(strip=False).lstrip().replace('\n', '')
+            fighters = [f.strip() for f in fighter_text.split('  ') if f.strip()]
+        fighter_1, fighter_2 = fighters[:2]
+        fighter_1_link = fighter_links[0].get("href") if len(fighter_links) > 0 else None
+        fighter_2_link = fighter_links[1].get("href") if len(fighter_links) > 1 else None
+        fighter_1_id = resolve_fighter_id(fighter_1, fighter_1_link, fighter_name_to_id_map)
+        fighter_2_id = resolve_fighter_id(fighter_2, fighter_2_link, fighter_name_to_id_map)
 
         # fighter_id가 None이면 로그 남기고 해당 매치 건너뛰기
         if fighter_1_id is None or fighter_2_id is None:

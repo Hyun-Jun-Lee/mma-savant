@@ -99,42 +99,56 @@ async def enrich_fighter_tapology_profile_task(
     logger = get_run_logger()
     logger.info("enrich_fighter_tapology_profile_task started")
 
-    async with get_async_db_context() as session:
-        fighters = await select_fighters_for_tapology_profile_enrichment(
-            session,
-            batch_size=batch_size,
-            stale_days=stale_days,
-        )
-
-    logger.info("Found %d fighters for Tapology profile enrichment", len(fighters))
-    if not fighters:
-        return
-
-    stats = TapologyProfileEnrichmentStats(total=len(fighters))
+    stats = TapologyProfileEnrichmentStats()
+    last_seen_id: int | None = None
     client = TapologyClient()
     try:
-        async def save_profile(
-            fighter_id: int,
-            tapology_url: str | None,
-            profile: TapologyFighterProfile,
-            scraped_at: datetime,
-        ) -> object:
+        while True:
             async with get_async_db_context() as session:
-                return await save_tapology_fighter_enrichment(
+                fighters = await select_fighters_for_tapology_profile_enrichment(
                     session,
-                    fighter_id,
-                    tapology_url,
-                    profile,
-                    scraped_at,
+                    batch_size=batch_size,
+                    stale_days=stale_days,
+                    after_id=last_seen_id,
                 )
 
-        stats = await enrich_fighter_tapology_profile_batch(
-            fighters,
-            client,
-            save_profile,
-            logger,
-            crawler_fn=crawler_fn,
-        )
+            if not fighters:
+                break
+
+            logger.info(
+                "Found %d fighters for Tapology profile enrichment after id=%s",
+                len(fighters),
+                last_seen_id,
+            )
+
+            async def save_profile(
+                fighter_id: int,
+                tapology_url: str | None,
+                profile: TapologyFighterProfile,
+                scraped_at: datetime,
+            ) -> object:
+                async with get_async_db_context() as session:
+                    return await save_tapology_fighter_enrichment(
+                        session,
+                        fighter_id,
+                        tapology_url,
+                        profile,
+                        scraped_at,
+                    )
+
+            batch_stats = await enrich_fighter_tapology_profile_batch(
+                fighters,
+                client,
+                save_profile,
+                logger,
+                crawler_fn=crawler_fn,
+            )
+            stats.total += batch_stats.total
+            stats.matched += batch_stats.matched
+            stats.updated += batch_stats.updated
+            stats.skipped += batch_stats.skipped
+            stats.failed += batch_stats.failed
+            last_seen_id = fighters[-1].id
     finally:
         client.close()
 
@@ -158,48 +172,62 @@ async def enrich_match_tapology_metadata_task(
     logger = get_run_logger()
     logger.info("enrich_match_tapology_metadata_task started")
 
-    async with get_async_db_context() as session:
-        bouts = await select_matches_for_tapology_bout_enrichment(
-            session,
-            batch_size=batch_size,
-            stale_days=stale_days,
-        )
-
-    logger.info("Found %d matches for Tapology bout enrichment", len(bouts))
-    if not bouts:
-        return
-
-    stats = TapologyBoutEnrichmentStats(total=len(bouts))
+    stats = TapologyBoutEnrichmentStats()
+    last_seen_id: int | None = None
     client = TapologyClient()
     try:
-        async def save_bout(
-            match_id: int,
-            tapology_bout_url: str | None,
-            metadata: TapologyBoutMetadata,
-            scraped_at: datetime,
-        ) -> object:
+        while True:
             async with get_async_db_context() as session:
-                return await save_tapology_match_enrichment(
+                bouts = await select_matches_for_tapology_bout_enrichment(
                     session,
-                    match_id,
-                    tapology_bout_url,
-                    metadata,
-                    scraped_at,
-                    logger,
+                    batch_size=batch_size,
+                    stale_days=stale_days,
+                    after_id=last_seen_id,
                 )
 
-        async def save_event_url(event_id: int, tapology_url: str) -> object:
-            async with get_async_db_context() as session:
-                return await save_tapology_event_url(session, event_id, tapology_url)
+            if not bouts:
+                break
 
-        stats = await enrich_match_tapology_metadata_batch(
-            bouts,
-            client,
-            save_bout,
-            logger,
-            crawler_fn=crawler_fn,
-            save_event_url=save_event_url,
-        )
+            logger.info(
+                "Found %d matches for Tapology bout enrichment after id=%s",
+                len(bouts),
+                last_seen_id,
+            )
+
+            async def save_bout(
+                match_id: int,
+                tapology_bout_url: str | None,
+                metadata: TapologyBoutMetadata,
+                scraped_at: datetime,
+            ) -> object:
+                async with get_async_db_context() as session:
+                    return await save_tapology_match_enrichment(
+                        session,
+                        match_id,
+                        tapology_bout_url,
+                        metadata,
+                        scraped_at,
+                        logger,
+                    )
+
+            async def save_event_url(event_id: int, tapology_url: str) -> object:
+                async with get_async_db_context() as session:
+                    return await save_tapology_event_url(session, event_id, tapology_url)
+
+            batch_stats = await enrich_match_tapology_metadata_batch(
+                bouts,
+                client,
+                save_bout,
+                logger,
+                crawler_fn=crawler_fn,
+                save_event_url=save_event_url,
+            )
+            stats.total += batch_stats.total
+            stats.matched += batch_stats.matched
+            stats.updated += batch_stats.updated
+            stats.skipped += batch_stats.skipped
+            stats.failed += batch_stats.failed
+            last_seen_id = bouts[-1].match_id
     finally:
         client.close()
 
@@ -219,20 +247,27 @@ async def select_fighters_for_tapology_profile_enrichment(
     *,
     batch_size: int = 50,
     stale_days: int = 30,
+    after_id: int | None = None,
 ) -> list[FighterSchema]:
     cutoff = utc_now() - timedelta(days=stale_days)
-    result = await session.execute(
-        select(FighterModel)
-        .where(
-            or_(
-                FighterModel.tapology_url.is_(None),
-                FighterModel.tapology_last_scraped_at.is_(None),
-                FighterModel.tapology_last_scraped_at < cutoff,
-            )
+    conditions = [
+        or_(
+            FighterModel.tapology_url.is_(None),
+            FighterModel.tapology_last_scraped_at.is_(None),
+            FighterModel.tapology_last_scraped_at < cutoff,
         )
+    ]
+    if after_id is not None:
+        conditions.append(FighterModel.id > after_id)
+
+    query = (
+        select(FighterModel)
+        .where(*conditions)
         .order_by(FighterModel.id)
         .limit(batch_size)
     )
+
+    result = await session.execute(query)
     return [fighter.to_schema() for fighter in result.scalars().all()]
 
 
@@ -241,21 +276,28 @@ async def select_matches_for_tapology_bout_enrichment(
     *,
     batch_size: int = 50,
     stale_days: int = 30,
+    after_id: int | None = None,
 ) -> list[TapologyLocalBout]:
     cutoff = utc_now() - timedelta(days=stale_days)
-    result = await session.execute(
+    conditions = [
+        or_(
+            MatchModel.tapology_bout_url.is_(None),
+            MatchModel.tapology_last_scraped_at.is_(None),
+            MatchModel.tapology_last_scraped_at < cutoff,
+        )
+    ]
+    if after_id is not None:
+        conditions.append(MatchModel.id > after_id)
+
+    query = (
         select(MatchModel, EventModel)
         .join(EventModel, EventModel.id == MatchModel.event_id)
-        .where(
-            or_(
-                MatchModel.tapology_bout_url.is_(None),
-                MatchModel.tapology_last_scraped_at.is_(None),
-                MatchModel.tapology_last_scraped_at < cutoff,
-            )
-        )
+        .where(*conditions)
         .order_by(MatchModel.id)
         .limit(batch_size)
     )
+
+    result = await session.execute(query)
 
     bouts: list[TapologyLocalBout] = []
     for match, event in result.all():
