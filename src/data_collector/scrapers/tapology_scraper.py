@@ -85,8 +85,6 @@ def parse_tapology_fighter_profile(html: str) -> TapologyFighterProfile:
         last_fight_name=last_fight,
         last_fight_date=last_fight_date,
         last_fight_promotion=last_fight_promotion,
-        promotion_records=parse_tapology_promotion_records(html),
-        method_records=parse_tapology_method_records(html),
     )
 
 
@@ -231,10 +229,9 @@ def _parse_fighter_bout_metadata(
         metadata = TapologyFighterBoutMetadata(
             fighter_name=fighter_name,
             weigh_in_result=_value_after_label(lines, ["Weigh-In Result"]),
-            fight_night_weight=_value_after_label(lines, ["Fight Night Weight"]),
-            weight_gain=_value_after_label(lines, ["Weight Gain"]),
+            fight_night_weight=_value_after_label(lines, ["Fight Day Weight", "Fight Night Weight"]),
         )
-        if any([metadata.weigh_in_result, metadata.fight_night_weight, metadata.weight_gain]):
+        if any([metadata.weigh_in_result, metadata.fight_night_weight]):
             records.append(metadata)
 
     if records:
@@ -244,10 +241,9 @@ def _parse_fighter_bout_metadata(
     metadata = TapologyFighterBoutMetadata(
         fighter_name=next(iter(fighter_names), None) if fighter_names else None,
         weigh_in_result=_value_after_label(lines, ["Weigh-In Result"]),
-        fight_night_weight=_value_after_label(lines, ["Fight Night Weight"]),
-        weight_gain=_value_after_label(lines, ["Weight Gain"]),
+        fight_night_weight=_value_after_label(lines, ["Fight Day Weight", "Fight Night Weight"]),
     )
-    if any([metadata.weigh_in_result, metadata.fight_night_weight, metadata.weight_gain]):
+    if any([metadata.weigh_in_result, metadata.fight_night_weight]):
         return [metadata]
     return []
 

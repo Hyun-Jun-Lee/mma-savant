@@ -12,19 +12,16 @@ from data_collector.scrapers.tapology_scraper import (
     TapologyBoutMetadata,
     TapologyFighterBoutMetadata,
     TapologyFighterProfile,
-    TapologyMethodRecord,
-    TapologyPromotionRecord,
 )
 from data_collector.workflows import tapology_tasks
 from data_collector.workflows.data_store import (
+    save_tapology_event_url,
     save_tapology_fighter_enrichment,
     save_tapology_match_enrichment,
 )
 from event.models import EventModel
 from fighter.models import (
-    FighterMethodRecordModel,
     FighterModel,
-    FighterPromotionRecordModel,
     FighterSchema,
 )
 from match.models import FighterMatchModel, MatchModel
@@ -34,14 +31,23 @@ class FakeTapologyClient:
     def __init__(self, search_pages: dict[str, str], detail_pages: dict[str, str] | None = None) -> None:
         self.search_pages = search_pages
         self.detail_pages = detail_pages or {}
+        self.search_terms: list[str] = []
+        self.detail_requests: list[str] = []
 
     def fetch_search_page(self, term: str) -> str | None:
+        self.search_terms.append(term)
         return self.search_pages.get(term)
 
     def fetch_fighter_detail_page(self, path_or_url: str) -> str | None:
+        self.detail_requests.append(path_or_url)
         return self.detail_pages.get(path_or_url)
 
     def fetch_bout_detail_page(self, path_or_url: str) -> str | None:
+        self.detail_requests.append(path_or_url)
+        return self.detail_pages.get(path_or_url)
+
+    def fetch_event_detail_page(self, path_or_url: str) -> str | None:
+        self.detail_requests.append(path_or_url)
         return self.detail_pages.get(path_or_url)
 
 
@@ -54,6 +60,20 @@ class BlockingTapologyClient(FakeTapologyClient):
 
     def fetch_bout_detail_page(self, path_or_url: str) -> str | None:
         raise AssertionError("crawler_fn should fetch Tapology bout detail pages")
+
+    def fetch_event_detail_page(self, path_or_url: str) -> str | None:
+        raise AssertionError("crawler_fn should fetch Tapology event detail pages")
+
+
+TAPOLOGY_CHALLENGE_HTML = """
+<html>
+  <head><title>Just a moment...</title></head>
+  <body>
+    <script src="/cdn-cgi/challenge-platform/h/b/orchestrate/chl_page/v1"></script>
+    Checking if the site connection is secure
+  </body>
+</html>
+"""
 
 
 @pytest_asyncio.fixture
@@ -68,8 +88,6 @@ async def sqlite_session():
                     FighterModel.__table__,
                     MatchModel.__table__,
                     FighterMatchModel.__table__,
-                    FighterPromotionRecordModel.__table__,
-                    FighterMethodRecordModel.__table__,
                 ],
             )
         )
@@ -84,7 +102,7 @@ async def sqlite_session():
 
 
 @pytest.mark.asyncio
-async def test_save_tapology_fighter_enrichment_updates_profile_and_replaces_records(sqlite_session):
+async def test_save_tapology_fighter_enrichment_updates_profile_only(sqlite_session):
     fighter = FighterModel(name="Alex Pereira", born="Existing Born")
     sqlite_session.add(fighter)
     await sqlite_session.commit()
@@ -95,14 +113,6 @@ async def test_save_tapology_fighter_enrichment_updates_profile_and_replaces_rec
         fighting_out_of="Bethel, Connecticut",
         affiliation="Teixeira MMA & Fitness",
         current_streak="1 Win",
-        promotion_records=[
-            TapologyPromotionRecord("UFC", wins=10, losses=2),
-            TapologyPromotionRecord("LFA", wins=1),
-        ],
-        method_records=[
-            TapologyMethodRecord(result="win", method_category="TKO", count=11),
-            TapologyMethodRecord(result="loss", method_category="SUB", count=1),
-        ],
     )
 
     await save_tapology_fighter_enrichment(
@@ -120,8 +130,6 @@ async def test_save_tapology_fighter_enrichment_updates_profile_and_replaces_rec
 
     second_profile = TapologyFighterProfile(
         born="Sao Bernardo do Campo, Brazil",
-        promotion_records=[TapologyPromotionRecord("UFC", wins=11, losses=2)],
-        method_records=[TapologyMethodRecord(result="win", method_category="DEC", count=2)],
     )
     await save_tapology_fighter_enrichment(
         sqlite_session,
@@ -134,20 +142,6 @@ async def test_save_tapology_fighter_enrichment_updates_profile_and_replaces_rec
     refreshed = await sqlite_session.get(FighterModel, fighter_id)
     assert refreshed.born == "Sao Bernardo do Campo, Brazil"
     assert refreshed.fighting_out_of == "Bethel, Connecticut"
-
-    promotions = (
-        await sqlite_session.execute(select(FighterPromotionRecordModel))
-    ).scalars().all()
-    methods = (
-        await sqlite_session.execute(select(FighterMethodRecordModel))
-    ).scalars().all()
-
-    assert len(promotions) == 1
-    assert promotions[0].promotion_name == "UFC"
-    assert promotions[0].wins == 11
-    assert len(methods) == 1
-    assert methods[0].method_category == "DEC"
-    assert methods[0].count == 2
 
 
 @pytest.mark.asyncio
@@ -250,6 +244,29 @@ async def test_enrich_fighter_tapology_profile_batch_uses_crawler_fn_when_provid
 
 
 @pytest.mark.asyncio
+async def test_enrich_fighter_tapology_profile_batch_treats_challenge_search_as_failed(caplog):
+    fighter = FighterSchema(id=1, name="Hamdy Abdelwahab")
+    client = FakeTapologyClient({"Hamdy Abdelwahab": TAPOLOGY_CHALLENGE_HTML})
+
+    async def save_profile(*args):
+        raise AssertionError("challenge search page should not be saved")
+
+    with caplog.at_level(logging.WARNING):
+        stats = await tapology_tasks.enrich_fighter_tapology_profile_batch(
+            [fighter],
+            client,
+            save_profile,
+            logging.getLogger(__name__),
+        )
+
+    assert stats.total == 1
+    assert stats.updated == 0
+    assert stats.skipped == 0
+    assert stats.failed == 1
+    assert "blocked by challenge" in caplog.text
+
+
+@pytest.mark.asyncio
 async def test_save_tapology_match_enrichment_updates_title_and_weigh_in(sqlite_session):
     event = EventModel(name="UFC 311", event_date=datetime(2025, 1, 18).date())
     fighter_1 = FighterModel(name="Umar Nurmagomedov")
@@ -261,7 +278,7 @@ async def test_save_tapology_match_enrichment_updates_title_and_weigh_in(sqlite_
     sqlite_session.add(match)
     await sqlite_session.flush()
     sqlite_session.add_all([
-        FighterMatchModel(fighter_id=fighter_1.id, match_id=match.id),
+        FighterMatchModel(fighter_id=fighter_1.id, match_id=match.id, weight_gain="existing gain"),
         FighterMatchModel(fighter_id=fighter_2.id, match_id=match.id),
     ])
     await sqlite_session.commit()
@@ -303,7 +320,7 @@ async def test_save_tapology_match_enrichment_updates_title_and_weigh_in(sqlite_
     ).scalars().all()
     assert fighter_matches[0].weigh_in_result == "135.0 lbs"
     assert fighter_matches[0].fight_night_weight == "156.8 lbs"
-    assert fighter_matches[0].weight_gain == "21.8 lbs"
+    assert fighter_matches[0].weight_gain == "existing gain"
     assert fighter_matches[1].weigh_in_result == "134.0 lbs"
 
 
@@ -342,6 +359,27 @@ async def test_save_tapology_match_enrichment_preserves_completed_result_on_canc
     assert refreshed.bout_status == "completed"
     assert refreshed.cancellation_reason is None
     assert refreshed.tapology_bout_url == "https://www.tapology.com/fightcenter/bouts/cancelled"
+
+
+@pytest.mark.asyncio
+async def test_save_tapology_event_url_updates_event(sqlite_session):
+    event = EventModel(
+        name="UFC 311",
+        event_date=datetime(2025, 1, 18).date(),
+        location="Inglewood, California, USA",
+    )
+    sqlite_session.add(event)
+    await sqlite_session.commit()
+
+    saved = await save_tapology_event_url(
+        sqlite_session,
+        event.id,
+        "https://www.tapology.com/fightcenter/events/118600-ufc-311",
+    )
+
+    refreshed = await sqlite_session.get(EventModel, event.id)
+    assert saved is not None
+    assert refreshed.tapology_url == "https://www.tapology.com/fightcenter/events/118600-ufc-311"
 
 
 @pytest.mark.asyncio
@@ -429,6 +467,160 @@ async def test_enrich_match_tapology_metadata_batch_updates_high_confidence_matc
 
 
 @pytest.mark.asyncio
+async def test_enrich_match_tapology_metadata_batch_matches_from_event_page_and_saves_event_url():
+    event_url = "https://www.tapology.com/fightcenter/events/118600-ufc-311"
+    bout_url = (
+        "https://www.tapology.com/fightcenter/bouts/"
+        "942695-ufc-311-merab-the-machine-dvalishvili-vs-umar-nurmagomedov"
+    )
+    bout = tapology_tasks.TapologyLocalBout(
+        match_id=1,
+        event_id=10,
+        event_name="UFC 311",
+        event_date=datetime(2025, 1, 18).date(),
+        tapology_bout_url=None,
+        fighters=[
+            tapology_tasks.TapologyLocalBoutFighter(1, 1, "Umar Nurmagomedov"),
+            tapology_tasks.TapologyLocalBoutFighter(2, 2, "Merab Dvalishvili"),
+        ],
+    )
+    client = FakeTapologyClient(
+        {
+            "UFC 311": f'<a href="{event_url}">UFC 311</a>',
+        },
+        {
+            event_url: f'<a href="{bout_url}">Co-Main</a>',
+            bout_url: "<p>Title Bout: UFC Bantamweight Championship</p>",
+        },
+    )
+    saved_bouts = []
+    saved_event_urls = []
+
+    async def save_bout(match_id, tapology_bout_url, metadata, scraped_at):
+        saved_bouts.append((match_id, tapology_bout_url, metadata.is_title_bout))
+
+    async def save_event_url(event_id, tapology_url):
+        saved_event_urls.append((event_id, tapology_url))
+
+    stats = await tapology_tasks.enrich_match_tapology_metadata_batch(
+        [bout],
+        client,
+        save_bout,
+        logging.getLogger(__name__),
+        save_event_url=save_event_url,
+    )
+
+    assert stats.total == 1
+    assert stats.matched == 1
+    assert stats.updated == 1
+    assert saved_event_urls == [(10, event_url)]
+    assert saved_bouts == [(1, bout_url, True)]
+
+
+@pytest.mark.asyncio
+async def test_enrich_match_tapology_metadata_batch_reuses_existing_event_url_without_event_search():
+    event_url = "https://www.tapology.com/fightcenter/events/118600-ufc-311"
+    bout_url = "https://www.tapology.com/fightcenter/bouts/123-umar-nurmagomedov-vs-merab-dvalishvili"
+    bout = tapology_tasks.TapologyLocalBout(
+        match_id=1,
+        event_id=10,
+        event_name="UFC 311",
+        event_date=datetime(2025, 1, 18).date(),
+        tapology_bout_url=None,
+        event_tapology_url=event_url,
+        fighters=[
+            tapology_tasks.TapologyLocalBoutFighter(1, 1, "Umar Nurmagomedov"),
+            tapology_tasks.TapologyLocalBoutFighter(2, 2, "Merab Dvalishvili"),
+        ],
+    )
+    client = FakeTapologyClient(
+        {},
+        {
+            event_url: f'<a href="{bout_url}">Main Card - 2025 Jan 18</a>',
+            bout_url: "<p>Title Bout: UFC Bantamweight Championship</p>",
+        },
+    )
+    saved = []
+
+    async def save_bout(match_id, tapology_bout_url, metadata, scraped_at):
+        saved.append((match_id, tapology_bout_url, metadata.is_title_bout))
+
+    stats = await tapology_tasks.enrich_match_tapology_metadata_batch(
+        [bout],
+        client,
+        save_bout,
+        logging.getLogger(__name__),
+    )
+
+    assert stats.updated == 1
+    assert client.search_terms == []
+    assert saved == [(1, bout_url, True)]
+
+
+@pytest.mark.asyncio
+async def test_enrich_match_tapology_metadata_batch_caches_event_page_per_batch():
+    event_url = "https://www.tapology.com/fightcenter/events/118600-ufc-311"
+    first_bout_url = "https://www.tapology.com/fightcenter/bouts/123-umar-nurmagomedov-vs-merab-dvalishvili"
+    second_bout_url = "https://www.tapology.com/fightcenter/bouts/456-islam-makhachev-vs-renato-moicano"
+    bouts = [
+        tapology_tasks.TapologyLocalBout(
+            match_id=1,
+            event_id=10,
+            event_name="UFC 311",
+            event_date=datetime(2025, 1, 18).date(),
+            tapology_bout_url=None,
+            fighters=[
+                tapology_tasks.TapologyLocalBoutFighter(1, 1, "Umar Nurmagomedov"),
+                tapology_tasks.TapologyLocalBoutFighter(2, 2, "Merab Dvalishvili"),
+            ],
+        ),
+        tapology_tasks.TapologyLocalBout(
+            match_id=2,
+            event_id=10,
+            event_name="UFC 311",
+            event_date=datetime(2025, 1, 18).date(),
+            tapology_bout_url=None,
+            fighters=[
+                tapology_tasks.TapologyLocalBoutFighter(3, 3, "Islam Makhachev"),
+                tapology_tasks.TapologyLocalBoutFighter(4, 4, "Renato Moicano"),
+            ],
+        ),
+    ]
+    client = FakeTapologyClient(
+        {
+            "UFC 311": f'<a href="{event_url}">UFC 311</a>',
+        },
+        {
+            event_url: f"""
+            <a href="{first_bout_url}">Main Card</a>
+            <a href="{second_bout_url}">Main Event</a>
+            """,
+            first_bout_url: "<p>Title Bout: UFC Bantamweight Championship</p>",
+            second_bout_url: "<p>Title Bout: UFC Lightweight Championship</p>",
+        },
+    )
+    saved = []
+
+    async def save_bout(match_id, tapology_bout_url, metadata, scraped_at):
+        saved.append((match_id, tapology_bout_url, metadata.is_title_bout))
+
+    stats = await tapology_tasks.enrich_match_tapology_metadata_batch(
+        bouts,
+        client,
+        save_bout,
+        logging.getLogger(__name__),
+    )
+
+    assert stats.updated == 2
+    assert client.search_terms == ["UFC 311"]
+    assert client.detail_requests.count(event_url) == 1
+    assert saved == [
+        (1, first_bout_url, True),
+        (2, second_bout_url, True),
+    ]
+
+
+@pytest.mark.asyncio
 async def test_enrich_match_tapology_metadata_batch_uses_crawler_fn_when_provided():
     bout_url = "https://www.tapology.com/fightcenter/bouts/123-umar-vs-merab"
     bout = tapology_tasks.TapologyLocalBout(
@@ -468,3 +660,37 @@ async def test_enrich_match_tapology_metadata_batch_uses_crawler_fn_when_provide
 
     assert stats.updated == 1
     assert saved == [(1, bout_url, True)]
+
+
+@pytest.mark.asyncio
+async def test_enrich_match_tapology_metadata_batch_treats_challenge_search_as_failed(caplog):
+    bout = tapology_tasks.TapologyLocalBout(
+        match_id=1,
+        event_name="UFC 311",
+        event_date=datetime(2025, 1, 18).date(),
+        tapology_bout_url=None,
+        fighters=[
+            tapology_tasks.TapologyLocalBoutFighter(1, 1, "Umar Nurmagomedov"),
+            tapology_tasks.TapologyLocalBoutFighter(2, 2, "Merab Dvalishvili"),
+        ],
+    )
+    client = FakeTapologyClient({
+        "Umar Nurmagomedov Merab Dvalishvili UFC 311": TAPOLOGY_CHALLENGE_HTML,
+    })
+
+    async def save_bout(*args):
+        raise AssertionError("challenge search page should not be saved")
+
+    with caplog.at_level(logging.WARNING):
+        stats = await tapology_tasks.enrich_match_tapology_metadata_batch(
+            [bout],
+            client,
+            save_bout,
+            logging.getLogger(__name__),
+        )
+
+    assert stats.total == 1
+    assert stats.updated == 0
+    assert stats.skipped == 0
+    assert stats.failed == 1
+    assert "blocked by challenge" in caplog.text

@@ -26,6 +26,8 @@ def test_parse_tapology_fighter_profile_with_all_fields():
     assert profile.last_fight_name == "October 04, 2025 in UFC"
     assert profile.last_fight_date == date(2025, 10, 4)
     assert profile.last_fight_promotion == "UFC"
+    assert profile.promotion_records == []
+    assert profile.method_records == []
 
 
 def test_parse_tapology_fighter_profile_missing_optional_fields():
@@ -77,7 +79,7 @@ def test_parse_tapology_completed_title_bout_with_weigh_in_metadata():
     assert metadata.fighter_metadata[0].fighter_name == "Umar Nurmagomedov"
     assert metadata.fighter_metadata[0].weigh_in_result == "135.0 lbs (61.2 kgs)"
     assert metadata.fighter_metadata[0].fight_night_weight == "156.8 lbs (71.1 kgs)"
-    assert metadata.fighter_metadata[0].weight_gain == "21.8 lbs (9.9 kgs, +16%)"
+    assert metadata.fighter_metadata[0].weight_gain is None
     assert metadata.fighter_metadata[1].fighter_name == "Merab Dvalishvili"
 
 

@@ -42,6 +42,8 @@ CREATE TABLE IF NOT EXISTS fighter_method_record (
 );
 
 -- Tapology bout-level metadata
+ALTER TABLE event ADD COLUMN IF NOT EXISTS tapology_url VARCHAR;
+
 ALTER TABLE match ADD COLUMN IF NOT EXISTS is_title_bout BOOLEAN DEFAULT FALSE;
 ALTER TABLE match ADD COLUMN IF NOT EXISTS bout_status VARCHAR;
 ALTER TABLE match ADD COLUMN IF NOT EXISTS cancellation_reason VARCHAR;
@@ -55,6 +57,7 @@ ALTER TABLE fighter_match ADD COLUMN IF NOT EXISTS weight_gain VARCHAR;
 
 -- Lookup and idempotent upsert indexes
 CREATE INDEX IF NOT EXISTS idx_fighter_tapology_url ON fighter(tapology_url);
+CREATE INDEX IF NOT EXISTS idx_event_tapology_url ON event(tapology_url);
 CREATE INDEX IF NOT EXISTS idx_fighter_promotion_record_fighter_id ON fighter_promotion_record(fighter_id);
 CREATE INDEX IF NOT EXISTS idx_fighter_promotion_record_name ON fighter_promotion_record(promotion_name);
 CREATE UNIQUE INDEX IF NOT EXISTS uq_fighter_promotion_record_key ON fighter_promotion_record(fighter_id, promotion_name);

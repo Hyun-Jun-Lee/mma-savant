@@ -108,6 +108,10 @@ ipython_config.py
 #   in version control.
 #   https://pdm.fming.dev/latest/usage/project/#working-with-version-control
 .pdm.toml
+
+# Local crawler profiles
+src/.crawl4ai/
+*.dump
 .pdm-python
 .pdm-build/
 

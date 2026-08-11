@@ -1,9 +1,11 @@
 import asyncio
+from pathlib import Path
 from typing import Optional, Callable, Dict, Any
 import logging
 
-from crawl4ai import AsyncWebCrawler
+from crawl4ai import AsyncWebCrawler, UndetectedAdapter
 from crawl4ai.async_configs import BrowserConfig, CrawlerRunConfig
+from crawl4ai.async_crawler_strategy import AsyncPlaywrightCrawlerStrategy
 from user_agent import generate_user_agent
 
 from playwright.async_api import async_playwright, Browser, Page
@@ -87,22 +89,49 @@ class PlaywrightDriver:
 
 
 class Crawl4AIDriver:
-    _instance = None
+    _instances = {}
     
     def __new__(cls, *args, **kwargs):
-        if cls._instance is None:
-            cls._instance = super().__new__(cls)
-        return cls._instance
+        key = (
+            kwargs.get("headless", True),
+            kwargs.get("enable_stealth", False),
+            kwargs.get("use_persistent_context", False),
+            kwargs.get("user_data_dir"),
+            kwargs.get("undetected", False),
+            kwargs.get("delay_before_return_html", 0.1),
+            kwargs.get("simulate_user", False),
+            kwargs.get("override_navigator", False),
+        )
+        if key not in cls._instances:
+            cls._instances[key] = super().__new__(cls)
+        return cls._instances[key]
     
-    def __init__(self, headless: bool = True) -> None:
+    def __init__(
+        self,
+        headless: bool = True,
+        *,
+        enable_stealth: bool = False,
+        use_persistent_context: bool = False,
+        user_data_dir: str | None = None,
+        undetected: bool = False,
+        delay_before_return_html: float = 0.1,
+        simulate_user: bool = False,
+        override_navigator: bool = False,
+    ) -> None:
         if hasattr(self, '_initialized'):
             return
         
-        self.browser: Optional[BrowserContext] = None
         self.browser_config: Optional[BrowserConfig] = None
         self.run_config: Optional[CrawlerRunConfig] = None
         self.driver_type = "crawl4ai"
         self.headless = headless
+        self.enable_stealth = enable_stealth
+        self.use_persistent_context = use_persistent_context
+        self.user_data_dir = user_data_dir
+        self.undetected = undetected
+        self.delay_before_return_html = delay_before_return_html
+        self.simulate_user = simulate_user
+        self.override_navigator = override_navigator
         self.crawler: Optional[AsyncWebCrawler] = None
         self._initialized = True
         
@@ -111,14 +140,14 @@ class Crawl4AIDriver:
     def _set_driver(self) -> None:
         """Crawl4AI 드라이버 초기화"""
         try:
-            extra_args = {
+            extra_args = [
                 "--disable-blink-features=AutomationControlled",
                 "--no-sandbox",
                 "--disable-infobars",
                 "--disable-extensions",
                 "--disable-dev-shm-usage",
                 "--disable-gpu",
-            }
+            ]
             
             js_code = """
                 Object.defineProperty(navigator, 'webdriver', {get: () => undefined});
@@ -130,7 +159,10 @@ class Crawl4AIDriver:
             self.browser_config = BrowserConfig(
                 user_agent=generate_user_agent(os=('mac', 'linux'), device_type='desktop'),
                 extra_args=extra_args,
-                headless=self.headless
+                headless=self.headless,
+                enable_stealth=self.enable_stealth,
+                use_persistent_context=self.use_persistent_context,
+                user_data_dir=self.user_data_dir,
             )
             
             self.run_config = CrawlerRunConfig(
@@ -138,8 +170,11 @@ class Crawl4AIDriver:
                 process_iframes=True,
                 screenshot=True,
                 capture_network_requests=False,
-                # wait_for_timeout=5000,
-                js_code=js_code
+                js_code=js_code,
+                delay_before_return_html=self.delay_before_return_html,
+                simulate_user=self.simulate_user,
+                override_navigator=self.override_navigator,
+                magic=self.simulate_user or self.override_navigator,
             )
             
             logging.info("Crawl4AIDriver initialized with optimized settings")
@@ -149,7 +184,18 @@ class Crawl4AIDriver:
 
     async def get_driver(self) -> AsyncWebCrawler:
         if not self.crawler:
-            self.crawler = AsyncWebCrawler(config=self.browser_config)
+            if self.undetected:
+                adapter = UndetectedAdapter()
+                crawler_strategy = AsyncPlaywrightCrawlerStrategy(
+                    browser_config=self.browser_config,
+                    browser_adapter=adapter,
+                )
+                self.crawler = AsyncWebCrawler(
+                    crawler_strategy=crawler_strategy,
+                    config=self.browser_config,
+                )
+            else:
+                self.crawler = AsyncWebCrawler(config=self.browser_config)
         return self.crawler
 
     async def run_crawl(self, url: str, run_config: Any = None) -> Dict[str, Any]:
@@ -162,7 +208,6 @@ class Crawl4AIDriver:
             result = await crawler.arun(
                 url=url,
                 config=run_config or self.run_config,
-                magic=True
             )
             return result
             
@@ -176,3 +221,14 @@ class Crawl4AIDriver:
             await self.crawler.close()
             self.crawler = None
             logging.info("Crawl4AI driver closed")
+
+    @classmethod
+    async def close_all(cls) -> None:
+        for driver in cls._instances.values():
+            await driver.close()
+
+
+def tapology_user_data_dir() -> str:
+    path = Path(".crawl4ai") / "tapology-profile"
+    path.mkdir(parents=True, exist_ok=True)
+    return str(path.resolve())
