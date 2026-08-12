@@ -25,7 +25,9 @@ services:
   # API Blue
   # =============================================================================
   api-blue:
-    image: ${REGISTRY}/api:${API_IMAGE_VERSION:-${IMAGE_VERSION:-latest}}
+    # Podman의 외부 docker-compose provider는 중첩 보간을 처리하지 못하므로
+    # IMAGE_VERSION fallback은 배포 스크립트에서 API_IMAGE_VERSION으로 매핑한다.
+    image: ${REGISTRY}/api:${API_IMAGE_VERSION:-latest}
     container_name: api-blue
     restart: unless-stopped
     env_file:
@@ -55,7 +57,7 @@ services:
   # API Green
   # =============================================================================
   api-green:
-    image: ${REGISTRY}/api:${API_IMAGE_VERSION:-${IMAGE_VERSION:-latest}}
+    image: ${REGISTRY}/api:${API_IMAGE_VERSION:-latest}
     container_name: api-green
     restart: unless-stopped
     env_file:
@@ -85,7 +87,7 @@ services:
   # Web Blue
   # =============================================================================
   web-blue:
-    image: ${REGISTRY}/web:${WEB_IMAGE_VERSION:-${IMAGE_VERSION:-latest}}
+    image: ${REGISTRY}/web:${WEB_IMAGE_VERSION:-latest}
     container_name: web-blue
     restart: unless-stopped
     env_file:
@@ -109,7 +111,7 @@ services:
   # Web Green
   # =============================================================================
   web-green:
-    image: ${REGISTRY}/web:${WEB_IMAGE_VERSION:-${IMAGE_VERSION:-latest}}
+    image: ${REGISTRY}/web:${WEB_IMAGE_VERSION:-latest}
     container_name: web-green
     restart: unless-stopped
     env_file:
@@ -176,7 +178,7 @@ services:
   # 사용법: docker compose -f docker-compose.prod.yml up -d flow_serve
   # =============================================================================
   flow_serve:
-    image: ${REGISTRY}/flow:${FLOW_IMAGE_VERSION:-${IMAGE_VERSION:-latest}}
+    image: ${REGISTRY}/flow:${FLOW_IMAGE_VERSION:-latest}
     container_name: flow_serve
     restart: unless-stopped
     env_file:

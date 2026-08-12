@@ -96,6 +96,10 @@ if [ ! -f "$COMPOSE_FILE" ]; then
     exit 1
 fi
 
+export REGISTRY
+export FLOW_IMAGE_VERSION="$FLOW_VERSION"
+export IMAGE_VERSION="$RELEASE_VERSION"
+
 log_info "==================================="
 log_info "Prefect Flow Serve Restart"
 log_info "==================================="
@@ -132,10 +136,6 @@ if [ "$INFRA_RETRY" -ge "$MAX_INFRA_RETRIES" ]; then
     log_error "Infrastructure services failed to become healthy"
     exit 1
 fi
-
-export REGISTRY
-export FLOW_IMAGE_VERSION="$FLOW_VERSION"
-export IMAGE_VERSION="$RELEASE_VERSION"
 
 log_info "Pulling flow_serve image..."
 docker compose -f "$COMPOSE_FILE" --profile manual pull flow_serve
