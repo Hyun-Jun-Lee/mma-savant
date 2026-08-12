@@ -108,12 +108,7 @@ SELECT
         100.0 * COUNT(*) FILTER (WHERE result = 'win')
         / NULLIF(COUNT(*) FILTER (WHERE result IN ('win', 'loss', 'draw', 'nc')), 0),
         2
-    ) AS win_rate_including_draw_nc,
-    ROUND(
-        100.0 * COUNT(*) FILTER (WHERE result = 'win')
-        / NULLIF(COUNT(*) FILTER (WHERE result IN ('win', 'loss')), 0),
-        2
-    ) AS win_rate_excluding_draw_nc,
+    ) AS win_rate,
     MAX(event_date) AS last_fight_date,
     MIN(event_date) AS first_fight_date
 FROM v_completed_fighter_fights
@@ -141,13 +136,8 @@ SELECT
     COUNT(*) FILTER (WHERE result = 'loss' AND is_finish) AS finish_losses,
     ROUND(
         100.0 * COUNT(*) FILTER (WHERE result = 'win' AND is_finish)
-        / NULLIF(COUNT(*) FILTER (WHERE result = 'win'), 0),
-        2
-    ) AS finish_win_rate_over_wins,
-    ROUND(
-        100.0 * COUNT(*) FILTER (WHERE result = 'win' AND is_finish)
         / NULLIF(COUNT(*), 0),
         2
-    ) AS finish_win_rate_over_total_fights
+    ) AS finish_rate
 FROM v_completed_fighter_fights
 GROUP BY fighter_id, fighter_name;

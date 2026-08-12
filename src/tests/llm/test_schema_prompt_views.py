@@ -19,5 +19,9 @@ def test_schema_prompt_renders_query_map_and_views_before_raw_tables():
     assert "Current DB canonical KO/TKO pattern is method ILIKE 'KO/TKO%'" in prompt
     assert "**v_fighter_method_summary**" in prompt
     assert "completed_fight = event_date <= current_date and result IS NOT NULL" in prompt
+    assert "wins / (wins + losses + draws + no_contests)" in prompt
+    assert "finish_wins / total_completed_fights" in prompt
+    assert "win_rate_excluding_draw_nc" not in prompt
+    assert "finish_win_rate_over_wins" not in prompt
     assert prompt.index("## Preferred Query Map") < prompt.index("## Canonical Views")
     assert prompt.index("## Canonical Views") < prompt.index("### Tables and Relationships:")

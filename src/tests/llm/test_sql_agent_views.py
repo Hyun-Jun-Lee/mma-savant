@@ -139,7 +139,7 @@ async def test_priority_one_sql_agent_views(clean_test_session):
         await clean_test_session.execute(
             text(
                 """
-                SELECT ko_tko_wins, finish_wins, finish_win_rate_over_wins, finish_win_rate_over_total_fights
+                SELECT ko_tko_wins, finish_wins, finish_rate
                 FROM v_fighter_method_summary
                 WHERE fighter_id = :fighter_id
                 """
@@ -150,8 +150,27 @@ async def test_priority_one_sql_agent_views(clean_test_session):
     assert method_summary == {
         "ko_tko_wins": 1,
         "finish_wins": 1,
-        "finish_win_rate_over_wins": Decimal("100.00"),
-        "finish_win_rate_over_total_fights": Decimal("100.00"),
+        "finish_rate": Decimal("100.00"),
+    }
+
+    record_summary = (
+        await clean_test_session.execute(
+            text(
+                """
+                SELECT wins, losses, draws, no_contests, win_rate
+                FROM v_fighter_record_summary
+                WHERE fighter_id = :fighter_id
+                """
+            ),
+            {"fighter_id": alpha_id},
+        )
+    ).mappings().one()
+    assert record_summary == {
+        "wins": 1,
+        "losses": 0,
+        "draws": 0,
+        "no_contests": 0,
+        "win_rate": Decimal("100.00"),
     }
 
     champion = (
