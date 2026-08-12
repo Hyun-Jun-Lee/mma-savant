@@ -9,7 +9,7 @@ from urllib.parse import quote_plus
 from prefect import task
 from prefect.cache_policies import NO_CACHE
 from prefect.logging import get_run_logger
-from sqlalchemy import or_, select
+from sqlalchemy import func, or_, select
 
 from common.utils import utc_now
 from data_collector.clients import TapologyClient
@@ -24,6 +24,7 @@ from data_collector.workflows.data_store import (
     save_tapology_fighter_enrichment,
     save_tapology_match_enrichment,
 )
+from data_collector.workflows.progress import format_progress
 from data_collector.workflows.tapology_matcher import (
     MatchState,
     match_tapology_bout,
@@ -106,8 +107,17 @@ async def enrich_fighter_tapology_profile_task(
 
     stats = TapologyProfileEnrichmentStats()
     last_seen_id: int | None = None
+    batch_index = 0
     client = TapologyClient()
     try:
+        async with get_async_db_context() as session:
+            overall_total = await count_fighters_for_tapology_profile_enrichment(
+                session,
+                stale_days=stale_days,
+            )
+        total_batches = _total_batches(overall_total, batch_size)
+        logger.info("Found %d fighters total for Tapology profile enrichment", overall_total)
+
         while True:
             async with get_async_db_context() as session:
                 fighters = await select_fighters_for_tapology_profile_enrichment(
@@ -120,8 +130,16 @@ async def enrich_fighter_tapology_profile_task(
             if not fighters:
                 break
 
+            batch_index += 1
+            processed_before = stats.total
             logger.info(
-                "Found %d fighters for Tapology profile enrichment after id=%s",
+                "%s Found %d fighters for Tapology profile enrichment after id=%s",
+                format_progress(
+                    batch_index=batch_index,
+                    batch_total=total_batches,
+                    overall_index=min(processed_before + len(fighters), overall_total),
+                    overall_total=overall_total,
+                ),
                 len(fighters),
                 last_seen_id,
             )
@@ -147,6 +165,10 @@ async def enrich_fighter_tapology_profile_task(
                 save_profile,
                 logger,
                 crawler_fn=crawler_fn,
+                batch_index=batch_index,
+                batch_total=total_batches,
+                processed_before=processed_before,
+                overall_total=overall_total,
             )
             stats.total += batch_stats.total
             stats.matched += batch_stats.matched
@@ -184,8 +206,17 @@ async def enrich_match_tapology_metadata_task(
 
     stats = TapologyBoutEnrichmentStats()
     last_seen_id: int | None = None
+    batch_index = 0
     client = TapologyClient()
     try:
+        async with get_async_db_context() as session:
+            overall_total = await count_matches_for_tapology_bout_enrichment(
+                session,
+                stale_days=stale_days,
+            )
+        total_batches = _total_batches(overall_total, batch_size)
+        logger.info("Found %d matches total for Tapology bout enrichment", overall_total)
+
         while True:
             async with get_async_db_context() as session:
                 bouts = await select_matches_for_tapology_bout_enrichment(
@@ -198,8 +229,16 @@ async def enrich_match_tapology_metadata_task(
             if not bouts:
                 break
 
+            batch_index += 1
+            processed_before = stats.total
             logger.info(
-                "Found %d matches for Tapology bout enrichment after id=%s",
+                "%s Found %d matches for Tapology bout enrichment after id=%s",
+                format_progress(
+                    batch_index=batch_index,
+                    batch_total=total_batches,
+                    overall_index=min(processed_before + len(bouts), overall_total),
+                    overall_total=overall_total,
+                ),
                 len(bouts),
                 last_seen_id,
             )
@@ -231,6 +270,10 @@ async def enrich_match_tapology_metadata_task(
                 logger,
                 crawler_fn=crawler_fn,
                 save_event_url=save_event_url,
+                batch_index=batch_index,
+                batch_total=total_batches,
+                processed_before=processed_before,
+                overall_total=overall_total,
             )
             stats.total += batch_stats.total
             stats.matched += batch_stats.matched
@@ -259,26 +302,26 @@ async def select_fighters_for_tapology_profile_enrichment(
     stale_days: int = 30,
     after_id: int | None = None,
 ) -> list[FighterSchema]:
-    cutoff = utc_now() - timedelta(days=stale_days)
-    conditions = [
-        or_(
-            FighterModel.tapology_url.is_(None),
-            FighterModel.tapology_last_scraped_at.is_(None),
-            FighterModel.tapology_last_scraped_at < cutoff,
-        )
-    ]
-    if after_id is not None:
-        conditions.append(FighterModel.id > after_id)
-
     query = (
         select(FighterModel)
-        .where(*conditions)
+        .where(*_fighter_tapology_profile_conditions(stale_days, after_id))
         .order_by(FighterModel.id)
         .limit(batch_size)
     )
 
     result = await session.execute(query)
     return [fighter.to_schema() for fighter in result.scalars().all()]
+
+
+async def count_fighters_for_tapology_profile_enrichment(
+    session,
+    *,
+    stale_days: int = 30,
+) -> int:
+    result = await session.execute(
+        select(func.count(FighterModel.id)).where(*_fighter_tapology_profile_conditions(stale_days))
+    )
+    return int(result.scalar_one() or 0)
 
 
 async def select_matches_for_tapology_bout_enrichment(
@@ -288,21 +331,10 @@ async def select_matches_for_tapology_bout_enrichment(
     stale_days: int = 30,
     after_id: int | None = None,
 ) -> list[TapologyLocalBout]:
-    cutoff = utc_now() - timedelta(days=stale_days)
-    conditions = [
-        or_(
-            MatchModel.tapology_bout_url.is_(None),
-            MatchModel.tapology_last_scraped_at.is_(None),
-            MatchModel.tapology_last_scraped_at < cutoff,
-        )
-    ]
-    if after_id is not None:
-        conditions.append(MatchModel.id > after_id)
-
     query = (
         select(MatchModel, EventModel)
         .join(EventModel, EventModel.id == MatchModel.event_id)
-        .where(*conditions)
+        .where(*_match_tapology_bout_conditions(stale_days, after_id))
         .order_by(MatchModel.id)
         .limit(batch_size)
     )
@@ -343,18 +375,78 @@ async def select_matches_for_tapology_bout_enrichment(
     return bouts
 
 
+async def count_matches_for_tapology_bout_enrichment(
+    session,
+    *,
+    stale_days: int = 30,
+) -> int:
+    result = await session.execute(
+        select(func.count(MatchModel.id)).where(*_match_tapology_bout_conditions(stale_days))
+    )
+    return int(result.scalar_one() or 0)
+
+
+def _fighter_tapology_profile_conditions(stale_days: int, after_id: int | None = None):
+    cutoff = utc_now() - timedelta(days=stale_days)
+    conditions = [
+        or_(
+            FighterModel.tapology_url.is_(None),
+            FighterModel.tapology_last_scraped_at.is_(None),
+            FighterModel.tapology_last_scraped_at < cutoff,
+        )
+    ]
+    if after_id is not None:
+        conditions.append(FighterModel.id > after_id)
+    return conditions
+
+
+def _match_tapology_bout_conditions(stale_days: int, after_id: int | None = None):
+    cutoff = utc_now() - timedelta(days=stale_days)
+    conditions = [
+        or_(
+            MatchModel.tapology_bout_url.is_(None),
+            MatchModel.tapology_last_scraped_at.is_(None),
+            MatchModel.tapology_last_scraped_at < cutoff,
+        )
+    ]
+    if after_id is not None:
+        conditions.append(MatchModel.id > after_id)
+    return conditions
+
+
+def _total_batches(total_items: int, batch_size: int) -> int:
+    if total_items <= 0:
+        return 0
+    return (total_items + batch_size - 1) // batch_size
+
+
 async def enrich_fighter_tapology_profile_batch(
     fighters: list[FighterSchema],
     client: TapologyClient,
     save_profile: ProfileSaver,
     logger: logging.Logger,
     crawler_fn: Callable | None = None,
+    batch_index: int | None = None,
+    batch_total: int | None = None,
+    processed_before: int = 0,
+    overall_total: int | None = None,
 ) -> TapologyProfileEnrichmentStats:
     stats = TapologyProfileEnrichmentStats(total=len(fighters))
     scraped_at = utc_now()
 
     for index, fighter in enumerate(fighters, 1):
-        logger.info("[%d/%d] Tapology profile enrichment: %s", index, len(fighters), fighter.name)
+        logger.info(
+            "%s Tapology profile enrichment: %s",
+            format_progress(
+                batch_index=batch_index,
+                batch_total=batch_total,
+                item_index=index,
+                item_total=len(fighters),
+                overall_index=processed_before + index,
+                overall_total=overall_total,
+            ),
+            fighter.name,
+        )
 
         try:
             if fighter.tapology_url:
@@ -447,6 +539,10 @@ async def enrich_match_tapology_metadata_batch(
     logger: logging.Logger,
     crawler_fn: Callable | None = None,
     save_event_url: EventUrlSaver | None = None,
+    batch_index: int | None = None,
+    batch_total: int | None = None,
+    processed_before: int = 0,
+    overall_total: int | None = None,
 ) -> TapologyBoutEnrichmentStats:
     stats = TapologyBoutEnrichmentStats(total=len(bouts))
     scraped_at = utc_now()
@@ -456,9 +552,15 @@ async def enrich_match_tapology_metadata_batch(
     for index, bout in enumerate(bouts, 1):
         fighter_names = [fighter.name for fighter in bout.fighters]
         logger.info(
-            "[%d/%d] Tapology bout enrichment: match_id=%s fighters=%s",
-            index,
-            len(bouts),
+            "%s Tapology bout enrichment: match_id=%s fighters=%s",
+            format_progress(
+                batch_index=batch_index,
+                batch_total=batch_total,
+                item_index=index,
+                item_total=len(bouts),
+                overall_index=processed_before + index,
+                overall_total=overall_total,
+            ),
             bout.match_id,
             fighter_names,
         )

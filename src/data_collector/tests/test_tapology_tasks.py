@@ -222,6 +222,67 @@ async def test_save_tapology_fighter_enrichment_stores_non_ufc_career_records(sq
 
 
 @pytest.mark.asyncio
+async def test_count_fighters_for_tapology_profile_enrichment_matches_stale_conditions(sqlite_session):
+    sqlite_session.add_all([
+        FighterModel(name="Missing Url"),
+        FighterModel(
+            name="Never Scraped",
+            tapology_url="https://www.tapology.com/fightcenter/fighters/never",
+        ),
+        FighterModel(
+            name="Stale",
+            tapology_url="https://www.tapology.com/fightcenter/fighters/stale",
+            tapology_last_scraped_at=datetime(2020, 1, 1),
+        ),
+        FighterModel(
+            name="Fresh",
+            tapology_url="https://www.tapology.com/fightcenter/fighters/fresh",
+            tapology_last_scraped_at=datetime(2099, 1, 1),
+        ),
+    ])
+    await sqlite_session.commit()
+
+    count = await tapology_tasks.count_fighters_for_tapology_profile_enrichment(
+        sqlite_session,
+        stale_days=30,
+    )
+
+    assert count == 3
+
+
+@pytest.mark.asyncio
+async def test_count_matches_for_tapology_bout_enrichment_matches_stale_conditions(sqlite_session):
+    event = EventModel(name="UFC Test", event_date=datetime(2026, 1, 1).date())
+    sqlite_session.add(event)
+    await sqlite_session.flush()
+    sqlite_session.add_all([
+        MatchModel(event_id=event.id),
+        MatchModel(
+            event_id=event.id,
+            tapology_bout_url="https://www.tapology.com/fightcenter/bouts/never",
+        ),
+        MatchModel(
+            event_id=event.id,
+            tapology_bout_url="https://www.tapology.com/fightcenter/bouts/stale",
+            tapology_last_scraped_at=datetime(2020, 1, 1),
+        ),
+        MatchModel(
+            event_id=event.id,
+            tapology_bout_url="https://www.tapology.com/fightcenter/bouts/fresh",
+            tapology_last_scraped_at=datetime(2099, 1, 1),
+        ),
+    ])
+    await sqlite_session.commit()
+
+    count = await tapology_tasks.count_matches_for_tapology_bout_enrichment(
+        sqlite_session,
+        stale_days=30,
+    )
+
+    assert count == 3
+
+
+@pytest.mark.asyncio
 async def test_enrich_fighter_tapology_profile_batch_skips_ambiguous_match():
     fighter = FighterSchema(id=1, name="Alex Pereira")
     client = FakeTapologyClient({
@@ -359,7 +420,20 @@ async def test_enrich_fighter_tapology_profile_task_walks_all_batches(monkeypatc
             return [FighterSchema(id=5, name="Fifth Fighter")]
         return []
 
-    async def enrich_batch(fighters, client, save_profile, logger, crawler_fn=None):
+    async def count_profiles(session, *, stale_days):
+        return 3
+
+    async def enrich_batch(
+        fighters,
+        client,
+        save_profile,
+        logger,
+        crawler_fn=None,
+        batch_index=None,
+        batch_total=None,
+        processed_before=0,
+        overall_total=None,
+    ):
         processed_ids.extend(fighter.id for fighter in fighters)
         return tapology_tasks.TapologyProfileEnrichmentStats(
             total=len(fighters),
@@ -369,6 +443,7 @@ async def test_enrich_fighter_tapology_profile_task_walks_all_batches(monkeypatc
     monkeypatch.setattr(tapology_tasks, "get_run_logger", lambda: logging.getLogger(__name__))
     monkeypatch.setattr(tapology_tasks, "get_async_db_context", lambda: FakeDbContext())
     monkeypatch.setattr(tapology_tasks, "TapologyClient", NoopTapologyClient)
+    monkeypatch.setattr(tapology_tasks, "count_fighters_for_tapology_profile_enrichment", count_profiles)
     monkeypatch.setattr(tapology_tasks, "select_fighters_for_tapology_profile_enrichment", select_batch)
     monkeypatch.setattr(tapology_tasks, "enrich_fighter_tapology_profile_batch", enrich_batch)
 
@@ -833,6 +908,9 @@ async def test_enrich_match_tapology_metadata_task_walks_all_batches(monkeypatch
             return [bout(25)]
         return []
 
+    async def count_bouts(session, *, stale_days):
+        return 3
+
     async def enrich_batch(
         bouts,
         client,
@@ -840,6 +918,10 @@ async def test_enrich_match_tapology_metadata_task_walks_all_batches(monkeypatch
         logger,
         crawler_fn=None,
         save_event_url=None,
+        batch_index=None,
+        batch_total=None,
+        processed_before=0,
+        overall_total=None,
     ):
         processed_match_ids.extend(local_bout.match_id for local_bout in bouts)
         return tapology_tasks.TapologyBoutEnrichmentStats(
@@ -850,6 +932,7 @@ async def test_enrich_match_tapology_metadata_task_walks_all_batches(monkeypatch
     monkeypatch.setattr(tapology_tasks, "get_run_logger", lambda: logging.getLogger(__name__))
     monkeypatch.setattr(tapology_tasks, "get_async_db_context", lambda: FakeDbContext())
     monkeypatch.setattr(tapology_tasks, "TapologyClient", NoopTapologyClient)
+    monkeypatch.setattr(tapology_tasks, "count_matches_for_tapology_bout_enrichment", count_bouts)
     monkeypatch.setattr(tapology_tasks, "select_matches_for_tapology_bout_enrichment", select_batch)
     monkeypatch.setattr(tapology_tasks, "enrich_match_tapology_metadata_batch", enrich_batch)
 
