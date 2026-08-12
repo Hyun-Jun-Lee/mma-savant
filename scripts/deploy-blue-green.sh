@@ -135,6 +135,11 @@ if [ -z "$API_VERSION" ] || [ -z "$WEB_VERSION" ] || [ -z "$REGISTRY" ]; then
     exit 1
 fi
 
+export REGISTRY
+export API_IMAGE_VERSION="$API_VERSION"
+export WEB_IMAGE_VERSION="$WEB_VERSION"
+export IMAGE_VERSION="$RELEASE_VERSION"
+
 if [ -f "$ACTIVE_ENV_FILE" ]; then
     CURRENT=$(cat "$ACTIVE_ENV_FILE")
 else
@@ -209,10 +214,6 @@ docker pull "$REGISTRY/web:$WEB_VERSION"
 log_success "Images pulled successfully"
 
 log_info "Starting $NEW environment (API, Web)..."
-export REGISTRY
-export API_IMAGE_VERSION="$API_VERSION"
-export WEB_IMAGE_VERSION="$WEB_VERSION"
-export IMAGE_VERSION="$RELEASE_VERSION"
 docker compose -f "$COMPOSE_FILE" --profile "$NEW" up -d
 
 log_info "Waiting for API health check..."
