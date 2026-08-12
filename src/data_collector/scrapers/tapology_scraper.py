@@ -85,6 +85,8 @@ def parse_tapology_fighter_profile(html: str) -> TapologyFighterProfile:
         last_fight_name=last_fight,
         last_fight_date=last_fight_date,
         last_fight_promotion=last_fight_promotion,
+        promotion_records=parse_tapology_promotion_records(html),
+        method_records=parse_tapology_method_records(html),
     )
 
 
@@ -366,8 +368,8 @@ def _count_after_marker(lines: list[str], marker: str) -> int | None:
 def _normalize_method_category(value: str) -> str | None:
     method = value.upper().strip()
     method = method.replace("KO / TKO", "KO/TKO")
-    if method == "TKO":
-        return "TKO"
+    if method in {"TKO", "KO"}:
+        return "KO/TKO"
     if method in METHOD_CATEGORIES:
         return method
     return None

@@ -26,8 +26,10 @@ def test_parse_tapology_fighter_profile_with_all_fields():
     assert profile.last_fight_name == "October 04, 2025 in UFC"
     assert profile.last_fight_date == date(2025, 10, 4)
     assert profile.last_fight_promotion == "UFC"
-    assert profile.promotion_records == []
-    assert profile.method_records == []
+    assert profile.promotion_records[0].promotion_name == "UFC - Ultimate Fighting Championship"
+    assert profile.promotion_records[1].promotion_name == "LFA - Legacy Fighting Alliance"
+    assert profile.method_records[0].result == "win"
+    assert profile.method_records[0].method_category == "KO/TKO"
 
 
 def test_parse_tapology_fighter_profile_missing_optional_fields():
@@ -61,8 +63,8 @@ def test_parse_tapology_method_records():
     records = parse_tapology_method_records(_fixture("tapology_fighter_profile_full.html"))
     by_key = {(record.result, record.method_category): record.count for record in records}
 
-    assert by_key[("win", "TKO")] == 11
-    assert by_key[("loss", "TKO")] == 1
+    assert by_key[("win", "KO/TKO")] == 11
+    assert by_key[("loss", "KO/TKO")] == 1
     assert by_key[("win", "SUB")] == 0
     assert by_key[("loss", "SUB")] == 1
     assert by_key[("win", "DEC")] == 2

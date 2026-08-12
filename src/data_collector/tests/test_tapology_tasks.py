@@ -12,6 +12,8 @@ from data_collector.scrapers.tapology_scraper import (
     TapologyBoutMetadata,
     TapologyFighterBoutMetadata,
     TapologyFighterProfile,
+    TapologyMethodRecord,
+    TapologyPromotionRecord,
 )
 from data_collector.workflows import tapology_tasks
 from data_collector.workflows.data_store import (
@@ -21,7 +23,9 @@ from data_collector.workflows.data_store import (
 )
 from event.models import EventModel
 from fighter.models import (
+    FighterMethodRecordModel,
     FighterModel,
+    FighterPromotionRecordModel,
     FighterSchema,
 )
 from match.models import FighterMatchModel, MatchModel
@@ -99,6 +103,8 @@ async def sqlite_session():
                 tables=[
                     EventModel.__table__,
                     FighterModel.__table__,
+                    FighterPromotionRecordModel.__table__,
+                    FighterMethodRecordModel.__table__,
                     MatchModel.__table__,
                     FighterMatchModel.__table__,
                 ],
@@ -155,6 +161,64 @@ async def test_save_tapology_fighter_enrichment_updates_profile_only(sqlite_sess
     refreshed = await sqlite_session.get(FighterModel, fighter_id)
     assert refreshed.born == "Sao Bernardo do Campo, Brazil"
     assert refreshed.fighting_out_of == "Bethel, Connecticut"
+
+
+@pytest.mark.asyncio
+async def test_save_tapology_fighter_enrichment_stores_non_ufc_career_records(sqlite_session):
+    fighter = FighterModel(name="Alex Pereira")
+    event = EventModel(name="UFC 300", event_date=datetime(2024, 4, 13).date())
+    sqlite_session.add_all([fighter, event])
+    await sqlite_session.flush()
+
+    ko_match = MatchModel(event_id=event.id, method="KO/TKO-Punches")
+    dec_match = MatchModel(event_id=event.id, method="U-DEC")
+    sqlite_session.add_all([ko_match, dec_match])
+    await sqlite_session.flush()
+    sqlite_session.add_all([
+        FighterMatchModel(fighter_id=fighter.id, match_id=ko_match.id, result="win"),
+        FighterMatchModel(fighter_id=fighter.id, match_id=dec_match.id, result="loss"),
+    ])
+    await sqlite_session.commit()
+
+    profile = TapologyFighterProfile(
+        promotion_records=[
+            TapologyPromotionRecord("UFC - Ultimate Fighting Championship", wins=1, losses=1),
+            TapologyPromotionRecord("LFA - Legacy Fighting Alliance", wins=2, losses=0),
+        ],
+        method_records=[
+            TapologyMethodRecord(result="win", method_category="TKO", count=3),
+            TapologyMethodRecord(result="loss", method_category="DEC", count=1),
+        ],
+    )
+
+    await save_tapology_fighter_enrichment(
+        sqlite_session,
+        fighter.id,
+        "https://www.tapology.com/fightcenter/fighters/117305-alex-pereira",
+        profile,
+        datetime(2026, 8, 5, 1, 2, 3),
+    )
+
+    promotion_records = (
+        await sqlite_session.execute(
+            select(FighterPromotionRecordModel).where(FighterPromotionRecordModel.fighter_id == fighter.id)
+        )
+    ).scalars().all()
+    assert [(record.promotion_name, record.wins, record.losses) for record in promotion_records] == [
+        ("LFA - Legacy Fighting Alliance", 2, 0),
+    ]
+
+    method_records = (
+        await sqlite_session.execute(
+            select(FighterMethodRecordModel).where(FighterMethodRecordModel.fighter_id == fighter.id)
+        )
+    ).scalars().all()
+    assert [
+        (record.scope, record.result, record.method_category, record.count)
+        for record in method_records
+    ] == [
+        ("non_ufc", "win", "KO/TKO", 2),
+    ]
 
 
 @pytest.mark.asyncio

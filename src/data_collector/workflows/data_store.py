@@ -3,11 +3,13 @@ import re
 from datetime import datetime
 from typing import List
 
-from sqlalchemy import select
+from sqlalchemy import delete, select
 
 from common.utils import normalize_name
 from fighter.models import (
+    FighterMethodRecordModel,
     FighterSchema,
+    FighterPromotionRecordModel,
     RankingSchema,
     FighterModel,
     RankingModel,
@@ -41,6 +43,12 @@ TAPOLOGY_FIGHTER_PROFILE_FIELDS = {
     "last_fight_name",
     "last_fight_date",
     "last_fight_promotion",
+}
+
+UFC_PROMOTION_NAMES = {
+    "ufc",
+    "ultimate fighting championship",
+    "ufc ultimate fighting championship",
 }
 
 async def save_fighters(session, fighters: List[FighterSchema]):
@@ -167,10 +175,132 @@ async def save_tapology_fighter_enrichment(
         setattr(existing_model, key, value)
 
     existing_model.tapology_last_scraped_at = scraped_at
+    await _replace_non_ufc_promotion_records(session, fighter_id, profile)
+    await _replace_non_ufc_method_records(session, fighter_id, profile)
 
     await session.commit()
     await session.refresh(existing_model)
     return existing_model.to_schema()
+
+
+async def _replace_non_ufc_promotion_records(
+    session,
+    fighter_id: int,
+    profile: TapologyFighterProfile,
+) -> None:
+    await session.execute(
+        delete(FighterPromotionRecordModel).where(
+            FighterPromotionRecordModel.fighter_id == fighter_id
+        )
+    )
+
+    for record in profile.promotion_records:
+        if _is_ufc_promotion(record.promotion_name):
+            continue
+        if not any([record.wins, record.losses, record.draws, record.no_contests]):
+            continue
+        session.add(
+            FighterPromotionRecordModel(
+                fighter_id=fighter_id,
+                promotion_name=record.promotion_name,
+                wins=record.wins,
+                losses=record.losses,
+                draws=record.draws,
+                no_contests=record.no_contests,
+            )
+        )
+
+
+async def _replace_non_ufc_method_records(
+    session,
+    fighter_id: int,
+    profile: TapologyFighterProfile,
+) -> None:
+    await session.execute(
+        delete(FighterMethodRecordModel).where(
+            FighterMethodRecordModel.fighter_id == fighter_id
+        )
+    )
+
+    tapology_totals: dict[tuple[str, str], int] = {}
+    for record in profile.method_records:
+        method_category = _normalize_method_category(record.method_category)
+        result = _normalize_result(record.result)
+        if not method_category or not result:
+            continue
+        key = (result, method_category)
+        tapology_totals[key] = tapology_totals.get(key, 0) + record.count
+
+    ufc_totals = await _load_ufc_method_totals(session, fighter_id)
+    for key, tapology_count in sorted(tapology_totals.items()):
+        non_ufc_count = tapology_count - ufc_totals.get(key, 0)
+        if non_ufc_count <= 0:
+            continue
+        result, method_category = key
+        session.add(
+            FighterMethodRecordModel(
+                fighter_id=fighter_id,
+                scope="non_ufc",
+                result=result,
+                method_category=method_category,
+                count=non_ufc_count,
+            )
+        )
+
+
+async def _load_ufc_method_totals(session, fighter_id: int) -> dict[tuple[str, str], int]:
+    rows = await session.execute(
+        select(FighterMatchModel.result, MatchModel.method)
+        .join(MatchModel, MatchModel.id == FighterMatchModel.match_id)
+        .where(
+            FighterMatchModel.fighter_id == fighter_id,
+            FighterMatchModel.result.is_not(None),
+            MatchModel.method.is_not(None),
+        )
+    )
+
+    totals: dict[tuple[str, str], int] = {}
+    for result, method in rows.all():
+        normalized_result = _normalize_result(result)
+        method_category = _normalize_method_category(method)
+        if not normalized_result or not method_category:
+            continue
+        key = (normalized_result, method_category)
+        totals[key] = totals.get(key, 0) + 1
+    return totals
+
+
+def _is_ufc_promotion(promotion_name: str) -> bool:
+    normalized = re.sub(r"[^a-z0-9]+", " ", promotion_name.lower())
+    normalized = re.sub(r"\s+", " ", normalized).strip()
+    return normalized in UFC_PROMOTION_NAMES
+
+
+def _normalize_result(result: str | None) -> str | None:
+    if not result:
+        return None
+    normalized = result.lower().strip()
+    if normalized in {"win", "loss", "draw", "nc"}:
+        return normalized
+    return None
+
+
+def _normalize_method_category(method: str | None) -> str | None:
+    if not method:
+        return None
+    normalized = method.upper().strip()
+    normalized = normalized.replace("KO / TKO", "KO/TKO")
+    if normalized.startswith(("KO/TKO", "KO-", "TKO-", "TKO", "KO")):
+        return "KO/TKO"
+    if normalized.startswith("SUB"):
+        return "SUB"
+    if normalized == "DEC" or "-DEC" in normalized:
+        return "DEC"
+    if normalized.startswith(("DQD", "DQ")):
+        return "DQ"
+    if normalized in {"NC", "CNC"}:
+        return "NC"
+    return None
 
 
 async def save_tapology_match_enrichment(
