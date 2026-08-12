@@ -328,3 +328,56 @@ class TestState:
         assert r["agent_name"] == "test_agent"
         assert r["reasoning"] == "something failed"
         assert r["row_count"] == 0
+
+
+# =============================================================================
+# text_response 노드 테스트
+# =============================================================================
+
+class TestTextResponseNode:
+    """text_response_node는 SQL agent reasoning을 사용자 응답으로 재사용하지 않음"""
+
+    @pytest.mark.asyncio
+    async def test_single_agent_result_still_uses_response_llm(self):
+        from llm.graph.nodes.text_response import text_response_node
+
+        llm = AsyncMock()
+        llm.ainvoke.return_value = AIMessage(content="사용자에게 보여줄 응답")
+
+        result = await text_response_node({
+            "resolved_query": "존 존스 전적 알려줘",
+            "agent_results": [{
+                "agent_name": "mma_analysis",
+                "query": "SELECT id, name FROM fighter",
+                "data": [{"id": 1, "name": "jon jones"}],
+                "columns": ["id", "name"],
+                "row_count": 1,
+                "reasoning": "private reasoning with id 1",
+            }],
+        }, llm)
+
+        assert llm.ainvoke.await_count == 1
+        assert result["final_response"] == "사용자에게 보여줄 응답"
+        assert "private reasoning" not in result["final_response"]
+
+    @pytest.mark.asyncio
+    async def test_response_failure_does_not_fallback_to_reasoning(self):
+        from llm.graph.nodes.text_response import text_response_node
+
+        llm = AsyncMock()
+        llm.ainvoke.side_effect = TimeoutError("timeout")
+
+        result = await text_response_node({
+            "resolved_query": "존 존스 전적 알려줘",
+            "agent_results": [{
+                "agent_name": "mma_analysis",
+                "query": "SELECT id, name FROM fighter",
+                "data": [{"id": 1, "name": "jon jones"}],
+                "columns": ["id", "name"],
+                "row_count": 1,
+                "reasoning": "private reasoning with id 1",
+            }],
+        }, llm)
+
+        assert result["final_response"] == "응답 생성 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요."
+        assert "private reasoning" not in result["final_response"]

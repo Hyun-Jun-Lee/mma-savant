@@ -174,6 +174,65 @@ def load_schema_prompt() -> str:
         raise e
 
 
+def _append_query_map(lines: list[str], schema_data: Dict) -> None:
+    query_map = schema_data.get('query_map', [])
+    if not query_map:
+        return
+
+    lines.append("## Preferred Query Map")
+    lines.append("")
+    for entry in query_map:
+        topic = entry.get('topic')
+        if topic:
+            lines.append(f"**{topic}**")
+        for guidance in entry.get('guidance', []):
+            lines.append(f"- {guidance}")
+        lines.append("")
+
+
+def _append_views(lines: list[str], schema_data: Dict) -> None:
+    views = schema_data.get('views', {})
+    if not views:
+        return
+
+    lines.append("## Canonical Views")
+    lines.append("")
+    lines.append("Prefer these views for supported query families. Use raw tables only when the requested dimension is outside a view's scope.")
+    lines.append("")
+
+    for view_name, view_info in views.items():
+        lines.append(f"**{view_name}**: {view_info.get('description', 'No description')}")
+
+        preferred_for = view_info.get('preferred_for', [])
+        if preferred_for:
+            lines.append("  - Prefer for:")
+            for item in preferred_for:
+                lines.append(f"    - {item}")
+
+        sources = view_info.get('source_views') or view_info.get('source_tables') or []
+        if sources:
+            lines.append("  - Source:")
+            for source in sources:
+                lines.append(f"    - {source}")
+
+        metric_policies = view_info.get('metric_policies', [])
+        if metric_policies:
+            lines.append("  - Metric policies:")
+            for policy in metric_policies:
+                lines.append(f"    - {policy}")
+
+        columns = view_info.get('columns', [])
+        if columns:
+            lines.append("  - Columns:")
+            for col in columns:
+                col_name = col.get('column', '')
+                col_type = col.get('type', '')
+                description = col.get('description', '')
+                lines.append(f"    - {col_name} ({col_type}) - {description}")
+
+        lines.append("")
+
+
 def format_schema_for_prompt(schema_data: Dict) -> str:
     """
     schema.json 데이터를 프롬프트용 텍스트로 변환합니다.
@@ -202,6 +261,9 @@ def format_schema_for_prompt(schema_data: Dict) -> str:
             lines.append(f"- {note}")
         lines.append("- **DATA CASE SENSITIVITY**: All text data stored in lowercase")
         lines.append("")
+
+    _append_query_map(lines, schema_data)
+    _append_views(lines, schema_data)
     
     # Tables section
     tables = schema_data.get('tables', {})

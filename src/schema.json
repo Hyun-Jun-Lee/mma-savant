@@ -9,6 +9,45 @@
       "All tables have 'created_at' and 'updated_at' timestamp columns"
     ]
   },
+  "query_map": [
+    {
+      "topic": "Fighter fight results, records, recent fights",
+      "guidance": [
+        "Prefer v_completed_fighter_fights for completed recent fights, records, win/loss counts, and method summaries.",
+        "Use v_fighter_fight_results when scheduled, cancelled, or postponed bouts may matter.",
+        "Prefer v_fighter_opponents for opponent, common-opponent, and recent-opponent questions."
+      ]
+    },
+    {
+      "topic": "Current champions and rankings",
+      "guidance": [
+        "Prefer v_current_rankings.",
+        "ranking = 0 means champion."
+      ]
+    },
+    {
+      "topic": "Record and win-rate summaries",
+      "guidance": [
+        "Prefer v_fighter_record_summary.",
+        "Default win rate is wins / (wins + losses + draws + no_contests)."
+      ]
+    },
+    {
+      "topic": "KO/TKO, submission, decision, and finish rates",
+      "guidance": [
+        "Prefer v_fighter_method_summary.",
+        "Current DB canonical KO/TKO pattern is method ILIKE 'KO/TKO%'.",
+        "Default finish rate is finish_wins / total_completed_fights."
+      ]
+    },
+    {
+      "topic": "Raw table fallback",
+      "guidance": [
+        "Use raw tables only when the requested dimension is outside the canonical view scope.",
+        "Do not reimplement a view's metric definition with ad hoc joins unless the query requires dimensions the view does not expose."
+      ]
+    }
+  ],
   "tables": {
     "fighter": {
       "description": "UFC fighter basic information and records",
@@ -940,6 +979,185 @@
           "nullable": true,
           "description": "Chart visualization metadata (visualization_type, visualization_data, insights)"
         }
+      ]
+    }
+  },
+  "views": {
+    "v_fighter_fight_results": {
+      "description": "Canonical fighter-side fight result fact view with event, match, and weight-class metadata.",
+      "source_tables": ["fighter", "fighter_match", "match", "event", "weight_class"],
+      "preferred_for": [
+        "fighter fight results",
+        "recent fights when scheduled or cancelled bouts may matter",
+        "title bout filters",
+        "weight-class fight result queries"
+      ],
+      "columns": [
+        {"column": "fighter_id", "type": "integer", "description": "Fighter id"},
+        {"column": "fighter_name", "type": "character varying", "description": "Fighter full name"},
+        {"column": "nickname", "type": "character varying", "description": "Fighter nickname"},
+        {"column": "fighter_match_id", "type": "integer", "description": "Fighter-side row id"},
+        {"column": "match_id", "type": "integer", "description": "Fight/match id"},
+        {"column": "event_id", "type": "integer", "description": "Event id"},
+        {"column": "event_name", "type": "character varying", "description": "Event name"},
+        {"column": "event_date", "type": "date", "description": "Event date"},
+        {"column": "event_location", "type": "character varying", "description": "Event location"},
+        {"column": "weight_class_id", "type": "integer", "description": "Weight class id"},
+        {"column": "weight_class_name", "type": "character varying", "description": "Weight class name"},
+        {"column": "result", "type": "character varying", "description": "Fighter-side result: win, loss, draw, nc, or null"},
+        {"column": "method", "type": "character varying", "description": "Bout finish method"},
+        {"column": "result_round", "type": "integer", "description": "Round the fight ended"},
+        {"column": "time", "type": "character varying", "description": "Time the fight ended within the round"},
+        {"column": "is_main_event", "type": "boolean", "description": "Whether this fight is the main event"},
+        {"column": "is_title_bout", "type": "boolean", "description": "Whether this fight is a title bout"},
+        {"column": "bout_status", "type": "character varying", "description": "Tapology-derived bout status"},
+        {"column": "cancellation_reason", "type": "character varying", "description": "Cancellation or postponement reason when available"},
+        {"column": "fight_order", "type": "integer", "description": "Fight order on card"}
+      ]
+    },
+    "v_completed_fighter_fights": {
+      "description": "Canonical completed fighter-side fight view for recent fights, records, and rates.",
+      "source_views": ["v_fighter_fight_results"],
+      "preferred_for": [
+        "completed recent fights",
+        "UFC fight-side records",
+        "win/loss/draw/no-contest counts",
+        "method category filters"
+      ],
+      "metric_policies": [
+        "completed_fight = event_date <= current_date and result IS NOT NULL",
+        "exclude non-completed Tapology statuses with COALESCE(bout_status, 'completed') NOT IN ('scheduled', 'cancelled', 'postponed')",
+        "bout_status is sparse, so NULL is treated as completed only when result/date conditions are satisfied",
+        "KO/TKO bucket uses method ILIKE 'KO/TKO%' first; KO-% and TKO-% are accepted only for future or legacy data"
+      ],
+      "columns": [
+        {"column": "fighter_id", "type": "integer", "description": "Fighter id"},
+        {"column": "fighter_name", "type": "character varying", "description": "Fighter full name"},
+        {"column": "fighter_match_id", "type": "integer", "description": "Fighter-side row id"},
+        {"column": "match_id", "type": "integer", "description": "Fight/match id"},
+        {"column": "event_id", "type": "integer", "description": "Event id"},
+        {"column": "event_name", "type": "character varying", "description": "Event name"},
+        {"column": "event_date", "type": "date", "description": "Event date"},
+        {"column": "weight_class_id", "type": "integer", "description": "Weight class id"},
+        {"column": "weight_class_name", "type": "character varying", "description": "Weight class name"},
+        {"column": "result", "type": "character varying", "description": "Fighter-side result"},
+        {"column": "method", "type": "character varying", "description": "Bout finish method"},
+        {"column": "is_win", "type": "boolean", "description": "result = 'win'"},
+        {"column": "is_loss", "type": "boolean", "description": "result = 'loss'"},
+        {"column": "is_draw", "type": "boolean", "description": "result = 'draw'"},
+        {"column": "is_no_contest", "type": "boolean", "description": "result = 'nc'"},
+        {"column": "is_ko_tko", "type": "boolean", "description": "method is KO/TKO"},
+        {"column": "is_submission", "type": "boolean", "description": "method is submission"},
+        {"column": "is_decision", "type": "boolean", "description": "method is decision"},
+        {"column": "is_finish", "type": "boolean", "description": "method is KO/TKO or submission"}
+      ]
+    },
+    "v_fighter_opponents": {
+      "description": "Completed fighter-side fight view with opponent identity.",
+      "source_views": ["v_completed_fighter_fights"],
+      "source_tables": ["fighter_match", "fighter"],
+      "preferred_for": [
+        "recent fight opponents",
+        "common opponents",
+        "who did this fighter fight",
+        "title fight opponent queries"
+      ],
+      "columns": [
+        {"column": "fighter_id", "type": "integer", "description": "Fighter id"},
+        {"column": "fighter_name", "type": "character varying", "description": "Fighter full name"},
+        {"column": "opponent_id", "type": "integer", "description": "Opponent fighter id"},
+        {"column": "opponent_name", "type": "character varying", "description": "Opponent full name"},
+        {"column": "fighter_match_id", "type": "integer", "description": "Fighter-side row id"},
+        {"column": "match_id", "type": "integer", "description": "Fight/match id"},
+        {"column": "event_id", "type": "integer", "description": "Event id"},
+        {"column": "event_name", "type": "character varying", "description": "Event name"},
+        {"column": "event_date", "type": "date", "description": "Event date"},
+        {"column": "weight_class_id", "type": "integer", "description": "Weight class id"},
+        {"column": "weight_class_name", "type": "character varying", "description": "Weight class name"},
+        {"column": "result", "type": "character varying", "description": "Fighter-side result"},
+        {"column": "method", "type": "character varying", "description": "Bout finish method"},
+        {"column": "result_round", "type": "integer", "description": "Round the fight ended"},
+        {"column": "time", "type": "character varying", "description": "Time the fight ended within the round"},
+        {"column": "is_title_bout", "type": "boolean", "description": "Whether this fight is a title bout"},
+        {"column": "fight_order", "type": "integer", "description": "Fight order on card"}
+      ]
+    },
+    "v_current_rankings": {
+      "description": "Canonical current ranking and champion view.",
+      "source_tables": ["ranking", "fighter", "weight_class"],
+      "preferred_for": [
+        "current champions",
+        "weight-class rankings",
+        "ranked fighter filters"
+      ],
+      "metric_policies": [
+        "ranking = 0 means champion"
+      ],
+      "columns": [
+        {"column": "fighter_id", "type": "integer", "description": "Fighter id"},
+        {"column": "fighter_name", "type": "character varying", "description": "Fighter full name"},
+        {"column": "weight_class_id", "type": "integer", "description": "Weight class id"},
+        {"column": "weight_class_name", "type": "character varying", "description": "Weight class name"},
+        {"column": "ranking", "type": "integer", "description": "Rank position; 0 means champion"},
+        {"column": "is_champion", "type": "boolean", "description": "ranking = 0"},
+        {"column": "display_rank", "type": "text", "description": "champion for rank 0, otherwise ranking as text"}
+      ]
+    },
+    "v_fighter_record_summary": {
+      "description": "Completed UFC fight-side record and win-rate summary by fighter.",
+      "source_views": ["v_completed_fighter_fights"],
+      "preferred_for": [
+        "fighter record",
+        "win rate",
+        "top fighters by wins or completed fights"
+      ],
+      "metric_policies": [
+        "total_completed_fights counts win, loss, draw, and no contest rows in v_completed_fighter_fights",
+        "default win rate is wins / (wins + losses + draws + no_contests)"
+      ],
+      "columns": [
+        {"column": "fighter_id", "type": "integer", "description": "Fighter id"},
+        {"column": "fighter_name", "type": "character varying", "description": "Fighter full name"},
+        {"column": "total_completed_fights", "type": "bigint", "description": "Completed UFC fight-side rows"},
+        {"column": "wins", "type": "bigint", "description": "Completed fight wins"},
+        {"column": "losses", "type": "bigint", "description": "Completed fight losses"},
+        {"column": "draws", "type": "bigint", "description": "Completed fight draws"},
+        {"column": "no_contests", "type": "bigint", "description": "Completed fight no contests"},
+        {"column": "win_rate", "type": "numeric", "description": "wins / (wins + losses + draws + no_contests) * 100"},
+        {"column": "last_fight_date", "type": "date", "description": "Most recent completed fight date"},
+        {"column": "first_fight_date", "type": "date", "description": "First completed fight date"}
+      ]
+    },
+    "v_fighter_method_summary": {
+      "description": "Completed UFC fight-side method bucket summary by fighter.",
+      "source_views": ["v_completed_fighter_fights"],
+      "preferred_for": [
+        "KO/TKO wins",
+        "submission wins",
+        "decision wins",
+        "finish rate"
+      ],
+      "metric_policies": [
+        "KO/TKO uses method ILIKE 'KO/TKO%' as the current DB canonical pattern",
+        "submission uses method ILIKE 'SUB-%'",
+        "decision uses U-DEC, S-DEC, M-DEC, or method ILIKE '%DEC%'",
+        "finish_wins counts wins by KO/TKO or submission",
+        "finish_rate = finish_wins / total_completed_fights"
+      ],
+      "columns": [
+        {"column": "fighter_id", "type": "integer", "description": "Fighter id"},
+        {"column": "fighter_name", "type": "character varying", "description": "Fighter full name"},
+        {"column": "ko_tko_wins", "type": "bigint", "description": "Wins by KO/TKO"},
+        {"column": "submission_wins", "type": "bigint", "description": "Wins by submission"},
+        {"column": "decision_wins", "type": "bigint", "description": "Wins by decision"},
+        {"column": "dq_wins", "type": "bigint", "description": "Wins by disqualification"},
+        {"column": "other_wins", "type": "bigint", "description": "Wins by other or non-standard methods"},
+        {"column": "ko_tko_losses", "type": "bigint", "description": "Losses by KO/TKO"},
+        {"column": "submission_losses", "type": "bigint", "description": "Losses by submission"},
+        {"column": "decision_losses", "type": "bigint", "description": "Losses by decision"},
+        {"column": "finish_wins", "type": "bigint", "description": "Wins by KO/TKO or submission"},
+        {"column": "finish_losses", "type": "bigint", "description": "Losses by KO/TKO or submission"},
+        {"column": "finish_rate", "type": "numeric", "description": "finish_wins / total_completed_fights * 100"}
       ]
     }
   }

@@ -226,8 +226,7 @@ class MMAGraphService:
             # 결과 추출
             final_response = final_state.get("final_response", "")
 
-            # Fast path: LLM 호출 없이 reasoning 재사용된 경우
-            # → 토큰 스트리밍 없이 완성 텍스트를 단일 stream_token으로 전송
+            # 토큰 스트리밍 없이 완성 텍스트가 나온 경우 단일 stream_token으로 전송
             if not has_streamed_tokens and final_response:
                 yield {
                     "type": "stream_token",

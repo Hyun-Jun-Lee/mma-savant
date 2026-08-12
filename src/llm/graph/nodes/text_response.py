@@ -34,28 +34,22 @@ async def text_response_node(state: MainState, llm) -> dict:
     """
     텍스트 분석 응답 노드
 
-    단일 에이전트: reasoning 재사용 (LLM 호출 생략)
-    복수 에이전트: 결과 통합하여 LLM으로 텍스트 생성
+    SQL agent reasoning은 private execution context이므로 사용자 응답으로 재사용하지 않는다.
+    단일/복수 에이전트 모두 SQL 결과를 response LLM으로 전달하여 최종 응답을 생성한다.
     """
     agent_results = state.get("agent_results", [])
     resolved_query = state.get("resolved_query", "")
 
     try:
-        if len(agent_results) == 1 and agent_results[0].get("reasoning"):
-            # 단일 에이전트 → reasoning 재사용 (LLM 호출 생략)
-            LOGGER.info("♻️ Reusing agent reasoning, skipping LLM call")
-            content = agent_results[0]["reasoning"]
-        else:
-            # 복수 에이전트 또는 reasoning 없음 → LLM 호출
-            input_text = _build_text_input(resolved_query, agent_results)
-            response = await asyncio.wait_for(
-                llm.ainvoke([
-                    SystemMessage(content=TEXT_RESPONSE_PROMPT),
-                    HumanMessage(content=input_text),
-                ]),
-                timeout=TR_TIMEOUT_SECONDS,
-            )
-            content = response.content if hasattr(response, "content") else str(response)
+        input_text = _build_text_input(resolved_query, agent_results)
+        response = await asyncio.wait_for(
+            llm.ainvoke([
+                SystemMessage(content=TEXT_RESPONSE_PROMPT),
+                HumanMessage(content=input_text),
+            ]),
+            timeout=TR_TIMEOUT_SECONDS,
+        )
+        content = response.content if hasattr(response, "content") else str(response)
 
         LOGGER.info(f"✅ Text response generated: {len(content)} chars")
 
@@ -66,14 +60,7 @@ async def text_response_node(state: MainState, llm) -> dict:
 
     except Exception as e:
         LOGGER.error(f"❌ Text response failed: {e}")
-        # 폴백: reasoning이 있으면 그대로 사용
-        fallback = ""
-        for result in agent_results:
-            if result.get("reasoning"):
-                fallback = result["reasoning"]
-                break
-        if not fallback:
-            fallback = "데이터 분석 중 오류가 발생했습니다."
+        fallback = "응답 생성 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요."
 
         return {
             "final_response": fallback,

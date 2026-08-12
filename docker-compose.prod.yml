@@ -25,7 +25,7 @@ services:
   # API Blue
   # =============================================================================
   api-blue:
-    image: ${REGISTRY}/api:${IMAGE_VERSION:-latest}
+    image: ${REGISTRY}/api:${API_IMAGE_VERSION:-${IMAGE_VERSION:-latest}}
     container_name: api-blue
     restart: unless-stopped
     env_file:
@@ -55,7 +55,7 @@ services:
   # API Green
   # =============================================================================
   api-green:
-    image: ${REGISTRY}/api:${IMAGE_VERSION:-latest}
+    image: ${REGISTRY}/api:${API_IMAGE_VERSION:-${IMAGE_VERSION:-latest}}
     container_name: api-green
     restart: unless-stopped
     env_file:
@@ -85,7 +85,7 @@ services:
   # Web Blue
   # =============================================================================
   web-blue:
-    image: ${REGISTRY}/web:${IMAGE_VERSION:-latest}
+    image: ${REGISTRY}/web:${WEB_IMAGE_VERSION:-${IMAGE_VERSION:-latest}}
     container_name: web-blue
     restart: unless-stopped
     env_file:
@@ -109,7 +109,7 @@ services:
   # Web Green
   # =============================================================================
   web-green:
-    image: ${REGISTRY}/web:${IMAGE_VERSION:-latest}
+    image: ${REGISTRY}/web:${WEB_IMAGE_VERSION:-${IMAGE_VERSION:-latest}}
     container_name: web-green
     restart: unless-stopped
     env_file:
@@ -176,7 +176,7 @@ services:
   # 사용법: docker compose -f docker-compose.prod.yml up -d flow_serve
   # =============================================================================
   flow_serve:
-    image: ${REGISTRY}/api:${IMAGE_VERSION:-latest}
+    image: ${REGISTRY}/flow:${FLOW_IMAGE_VERSION:-${IMAGE_VERSION:-latest}}
     container_name: flow_serve
     restart: unless-stopped
     env_file:

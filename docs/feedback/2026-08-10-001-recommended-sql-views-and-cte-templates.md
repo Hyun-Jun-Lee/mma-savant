@@ -16,10 +16,22 @@
 ## Design Principles
 
 - View는 "모델이 자주 써야 하는 검증된 조인 경로"에 이름을 붙이는 용도다.
+- 실제 canonical metric/query path는 DB view에 둔다. Prompt와 `schema.json`은 view metadata와 사용 가이드만 담는다.
 - 원본 테이블은 계속 프롬프트에 제공하되, Query Map에서는 view를 우선 사용하도록 안내한다.
 - 집계 view는 denominator와 scope가 명확한 metric만 포함한다.
 - Tapology 기반 커리어 기록과 UFCStats 기반 경기 기록은 view 이름과 컬럼명에서 scope를 분명히 나눈다.
 - 처음부터 모든 view를 만들지 말고, Priority 1부터 평가셋으로 효과를 확인하며 추가한다.
+- CTE 템플릿은 DB view가 아직 없는 복잡 쿼리의 예시 또는 bootstrap 용도다. DB view가 만들어진 metric은 CTE가 아니라 view를 authoritative source로 사용한다.
+
+## Implementation Decisions
+
+- Initial implementation scope는 Priority 1 views로 제한한다.
+- View 생성 후 `src/schema.json`에 view metadata를 추가하고, `load_schema_prompt()`가 full schema 앞에 Preferred Query Map을 노출하도록 한다.
+- Prompt 변경 자체는 별도 feedback 문서인 `docs/feedback/2026-08-09-001-llm-prompt-sql-feedback.md`에 반영한다.
+- SQL agent eval은 view SQL 자체 검증뿐 아니라 old prompt/full schema vs view metadata/Query Map 사용 결과를 비교해야 한다.
+- 2026-08-11 DB 조사 결과, `match.method`의 KO/TKO 값은 `KO/TKO%` 형태가 canonical이다. 현재 DB에서 `KO/TKO%` 2,886건, `KO-%` 0건, `TKO-%` 0건, `SUB-%` 1,710건, `%DEC%` 4,096건이다.
+- 같은 조사에서 `bout_status`는 대부분 `NULL`이고, `cancelled` 1건만 확인됐다. 따라서 완료 경기 판정은 strict `bout_status = 'completed'`가 아니라 비완료 status exclusion으로 처리한다.
+- `strike_detail`의 `*_attempts`와 `match_statistics`의 `*_attempted`는 의미 차이가 아니라 source table naming 차이다. View output column은 `*_attempted`로 통일한다.
 
 ## Priority 1 Views
 
@@ -77,7 +89,12 @@
 **Recommended filter policy:**
 - `event_date <= CURRENT_DATE`
 - `result IS NOT NULL`
-- 필요 시 `bout_status IS NULL OR bout_status IN ('completed', 'unknown')`
+- `COALESCE(bout_status, 'completed') NOT IN ('scheduled', 'cancelled', 'postponed')`
+
+**Bout status policy:**
+- 현재 DB에서는 완료 UFCStats 경기의 `bout_status`가 대부분 `NULL`이고, Tapology 취소 경기만 `cancelled`로 들어올 수 있다.
+- 따라서 `bout_status = 'completed'`만 요구하면 기존 완료 경기 대부분을 누락한다.
+- 완료 경기 view는 `result IS NOT NULL`과 날짜 조건을 기본으로 하되, `scheduled`, `cancelled`, `postponed` 같은 비완료 status를 명시적으로 제외한다.
 
 **Recommended columns:**
 - `v_fighter_fight_results`의 주요 컬럼 전체
@@ -101,7 +118,45 @@
 - `method`가 비어 있는 최근 미수집 경기까지 완료 경기로 계산
 - `result='win'`과 method category 조건 조합 누락
 
-### 3. `v_current_rankings`
+### 3. `v_fighter_opponents`
+
+**Purpose:** 상대 선수 이름을 포함한 completed fight view. "최근 경기", "상대", "공통 상대", "타이틀전 상대" 질문에서 self join 실수를 줄이는 초기 범위 view다.
+
+**Source view/tables:**
+- `v_completed_fighter_fights`
+- `fighter_match` self join
+- `fighter`
+
+**Recommended columns:**
+- `fighter_id`
+- `fighter_name`
+- `opponent_id`
+- `opponent_name`
+- `match_id`
+- `event_id`
+- `event_name`
+- `event_date`
+- `weight_class_id`
+- `weight_class_name`
+- `result`
+- `method`
+- `result_round`
+- `time`
+- `is_title_bout`
+- `fight_order`
+
+**Questions it supports:**
+- "누구랑 싸웠어?"
+- "최근 5경기 상대"
+- "공통 상대"
+- "존 존스 타이틀전 상대"
+
+**LLM errors it reduces:**
+- bout 하나에 `fighter_match` 두 row가 있다는 구조를 잘못 펼치는 오류
+- recent fight 질문에서 opponent self join 누락
+- title fight 질문에서 `opponent_name`을 임의 추론하는 오류
+
+### 4. `v_current_rankings`
 
 **Purpose:** 현재 랭킹과 챔피언 조회를 단순화한다.
 
@@ -132,7 +187,7 @@
 - `ranking`과 `weight_class` 조인 누락
 - 챔피언을 `fighter.belt`만으로 판단하는 오류
 
-### 4. `v_fighter_record_summary`
+### 5. `v_fighter_record_summary`
 
 **Purpose:** 선수별 완료 경기 기준 record와 승률을 제공한다.
 
@@ -168,9 +223,7 @@
 - draw/no contest 처리 임의 추론
 - `fighter.wins/losses`와 UFC fight-side results scope 혼동
 
-## Priority 2 Views
-
-### 5. `v_fighter_method_summary`
+### 6. `v_fighter_method_summary`
 
 **Purpose:** 선수별 승리/패배 방식 집계를 제공한다.
 
@@ -194,9 +247,12 @@
 - `finish_win_rate_over_total_fights`
 
 **Method classification policy:**
-- `method ILIKE 'KO-%' OR method ILIKE 'TKO-%'` -> KO/TKO
+- `method ILIKE 'KO/TKO%'` -> KO/TKO
+- `method ILIKE 'KO-%' OR method ILIKE 'TKO-%'` -> KO/TKO only if future ingestion introduces these legacy-style values
 - `method ILIKE 'SUB-%'` -> submission
 - `method IN ('U-DEC', 'S-DEC', 'M-DEC') OR method ILIKE '%DEC%'` -> decision
+- `method ILIKE 'DQ%'` -> DQ
+- `method ILIKE 'Overturned%' OR method = 'CNC' OR method = 'Other'` -> other/non-standard bucket unless the question asks for no-contest/overturned specifically
 
 **Questions it supports:**
 - "KO 승리 많은 선수"
@@ -208,7 +264,9 @@
 - KO/TKO/SUB method pattern 누락
 - finish rate denominator 불일치
 
-### 6. `v_fighter_stat_totals`
+## Priority 2 Views
+
+### 7. `v_fighter_stat_totals`
 
 **Purpose:** fighter-side 라운드 통계를 선수별로 집계한다.
 
@@ -245,7 +303,7 @@
 - `td_landed / td_attempted` denominator 누락
 - fighter-side stats를 match-level stats로 오해
 
-### 7. `v_fighter_strike_profile`
+### 8. `v_fighter_strike_profile`
 
 **Purpose:** 타격 타깃/포지션별 집계와 정확도를 제공한다.
 
@@ -258,19 +316,24 @@
 - `fighter_id`
 - `fighter_name`
 - `head_strikes_landed`
-- `head_strikes_attempts`
+- `head_strikes_attempted`
 - `head_strike_accuracy`
 - `body_strikes_landed`
-- `body_strikes_attempts`
+- `body_strikes_attempted`
 - `body_strike_accuracy`
 - `leg_strikes_landed`
-- `leg_strikes_attempts`
+- `leg_strikes_attempted`
 - `leg_strike_accuracy`
 - `clinch_strikes_landed`
-- `clinch_strikes_attempts`
+- `clinch_strikes_attempted`
 - `ground_strikes_landed`
-- `ground_strikes_attempts`
+- `ground_strikes_attempted`
 - `strike_detail_rounds`
+
+**Column naming policy:**
+- Source table `strike_detail` uses `*_attempts`; source table `match_statistics` uses `*_attempted`.
+- Both mean attempts made by the fighter, not attempts received.
+- View output columns should use `*_attempted` consistently to reduce SQL agent column-name drift.
 
 **Questions it supports:**
 - "헤드 스트라이크 비중 높은 선수"
@@ -281,7 +344,7 @@
 - target별 landed/attempts 컬럼명 혼동
 - 1행 다중 숫자 시각화에 필요한 stable column 제공
 
-### 8. `v_fighter_profile_enriched`
+### 9. `v_fighter_profile_enriched`
 
 **Purpose:** UFCStats fighter profile과 Tapology profile enrichment를 함께 제공한다.
 
@@ -321,7 +384,7 @@
 
 ## Priority 3 Views
 
-### 9. `v_fighter_career_promotion_summary`
+### 10. `v_fighter_career_promotion_summary`
 
 **Purpose:** Tapology promotion-level career record를 fighter profile과 함께 제공한다.
 
@@ -349,7 +412,7 @@
 - Tapology career record를 UFCStats completed fight record와 섞는 오류
 - promotion scope 누락
 
-### 10. `v_fighter_career_method_summary`
+### 11. `v_fighter_career_method_summary`
 
 **Purpose:** Tapology method-level all-career record를 fighter profile과 함께 제공한다.
 
@@ -382,7 +445,7 @@
 - all-career Tapology scope와 UFC-only scope 혼동
 - `result`, `method_category` 조합 누락
 
-### 11. `v_event_fight_card`
+### 12. `v_event_fight_card`
 
 **Purpose:** 이벤트별 fight card 조회를 단순화한다.
 
@@ -412,6 +475,10 @@
 - `result_round`
 - `time`
 
+**Pairing policy:**
+- If exposing `fighter_1` / `fighter_2`, the ordering must be explicitly documented as stable display ordering, not semantic ranking/corner/favorite ordering.
+- For agent queries where participant order should not matter, prefer row-wise fighter/opponent views such as `v_fighter_opponents`.
+
 **Questions it supports:**
 - "이번 주 UFC 대진"
 - "UFC 300 메인카드"
@@ -421,7 +488,7 @@
 - bout 하나에 fighter_match 두 row가 있다는 구조를 잘못 펼치는 오류
 - card order/main event 해석 오류
 
-### 12. `v_title_fights`
+### 13. `v_title_fights`
 
 **Purpose:** 타이틀전 질문을 단순화한다.
 
@@ -454,29 +521,6 @@
 
 ## Optional Helper Views
 
-### `v_fighter_opponents`
-
-**Purpose:** 상대 선수 이름을 포함한 completed fight view.
-
-**Why optional:** 구현이 약간 더 까다롭다. `fighter_match` self join으로 같은 `match_id`의 다른 fighter를 찾아야 한다.
-
-**Recommended columns:**
-- `fighter_id`
-- `fighter_name`
-- `opponent_id`
-- `opponent_name`
-- `match_id`
-- `event_name`
-- `event_date`
-- `result`
-- `method`
-- `weight_class_name`
-
-**Useful for:**
-- "누구랑 싸웠어?"
-- "공통 상대"
-- "최근 5경기 상대"
-
 ### `v_weight_class_activity_summary`
 
 **Purpose:** 체급별 경기 수, 피니시 수, 평균 라운드 등 dashboard/analysis용 집계.
@@ -503,7 +547,7 @@
 
 ## Recommended CTE Templates
 
-CTE 템플릿은 실제 DB view를 만들기 전에도 프롬프트에 넣을 수 있는 표준 SQL 패턴이다. 모델이 복잡한 query를 만들 때 이 패턴을 복사해 확장하도록 유도한다.
+CTE 템플릿은 실제 DB view를 만들기 전 bootstrap 또는 view가 없는 복잡 query를 위한 예시 SQL 패턴이다. DB view가 만들어진 metric은 CTE가 아니라 view를 우선 사용한다.
 
 ### CTE 1. Completed Fighter Fights
 
@@ -514,6 +558,7 @@ WITH completed_fights AS (
     f.name AS fighter_name,
     fm.match_id,
     fm.result,
+    m.bout_status,
     m.method,
     m.result_round,
     e.name AS event_name,
@@ -526,6 +571,7 @@ WITH completed_fights AS (
   LEFT JOIN weight_class wc ON wc.id = m.weight_class_id
   WHERE e.event_date <= CURRENT_DATE
     AND fm.result IS NOT NULL
+    AND COALESCE(m.bout_status, 'completed') NOT IN ('scheduled', 'cancelled', 'postponed')
 )
 ```
 
@@ -567,11 +613,13 @@ method_summary AS (
   SELECT
     fighter_id,
     fighter_name,
-    SUM(CASE WHEN result = 'win' AND (method ILIKE 'KO-%' OR method ILIKE 'TKO-%') THEN 1 ELSE 0 END) AS ko_tko_wins,
+    SUM(CASE WHEN result = 'win' AND (
+      method ILIKE 'KO/TKO%' OR method ILIKE 'KO-%' OR method ILIKE 'TKO-%'
+    ) THEN 1 ELSE 0 END) AS ko_tko_wins,
     SUM(CASE WHEN result = 'win' AND method ILIKE 'SUB-%' THEN 1 ELSE 0 END) AS submission_wins,
     SUM(CASE WHEN result = 'win' AND method ILIKE '%DEC%' THEN 1 ELSE 0 END) AS decision_wins,
     SUM(CASE WHEN result = 'win' AND (
-      method ILIKE 'KO-%' OR method ILIKE 'TKO-%' OR method ILIKE 'SUB-%'
+      method ILIKE 'KO/TKO%' OR method ILIKE 'KO-%' OR method ILIKE 'TKO-%' OR method ILIKE 'SUB-%'
     ) THEN 1 ELSE 0 END) AS finish_wins
   FROM completed_fights
   GROUP BY fighter_id, fighter_name
@@ -633,6 +681,7 @@ WITH fight_card AS (
     e.id AS event_id,
     e.name AS event_name,
     e.event_date,
+    e.location AS event_location,
     m.id AS match_id,
     m."order" AS fight_order,
     m.is_main_event,
@@ -641,7 +690,11 @@ WITH fight_card AS (
     MAX(CASE WHEN rn = 1 THEN fighter_id END) AS fighter_1_id,
     MAX(CASE WHEN rn = 1 THEN fighter_name END) AS fighter_1_name,
     MAX(CASE WHEN rn = 2 THEN fighter_id END) AS fighter_2_id,
-    MAX(CASE WHEN rn = 2 THEN fighter_name END) AS fighter_2_name
+    MAX(CASE WHEN rn = 2 THEN fighter_name END) AS fighter_2_name,
+    m.bout_status,
+    m.method,
+    m.result_round,
+    m.time
   FROM (
     SELECT
       fm.match_id,
@@ -654,7 +707,8 @@ WITH fight_card AS (
   JOIN match m ON m.id = fighters.match_id
   JOIN event e ON e.id = m.event_id
   LEFT JOIN weight_class wc ON wc.id = m.weight_class_id
-  GROUP BY e.id, e.name, e.event_date, m.id, m."order", m.is_main_event, m.is_title_bout, wc.name
+  GROUP BY e.id, e.name, e.event_date, e.location, m.id, m."order", m.is_main_event, m.is_title_bout, wc.name,
+           m.bout_status, m.method, m.result_round, m.time
 )
 ```
 
@@ -670,6 +724,7 @@ WITH fight_card AS (
 Fighter fight results, records, recent fights:
 - Prefer v_completed_fighter_fights.
 - Use v_fighter_fight_results when scheduled/cancelled/postponed bouts may matter.
+- Prefer v_fighter_opponents when the user asks for opponents, common opponents, or recent fight opponents.
 
 Current champions and rankings:
 - Prefer v_current_rankings.
@@ -700,16 +755,26 @@ Event fight cards and upcoming bouts:
 
 ## Implementation Order
 
+### Initial Slice
+
 1. `v_fighter_fight_results`
 2. `v_completed_fighter_fights`
-3. `v_current_rankings`
-4. `v_fighter_record_summary`
-5. `v_fighter_method_summary`
-6. `v_fighter_stat_totals`
-7. `v_event_fight_card`
-8. `v_fighter_profile_enriched`
-9. Tapology career summary views
-10. Optional helper views based on observed user questions
+3. `v_fighter_opponents`
+4. `v_current_rankings`
+5. `v_fighter_record_summary`
+6. `v_fighter_method_summary`
+7. Add view definitions and relationships to `src/schema.json`
+8. Add Preferred Query Map/view usage guidance to SQL agent prompts via schema prompt formatting
+9. Add focused SQL/view tests and SQL-agent eval cases for the Priority 1 questions
+
+### Gated Follow-up
+
+10. `v_fighter_stat_totals`
+11. `v_fighter_strike_profile`
+12. `v_event_fight_card`
+13. `v_fighter_profile_enriched` only if eval shows profile queries still over-join raw tables
+14. Tapology career summary views after all-career vs UFC-only scope failures are observed
+15. Optional helper views based on observed user questions
 
 ## Validation Checklist
 

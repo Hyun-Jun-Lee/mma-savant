@@ -61,3 +61,41 @@ src/
 ├── types/                # TypeScript 타입 정의
 └── config/               # 환경변수 설정
 ```
+
+## Production CD
+
+릴리스는 기존처럼 `main` 브랜치에서 `vX.Y.Z` 형식의 git tag를 push하면 시작된다.
+CD는 직전 semver tag와 현재 tag의 변경 파일을 비교해서 필요한 컴포넌트만 빌드/배포한다.
+
+| 변경 범위 | 빌드 이미지 | 운영 반영 |
+|-----------|-------------|-----------|
+| `frontend/**` | `web:<tag>` | API/Web blue-green 배포, API는 기존 운영 버전 재사용 |
+| `src/api/**`, `src/llm/**` 등 API 런타임 | `api:<tag>` | API/Web blue-green 배포, Web은 기존 운영 버전 재사용 |
+| `src/data_collector/**` | `flow:<tag>` | `flow_serve` 컨테이너만 recreate |
+| 공용 모델/DB 계층 | `api:<tag>`, `flow:<tag>` | API/Web 배포와 `flow_serve` recreate |
+
+운영 서버에는 현재 배포된 컴포넌트 버전이 각각 기록된다.
+
+```bash
+cat ~/mma-savant/.deployed-api-version
+cat ~/mma-savant/.deployed-web-version
+cat ~/mma-savant/.deployed-flow-version
+```
+
+수동으로 API/Web을 배포해야 할 때는 버전을 독립적으로 넘길 수 있다.
+
+```bash
+./scripts/deploy-blue-green.sh \
+  --api-version v0.18.0 \
+  --web-version v0.17.3 \
+  --release-version v0.18.0 \
+  --registry ghcr.io/hyun-jun-lee/mma-savant
+```
+
+수동으로 Prefect `flow_serve`만 갱신해야 할 때는 Flow 이미지 버전을 지정한다.
+
+```bash
+./scripts/restart-flow-serve.sh \
+  --flow-version v0.18.0 \
+  --registry ghcr.io/hyun-jun-lee/mma-savant
+```

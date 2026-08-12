@@ -12,7 +12,6 @@
 
 - SQL agent는 "정확한 SQL 실행과 결과 기반 초안"까지만 책임진다.
 - 사용자에게 보여줄 자연어 답변은 별도 response node가 항상 담당한다.
-- Critic은 WHERE/LIMIT 확인을 넘어 metric 정의, join 중복, denominator, 시간 조건을 검증해야 한다.
 - Supervisor는 "명시적 선수 간 비교"와 "그룹 내 지표 비교/랭킹"을 구분해야 한다.
 - 전체 스키마는 유지할 수 있지만, 자주 틀리는 metric 정의와 canonical query pattern을 스키마보다 더 강한 지시로 제공해야 한다.
 
@@ -58,20 +57,16 @@ This is especially risky because the SQL prompt instructs the model to include e
 
 Make SQL agent output private by default.
 
-Preferred options:
+Implement this as a hard contract:
 
-1. Always route SQL results through `text_response_node`, even for a single agent.
-2. Or require SQL agents to return structured fields:
+- Always route SQL results through `text_response_node`, even for a single agent.
+- SQL agent `reasoning` is private execution context and must never be copied into `final_response`.
+- Remove both reasoning reuse paths:
+  - the single-agent fast path that skips the response LLM call
+  - the exception fallback that returns agent `reasoning`
+- If `text_response_node` fails, fail closed with a controlled fallback message or deterministic sanitized summary from SQL rows. Do not reuse SQL agent reasoning as user-visible text.
 
-```json
-{
-  "private_reasoning": "How the SQL was chosen.",
-  "query_summary": "What data was fetched.",
-  "user_answer_draft": "A draft answer without IDs."
-}
-```
-
-Even with option 2, the final response node should be the only component allowed to produce user-visible text.
+The final response node is the only component allowed to produce user-visible text.
 
 ## Priority 3. Split Response Style Prompts by Node Responsibility
 
@@ -139,50 +134,7 @@ complex:
 - Use when the user asks for both a single-fighter analysis and a named fighter comparison in one request.
 ```
 
-## Priority 5. Expand Critic from SQL Shape Check to Metric Correctness Check
-
-### Current Issue
-
-The critic prompt mainly checks whether requested filters appear in `WHERE` and whether `LIMIT` matches the user's request. This misses the most damaging SQL failures:
-
-- Duplicate rows from wrong joins
-- Wrong denominator for rates
-- Counting participations instead of wins, or wins instead of fights
-- Including future events in "recent" queries
-- Mishandling draws/no contests
-- Comparing fighters with inconsistent metric windows
-
-### Recommended Change
-
-Add explicit critic checks:
-
-```text
-Validate the SQL against the requested metric:
-
-1. Entity correctness
-   - Are the requested fighters, weight classes, events, or dates represented?
-
-2. Time correctness
-   - Does "recent/latest/last" exclude future events?
-   - Does "upcoming/next" include only future events?
-
-3. Metric correctness
-   - For win rate, is wins / total completed fights used?
-   - For finish rate, is finish wins / wins or finish wins / fights consistent with the question?
-   - For KO/submission wins, is result='win' applied?
-   - For decision participation, avoid applying result='win' unless the user asks for decision wins.
-
-4. Join correctness
-   - Is the query likely to duplicate fights because of an incorrect join?
-   - Are fighter-side stats coming from fighter_match, not match-level rows?
-
-5. Comparison fairness
-   - Are all compared fighters queried using the same filters and metric definitions?
-```
-
-Critic feedback should name the exact SQL issue and suggest the correction.
-
-## Priority 6. Clarify "DB Is Ground Truth" vs Data Freshness
+## Priority 5. Clarify "DB Is Ground Truth" vs Data Freshness
 
 ### Current Issue
 
@@ -200,9 +152,7 @@ Treat the database as the source of truth for this application. Do not override 
 However, if the query concerns events within the latest collection window and result/method fields are empty, state that the app's database may not have ingested those results yet.
 ```
 
-Ideally, inject actual collector metadata such as `last_collected_at` or `latest_event_date_with_results` instead of a static Tuesday rule.
-
-## Priority 7. Add Canonical Metric Definitions
+## Priority 6. Add Canonical Metric Definitions
 
 ### Current Issue
 
@@ -218,7 +168,10 @@ Recommended examples:
 ## Canonical Metric Definitions
 
 completed_fight:
-- A fight with a known result/method and event_date <= current_date.
+- event_date <= current_date
+- fighter_match.result IS NOT NULL
+- COALESCE(bout_status, 'completed') NOT IN ('scheduled', 'cancelled', 'postponed')
+- bout_status is sparse in the current DB, so NULL is treated as completed only when result/date conditions are satisfied.
 
 ufc_wins:
 - Count fighter_match rows where result = 'win'.
@@ -227,24 +180,24 @@ ufc_losses:
 - Count fighter_match rows where result = 'loss'.
 
 win_rate:
-- wins / (wins + losses + draws + no_contests as defined by product policy).
-- If draws/no contests should be excluded, state that explicitly and use the same policy everywhere.
+- wins / (wins + losses + draws + no_contests).
+- Use the same denominator consistently across prompts, schema metadata, and canonical views.
 
 finish_wins:
 - Wins where match.method indicates KO/TKO or submission.
 
 finish_rate:
-- Define whether this means finish_wins / wins or finish_wins / total_fights.
-- Prefer matching the user's wording; otherwise use product default and mention it.
+- finish_wins / total_completed_fights.
+- Use this default unless the user explicitly asks for a different denominator.
 
 recent_fights:
 - event_date <= current_date
 - ORDER BY event_date DESC
 ```
 
-Metric definitions reduce reliance on model intuition and make critic validation more meaningful.
+Metric definitions reduce reliance on model intuition and keep SQL generation aligned with product policy.
 
-## Priority 8. Keep Full Schema, But Add a Task-Specific Schema Index
+## Priority 7. Keep Full Schema, But Add a Task-Specific Schema Index
 
 ### Current Issue
 
@@ -276,6 +229,95 @@ Current rankings:
 ```
 
 The query map should encode the preferred path, while the full schema remains available for uncommon questions.
+
+## Priority 8. Add DB View Metadata and Usage Guidance
+
+### Current Issue
+
+The recommended SQL views in `docs/feedback/2026-08-10-001-recommended-sql-views-and-cte-templates.md` only help the SQL agent if the agent can see them and is instructed to prefer them. The current prompt path loads `src/schema.json` through `load_schema_prompt()`, so creating DB views alone will not change model behavior.
+
+### Recommended Change
+
+Treat DB views as the canonical source for common fact paths and metric definitions. Prompt/schema should expose view metadata and usage guidance, not duplicate the full SQL logic.
+
+For this implementation, the initial canonical DB view scope is:
+
+- `v_fighter_fight_results`
+- `v_completed_fighter_fights`
+- `v_fighter_opponents`
+- `v_current_rankings`
+- `v_fighter_record_summary`
+- `v_fighter_method_summary`
+
+After creating these views:
+
+1. Add each view to `src/schema.json` with:
+   - purpose
+   - source tables/views
+   - output columns
+   - relationships to base tables
+   - metric policies and denominator notes
+   - "prefer this view for..." guidance
+2. Update `format_schema_for_prompt()` so the prompt renders:
+   - Preferred Query Map first
+   - View metadata second
+   - Full raw table schema after that
+3. Update both SQL prompts to say:
+   - Prefer canonical views for supported query families.
+   - Use raw tables only when the user asks for data outside the view's scope.
+   - Do not reimplement a view's metric definition with ad hoc joins unless the query requires dimensions the view does not expose.
+4. Keep CTE templates as temporary bootstrap/examples only. Once a DB view exists, the prompt should prefer the view over copying CTE logic.
+
+Recommended initial Query Map additions:
+
+```text
+Fighter fight results, records, recent fights:
+- Prefer v_completed_fighter_fights.
+- Use v_fighter_fight_results when scheduled/cancelled/postponed bouts may matter.
+- Prefer v_fighter_opponents for opponent, common-opponent, and recent-opponent questions.
+
+Current champions and rankings:
+- Prefer v_current_rankings.
+- ranking = 0 means champion.
+
+Record/win-rate summaries:
+- Prefer v_fighter_record_summary.
+- Default win rate is wins / (wins + losses + draws + no_contests).
+
+Method/finish summaries:
+- Prefer v_fighter_method_summary.
+- Current DB canonical KO/TKO pattern is method ILIKE 'KO/TKO%'.
+- Default finish rate is finish_wins / total_completed_fights.
+```
+
+### Completed Fight Prompt Policy
+
+For completed-fight views, the prompt should describe the product policy:
+
+```text
+completed_fight:
+- event_date <= current_date
+- fighter_match.result IS NOT NULL
+- exclude non-completed Tapology statuses with COALESCE(bout_status, 'completed') NOT IN ('scheduled', 'cancelled', 'postponed')
+- bout_status is sparse in the current DB, so NULL is treated as completed only when result/date conditions are satisfied
+```
+
+### Method Bucket Prompt Policy
+
+Based on the 2026-08-11 DB check:
+
+```text
+method buckets:
+- KO/TKO: method ILIKE 'KO/TKO%' (also accept KO-% or TKO-% only for future/legacy data)
+- Submission: method ILIKE 'SUB-%'
+- Decision: method IN ('U-DEC', 'S-DEC', 'M-DEC') OR method ILIKE '%DEC%'
+- DQ: method ILIKE 'DQ%'
+- Other/non-standard: Overturned%, CNC, Other, or unmatched non-null methods
+```
+
+### Column Naming Policy
+
+The prompt/schema metadata should expose view output columns with `*_attempted` suffixes. The raw `strike_detail` table currently uses `*_attempts`, while `match_statistics` uses `*_attempted`; this is a source-table naming difference, not a semantic difference. Both mean attempts made by the fighter.
 
 ## Priority 9. Reduce Prompt Duplication Between SQL Agents
 
@@ -315,12 +357,12 @@ This is important for questions about betting odds, injuries, unofficial news, c
 
 ## Suggested Implementation Order
 
-1. Split response style fragments by node responsibility.
+1. Stop direct reuse of SQL agent reasoning as final user answer, including failure fallbacks.
 2. Remove SQL verification instruction conflicts.
-3. Stop direct reuse of SQL agent reasoning as final user answer.
-4. Add canonical metric definitions and query map.
-5. Expand critic prompt for metric correctness.
-6. Refine supervisor routing examples.
+3. Add canonical metric definitions and Preferred Query Map before the raw schema.
+4. Create the initial canonical DB views listed in Priority 8 and add their metadata to `src/schema.json`.
+5. Refine supervisor routing examples.
+6. Split response style fragments by node responsibility.
 7. Add unsupported-data refusal rule.
 8. Refactor duplicated prompt fragments.
 
@@ -348,7 +390,6 @@ For each case, capture:
 - Route selected by supervisor
 - SQL generated
 - Tool result row count
-- Critic pass/fail and feedback
 - Final user answer
 - Whether entity IDs leaked
 - Whether answer added facts not in SQL results

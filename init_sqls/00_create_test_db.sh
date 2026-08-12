@@ -291,6 +291,13 @@ EOSQL
 
 echo "✅ [INIT] Schema applied to test database"
 
+VIEW_SQL="/docker-entrypoint-initdb.d/06_create_sql_agent_views.sql"
+if [ -f "$VIEW_SQL" ]; then
+    echo "🔧 [INIT] Applying SQL agent views to test database..."
+    psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$TEST_DB_NAME" -f "$VIEW_SQL"
+    echo "✅ [INIT] SQL agent views applied to test database"
+fi
+
 # weight_class 기본 데이터 삽입
 echo "🔧 [INIT] Seeding weight_class data..."
 
