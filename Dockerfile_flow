@@ -10,7 +10,7 @@ COPY --from=ghcr.io/astral-sh/uv:latest /uv /bin/uv
 # 작업 디렉토리 설정
 WORKDIR /app
 
-# venv를 /app 외부에 생성 → 볼륨 마운트(./src:/app)에 영향받지 않음
+# venv를 /app 외부에 생성 -> 볼륨 마운트(./src:/app)에 영향받지 않음
 ENV UV_PROJECT_ENVIRONMENT=/opt/venv
 # Docker overlay FS에서 hardlink 미지원 경고 제거
 ENV UV_LINK_MODE=copy
@@ -20,6 +20,11 @@ COPY src/pyproject.toml src/uv.lock* ./
 
 # 의존성 설치
 RUN uv sync --frozen --no-dev
+
+# Flow 런타임은 UFCStats/Tapology 크롤러를 실행하므로 브라우저 바이너리를 포함한다.
+RUN uv run playwright install --with-deps chromium \
+    && uv run patchright install --with-deps chromium \
+    && rm -rf /var/lib/apt/lists/*
 
 # 소스 코드 복사
 COPY src/ ./

@@ -13,34 +13,78 @@ on:
 
 env:
   REGISTRY: ghcr.io
-  # github.repository는 대소문자 포함 가능, Docker는 소문자만 허용
-  IMAGE_NAME: ${{ github.repository }}
 
 jobs:
-  # Docker 이미지 빌드 및 푸시
-  build-and-push:
-    name: Build and Push Images
+  detect-changes:
+    name: Detect Component Changes
     runs-on: ubuntu-latest
     permissions:
       contents: read
-      packages: write
     outputs:
       version: ${{ steps.version.outputs.version }}
+      image_name: ${{ steps.image.outputs.name }}
+      api_changed: ${{ steps.detect.outputs.api_changed }}
+      web_changed: ${{ steps.detect.outputs.web_changed }}
+      flow_changed: ${{ steps.detect.outputs.flow_changed }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Determine version
         id: version
         run: |
           if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            echo "version=${{ github.event.inputs.version }}" >> $GITHUB_OUTPUT
+            echo "version=${{ github.event.inputs.version }}" >> "$GITHUB_OUTPUT"
           else
-            echo "version=${{ github.ref_name }}" >> $GITHUB_OUTPUT
+            echo "version=${{ github.ref_name }}" >> "$GITHUB_OUTPUT"
           fi
 
       - name: Set lowercase image name
         id: image
-        run: echo "name=$(echo '${{ github.repository }}' | tr '[:upper:]' '[:lower:]')" >> $GITHUB_OUTPUT
+        run: echo "name=$(echo '${{ github.repository }}' | tr '[:upper:]' '[:lower:]')" >> "$GITHUB_OUTPUT"
+
+      - name: Detect changed components
+        id: detect
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            {
+              echo "api_changed=true"
+              echo "web_changed=true"
+              echo "flow_changed=true"
+            } | tee -a "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          CURRENT_TAG="${{ github.ref_name }}"
+          CURRENT_COMMIT=$(git rev-list -n 1 "$CURRENT_TAG")
+          PREVIOUS_TAG=$(git describe --tags --match 'v*.*.*' --abbrev=0 "${CURRENT_COMMIT}^" 2>/dev/null || true)
+
+          if [ -z "$PREVIOUS_TAG" ]; then
+            echo "No previous semver tag found. Treating all components as changed."
+            {
+              echo "api_changed=true"
+              echo "web_changed=true"
+              echo "flow_changed=true"
+            } | tee -a "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          echo "Detecting changes between $PREVIOUS_TAG and $CURRENT_TAG"
+          git diff --name-only "$PREVIOUS_TAG..$CURRENT_TAG" > changed-files.txt
+          cat changed-files.txt
+          scripts/detect-component-changes.sh < changed-files.txt
+
+  build-api:
+    name: Build and Push API Image
+    needs: detect-changes
+    if: needs.detect-changes.outputs.api_changed == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -52,22 +96,13 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Extract metadata (API)
-        id: meta-api
+      - name: Extract metadata
+        id: meta
         uses: docker/metadata-action@v5
         with:
-          images: ${{ env.REGISTRY }}/${{ steps.image.outputs.name }}/api
+          images: ${{ env.REGISTRY }}/${{ needs.detect-changes.outputs.image_name }}/api
           tags: |
-            type=semver,pattern=v{{version}}
-            type=raw,value=latest
-
-      - name: Extract metadata (Web)
-        id: meta-web
-        uses: docker/metadata-action@v5
-        with:
-          images: ${{ env.REGISTRY }}/${{ steps.image.outputs.name }}/web
-          tags: |
-            type=semver,pattern=v{{version}}
+            type=raw,value=${{ needs.detect-changes.outputs.version }}
             type=raw,value=latest
 
       - name: Build and push API image
@@ -76,10 +111,40 @@ jobs:
           context: .
           file: ./Dockerfile_api
           push: true
-          tags: ${{ steps.meta-api.outputs.tags }}
-          labels: ${{ steps.meta-api.outputs.labels }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
+
+  build-web:
+    name: Build and Push Web Image
+    needs: detect-changes
+    if: needs.detect-changes.outputs.web_changed == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ needs.detect-changes.outputs.image_name }}/web
+          tags: |
+            type=raw,value=${{ needs.detect-changes.outputs.version }}
+            type=raw,value=latest
 
       - name: Build and push Web image
         uses: docker/build-push-action@v5
@@ -87,16 +152,65 @@ jobs:
           context: ./frontend
           file: ./frontend/Dockerfile.prod
           push: true
-          tags: ${{ steps.meta-web.outputs.tags }}
-          labels: ${{ steps.meta-web.outputs.labels }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
           no-cache: true
           build-args: |
             NEXT_PUBLIC_API_URL=${{ secrets.PROD_API_URL }}
 
-  # Blue-Green 배포
-  deploy:
-    name: Deploy (Blue-Green)
-    needs: build-and-push
+  build-flow:
+    name: Build and Push Flow Image
+    needs: detect-changes
+    if: needs.detect-changes.outputs.flow_changed == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ needs.detect-changes.outputs.image_name }}/flow
+          tags: |
+            type=raw,value=${{ needs.detect-changes.outputs.version }}
+            type=raw,value=latest
+
+      - name: Build and push Flow image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./Dockerfile_flow
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  deploy-blue-green:
+    name: Deploy API/Web Blue-Green
+    needs:
+      - detect-changes
+      - build-api
+      - build-web
+    if: |
+      always() &&
+      !cancelled() &&
+      (needs.detect-changes.outputs.api_changed == 'true' || needs.detect-changes.outputs.web_changed == 'true') &&
+      (needs.build-api.result == 'success' || needs.build-api.result == 'skipped') &&
+      (needs.build-web.result == 'success' || needs.build-web.result == 'skipped')
     runs-on: ubuntu-latest
     environment: production
     steps:
@@ -108,21 +222,58 @@ jobs:
           key: ${{ secrets.DEPLOY_SSH_KEY }}
           envs: GITHUB_ACTOR
           script: |
-            set -e
+            set -euo pipefail
 
-            VERSION="${{ needs.build-and-push.outputs.version }}"
-            REGISTRY="ghcr.io/$(echo '${{ github.repository }}' | tr '[:upper:]' '[:lower:]')"
+            RELEASE_VERSION="${{ needs.detect-changes.outputs.version }}"
+            REGISTRY="ghcr.io/${{ needs.detect-changes.outputs.image_name }}"
+            API_CHANGED="${{ needs.detect-changes.outputs.api_changed }}"
+            WEB_CHANGED="${{ needs.detect-changes.outputs.web_changed }}"
 
             cd ~/mma-savant
 
-            # 최신 설정 파일 가져오기
             git pull origin main
 
-            # GitHub Container Registry 로그인
-            echo "${{ secrets.DEPLOY_GHCR_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+            echo "${{ secrets.DEPLOY_GHCR_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
 
-            # Blue-Green 배포 스크립트 실행
-            ./scripts/deploy-blue-green.sh "$VERSION" "$REGISTRY"
+            read_deployed_version() {
+              COMPONENT="$1"
+              COMPONENT_FILE=".deployed-${COMPONENT}-version"
+
+              if [ -f "$COMPONENT_FILE" ]; then
+                tr -d '[:space:]' < "$COMPONENT_FILE"
+                return
+              fi
+
+              if [ -f ".deployed-version" ]; then
+                tr -d '[:space:]' < ".deployed-version"
+                return
+              fi
+            }
+
+            if [ "$API_CHANGED" = "true" ]; then
+              API_VERSION="$RELEASE_VERSION"
+            else
+              API_VERSION="$(read_deployed_version api || true)"
+            fi
+
+            if [ "$WEB_CHANGED" = "true" ]; then
+              WEB_VERSION="$RELEASE_VERSION"
+            else
+              WEB_VERSION="$(read_deployed_version web || true)"
+            fi
+
+            if [ -z "${API_VERSION:-}" ] || [ -z "${WEB_VERSION:-}" ]; then
+              echo "Cannot determine API_VERSION or WEB_VERSION for blue-green deploy."
+              echo "API_VERSION=${API_VERSION:-<empty>}"
+              echo "WEB_VERSION=${WEB_VERSION:-<empty>}"
+              exit 1
+            fi
+
+            ./scripts/deploy-blue-green.sh \
+              --api-version "$API_VERSION" \
+              --web-version "$WEB_VERSION" \
+              --release-version "$RELEASE_VERSION" \
+              --registry "$REGISTRY"
 
       - name: Health check
         uses: appleboy/ssh-action@v1.0.3
@@ -132,20 +283,66 @@ jobs:
           key: ${{ secrets.DEPLOY_SSH_KEY }}
           script: |
             sleep 10
-            # Nginx를 통한 health check (Blue-Green 배포에서는 Nginx가 활성 컨테이너로 라우팅)
             curl -f http://localhost/health || exit 1
-            echo "✅ Health check passed!"
+            echo "Health check passed!"
 
-      - name: Notify deployment result
-        if: always()
+  deploy-flow-serve:
+    name: Deploy Flow Serve
+    needs:
+      - detect-changes
+      - build-flow
+    if: |
+      always() &&
+      !cancelled() &&
+      needs.detect-changes.outputs.flow_changed == 'true' &&
+      needs.build-flow.result == 'success'
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - name: Deploy flow_serve via SSH
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ secrets.DEPLOY_HOST }}
           username: ${{ secrets.DEPLOY_USER }}
           key: ${{ secrets.DEPLOY_SSH_KEY }}
+          envs: GITHUB_ACTOR
           script: |
-            if [ -f ~/mma-savant/.active-env ]; then
-              ACTIVE=$(cat ~/mma-savant/.active-env)
-              echo "📍 Active environment: $ACTIVE"
-              echo "📍 Version: ${{ needs.build-and-push.outputs.version }}"
-            fi
+            set -euo pipefail
+
+            RELEASE_VERSION="${{ needs.detect-changes.outputs.version }}"
+            REGISTRY="ghcr.io/${{ needs.detect-changes.outputs.image_name }}"
+
+            cd ~/mma-savant
+
+            git pull origin main
+
+            echo "${{ secrets.DEPLOY_GHCR_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+
+            ./scripts/restart-flow-serve.sh \
+              --flow-version "$RELEASE_VERSION" \
+              --release-version "$RELEASE_VERSION" \
+              --registry "$REGISTRY"
+
+  deployment-summary:
+    name: Deployment Summary
+    needs:
+      - detect-changes
+      - build-api
+      - build-web
+      - build-flow
+      - deploy-blue-green
+      - deploy-flow-serve
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Print summary
+        run: |
+          echo "Release: ${{ needs.detect-changes.outputs.version }}"
+          echo "API changed: ${{ needs.detect-changes.outputs.api_changed }}"
+          echo "Web changed: ${{ needs.detect-changes.outputs.web_changed }}"
+          echo "Flow changed: ${{ needs.detect-changes.outputs.flow_changed }}"
+          echo "Build API: ${{ needs.build-api.result }}"
+          echo "Build Web: ${{ needs.build-web.result }}"
+          echo "Build Flow: ${{ needs.build-flow.result }}"
+          echo "Deploy API/Web: ${{ needs.deploy-blue-green.result }}"
+          echo "Deploy Flow: ${{ needs.deploy-flow-serve.result }}"
