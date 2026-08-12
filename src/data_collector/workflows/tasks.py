@@ -33,6 +33,7 @@ from data_collector.workflows.data_store import (
     save_sig_str_match_stat,
     save_rankings
 )
+from data_collector.workflows.progress import format_progress
 from data_collector.workflows.tapology_tasks import (
     enrich_fighter_tapology_profile_task,
     enrich_match_tapology_metadata_task,
@@ -74,23 +75,25 @@ async def replace_rankings_if_not_empty(session, rankings, logger: logging.Logge
 async def scrap_all_fighter_task(crawler_fn: Callable) -> None:
     logger = get_run_logger()
     logger.info("scrap_all_fighter_task started")
-    for char in 'abcdefghijklmnopqrstuvwxyz':
+    chars = 'abcdefghijklmnopqrstuvwxyz'
+    for index, char in enumerate(chars, 1):
         await asyncio.sleep(RANDOM_DELAY)
-        logger.info(f"[{char}] fighters scraping started")
+        progress = format_progress(overall_index=index, overall_total=len(chars))
+        logger.info("%s fighters scraping started: char=%s", progress, char)
         fighters_url = f"http://ufcstats.com/statistics/fighters?char={char}&page=all"
         try:
             fighter_schema_list = await scrap_fighters(crawler_fn, fighters_url)
-            logger.info(f"[{char}] fighters scraping completed : {len(fighter_schema_list)} fighters collected")
+            logger.info("%s fighters scraping completed: char=%s collected=%d", progress, char, len(fighter_schema_list))
         except Exception as e:
-            logger.error(f"[{char}] fighters scraping failed: {str(e)}")
+            logger.error("%s fighters scraping failed: char=%s error=%s", progress, char, str(e))
             logger.error(format_exc())
 
         try:
             async with get_async_db_context() as session:
                 await save_fighters(session, fighter_schema_list)
-            logger.info(f"[{char}] fighters scraping completed : {len(fighter_schema_list)} fighters saved")
+            logger.info("%s fighters scraping saved: char=%s saved=%d", progress, char, len(fighter_schema_list))
         except Exception as e:
-            logger.error(f"[{char}] fighters scraping failed: {str(e)}")
+            logger.error("%s fighters scraping save failed: char=%s error=%s", progress, char, str(e))
             logger.error(format_exc())
     logger.info("scrap_all_fighter_task completed")
 
@@ -120,15 +123,21 @@ async def scrap_all_events_task(crawler_fn: Callable, batch_size: int = 30) -> N
         batch_num = (i // batch_size) + 1
         total_batches = (total_events + batch_size - 1) // batch_size
 
-        logger.info(f"Processing batch {batch_num}/{total_batches} ({len(batch)} events)")
+        progress = format_progress(
+            batch_index=batch_num,
+            batch_total=total_batches,
+            overall_index=min(i + len(batch), total_events),
+            overall_total=total_events,
+        )
+        logger.info("%s Processing events batch: size=%d", progress, len(batch))
 
         try:
             async with get_async_db_context() as session:
                 await save_events(session, batch)
             saved_count += len(batch)
-            logger.info(f"Batch {batch_num}/{total_batches} completed: {len(batch)} events saved")
+            logger.info("%s Events batch completed: saved=%d", progress, len(batch))
         except Exception as e:
-            logger.error(f"Batch {batch_num}/{total_batches} failed: {str(e)}")
+            logger.error("%s Events batch failed: error=%s", progress, str(e))
             logger.error(format_exc())
             continue
 
@@ -160,15 +169,21 @@ async def scrap_upcoming_events_task(crawler_fn: Callable, batch_size: int = 30)
         batch_num = (i // batch_size) + 1
         total_batches = (total_events + batch_size - 1) // batch_size
 
-        logger.info(f"Processing batch {batch_num}/{total_batches} ({len(batch)} upcoming events)")
+        progress = format_progress(
+            batch_index=batch_num,
+            batch_total=total_batches,
+            overall_index=min(i + len(batch), total_events),
+            overall_total=total_events,
+        )
+        logger.info("%s Processing upcoming events batch: size=%d", progress, len(batch))
 
         try:
             async with get_async_db_context() as session:
                 await save_events(session, batch)
             saved_count += len(batch)
-            logger.info(f"Batch {batch_num}/{total_batches} completed: {len(batch)} upcoming events saved")
+            logger.info("%s Upcoming events batch completed: saved=%d", progress, len(batch))
         except Exception as e:
-            logger.error(f"Batch {batch_num}/{total_batches} failed: {str(e)}")
+            logger.error("%s Upcoming events batch failed: error=%s", progress, str(e))
             logger.error(format_exc())
             continue
 
@@ -186,14 +201,15 @@ async def process_event_detail(
     ) -> None:
     async with semaphore:
         await asyncio.sleep(RANDOM_DELAY)
-        logger.info(f"[{idx+1}/{total_events}] - event_id: {event.id} event detail scraping started")
+        progress = format_progress(overall_index=idx + 1, overall_total=total_events)
+        logger.info("%s event detail scraping started: event_id=%s", progress, event.id)
         event_url = event.url
         event_id = event.id
 
         try:
             matches_data = await scrap_event_detail(crawler_fn, event_url, event_id, fighter_name_to_id_map)
         except Exception as e:
-            logger.error(f"[{idx+1}/{total_events}] - event_id: {event_id} event detail scraping failed: {str(e)}")
+            logger.error("%s event detail scraping failed: event_id=%s error=%s", progress, event_id, str(e))
             logger.error(format_exc())
             return
 
@@ -214,10 +230,10 @@ async def process_event_detail(
                         await save_fighter_match(session, fighter_id, match_id, result)
                     saved_match_count += 1
             except Exception as e:
-                logger.error(f"[{idx+1}/{total_events}] - event_id: {event_id} event detail scraping failed: {str(e)}")
+                logger.error("%s event detail scraping failed: event_id=%s error=%s", progress, event_id, str(e))
                 logger.error(format_exc())
                 return
-            logger.info(f"[{idx+1}/{total_events}] - event_id: {event_id} event detail scraping completed : {saved_match_count} matches saved")
+            logger.info("%s event detail scraping completed: event_id=%s saved_matches=%d", progress, event_id, saved_match_count)
 
 @task(
     name="event-detail",
@@ -259,6 +275,7 @@ async def process_detail_url(
         await asyncio.sleep(RANDOM_DELAY)
         if not detail_url:
             return
+        progress = format_progress(overall_index=idx + 1, overall_total=total_urls)
 
         async with get_async_db_context() as session:
             try:
@@ -266,9 +283,9 @@ async def process_detail_url(
                     crawler_fn, detail_url, fighter_name_to_id_map, fighter_matches
                 )
                 await save_basic_match_stat(session, match_statistics_list)
-                logger.info(f"[{idx+1}/{total_urls}] - detail_url: {detail_url} BasicMatchStat scraping completed")
+                logger.info("%s BasicMatchStat scraping completed: detail_url=%s", progress, detail_url)
             except Exception as e:
-                logger.error(f"[{idx+1}/{total_urls}] - detail_url: {detail_url} BasicMatchStat scraping failed: {str(e)}")
+                logger.error("%s BasicMatchStat scraping failed: detail_url=%s error=%s", progress, detail_url, str(e))
                 logger.error(format_exc())
 
             try:
@@ -276,12 +293,12 @@ async def process_detail_url(
                     crawler_fn, detail_url, fighter_name_to_id_map, fighter_matches
                 )
                 await save_sig_str_match_stat(session, strike_details_list)
-                logger.info(f"[{idx+1}/{total_urls}] - detail_url: {detail_url} SigStrMatchStat scraping completed")
+                logger.info("%s SigStrMatchStat scraping completed: detail_url=%s", progress, detail_url)
             except Exception as e:
-                logger.error(f"[{idx+1}/{total_urls}] - detail_url: {detail_url} SigStrMatchStat scraping failed: {str(e)}")
+                logger.error("%s SigStrMatchStat scraping failed: detail_url=%s error=%s", progress, detail_url, str(e))
                 logger.error(format_exc())
 
-        logger.info(f"[{idx+1}/{total_urls}] - detail_url: {detail_url} match detail scraping completed")
+        logger.info("%s match detail scraping completed: detail_url=%s", progress, detail_url)
 
 
 @task(
@@ -374,7 +391,8 @@ async def enrich_fighter_nationality_task(crawler_fn: Callable) -> None:
     tapology_client = TapologyClient()
     try:
         for i, (fighter_id, name, nickname) in enumerate(fighters, 1):
-            logger.info(f"[{i}/{len(fighters)}] Processing: {name} (id={fighter_id})")
+            progress = format_progress(overall_index=i, overall_total=len(fighters))
+            logger.info("%s Processing fighter nationality: name=%s id=%s", progress, name, fighter_id)
 
             # 1) Tapology (MMA 전문 DB, 높은 커버리지)
             nationality = await fetch_nationality_from_tapology(
@@ -473,7 +491,8 @@ async def enrich_event_geocoding_task() -> None:
 
     success_count = 0
     for i, loc in enumerate(locations, 1):
-        logger.info(f"[{i}/{len(locations)}] Geocoding: {loc}")
+        progress = format_progress(overall_index=i, overall_total=len(locations))
+        logger.info("%s Geocoding: location=%s", progress, loc)
         try:
             result = await asyncio.to_thread(geocode, loc)
         except Exception as e:
