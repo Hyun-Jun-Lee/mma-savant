@@ -11,7 +11,7 @@ from user_agent import generate_user_agent
 
 from data_collector.driver import PlaywrightDriver, Crawl4AIDriver
 
-TAPOLOGY_SCRAPLING_DELAY_RANGE = (2.0, 5.0)
+TAPOLOGY_SCRAPLING_DELAY_RANGE = (4.0, 8.0)
 
 
 def _selector_for_url(url: str) -> Optional[str]:

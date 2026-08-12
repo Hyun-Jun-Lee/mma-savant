@@ -181,6 +181,9 @@ services:
     image: ${REGISTRY}/flow:${FLOW_IMAGE_VERSION:-latest}
     container_name: flow_serve
     restart: unless-stopped
+    init: true
+    pids_limit: 8192
+    shm_size: "1gb"
     env_file:
       - .env
     environment:

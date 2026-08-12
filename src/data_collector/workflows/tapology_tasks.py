@@ -98,7 +98,7 @@ class TapologyBoutEnrichmentStats:
 )
 async def enrich_fighter_tapology_profile_task(
     crawler_fn: Callable | None = None,
-    batch_size: int = 50,
+    batch_size: int = 20,
     stale_days: int = 30,
 ) -> None:
     logger = get_run_logger()
