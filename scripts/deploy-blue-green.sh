@@ -167,6 +167,22 @@ log_info "==================================="
 
 cd "$PROJECT_DIR"
 
+get_compose_container_id() {
+    docker compose -f "$COMPOSE_FILE" ps -q "$1" 2>/dev/null || true
+}
+
+get_container_health() {
+    SERVICE_NAME="$1"
+    CONTAINER_ID="$(get_compose_container_id "$SERVICE_NAME")"
+
+    if [ -z "$CONTAINER_ID" ]; then
+        echo "missing"
+        return
+    fi
+
+    docker inspect --format='{{if .State.Health}}{{.State.Health.Status}}{{else}}{{.State.Status}}{{end}}' "$CONTAINER_ID" 2>/dev/null || echo "missing"
+}
+
 log_info "Generating initial Nginx configuration..."
 if [ -f "$NGINX_TEMPLATE" ]; then
     export ACTIVE_API=api-$NEW
@@ -183,15 +199,15 @@ else
 fi
 
 log_info "Starting infrastructure services (DB, Redis)..."
-docker compose -f "$COMPOSE_FILE" up -d savant_db redis
+docker compose -f "$COMPOSE_FILE" up -d --no-recreate savant_db redis
 
 log_info "Waiting for DB and Redis to be healthy..."
 MAX_INFRA_RETRIES=30
 INFRA_RETRY=0
 
 while [ "$INFRA_RETRY" -lt "$MAX_INFRA_RETRIES" ]; do
-    DB_STATUS=$(docker inspect --format='{{.State.Health.Status}}' savant_db 2>/dev/null || echo "starting")
-    REDIS_STATUS=$(docker inspect --format='{{.State.Health.Status}}' savant_redis 2>/dev/null || echo "starting")
+    DB_STATUS="$(get_container_health savant_db)"
+    REDIS_STATUS="$(get_container_health redis)"
 
     if [ "$DB_STATUS" = "healthy" ] && [ "$REDIS_STATUS" = "healthy" ]; then
         log_success "Infrastructure services are healthy!"
@@ -221,7 +237,7 @@ MAX_RETRIES=30
 RETRY=0
 
 while [ "$RETRY" -lt "$MAX_RETRIES" ]; do
-    HEALTH_STATUS=$(docker inspect --format='{{.State.Health.Status}}' "api-$NEW" 2>/dev/null || echo "starting")
+    HEALTH_STATUS="$(get_container_health "api-$NEW")"
 
     if [ "$HEALTH_STATUS" = "healthy" ]; then
         log_success "API health check passed!"
@@ -245,7 +261,7 @@ MAX_WEB_RETRIES=30
 WEB_RETRY=0
 
 while [ "$WEB_RETRY" -lt "$MAX_WEB_RETRIES" ]; do
-    WEB_STATUS=$(docker inspect --format='{{.State.Health.Status}}' "web-$NEW" 2>/dev/null || echo "starting")
+    WEB_STATUS="$(get_container_health "web-$NEW")"
 
     if [ "$WEB_STATUS" = "healthy" ]; then
         log_success "Web health check passed!"
