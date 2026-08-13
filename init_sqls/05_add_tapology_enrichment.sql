@@ -9,6 +9,10 @@ ALTER TABLE fighter ADD COLUMN IF NOT EXISTS last_fight_name VARCHAR;
 ALTER TABLE fighter ADD COLUMN IF NOT EXISTS last_fight_date DATE;
 ALTER TABLE fighter ADD COLUMN IF NOT EXISTS last_fight_promotion VARCHAR;
 ALTER TABLE fighter ADD COLUMN IF NOT EXISTS tapology_last_scraped_at TIMESTAMP;
+ALTER TABLE fighter ADD COLUMN IF NOT EXISTS tapology_attempt_status VARCHAR;
+ALTER TABLE fighter ADD COLUMN IF NOT EXISTS tapology_last_attempt_at TIMESTAMP;
+ALTER TABLE fighter ADD COLUMN IF NOT EXISTS tapology_failure_stage VARCHAR;
+ALTER TABLE fighter ADD COLUMN IF NOT EXISTS tapology_failure_reason VARCHAR;
 
 -- Promotion-level career records from Tapology
 CREATE TABLE IF NOT EXISTS fighter_promotion_record (
@@ -49,6 +53,10 @@ ALTER TABLE match ADD COLUMN IF NOT EXISTS bout_status VARCHAR;
 ALTER TABLE match ADD COLUMN IF NOT EXISTS cancellation_reason VARCHAR;
 ALTER TABLE match ADD COLUMN IF NOT EXISTS tapology_bout_url VARCHAR;
 ALTER TABLE match ADD COLUMN IF NOT EXISTS tapology_last_scraped_at TIMESTAMP;
+ALTER TABLE match ADD COLUMN IF NOT EXISTS tapology_attempt_status VARCHAR;
+ALTER TABLE match ADD COLUMN IF NOT EXISTS tapology_last_attempt_at TIMESTAMP;
+ALTER TABLE match ADD COLUMN IF NOT EXISTS tapology_failure_stage VARCHAR;
+ALTER TABLE match ADD COLUMN IF NOT EXISTS tapology_failure_reason VARCHAR;
 
 -- Tapology fighter-side weigh-in metadata
 ALTER TABLE fighter_match ADD COLUMN IF NOT EXISTS weigh_in_result VARCHAR;
@@ -57,6 +65,8 @@ ALTER TABLE fighter_match ADD COLUMN IF NOT EXISTS weight_gain VARCHAR;
 
 -- Lookup and idempotent upsert indexes
 CREATE INDEX IF NOT EXISTS idx_fighter_tapology_url ON fighter(tapology_url);
+CREATE INDEX IF NOT EXISTS idx_fighter_tapology_attempt_status ON fighter(tapology_attempt_status);
+CREATE INDEX IF NOT EXISTS idx_fighter_tapology_last_attempt_at ON fighter(tapology_last_attempt_at);
 CREATE INDEX IF NOT EXISTS idx_event_tapology_url ON event(tapology_url);
 CREATE INDEX IF NOT EXISTS idx_fighter_promotion_record_fighter_id ON fighter_promotion_record(fighter_id);
 CREATE INDEX IF NOT EXISTS idx_fighter_promotion_record_name ON fighter_promotion_record(promotion_name);
@@ -65,3 +75,5 @@ CREATE INDEX IF NOT EXISTS idx_fighter_method_record_fighter_id ON fighter_metho
 CREATE UNIQUE INDEX IF NOT EXISTS uq_fighter_method_record_key ON fighter_method_record(fighter_id, scope, result, method_category);
 CREATE INDEX IF NOT EXISTS idx_match_tapology_bout_url ON match(tapology_bout_url);
 CREATE INDEX IF NOT EXISTS idx_match_bout_status ON match(bout_status);
+CREATE INDEX IF NOT EXISTS idx_match_tapology_attempt_status ON match(tapology_attempt_status);
+CREATE INDEX IF NOT EXISTS idx_match_tapology_last_attempt_at ON match(tapology_last_attempt_at);

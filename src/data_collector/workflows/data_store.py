@@ -32,6 +32,10 @@ TAPOLOGY_MATCH_FIELDS = {
     "cancellation_reason",
     "tapology_bout_url",
     "tapology_last_scraped_at",
+    "tapology_attempt_status",
+    "tapology_last_attempt_at",
+    "tapology_failure_stage",
+    "tapology_failure_reason",
 }
 
 TAPOLOGY_FIGHTER_PROFILE_FIELDS = {
@@ -175,8 +179,38 @@ async def save_tapology_fighter_enrichment(
         setattr(existing_model, key, value)
 
     existing_model.tapology_last_scraped_at = scraped_at
+    existing_model.tapology_attempt_status = "succeeded"
+    existing_model.tapology_last_attempt_at = scraped_at
+    existing_model.tapology_failure_stage = None
+    existing_model.tapology_failure_reason = None
     await _replace_non_ufc_promotion_records(session, fighter_id, profile)
     await _replace_non_ufc_method_records(session, fighter_id, profile)
+
+    await session.commit()
+    await session.refresh(existing_model)
+    return existing_model.to_schema()
+
+
+async def save_tapology_fighter_attempt_state(
+    session,
+    fighter_id: int,
+    *,
+    status: str,
+    attempted_at: datetime,
+    failure_stage: str | None = None,
+    failure_reason: str | None = None,
+) -> FighterSchema | None:
+    existing_model_query = await session.execute(
+        select(FighterModel).where(FighterModel.id == fighter_id)
+    )
+    existing_model = existing_model_query.scalar_one_or_none()
+    if existing_model is None:
+        return None
+
+    existing_model.tapology_attempt_status = status
+    existing_model.tapology_last_attempt_at = attempted_at
+    existing_model.tapology_failure_stage = failure_stage
+    existing_model.tapology_failure_reason = _trim_failure_reason(failure_reason)
 
     await session.commit()
     await session.refresh(existing_model)
@@ -332,6 +366,10 @@ async def save_tapology_match_enrichment(
     if tapology_bout_url:
         existing_model.tapology_bout_url = tapology_bout_url
     existing_model.tapology_last_scraped_at = scraped_at
+    existing_model.tapology_attempt_status = "succeeded"
+    existing_model.tapology_last_attempt_at = scraped_at
+    existing_model.tapology_failure_stage = None
+    existing_model.tapology_failure_reason = None
 
     if tapology_cancelled and has_ufcstats_result:
         logger.warning(
@@ -370,6 +408,41 @@ async def save_tapology_match_enrichment(
     await session.commit()
     await session.refresh(existing_model)
     return existing_model.to_schema()
+
+
+async def save_tapology_match_attempt_state(
+    session,
+    match_id: int,
+    *,
+    status: str,
+    attempted_at: datetime,
+    failure_stage: str | None = None,
+    failure_reason: str | None = None,
+) -> MatchSchema | None:
+    existing_model_query = await session.execute(
+        select(MatchModel).where(MatchModel.id == match_id)
+    )
+    existing_model = existing_model_query.scalar_one_or_none()
+    if existing_model is None:
+        return None
+
+    existing_model.tapology_attempt_status = status
+    existing_model.tapology_last_attempt_at = attempted_at
+    existing_model.tapology_failure_stage = failure_stage
+    existing_model.tapology_failure_reason = _trim_failure_reason(failure_reason)
+
+    await session.commit()
+    await session.refresh(existing_model)
+    return existing_model.to_schema()
+
+
+def _trim_failure_reason(reason: str | None, *, limit: int = 1000) -> str | None:
+    if reason is None:
+        return None
+    normalized = re.sub(r"\s+", " ", str(reason)).strip()
+    if not normalized:
+        return None
+    return normalized[:limit]
 
 
 def _normalize_match_name(value: str) -> str:

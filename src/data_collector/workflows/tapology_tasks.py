@@ -13,7 +13,15 @@ from prefect.logging import get_run_logger
 from sqlalchemy import func, or_, select
 
 from common.utils import utc_now
+from config import Config
 from data_collector.clients import TapologyClient
+from data_collector.crawler import (
+    TAPOLOGY_FETCH_EMPTY_RESPONSE,
+    TAPOLOGY_FETCH_EXCEPTION,
+    TAPOLOGY_FETCH_SUCCEEDED,
+    TAPOLOGY_FETCH_WORKER_TIMEOUT,
+    TapologyFetchResult,
+)
 from data_collector.scrapers.tapology_scraper import (
     TapologyBoutMetadata,
     TapologyFighterProfile,
@@ -23,7 +31,9 @@ from data_collector.scrapers.tapology_scraper import (
 from data_collector.workflows.data_store import (
     save_tapology_event_url,
     save_tapology_fighter_enrichment,
+    save_tapology_fighter_attempt_state,
     save_tapology_match_enrichment,
+    save_tapology_match_attempt_state,
 )
 from data_collector.workflows.progress import format_progress
 from data_collector.workflows.tapology_matcher import (
@@ -43,6 +53,7 @@ from match.models import FighterMatchModel, MatchModel
 ProfileSaver = Callable[[int, str | None, TapologyFighterProfile, datetime], Awaitable[object]]
 BoutSaver = Callable[[int, str | None, TapologyBoutMetadata, datetime], Awaitable[object]]
 EventUrlSaver = Callable[[int, str], Awaitable[object]]
+AttemptStateSaver = Callable[[int, str, datetime, str | None, str | None], Awaitable[object]]
 
 _TAPOLOGY_CHALLENGE_MARKERS = (
     "just a moment...",
@@ -90,6 +101,49 @@ class TapologyBoutEnrichmentStats:
     updated: int = 0
     skipped: int = 0
     failed: int = 0
+
+
+@dataclass
+class TapologyRunGuard:
+    processed: int = 0
+    failures: int = 0
+    blocked_failures: int = 0
+    timeout_failures: int = 0
+    consecutive_parse_failures: int = 0
+
+    def record_success_or_skip(self) -> None:
+        self.processed += 1
+        self.consecutive_parse_failures = 0
+
+    def record_failure(self, *, status: str, reason: str | None, stage: str | None) -> None:
+        self.processed += 1
+        self.failures += 1
+        normalized_reason = (reason or "").lower()
+        if "challenge" in normalized_reason or "blocked" in normalized_reason:
+            self.blocked_failures += 1
+        if status == TAPOLOGY_FETCH_WORKER_TIMEOUT:
+            self.timeout_failures += 1
+        if stage == "parse":
+            self.consecutive_parse_failures += 1
+        else:
+            self.consecutive_parse_failures = 0
+
+    def abort_reason(self) -> str | None:
+        if self.consecutive_parse_failures >= Config.TAPOLOGY_PARSE_EXCEPTION_ABORT_THRESHOLD:
+            return f"parse exception threshold reached ({self.consecutive_parse_failures})"
+        if self.failures < Config.TAPOLOGY_RUN_GUARD_MIN_FAILURES or self.processed <= 0:
+            return None
+        if self.blocked_failures / self.processed >= Config.TAPOLOGY_BLOCKED_RUN_ABORT_RATIO:
+            return (
+                f"blocked ratio threshold reached "
+                f"({self.blocked_failures}/{self.processed})"
+            )
+        if self.timeout_failures / self.processed >= Config.TAPOLOGY_TIMEOUT_RUN_ABORT_RATIO:
+            return (
+                f"timeout ratio threshold reached "
+                f"({self.timeout_failures}/{self.processed})"
+            )
+        return None
 
 
 @task(
@@ -160,12 +214,30 @@ async def enrich_fighter_tapology_profile_task(
                         scraped_at,
                     )
 
+            async def save_fighter_attempt(
+                fighter_id: int,
+                status: str,
+                attempted_at: datetime,
+                failure_stage: str | None,
+                failure_reason: str | None,
+            ) -> object:
+                async with get_async_db_context() as session:
+                    return await save_tapology_fighter_attempt_state(
+                        session,
+                        fighter_id,
+                        status=status,
+                        attempted_at=attempted_at,
+                        failure_stage=failure_stage,
+                        failure_reason=failure_reason,
+                    )
+
             batch_stats = await enrich_fighter_tapology_profile_batch(
                 fighters,
                 client,
                 save_profile,
                 logger,
                 crawler_fn=crawler_fn,
+                save_attempt_state=save_fighter_attempt,
                 batch_index=batch_index,
                 batch_total=total_batches,
                 processed_before=processed_before,
@@ -264,6 +336,23 @@ async def enrich_match_tapology_metadata_task(
                 async with get_async_db_context() as session:
                     return await save_tapology_event_url(session, event_id, tapology_url)
 
+            async def save_match_attempt(
+                match_id: int,
+                status: str,
+                attempted_at: datetime,
+                failure_stage: str | None,
+                failure_reason: str | None,
+            ) -> object:
+                async with get_async_db_context() as session:
+                    return await save_tapology_match_attempt_state(
+                        session,
+                        match_id,
+                        status=status,
+                        attempted_at=attempted_at,
+                        failure_stage=failure_stage,
+                        failure_reason=failure_reason,
+                    )
+
             batch_stats = await enrich_match_tapology_metadata_batch(
                 bouts,
                 client,
@@ -271,6 +360,7 @@ async def enrich_match_tapology_metadata_task(
                 logger,
                 crawler_fn=crawler_fn,
                 save_event_url=save_event_url,
+                save_attempt_state=save_match_attempt,
                 batch_index=batch_index,
                 batch_total=total_batches,
                 processed_before=processed_before,
@@ -394,7 +484,8 @@ def _fighter_tapology_profile_conditions(stale_days: int, after_id: int | None =
             FighterModel.tapology_url.is_(None),
             FighterModel.tapology_last_scraped_at.is_(None),
             FighterModel.tapology_last_scraped_at < cutoff,
-        )
+        ),
+        _tapology_attempt_retry_condition(FighterModel),
     ]
     if after_id is not None:
         conditions.append(FighterModel.id > after_id)
@@ -408,11 +499,22 @@ def _match_tapology_bout_conditions(stale_days: int, after_id: int | None = None
             MatchModel.tapology_bout_url.is_(None),
             MatchModel.tapology_last_scraped_at.is_(None),
             MatchModel.tapology_last_scraped_at < cutoff,
-        )
+        ),
+        _tapology_attempt_retry_condition(MatchModel),
     ]
     if after_id is not None:
         conditions.append(MatchModel.id > after_id)
     return conditions
+
+
+def _tapology_attempt_retry_condition(model):
+    retry_cutoff = utc_now() - timedelta(days=Config.TAPOLOGY_FAILED_ATTEMPT_RETRY_DAYS)
+    return or_(
+        model.tapology_attempt_status.is_(None),
+        model.tapology_attempt_status == TAPOLOGY_FETCH_SUCCEEDED,
+        model.tapology_last_attempt_at.is_(None),
+        model.tapology_last_attempt_at < retry_cutoff,
+    )
 
 
 def _total_batches(total_items: int, batch_size: int) -> int:
@@ -421,12 +523,53 @@ def _total_batches(total_items: int, batch_size: int) -> int:
     return (total_items + batch_size - 1) // batch_size
 
 
+async def _save_tapology_attempt_failure(
+    save_attempt_state: AttemptStateSaver | None,
+    entity_id: int,
+    *,
+    status: str,
+    stage: str,
+    reason: str | None,
+    attempted_at: datetime,
+    logger: logging.Logger,
+) -> None:
+    if save_attempt_state is None:
+        return
+    try:
+        await save_attempt_state(entity_id, status, attempted_at, stage, reason)
+    except Exception:
+        logger.exception(
+            "Failed to persist Tapology attempt failure: entity_id=%s status=%s stage=%s",
+            entity_id,
+            status,
+            stage,
+        )
+
+
+def _fetch_failure_reason(result: TapologyFetchResult) -> str:
+    return result.error or result.status
+
+
+def _challenge_failure_reason(html: str | None) -> str:
+    title = _extract_html_title(html)
+    return f"blocked_by_challenge title={title}" if title else "blocked_by_challenge"
+
+
+def _raise_if_guard_abort(guard: TapologyRunGuard, logger: logging.Logger) -> None:
+    reason = guard.abort_reason()
+    if reason is None:
+        return
+    logger.error("Aborting Tapology batch: %s", reason)
+    raise RuntimeError(f"Tapology batch aborted: {reason}")
+
+
 async def enrich_fighter_tapology_profile_batch(
     fighters: list[FighterSchema],
     client: TapologyClient,
     save_profile: ProfileSaver,
     logger: logging.Logger,
     crawler_fn: Callable | None = None,
+    save_attempt_state: AttemptStateSaver | None = None,
     batch_index: int | None = None,
     batch_total: int | None = None,
     processed_before: int = 0,
@@ -434,8 +577,10 @@ async def enrich_fighter_tapology_profile_batch(
 ) -> TapologyProfileEnrichmentStats:
     stats = TapologyProfileEnrichmentStats(total=len(fighters))
     scraped_at = utc_now()
+    guard = TapologyRunGuard()
 
     for index, fighter in enumerate(fighters, 1):
+        current_stage = "profile_search"
         logger.info(
             "%s Tapology profile enrichment: %s",
             format_progress(
@@ -453,7 +598,7 @@ async def enrich_fighter_tapology_profile_batch(
             if fighter.tapology_url:
                 match_result = match_tapology_fighter_candidates(fighter, [])
             else:
-                search_html = await _fetch_tapology_search_page(
+                search_result = await _fetch_tapology_search_page_result(
                     client,
                     crawler_fn,
                     fighter.name,
@@ -462,26 +607,60 @@ async def enrich_fighter_tapology_profile_batch(
                     fighter_id=fighter.id,
                     name=fighter.name,
                 )
+                search_html = search_result.html
                 if not search_html:
                     stats.failed += 1
+                    reason = _fetch_failure_reason(search_result)
+                    await _save_tapology_attempt_failure(
+                        save_attempt_state,
+                        fighter.id,
+                        status=search_result.status,
+                        stage="profile_search",
+                        reason=reason,
+                        attempted_at=scraped_at,
+                        logger=logger,
+                    )
+                    guard.record_failure(
+                        status=search_result.status,
+                        reason=reason,
+                        stage="profile_search",
+                    )
                     logger.warning(
                         "Tapology profile search fetch failed for fighter_id=%s name=%s",
                         fighter.id,
                         fighter.name,
                     )
+                    _raise_if_guard_abort(guard, logger)
                     continue
                 if _is_tapology_challenge_page(search_html):
                     stats.failed += 1
+                    reason = _challenge_failure_reason(search_html)
+                    await _save_tapology_attempt_failure(
+                        save_attempt_state,
+                        fighter.id,
+                        status="blocked",
+                        stage="profile_search",
+                        reason=reason,
+                        attempted_at=scraped_at,
+                        logger=logger,
+                    )
+                    guard.record_failure(
+                        status="blocked",
+                        reason=reason,
+                        stage="profile_search",
+                    )
                     logger.warning(
                         "Tapology profile search blocked by challenge for fighter_id=%s name=%s title=%s",
                         fighter.id,
                         fighter.name,
                         _extract_html_title(search_html),
                     )
+                    _raise_if_guard_abort(guard, logger)
                     continue
                 candidates = parse_tapology_fighter_candidates(search_html)
                 if not candidates:
                     stats.skipped += 1
+                    guard.record_success_or_skip()
                     logger.warning(
                         "Skipping Tapology profile enrichment for fighter_id=%s name=%s "
                         "state=%s reason=no_candidates title=%s excerpt=%s",
@@ -498,6 +677,7 @@ async def enrich_fighter_tapology_profile_batch(
                 )
             if match_result.state != MatchState.MATCHED or not match_result.url:
                 stats.skipped += 1
+                guard.record_success_or_skip()
                 logger.warning(
                     "Skipping Tapology profile enrichment for fighter_id=%s name=%s "
                     "state=%s reason=%s candidate_count=%d candidates=%s",
@@ -511,7 +691,8 @@ async def enrich_fighter_tapology_profile_batch(
                 continue
 
             stats.matched += 1
-            html = await _fetch_tapology_fighter_detail_page(
+            current_stage = "profile_detail"
+            detail_result = await _fetch_tapology_fighter_detail_page_result(
                 client,
                 crawler_fn,
                 match_result.url,
@@ -520,31 +701,81 @@ async def enrich_fighter_tapology_profile_batch(
                 fighter_id=fighter.id,
                 name=fighter.name,
             )
+            html = detail_result.html
             if not html:
                 stats.failed += 1
+                reason = _fetch_failure_reason(detail_result)
+                await _save_tapology_attempt_failure(
+                    save_attempt_state,
+                    fighter.id,
+                    status=detail_result.status,
+                    stage="profile_detail",
+                    reason=reason,
+                    attempted_at=scraped_at,
+                    logger=logger,
+                )
+                guard.record_failure(
+                    status=detail_result.status,
+                    reason=reason,
+                    stage="profile_detail",
+                )
                 logger.warning("Tapology profile page fetch failed for %s", match_result.url)
+                _raise_if_guard_abort(guard, logger)
                 continue
             if _is_tapology_challenge_page(html):
                 stats.failed += 1
+                reason = _challenge_failure_reason(html)
+                await _save_tapology_attempt_failure(
+                    save_attempt_state,
+                    fighter.id,
+                    status="blocked",
+                    stage="profile_detail",
+                    reason=reason,
+                    attempted_at=scraped_at,
+                    logger=logger,
+                )
+                guard.record_failure(
+                    status="blocked",
+                    reason=reason,
+                    stage="profile_detail",
+                )
                 logger.warning(
                     "Tapology profile page blocked by challenge for fighter_id=%s url=%s title=%s",
                     fighter.id,
                     match_result.url,
                     _extract_html_title(html),
                 )
+                _raise_if_guard_abort(guard, logger)
                 continue
 
+            current_stage = "parse"
             profile = parse_tapology_fighter_profile(html)
             await save_profile(fighter.id, match_result.url, profile, scraped_at)
             stats.updated += 1
+            guard.record_success_or_skip()
         except Exception as exc:
             stats.failed += 1
+            await _save_tapology_attempt_failure(
+                save_attempt_state,
+                fighter.id,
+                status=TAPOLOGY_FETCH_EXCEPTION,
+                stage=current_stage,
+                reason=str(exc),
+                attempted_at=scraped_at,
+                logger=logger,
+            )
+            guard.record_failure(
+                status=TAPOLOGY_FETCH_EXCEPTION,
+                reason=str(exc),
+                stage=current_stage,
+            )
             logger.exception(
                 "Tapology profile enrichment failed for fighter_id=%s name=%s: %s",
                 fighter.id,
                 fighter.name,
                 exc,
             )
+            _raise_if_guard_abort(guard, logger)
 
     return stats
 
@@ -556,6 +787,7 @@ async def enrich_match_tapology_metadata_batch(
     logger: logging.Logger,
     crawler_fn: Callable | None = None,
     save_event_url: EventUrlSaver | None = None,
+    save_attempt_state: AttemptStateSaver | None = None,
     batch_index: int | None = None,
     batch_total: int | None = None,
     processed_before: int = 0,
@@ -563,10 +795,12 @@ async def enrich_match_tapology_metadata_batch(
 ) -> TapologyBoutEnrichmentStats:
     stats = TapologyBoutEnrichmentStats(total=len(bouts))
     scraped_at = utc_now()
+    guard = TapologyRunGuard()
     event_url_cache: dict[tuple[int | None, str | None, date | None], str | None] = {}
     event_page_cache: dict[str, str | None] = {}
 
     for index, bout in enumerate(bouts, 1):
+        current_stage = "event_search"
         fighter_names = [fighter.name for fighter in bout.fighters]
         logger.info(
             "%s Tapology bout enrichment: match_id=%s fighters=%s",
@@ -593,23 +827,33 @@ async def enrich_match_tapology_metadata_batch(
                     save_event_url,
                     event_url_cache,
                     event_page_cache,
+                    save_attempt_state,
+                    scraped_at,
+                    guard,
                 )
                 if not bout_url:
+                    current_stage = "bout_search"
                     bout_url, direct_search_failed = await _resolve_tapology_bout_url_from_direct_search(
                         bout,
                         client,
                         logger,
                         crawler_fn,
+                        save_attempt_state,
+                        scraped_at,
+                        guard,
                     )
                 if not bout_url:
                     if direct_search_failed:
                         stats.failed += 1
+                        _raise_if_guard_abort(guard, logger)
                     else:
                         stats.skipped += 1
+                        guard.record_success_or_skip()
                     continue
 
             stats.matched += 1
-            html = await _fetch_tapology_bout_detail_page(
+            current_stage = "bout_detail"
+            detail_result = await _fetch_tapology_bout_detail_page_result(
                 client,
                 crawler_fn,
                 bout_url,
@@ -617,30 +861,80 @@ async def enrich_match_tapology_metadata_batch(
                 kind="bout_detail",
                 match_id=bout.match_id,
             )
+            html = detail_result.html
             if not html:
                 stats.failed += 1
+                reason = _fetch_failure_reason(detail_result)
+                await _save_tapology_attempt_failure(
+                    save_attempt_state,
+                    bout.match_id,
+                    status=detail_result.status,
+                    stage="bout_detail",
+                    reason=reason,
+                    attempted_at=scraped_at,
+                    logger=logger,
+                )
+                guard.record_failure(
+                    status=detail_result.status,
+                    reason=reason,
+                    stage="bout_detail",
+                )
                 logger.warning("Tapology bout page fetch failed for %s", bout_url)
+                _raise_if_guard_abort(guard, logger)
                 continue
             if _is_tapology_challenge_page(html):
                 stats.failed += 1
+                reason = _challenge_failure_reason(html)
+                await _save_tapology_attempt_failure(
+                    save_attempt_state,
+                    bout.match_id,
+                    status="blocked",
+                    stage="bout_detail",
+                    reason=reason,
+                    attempted_at=scraped_at,
+                    logger=logger,
+                )
+                guard.record_failure(
+                    status="blocked",
+                    reason=reason,
+                    stage="bout_detail",
+                )
                 logger.warning(
                     "Tapology bout page blocked by challenge for match_id=%s url=%s title=%s",
                     bout.match_id,
                     bout_url,
                     _extract_html_title(html),
                 )
+                _raise_if_guard_abort(guard, logger)
                 continue
 
+            current_stage = "parse"
             metadata = parse_tapology_bout_metadata(html, fighter_names=fighter_names)
             await save_bout(bout.match_id, bout_url, metadata, scraped_at)
             stats.updated += 1
+            guard.record_success_or_skip()
         except Exception as exc:
             stats.failed += 1
+            await _save_tapology_attempt_failure(
+                save_attempt_state,
+                bout.match_id,
+                status=TAPOLOGY_FETCH_EXCEPTION,
+                stage=current_stage,
+                reason=str(exc),
+                attempted_at=scraped_at,
+                logger=logger,
+            )
+            guard.record_failure(
+                status=TAPOLOGY_FETCH_EXCEPTION,
+                reason=str(exc),
+                stage=current_stage,
+            )
             logger.exception(
                 "Tapology bout enrichment failed for match_id=%s: %s",
                 bout.match_id,
                 exc,
             )
+            _raise_if_guard_abort(guard, logger)
 
     return stats
 
@@ -660,6 +954,9 @@ async def _resolve_tapology_bout_url_from_event_page(
     save_event_url: EventUrlSaver | None,
     event_url_cache: dict[tuple[int | None, str | None, date | None], str | None],
     event_page_cache: dict[str, str | None],
+    save_attempt_state: AttemptStateSaver | None,
+    attempted_at: datetime,
+    guard: TapologyRunGuard,
 ) -> str | None:
     fighter_names = [fighter.name for fighter in bout.fighters]
     event_url = await _resolve_tapology_event_url(
@@ -669,6 +966,9 @@ async def _resolve_tapology_bout_url_from_event_page(
         crawler_fn,
         save_event_url,
         event_url_cache,
+        save_attempt_state,
+        attempted_at,
+        guard,
     )
     if not event_url:
         return None
@@ -676,16 +976,33 @@ async def _resolve_tapology_bout_url_from_event_page(
     if event_url in event_page_cache:
         event_html = event_page_cache[event_url]
     else:
-        event_html = await _fetch_tapology_event_detail_page(
+        event_result = await _fetch_tapology_event_detail_page_result(
             client,
             crawler_fn,
             event_url,
             logger=logger,
-            kind="event_detail",
+            kind="event_page",
             match_id=bout.match_id,
             event=bout.event_name,
         )
+        event_html = event_result.html
         event_page_cache[event_url] = event_html
+        if not event_html:
+            reason = _fetch_failure_reason(event_result)
+            await _save_tapology_attempt_failure(
+                save_attempt_state,
+                bout.match_id,
+                status=event_result.status,
+                stage="event_page",
+                reason=reason,
+                attempted_at=attempted_at,
+                logger=logger,
+            )
+            guard.record_failure(
+                status=event_result.status,
+                reason=reason,
+                stage="event_page",
+            )
 
     if not event_html:
         logger.warning(
@@ -696,6 +1013,21 @@ async def _resolve_tapology_bout_url_from_event_page(
         )
         return None
     if _is_tapology_challenge_page(event_html):
+        reason = _challenge_failure_reason(event_html)
+        await _save_tapology_attempt_failure(
+            save_attempt_state,
+            bout.match_id,
+            status="blocked",
+            stage="event_page",
+            reason=reason,
+            attempted_at=attempted_at,
+            logger=logger,
+        )
+        guard.record_failure(
+            status="blocked",
+            reason=reason,
+            stage="event_page",
+        )
         logger.warning(
             "Tapology event page blocked by challenge for match_id=%s event=%s event_url=%s title=%s",
             bout.match_id,
@@ -744,6 +1076,9 @@ async def _resolve_tapology_event_url(
     crawler_fn: Callable | None,
     save_event_url: EventUrlSaver | None,
     event_url_cache: dict[tuple[int | None, str | None, date | None], str | None],
+    save_attempt_state: AttemptStateSaver | None,
+    attempted_at: datetime,
+    guard: TapologyRunGuard,
 ) -> str | None:
     if bout.event_tapology_url:
         return bout.event_tapology_url
@@ -754,7 +1089,7 @@ async def _resolve_tapology_event_url(
     if cache_key in event_url_cache:
         return event_url_cache[cache_key]
 
-    search_html = await _fetch_tapology_search_page(
+    search_result = await _fetch_tapology_search_page_result(
         client,
         crawler_fn,
         bout.event_name,
@@ -763,7 +1098,23 @@ async def _resolve_tapology_event_url(
         match_id=bout.match_id,
         event=bout.event_name,
     )
+    search_html = search_result.html
     if not search_html:
+        reason = _fetch_failure_reason(search_result)
+        await _save_tapology_attempt_failure(
+            save_attempt_state,
+            bout.match_id,
+            status=search_result.status,
+            stage="event_search",
+            reason=reason,
+            attempted_at=attempted_at,
+            logger=logger,
+        )
+        guard.record_failure(
+            status=search_result.status,
+            reason=reason,
+            stage="event_search",
+        )
         logger.warning(
             "Tapology event search fetch failed for match_id=%s event=%s",
             bout.match_id,
@@ -772,6 +1123,21 @@ async def _resolve_tapology_event_url(
         event_url_cache[cache_key] = None
         return None
     if _is_tapology_challenge_page(search_html):
+        reason = _challenge_failure_reason(search_html)
+        await _save_tapology_attempt_failure(
+            save_attempt_state,
+            bout.match_id,
+            status="blocked",
+            stage="event_search",
+            reason=reason,
+            attempted_at=attempted_at,
+            logger=logger,
+        )
+        guard.record_failure(
+            status="blocked",
+            reason=reason,
+            stage="event_search",
+        )
         logger.warning(
             "Tapology event search blocked by challenge for match_id=%s event=%s title=%s",
             bout.match_id,
@@ -818,10 +1184,13 @@ async def _resolve_tapology_bout_url_from_direct_search(
     client: TapologyClient,
     logger: logging.Logger,
     crawler_fn: Callable | None,
+    save_attempt_state: AttemptStateSaver | None,
+    attempted_at: datetime,
+    guard: TapologyRunGuard,
 ) -> tuple[str | None, bool]:
     fighter_names = [fighter.name for fighter in bout.fighters]
     search_term = _build_bout_search_term(bout)
-    search_html = await _fetch_tapology_search_page(
+    search_result = await _fetch_tapology_search_page_result(
         client,
         crawler_fn,
         search_term,
@@ -831,7 +1200,23 @@ async def _resolve_tapology_bout_url_from_direct_search(
         fighters=fighter_names,
         event=bout.event_name,
     )
+    search_html = search_result.html
     if not search_html:
+        reason = _fetch_failure_reason(search_result)
+        await _save_tapology_attempt_failure(
+            save_attempt_state,
+            bout.match_id,
+            status=search_result.status,
+            stage="bout_search",
+            reason=reason,
+            attempted_at=attempted_at,
+            logger=logger,
+        )
+        guard.record_failure(
+            status=search_result.status,
+            reason=reason,
+            stage="bout_search",
+        )
         logger.warning(
             "Tapology bout search fetch failed for match_id=%s fighters=%s event=%s search_term=%s",
             bout.match_id,
@@ -841,6 +1226,21 @@ async def _resolve_tapology_bout_url_from_direct_search(
         )
         return None, True
     if _is_tapology_challenge_page(search_html):
+        reason = _challenge_failure_reason(search_html)
+        await _save_tapology_attempt_failure(
+            save_attempt_state,
+            bout.match_id,
+            status="blocked",
+            stage="bout_search",
+            reason=reason,
+            attempted_at=attempted_at,
+            logger=logger,
+        )
+        guard.record_failure(
+            status="blocked",
+            reason=reason,
+            stage="bout_search",
+        )
         logger.warning(
             "Tapology bout search blocked by challenge for match_id=%s fighters=%s event=%s "
             "search_term=%s title=%s",
@@ -936,14 +1336,40 @@ async def _fetch_tapology_search_page(
     kind: str = "search",
     **context,
 ) -> str | None:
-    async def fetch() -> str | None:
-        if crawler_fn:
-            return await crawler_fn(f"https://www.tapology.com/search?term={quote_plus(term)}")
+    result = await _fetch_tapology_search_page_result(
+        client,
+        crawler_fn,
+        term,
+        logger=logger,
+        kind=kind,
+        **context,
+    )
+    return result.html
+
+
+async def _fetch_tapology_search_page_result(
+    client: TapologyClient,
+    crawler_fn: Callable | None,
+    term: str,
+    *,
+    logger: logging.Logger | None = None,
+    kind: str = "search",
+    **context,
+) -> TapologyFetchResult:
+    search_url = f"https://www.tapology.com/search?term={quote_plus(term)}"
+
+    async def fallback_fetch() -> str | None:
         return await asyncio.to_thread(client.fetch_search_page, term)
 
-    if logger is None:
-        return await fetch()
-    return await _fetch_tapology_with_elapsed_log(logger, kind, term, fetch, **context)
+    return await _fetch_tapology_url_result(
+        crawler_fn,
+        search_url,
+        fallback_fetch,
+        logger=logger,
+        kind=kind,
+        target=term,
+        **context,
+    )
 
 
 async def _fetch_tapology_fighter_detail_page(
@@ -955,14 +1381,38 @@ async def _fetch_tapology_fighter_detail_page(
     kind: str = "fighter_detail",
     **context,
 ) -> str | None:
-    async def fetch() -> str | None:
-        if crawler_fn:
-            return await crawler_fn(path_or_url)
+    result = await _fetch_tapology_fighter_detail_page_result(
+        client,
+        crawler_fn,
+        path_or_url,
+        logger=logger,
+        kind=kind,
+        **context,
+    )
+    return result.html
+
+
+async def _fetch_tapology_fighter_detail_page_result(
+    client: TapologyClient,
+    crawler_fn: Callable | None,
+    path_or_url: str,
+    *,
+    logger: logging.Logger | None = None,
+    kind: str = "fighter_detail",
+    **context,
+) -> TapologyFetchResult:
+    async def fallback_fetch() -> str | None:
         return await asyncio.to_thread(client.fetch_fighter_detail_page, path_or_url)
 
-    if logger is None:
-        return await fetch()
-    return await _fetch_tapology_with_elapsed_log(logger, kind, path_or_url, fetch, **context)
+    return await _fetch_tapology_url_result(
+        crawler_fn,
+        path_or_url,
+        fallback_fetch,
+        logger=logger,
+        kind=kind,
+        target=path_or_url,
+        **context,
+    )
 
 
 async def _fetch_tapology_bout_detail_page(
@@ -974,14 +1424,38 @@ async def _fetch_tapology_bout_detail_page(
     kind: str = "bout_detail",
     **context,
 ) -> str | None:
-    async def fetch() -> str | None:
-        if crawler_fn:
-            return await crawler_fn(path_or_url)
+    result = await _fetch_tapology_bout_detail_page_result(
+        client,
+        crawler_fn,
+        path_or_url,
+        logger=logger,
+        kind=kind,
+        **context,
+    )
+    return result.html
+
+
+async def _fetch_tapology_bout_detail_page_result(
+    client: TapologyClient,
+    crawler_fn: Callable | None,
+    path_or_url: str,
+    *,
+    logger: logging.Logger | None = None,
+    kind: str = "bout_detail",
+    **context,
+) -> TapologyFetchResult:
+    async def fallback_fetch() -> str | None:
         return await asyncio.to_thread(client.fetch_bout_detail_page, path_or_url)
 
-    if logger is None:
-        return await fetch()
-    return await _fetch_tapology_with_elapsed_log(logger, kind, path_or_url, fetch, **context)
+    return await _fetch_tapology_url_result(
+        crawler_fn,
+        path_or_url,
+        fallback_fetch,
+        logger=logger,
+        kind=kind,
+        target=path_or_url,
+        **context,
+    )
 
 
 async def _fetch_tapology_event_detail_page(
@@ -993,14 +1467,72 @@ async def _fetch_tapology_event_detail_page(
     kind: str = "event_detail",
     **context,
 ) -> str | None:
-    async def fetch() -> str | None:
-        if crawler_fn:
-            return await crawler_fn(path_or_url)
+    result = await _fetch_tapology_event_detail_page_result(
+        client,
+        crawler_fn,
+        path_or_url,
+        logger=logger,
+        kind=kind,
+        **context,
+    )
+    return result.html
+
+
+async def _fetch_tapology_event_detail_page_result(
+    client: TapologyClient,
+    crawler_fn: Callable | None,
+    path_or_url: str,
+    *,
+    logger: logging.Logger | None = None,
+    kind: str = "event_detail",
+    **context,
+) -> TapologyFetchResult:
+    async def fallback_fetch() -> str | None:
         return await asyncio.to_thread(client.fetch_event_detail_page, path_or_url)
 
+    return await _fetch_tapology_url_result(
+        crawler_fn,
+        path_or_url,
+        fallback_fetch,
+        logger=logger,
+        kind=kind,
+        target=path_or_url,
+        **context,
+    )
+
+
+async def _fetch_tapology_url_result(
+    crawler_fn: Callable | None,
+    url: str,
+    fallback_fetch: Callable[[], Awaitable[str | None]],
+    *,
+    logger: logging.Logger | None,
+    kind: str,
+    target: str,
+    **context,
+) -> TapologyFetchResult:
+    async def fetch_result() -> TapologyFetchResult:
+        started_at = time.perf_counter()
+        if crawler_fn:
+            typed_fetch = getattr(crawler_fn, "fetch_result", None)
+            if typed_fetch:
+                return await typed_fetch(kind, url)
+            html = await crawler_fn(url)
+        else:
+            html = await fallback_fetch()
+
+        return TapologyFetchResult(
+            stage=kind,
+            url=url,
+            status=TAPOLOGY_FETCH_SUCCEEDED if html else TAPOLOGY_FETCH_EMPTY_RESPONSE,
+            html=html,
+            error=None,
+            elapsed_seconds=time.perf_counter() - started_at,
+        )
+
     if logger is None:
-        return await fetch()
-    return await _fetch_tapology_with_elapsed_log(logger, kind, path_or_url, fetch, **context)
+        return await fetch_result()
+    return await _fetch_tapology_result_with_elapsed_log(logger, kind, target, fetch_result, **context)
 
 
 async def _fetch_tapology_with_elapsed_log(
@@ -1051,6 +1583,59 @@ async def _fetch_tapology_with_elapsed_log(
             context_text,
         )
     return html
+
+
+async def _fetch_tapology_result_with_elapsed_log(
+    logger: logging.Logger,
+    kind: str,
+    target: str,
+    fetch: Callable[[], Awaitable[TapologyFetchResult]],
+    **context,
+) -> TapologyFetchResult:
+    context_text = _format_fetch_context(context)
+    logger.info(
+        "Tapology fetch started: kind=%s target=%s%s",
+        kind,
+        target,
+        context_text,
+    )
+    started_at = time.perf_counter()
+    try:
+        result = await fetch()
+    except Exception as exc:
+        elapsed = time.perf_counter() - started_at
+        logger.warning(
+            "Tapology fetch exception: kind=%s target=%s elapsed=%.2fs%s error=%s",
+            kind,
+            target,
+            elapsed,
+            context_text,
+            exc,
+        )
+        raise
+
+    elapsed = result.elapsed_seconds or (time.perf_counter() - started_at)
+    if result.html:
+        logger.info(
+            "Tapology fetch completed: kind=%s target=%s status=%s elapsed=%.2fs bytes=%d%s",
+            kind,
+            target,
+            result.status,
+            elapsed,
+            len(result.html),
+            context_text,
+        )
+    else:
+        logger.warning(
+            "Tapology fetch empty: kind=%s target=%s status=%s elapsed=%.2fs%s error=%s",
+            kind,
+            target,
+            result.status,
+            elapsed,
+            context_text,
+            result.error,
+        )
+    return result
 
 
 def _format_fetch_context(context: dict) -> str:

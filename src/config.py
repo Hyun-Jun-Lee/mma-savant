@@ -87,6 +87,27 @@ class Config:
     # Environment
     ENVIRONMENT: str = os.getenv("ENVIRONMENT", "development")
 
+    # Tapology Scrapling worker settings
+    TAPOLOGY_FAILED_ATTEMPT_RETRY_DAYS: int = int(os.getenv("TAPOLOGY_FAILED_ATTEMPT_RETRY_DAYS", "10"))
+    TAPOLOGY_SCRAPLING_DELAY_RANGE: str = os.getenv("TAPOLOGY_SCRAPLING_DELAY_RANGE", "4.0,8.0")
+    TAPOLOGY_SCRAPLING_TIMEOUT_MS: int = int(os.getenv("TAPOLOGY_SCRAPLING_TIMEOUT_MS", "45000"))
+    TAPOLOGY_SCRAPLING_RETRIES: int = int(os.getenv("TAPOLOGY_SCRAPLING_RETRIES", "1"))
+    TAPOLOGY_WORKER_HARD_TIMEOUT_GRACE_SECONDS: float = float(
+        os.getenv("TAPOLOGY_WORKER_HARD_TIMEOUT_GRACE_SECONDS", "15")
+    )
+    TAPOLOGY_WORKER_HARD_TIMEOUT_SECONDS: float | None = (
+        float(os.getenv("TAPOLOGY_WORKER_HARD_TIMEOUT_SECONDS"))
+        if os.getenv("TAPOLOGY_WORKER_HARD_TIMEOUT_SECONDS")
+        else None
+    )
+    TAPOLOGY_WORKER_MAX_REQUESTS: int = int(os.getenv("TAPOLOGY_WORKER_MAX_REQUESTS", "100"))
+    TAPOLOGY_RUN_GUARD_MIN_FAILURES: int = int(os.getenv("TAPOLOGY_RUN_GUARD_MIN_FAILURES", "5"))
+    TAPOLOGY_BLOCKED_RUN_ABORT_RATIO: float = float(os.getenv("TAPOLOGY_BLOCKED_RUN_ABORT_RATIO", "0.5"))
+    TAPOLOGY_TIMEOUT_RUN_ABORT_RATIO: float = float(os.getenv("TAPOLOGY_TIMEOUT_RUN_ABORT_RATIO", "0.5"))
+    TAPOLOGY_PARSE_EXCEPTION_ABORT_THRESHOLD: int = int(
+        os.getenv("TAPOLOGY_PARSE_EXCEPTION_ABORT_THRESHOLD", "3")
+    )
+
 def get_database_url(is_test : bool = False) -> str:
     if is_test:
         return f"postgresql+asyncpg://{Config.DB_USER}:{Config.DB_PASSWORD}@{Config.DB_HOST}:{Config.DB_PORT}/{Config.TEST_DB_NAME}"

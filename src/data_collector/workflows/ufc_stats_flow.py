@@ -5,7 +5,8 @@ from prefect.logging import get_run_logger
 
 from data_collector.crawler import (
     close_playwright_crawler,
-    crawl_tapology_with_scrapling,
+    close_tapology_scrapling_worker,
+    crawl_tapology_with_scrapling_worker as crawl_tapology_with_scrapling,
     crawl_with_playwright,
 )
 from dashboard.services import invalidate_all_cache
@@ -87,6 +88,7 @@ async def run_ufc_stats_flow():
         logger.info(f"Dashboard cache invalidated ({deleted} keys deleted)")
     finally:
         await close_playwright_crawler()
+        await close_tapology_scrapling_worker()
 
     logger.info("======================")
     logger.info("UFC stats scraping completed")

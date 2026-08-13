@@ -8,8 +8,9 @@ from datetime import datetime
 
 from data_collector.crawler import (
     close_playwright_crawler,
+    close_tapology_scrapling_worker,
     crawl_with_httpx,
-    crawl_tapology_with_scrapling,
+    crawl_tapology_with_scrapling_worker as crawl_tapology_with_scrapling,
     crawl_with_playwright,
 )
 from data_collector.workflows.tasks import (
@@ -151,6 +152,7 @@ async def run_ufc_stats_flow(tasks: Optional[List[str]] = None):
             LOGGER.info(f"{display_name} scraping completed")
     finally:
         await close_playwright_crawler()
+        await close_tapology_scrapling_worker()
 
     end_time = time.time()
     LOGGER.info(f"UFC 통계 크롤링 완료 - Total time: {end_time - start_time:.2f} seconds")

@@ -58,6 +58,10 @@ class MatchSchema(BaseSchema):
     cancellation_reason: Optional[str] = None
     tapology_bout_url: Optional[str] = None
     tapology_last_scraped_at: Optional[datetime] = None
+    tapology_attempt_status: Optional[str] = None
+    tapology_last_attempt_at: Optional[datetime] = None
+    tapology_failure_stage: Optional[str] = None
+    tapology_failure_reason: Optional[str] = None
     detail_url: Optional[str] = None
     
     model_config = ConfigDict(from_attributes=True)
@@ -91,6 +95,10 @@ class MatchModel(BaseModel):
     cancellation_reason = Column(String)
     tapology_bout_url = Column(String)
     tapology_last_scraped_at = Column(DateTime)
+    tapology_attempt_status = Column(String)
+    tapology_last_attempt_at = Column(DateTime)
+    tapology_failure_stage = Column(String)
+    tapology_failure_reason = Column(String)
     detail_url = Column(String)
 
     weight_class = relationship("WeightClassModel", back_populates="matches")
@@ -112,6 +120,10 @@ class MatchModel(BaseModel):
             cancellation_reason=match.cancellation_reason,
             tapology_bout_url=match.tapology_bout_url,
             tapology_last_scraped_at=match.tapology_last_scraped_at,
+            tapology_attempt_status=match.tapology_attempt_status,
+            tapology_last_attempt_at=match.tapology_last_attempt_at,
+            tapology_failure_stage=match.tapology_failure_stage,
+            tapology_failure_reason=match.tapology_failure_reason,
             detail_url=match.detail_url
         )
         
@@ -131,6 +143,10 @@ class MatchModel(BaseModel):
             cancellation_reason=self.cancellation_reason,
             tapology_bout_url=self.tapology_bout_url,
             tapology_last_scraped_at=self.tapology_last_scraped_at,
+            tapology_attempt_status=self.tapology_attempt_status,
+            tapology_last_attempt_at=self.tapology_last_attempt_at,
+            tapology_failure_stage=self.tapology_failure_stage,
+            tapology_failure_reason=self.tapology_failure_reason,
             detail_url=self.detail_url,
             created_at=self.created_at,
             updated_at=self.updated_at,

@@ -239,6 +239,16 @@ async def test_count_fighters_for_tapology_profile_enrichment_matches_stale_cond
             tapology_url="https://www.tapology.com/fightcenter/fighters/fresh",
             tapology_last_scraped_at=datetime(2099, 1, 1),
         ),
+        FighterModel(
+            name="Recent Failed",
+            tapology_attempt_status="worker_timeout",
+            tapology_last_attempt_at=datetime(2099, 1, 1),
+        ),
+        FighterModel(
+            name="Old Failed",
+            tapology_attempt_status="worker_timeout",
+            tapology_last_attempt_at=datetime(2020, 1, 1),
+        ),
     ])
     await sqlite_session.commit()
 
@@ -247,7 +257,7 @@ async def test_count_fighters_for_tapology_profile_enrichment_matches_stale_cond
         stale_days=30,
     )
 
-    assert count == 3
+    assert count == 4
 
 
 @pytest.mark.asyncio
@@ -271,6 +281,16 @@ async def test_count_matches_for_tapology_bout_enrichment_matches_stale_conditio
             tapology_bout_url="https://www.tapology.com/fightcenter/bouts/fresh",
             tapology_last_scraped_at=datetime(2099, 1, 1),
         ),
+        MatchModel(
+            event_id=event.id,
+            tapology_attempt_status="worker_timeout",
+            tapology_last_attempt_at=datetime(2099, 1, 1),
+        ),
+        MatchModel(
+            event_id=event.id,
+            tapology_attempt_status="worker_timeout",
+            tapology_last_attempt_at=datetime(2020, 1, 1),
+        ),
     ])
     await sqlite_session.commit()
 
@@ -279,7 +299,7 @@ async def test_count_matches_for_tapology_bout_enrichment_matches_stale_conditio
         stale_days=30,
     )
 
-    assert count == 3
+    assert count == 4
 
 
 @pytest.mark.asyncio
@@ -476,6 +496,7 @@ async def test_enrich_fighter_tapology_profile_task_walks_all_batches(monkeypatc
         save_profile,
         logger,
         crawler_fn=None,
+        save_attempt_state=None,
         batch_index=None,
         batch_total=None,
         processed_before=0,
@@ -965,6 +986,7 @@ async def test_enrich_match_tapology_metadata_task_walks_all_batches(monkeypatch
         logger,
         crawler_fn=None,
         save_event_url=None,
+        save_attempt_state=None,
         batch_index=None,
         batch_total=None,
         processed_before=0,
