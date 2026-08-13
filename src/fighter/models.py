@@ -35,6 +35,10 @@ class FighterSchema(BaseSchema):
     last_fight_date: Optional[date] = None
     last_fight_promotion: Optional[str] = None
     tapology_last_scraped_at: Optional[datetime] = None
+    tapology_attempt_status: Optional[str] = None
+    tapology_last_attempt_at: Optional[datetime] = None
+    tapology_failure_stage: Optional[str] = None
+    tapology_failure_reason: Optional[str] = None
 
     wins: int = 0
     losses: int = 0
@@ -101,6 +105,10 @@ class FighterModel(BaseModel):
     last_fight_date = Column(Date)
     last_fight_promotion = Column(String)
     tapology_last_scraped_at = Column(DateTime)
+    tapology_attempt_status = Column(String)
+    tapology_last_attempt_at = Column(DateTime)
+    tapology_failure_stage = Column(String)
+    tapology_failure_reason = Column(String)
 
     wins = Column(Integer, default=0)
     losses = Column(Integer, default=0)
@@ -141,6 +149,10 @@ class FighterModel(BaseModel):
             last_fight_date=fighter.last_fight_date,
             last_fight_promotion=fighter.last_fight_promotion,
             tapology_last_scraped_at=fighter.tapology_last_scraped_at,
+            tapology_attempt_status=fighter.tapology_attempt_status,
+            tapology_last_attempt_at=fighter.tapology_last_attempt_at,
+            tapology_failure_stage=fighter.tapology_failure_stage,
+            tapology_failure_reason=fighter.tapology_failure_reason,
         )   
         
     def to_schema(self) -> FighterSchema:
@@ -173,6 +185,10 @@ class FighterModel(BaseModel):
             last_fight_date=self.last_fight_date,
             last_fight_promotion=self.last_fight_promotion,
             tapology_last_scraped_at=self.tapology_last_scraped_at,
+            tapology_attempt_status=self.tapology_attempt_status,
+            tapology_last_attempt_at=self.tapology_last_attempt_at,
+            tapology_failure_stage=self.tapology_failure_stage,
+            tapology_failure_reason=self.tapology_failure_reason,
             created_at=self.created_at,
             updated_at=self.updated_at,
         )

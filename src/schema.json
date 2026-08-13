@@ -62,6 +62,16 @@
           "name": "idx_fighter_tapology_url",
           "columns": ["tapology_url"],
           "description": "Lookup index for Tapology fighter profile matching"
+        },
+        {
+          "name": "idx_fighter_tapology_attempt_status",
+          "columns": ["tapology_attempt_status"],
+          "description": "Lookup index for Tapology fighter enrichment attempt status"
+        },
+        {
+          "name": "idx_fighter_tapology_last_attempt_at",
+          "columns": ["tapology_last_attempt_at"],
+          "description": "Lookup index for Tapology fighter enrichment retry scheduling"
         }
       ],
       "columns": [
@@ -230,6 +240,30 @@
           "type": "timestamp without time zone",
           "nullable": true,
           "description": "Timestamp when Tapology fighter enrichment last succeeded"
+        },
+        {
+          "column": "tapology_attempt_status",
+          "type": "character varying",
+          "nullable": true,
+          "description": "Last Tapology fighter enrichment attempt status"
+        },
+        {
+          "column": "tapology_last_attempt_at",
+          "type": "timestamp without time zone",
+          "nullable": true,
+          "description": "Timestamp when Tapology fighter enrichment was last attempted"
+        },
+        {
+          "column": "tapology_failure_stage",
+          "type": "character varying",
+          "nullable": true,
+          "description": "Tapology fighter enrichment stage that last failed"
+        },
+        {
+          "column": "tapology_failure_reason",
+          "type": "character varying",
+          "nullable": true,
+          "description": "Short reason for the last Tapology fighter enrichment failure"
         }
       ]
     },
@@ -451,6 +485,16 @@
           "name": "idx_match_bout_status",
           "columns": ["bout_status"],
           "description": "Lookup index for scheduled, completed, cancelled, and postponed Tapology bout status"
+        },
+        {
+          "name": "idx_match_tapology_attempt_status",
+          "columns": ["tapology_attempt_status"],
+          "description": "Lookup index for Tapology bout enrichment attempt status"
+        },
+        {
+          "name": "idx_match_tapology_last_attempt_at",
+          "columns": ["tapology_last_attempt_at"],
+          "description": "Lookup index for Tapology bout enrichment retry scheduling"
         }
       ],
       "columns": [
@@ -502,6 +546,30 @@
           "type": "timestamp without time zone",
           "nullable": true,
           "description": "Timestamp when Tapology bout enrichment last succeeded"
+        },
+        {
+          "column": "tapology_attempt_status",
+          "type": "character varying",
+          "nullable": true,
+          "description": "Last Tapology bout enrichment attempt status"
+        },
+        {
+          "column": "tapology_last_attempt_at",
+          "type": "timestamp without time zone",
+          "nullable": true,
+          "description": "Timestamp when Tapology bout enrichment was last attempted"
+        },
+        {
+          "column": "tapology_failure_stage",
+          "type": "character varying",
+          "nullable": true,
+          "description": "Tapology bout enrichment stage that last failed"
+        },
+        {
+          "column": "tapology_failure_reason",
+          "type": "character varying",
+          "nullable": true,
+          "description": "Short reason for the last Tapology bout enrichment failure"
         },
         {
           "column": "order",
