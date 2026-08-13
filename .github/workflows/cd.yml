@@ -282,9 +282,17 @@ jobs:
           username: ${{ secrets.DEPLOY_USER }}
           key: ${{ secrets.DEPLOY_SSH_KEY }}
           script: |
-            sleep 10
-            curl -f http://localhost/health || exit 1
-            echo "Health check passed!"
+            for attempt in $(seq 1 30); do
+              if curl -f http://127.0.0.1/health; then
+                echo "Health check passed!"
+                exit 0
+              fi
+              echo "Health check retry ${attempt}/30..."
+              sleep 2
+            done
+            docker ps --filter "name=nginx" --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"
+            docker logs --tail 80 nginx
+            exit 1
 
   deploy-flow-serve:
     name: Deploy Flow Serve

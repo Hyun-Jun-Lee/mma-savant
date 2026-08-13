@@ -288,17 +288,17 @@ if docker ps --filter "name=nginx" --filter "status=running" | grep -q nginx; th
     log_success "Nginx started successfully"
 else
     log_error "Nginx failed to start!"
-    docker logs nginx --tail 30
+    docker logs --tail 30 nginx
     exit 1
 fi
 
-log_info "Waiting for Nginx to be ready..."
+log_info "Waiting for Nginx container health endpoint..."
 NGINX_RETRY=0
-MAX_NGINX_RETRIES=10
+MAX_NGINX_RETRIES=30
 
 while [ "$NGINX_RETRY" -lt "$MAX_NGINX_RETRIES" ]; do
-    if curl -sf http://localhost/health > /dev/null 2>&1; then
-        log_success "Nginx is responding to health checks!"
+    if docker exec nginx wget -qO- http://127.0.0.1/health > /dev/null 2>&1; then
+        log_success "Nginx container health check passed!"
         break
     fi
 
@@ -308,8 +308,31 @@ while [ "$NGINX_RETRY" -lt "$MAX_NGINX_RETRIES" ]; do
 done
 
 if [ "$NGINX_RETRY" -ge "$MAX_NGINX_RETRIES" ]; then
-    log_error "Nginx health check failed"
-    docker logs nginx --tail 30
+    log_error "Nginx container health check failed"
+    docker logs --tail 80 nginx
+    exit 1
+fi
+
+log_info "Waiting for host port health endpoint..."
+NGINX_HOST_RETRY=0
+MAX_NGINX_HOST_RETRIES=30
+
+while [ "$NGINX_HOST_RETRY" -lt "$MAX_NGINX_HOST_RETRIES" ]; do
+    if curl -sf http://127.0.0.1/health > /dev/null 2>&1; then
+        log_success "Host port health check passed!"
+        break
+    fi
+
+    NGINX_HOST_RETRY=$((NGINX_HOST_RETRY + 1))
+    log_info "  Retry $NGINX_HOST_RETRY/$MAX_NGINX_HOST_RETRIES..."
+    sleep 2
+done
+
+if [ "$NGINX_HOST_RETRY" -ge "$MAX_NGINX_HOST_RETRIES" ]; then
+    log_error "Host port health check failed"
+    docker ps --filter "name=nginx" --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"
+    docker port nginx || true
+    docker logs --tail 80 nginx
     exit 1
 fi
 
