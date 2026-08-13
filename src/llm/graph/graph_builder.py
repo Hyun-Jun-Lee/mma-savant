@@ -55,6 +55,9 @@ def critic_route(state: MainState) -> list[Send] | str:
             sends.append(Send("visualization", state))
         return sends
 
+    if state.get("validation_status") == "unsupported":
+        return [Send("text_response", state)]
+
     if state.get("retry_count", 0) >= 3:
         # 3회 소진 → END (critic_node에서 이미 final_response 설정됨)
         return END

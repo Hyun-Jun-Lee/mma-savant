@@ -18,6 +18,9 @@ class AgentResult(TypedDict):
     reasoning: str
 
 
+ValidationStatus = Literal["passed", "retry_needed", "valid_empty", "unsupported"]
+
+
 def reduce_agent_results(
     existing: list[AgentResult],
     new: list[AgentResult],
@@ -54,6 +57,7 @@ class AnalysisState(TypedDict):
     agent_results: Annotated[list[AgentResult], reduce_agent_results]
 
     critic_passed: bool
+    validation_status: ValidationStatus
     critic_feedback: Optional[str]
     retry_count: int
     needs_visualization: bool
@@ -84,6 +88,7 @@ class MainState(TypedDict):
 
     # 서브그래프가 설정하는 플래그
     critic_passed: bool
+    validation_status: ValidationStatus
     needs_visualization: bool
 
     # 출력

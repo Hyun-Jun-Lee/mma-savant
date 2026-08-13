@@ -19,7 +19,7 @@
 
 metric 정책을 critic에 반영하는 이유는 SQL agent가 만든 SQL이 제품 기준의 "정답 SQL"인지 확인하기 위해서다.
 
-예를 들어 SQL agent가 `win_rate = wins / total_fights`로 계산하면 SQL 문법은 맞고 결과도 정상 범위일 수 있다. 하지만 제품 기본 정책이 `wins / (wins + losses)`라면 의미적으로는 틀린 SQL이다.
+예를 들어 SQL agent가 `win_rate = wins / total_fights`로 계산하면 SQL 문법은 맞고 결과도 정상 범위일 수 있다. 하지만 제품 기본 정책이 `wins / (wins + losses + draws + no_contests)`라면 의미적으로는 틀린 SQL이다.
 
 critic이 이런 차이를 판단하려면 다음과 같은 canonical metric policy를 알아야 한다.
 
@@ -58,9 +58,10 @@ completed_fight:
 - exclude non-completed bout statuses:
   COALESCE(bout_status, 'completed') NOT IN ('scheduled', 'cancelled', 'postponed')
 
-clean_win_rate:
-- wins / (wins + losses)
-- draws and no contests are excluded unless the user explicitly asks to include them
+win_rate:
+- wins / (wins + losses + draws + no_contests)
+- this must match the SQL agent prompt, schema metadata, and `v_fighter_record_summary.win_rate`
+- if the user explicitly asks for clean win/loss rate excluding draws and no contests, use wins / (wins + losses)
 
 finish_rate:
 - default finish_wins / total_completed_fights
@@ -96,11 +97,31 @@ decision wins:
 - submission wins 질문이면 win 조건과 submission method bucket이 모두 필요하다.
 - decision wins 질문이면 win 조건과 decision method bucket이 모두 필요하다.
 - decision participation/fights 질문이면 decision method bucket은 필요하지만 `result = 'win'`을 강제하면 안 된다.
-- win rate 질문이면 canonical record summary view를 쓰거나 `wins / (wins + losses)` 정책을 따라야 한다.
+- win rate 질문이면 canonical record summary view를 쓰거나 `wins / (wins + losses + draws + no_contests)` 정책을 따라야 한다.
 - rate/pct/percentage/accuracy류 결과값은 0~100 범위를 벗어나면 실패한다.
 - count/wins/losses/total/fights류 결과값은 음수면 실패한다.
 
 1차 구현에서는 SQL AST 없이 문자열/정규식과 결과값 기반으로 명백한 위반만 잡는다.
+
+정규식 guardrail은 "필요 키워드가 SQL 어딘가에 있다"는 사실만 확인할 수 있으므로, alias/scope/grain/precedence까지 맞다고 증명하지 않는다. 따라서 다음 경계를 둔다.
+
+```text
+Phase A deterministic failure:
+- canonical view가 없고, 필수 metric/window/filter 조각이 SQL 전체에서 명백히 빠진 경우
+- 결과값 sanity check가 명백히 깨진 경우
+- 질문 intent와 반대되는 조건이 명백히 들어간 경우
+
+Phase B semantic escalation:
+- self join, 여러 alias, nested CTE, window function, OR/AND 혼합 조건처럼 정규식이 scope를 오판하기 쉬운 SQL
+- 필수 조건 문자열은 보이지만 어느 table alias/grain에 적용됐는지 확신할 수 없는 SQL
+- recent N, opponent comparison, denominator 계산처럼 row grain이 결과 의미를 바꾸는 SQL
+
+Pass without Phase B concern:
+- canonical view/summary column을 사용했고 질문 intent와 필요한 filter가 직접적으로 드러나는 SQL
+- raw table SQL이지만 단일 fact path이고 필수 조건이 단순 WHERE/CASE에 고립되어 있어 오탐 가능성이 낮은 SQL
+```
+
+즉 Phase A는 high-confidence blocker만 실패시키고, 복잡한 SQL의 의미 검증은 Phase B에 맡긴다. eval에서 alias/grain/OR precedence 오류가 반복되면 그때 SQL AST/parser 기반 validator를 별도 작업으로 도입한다.
 
 ### 4. Redesign Empty Result Handling
 
@@ -124,6 +145,21 @@ requested data is outside schema coverage:
 
 예를 들어 특정 선수명, method, weight class, event name처럼 저장값 mismatch 가능성이 큰 free-text filter가 있을 때는 retry feedback이 유효하다. 반대로 "2024년 헤비급 여성 챔피언"처럼 조건 자체가 명확하지만 결과가 없을 수 있는 질문은 0행이 정상 결과일 수 있다.
 
+critic은 단순 bool만 반환하지 않고 validation status를 함께 반환한다.
+
+```python
+validation_status: Literal["passed", "retry_needed", "valid_empty", "unsupported"]
+```
+
+상태별 라우팅 정책:
+
+- `passed`: `critic_passed=True`, 기존 통과 경로로 `text_response`와 필요한 경우 `visualization`으로 이동한다.
+- `retry_needed`: `critic_passed=False`, `critic_feedback`을 포함해 SQL agent retry 경로로 이동한다.
+- `valid_empty`: `critic_passed=True`, `text_response`로 이동해 현재 DB에서 조건에 맞는 결과를 찾지 못했다는 응답을 생성한다.
+- `unsupported`: `critic_passed=False`로 기록하되 retry하지 않고 `text_response`로 이동한다. `text_response`는 unsupported-data boundary를 사용자에게 설명하고 모델 지식으로 보강하지 않는다.
+
+이를 위해 `critic_route`는 `critic_passed=False`만으로 항상 retry/END를 선택하지 말고, `validation_status == "unsupported"`인 경우에는 `text_response`로 분기해야 한다.
+
 ### 5. Keep LLM Phase B as a Secondary Semantic Check
 
 LLM critic은 deterministic Phase A를 대체하지 않는다. Phase A가 잡을 수 있는 것은 코드로 먼저 잡고, LLM Phase B는 애매한 의미 정합성만 검토한다.
@@ -146,6 +182,8 @@ critic 개선은 실제 LLM 호출 없이도 테스트 가능해야 한다.
 
 최소 테스트 케이스:
 
+Negative regression:
+
 - recent fights 질문인데 future event 제외 조건이 없음
 - KO/TKO wins 질문인데 `result = 'win'` 조건이 없음
 - submission wins 질문인데 submission method bucket이 없음
@@ -155,16 +193,30 @@ critic 개선은 실제 LLM 호출 없이도 테스트 가능해야 한다.
 - count 결과가 -1처럼 음수임
 - 명확하고 유효한 0행 결과를 무조건 실패시키지 않음
 
+Positive regression:
+
+- canonical `v_fighter_record_summary.win_rate`를 사용한 win rate SQL은 통과함
+- raw table SQL이라도 `wins / (wins + losses + draws + no_contests)` denominator를 명확히 따르면 통과함
+- 명시적으로 clean win/loss rate를 요청한 경우 `wins / (wins + losses)` denominator를 통과시킴
+- canonical `v_completed_fighter_fights`를 사용한 recent fights SQL은 completed-fight 조건을 재구현하지 않아도 통과함
+- KO/TKO wins 질문에서 `result = 'win'`과 KO/TKO method bucket이 모두 있으면 통과함
+- decision participation/fights 질문에서 decision method bucket은 있고 `result = 'win'`이 없으면 통과함
+- 명확하고 유효한 0행 결과는 `validation_status="valid_empty"`로 통과함
+- schema coverage 밖 요청은 `validation_status="unsupported"`와 `critic_passed=False`를 반환하지만 retry하지 않고 `text_response`로 라우팅됨
+
 이 테스트들은 critic의 deterministic Phase A가 실제로 위험한 SQL을 잡는지 확인하는 regression suite 역할을 한다.
 
 ## Suggested Implementation Order
 
-1. critic의 canonical metric policy를 코드 상수 또는 작은 helper로 정의한다.
-2. 현재 Phase A에 intent/metric 기반 deterministic guardrail을 추가한다.
-3. empty result handling을 `retry-needed`, `valid-empty`, `unsupported` 성격으로 분리한다.
-4. LLM Phase B prompt에서 SQL 효율성 평가를 명시적으로 제외하고 semantic correctness만 보게 한다.
-5. seeded bad-SQL 테스트를 추가한다.
-6. 기존 `tests/llm` critic/node 테스트를 보강해 retry feedback 문구와 pass/fail 결과를 검증한다.
+1. critic의 canonical metric policy를 코드 상수 또는 작은 helper로 정의한다. 이때 win rate는 SQL agent prompt/schema/view와 동일하게 `wins / (wins + losses + draws + no_contests)`를 기본값으로 둔다.
+2. `_run_phase_a(agent_results)` 계약을 `_run_phase_a(agent_results, resolved_query)`로 변경한다.
+3. `resolved_query`에서 temporal intent, method metric intent, win-rate intent, ambiguous free-text filter 여부를 추출하는 작은 intent classifier/helper를 추가한다.
+4. 현재 Phase A에 intent/metric 기반 deterministic guardrail을 추가하되, alias/grain/OR precedence처럼 정규식으로 확신할 수 없는 SQL은 실패가 아니라 Phase B semantic escalation 대상으로 둔다.
+5. empty result handling을 `validation_status: Literal["passed", "retry_needed", "valid_empty", "unsupported"]`로 분리한다.
+6. `unsupported`는 `critic_passed=False`로 기록하지만 retry하지 않고 `text_response`로 라우팅하도록 `critic_route`를 보강한다.
+7. LLM Phase B prompt에서 SQL 효율성 평가를 명시적으로 제외하고 semantic correctness만 보게 한다.
+8. seeded bad-SQL 테스트와 positive regression 테스트를 추가한다.
+9. 기존 `src/tests/llm` critic/node 테스트를 보강해 retry feedback 문구, `validation_status`, pass/fail 결과, unsupported 라우팅을 검증한다.
 
 ## Out of Scope for This Work
 

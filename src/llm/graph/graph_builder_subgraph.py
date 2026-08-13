@@ -59,6 +59,9 @@ def _critic_route_internal(state: AnalysisState) -> list[Send] | str:
         # 통과 → 서브그래프 종료, 메인 그래프로 복귀
         return END
 
+    if state.get("validation_status") == "unsupported":
+        return END
+
     if state.get("retry_count", 0) >= MAX_RETRIES:
         # 3회 소진 → 서브그래프 종료 (critic_node에서 이미 에러 설정)
         return END
@@ -129,6 +132,9 @@ def _post_analysis_route(state: MainState) -> list[Send] | str:
     이제 서브그래프가 critic을 내부 처리했으므로 메인에서는
     critic_passed 결과만 보고 다음 단계를 결정.
     """
+    if state.get("validation_status") == "unsupported":
+        return [Send("text_response", state)]
+
     if not state.get("critic_passed", False):
         # 서브그래프에서 retry 소진 → END
         return END

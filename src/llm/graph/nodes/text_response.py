@@ -13,9 +13,19 @@ LOGGER = get_logger(__name__)
 TR_TIMEOUT_SECONDS = 15
 
 
-def _build_text_input(resolved_query: str, agent_results: list) -> str:
+def _build_text_input(
+    resolved_query: str,
+    agent_results: list,
+    validation_status: str | None = None,
+    critic_feedback: str | None = None,
+) -> str:
     """텍스트 분석 LLM 호출용 입력 데이터 구성"""
     parts = [f"## 사용자 질문: {resolved_query}\n"]
+
+    if validation_status:
+        parts.append(f"## Validation Status: {validation_status}")
+    if critic_feedback:
+        parts.append(f"## Critic Feedback: {critic_feedback}\n")
 
     for result in agent_results:
         agent_name = result.get("agent_name", "unknown")
@@ -39,9 +49,16 @@ async def text_response_node(state: MainState, llm) -> dict:
     """
     agent_results = state.get("agent_results", [])
     resolved_query = state.get("resolved_query", "")
+    validation_status = state.get("validation_status")
+    critic_feedback = state.get("critic_feedback")
 
     try:
-        input_text = _build_text_input(resolved_query, agent_results)
+        input_text = _build_text_input(
+            resolved_query,
+            agent_results,
+            validation_status=validation_status,
+            critic_feedback=critic_feedback,
+        )
         response = await asyncio.wait_for(
             llm.ainvoke([
                 SystemMessage(content=TEXT_RESPONSE_PROMPT),

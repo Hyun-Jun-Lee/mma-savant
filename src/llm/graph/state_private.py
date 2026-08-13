@@ -19,6 +19,9 @@ class AgentResult(TypedDict):
     reasoning: str
 
 
+ValidationStatus = Literal["passed", "retry_needed", "valid_empty", "unsupported"]
+
+
 def reduce_agent_results(
     existing: list[AgentResult],
     new: list[AgentResult],
@@ -55,6 +58,7 @@ class OverallState(TypedDict):
     agent_results: Annotated[list[AgentResult], reduce_agent_results]
 
     critic_passed: bool
+    validation_status: ValidationStatus
     critic_feedback: Optional[str]
     retry_count: int
     needs_visualization: bool
@@ -140,6 +144,7 @@ class SupervisorOutput(TypedDict):
 
 class CriticOutput(TypedDict):
     critic_passed: bool
+    validation_status: ValidationStatus
     critic_feedback: Optional[str]
     retry_count: int
     needs_visualization: bool

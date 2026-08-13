@@ -15,6 +15,9 @@ class AgentResult(TypedDict):
     reasoning: str                   # 에이전트의 자연어 분석 (텍스트 응답 재사용 가능)
 
 
+ValidationStatus = Literal["passed", "retry_needed", "valid_empty", "unsupported"]
+
+
 def reduce_agent_results(
     existing: list[AgentResult],
     new: list[AgentResult],
@@ -59,6 +62,7 @@ class MainState(TypedDict):
 
     # 검증
     critic_passed: bool
+    validation_status: ValidationStatus
     critic_feedback: Optional[str]
     retry_count: int                 # Critic이 실패 반환 시 +1, 최대 3
     needs_visualization: bool        # Critic이 판단한 시각화 필요 여부
