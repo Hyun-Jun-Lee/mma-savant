@@ -1,6 +1,7 @@
 import asyncio
 import logging
 import re
+import time
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta
@@ -452,7 +453,15 @@ async def enrich_fighter_tapology_profile_batch(
             if fighter.tapology_url:
                 match_result = match_tapology_fighter_candidates(fighter, [])
             else:
-                search_html = await _fetch_tapology_search_page(client, crawler_fn, fighter.name)
+                search_html = await _fetch_tapology_search_page(
+                    client,
+                    crawler_fn,
+                    fighter.name,
+                    logger=logger,
+                    kind="profile_search",
+                    fighter_id=fighter.id,
+                    name=fighter.name,
+                )
                 if not search_html:
                     stats.failed += 1
                     logger.warning(
@@ -502,7 +511,15 @@ async def enrich_fighter_tapology_profile_batch(
                 continue
 
             stats.matched += 1
-            html = await _fetch_tapology_fighter_detail_page(client, crawler_fn, match_result.url)
+            html = await _fetch_tapology_fighter_detail_page(
+                client,
+                crawler_fn,
+                match_result.url,
+                logger=logger,
+                kind="profile_detail",
+                fighter_id=fighter.id,
+                name=fighter.name,
+            )
             if not html:
                 stats.failed += 1
                 logger.warning("Tapology profile page fetch failed for %s", match_result.url)
@@ -592,7 +609,14 @@ async def enrich_match_tapology_metadata_batch(
                     continue
 
             stats.matched += 1
-            html = await _fetch_tapology_bout_detail_page(client, crawler_fn, bout_url)
+            html = await _fetch_tapology_bout_detail_page(
+                client,
+                crawler_fn,
+                bout_url,
+                logger=logger,
+                kind="bout_detail",
+                match_id=bout.match_id,
+            )
             if not html:
                 stats.failed += 1
                 logger.warning("Tapology bout page fetch failed for %s", bout_url)
@@ -652,7 +676,15 @@ async def _resolve_tapology_bout_url_from_event_page(
     if event_url in event_page_cache:
         event_html = event_page_cache[event_url]
     else:
-        event_html = await _fetch_tapology_event_detail_page(client, crawler_fn, event_url)
+        event_html = await _fetch_tapology_event_detail_page(
+            client,
+            crawler_fn,
+            event_url,
+            logger=logger,
+            kind="event_detail",
+            match_id=bout.match_id,
+            event=bout.event_name,
+        )
         event_page_cache[event_url] = event_html
 
     if not event_html:
@@ -722,7 +754,15 @@ async def _resolve_tapology_event_url(
     if cache_key in event_url_cache:
         return event_url_cache[cache_key]
 
-    search_html = await _fetch_tapology_search_page(client, crawler_fn, bout.event_name)
+    search_html = await _fetch_tapology_search_page(
+        client,
+        crawler_fn,
+        bout.event_name,
+        logger=logger,
+        kind="event_search",
+        match_id=bout.match_id,
+        event=bout.event_name,
+    )
     if not search_html:
         logger.warning(
             "Tapology event search fetch failed for match_id=%s event=%s",
@@ -781,7 +821,16 @@ async def _resolve_tapology_bout_url_from_direct_search(
 ) -> tuple[str | None, bool]:
     fighter_names = [fighter.name for fighter in bout.fighters]
     search_term = _build_bout_search_term(bout)
-    search_html = await _fetch_tapology_search_page(client, crawler_fn, search_term)
+    search_html = await _fetch_tapology_search_page(
+        client,
+        crawler_fn,
+        search_term,
+        logger=logger,
+        kind="bout_search",
+        match_id=bout.match_id,
+        fighters=fighter_names,
+        event=bout.event_name,
+    )
     if not search_html:
         logger.warning(
             "Tapology bout search fetch failed for match_id=%s fighters=%s event=%s search_term=%s",
@@ -882,37 +931,134 @@ async def _fetch_tapology_search_page(
     client: TapologyClient,
     crawler_fn: Callable | None,
     term: str,
+    *,
+    logger: logging.Logger | None = None,
+    kind: str = "search",
+    **context,
 ) -> str | None:
-    if crawler_fn:
-        return await crawler_fn(f"https://www.tapology.com/search?term={quote_plus(term)}")
-    return await asyncio.to_thread(client.fetch_search_page, term)
+    async def fetch() -> str | None:
+        if crawler_fn:
+            return await crawler_fn(f"https://www.tapology.com/search?term={quote_plus(term)}")
+        return await asyncio.to_thread(client.fetch_search_page, term)
+
+    if logger is None:
+        return await fetch()
+    return await _fetch_tapology_with_elapsed_log(logger, kind, term, fetch, **context)
 
 
 async def _fetch_tapology_fighter_detail_page(
     client: TapologyClient,
     crawler_fn: Callable | None,
     path_or_url: str,
+    *,
+    logger: logging.Logger | None = None,
+    kind: str = "fighter_detail",
+    **context,
 ) -> str | None:
-    if crawler_fn:
-        return await crawler_fn(path_or_url)
-    return await asyncio.to_thread(client.fetch_fighter_detail_page, path_or_url)
+    async def fetch() -> str | None:
+        if crawler_fn:
+            return await crawler_fn(path_or_url)
+        return await asyncio.to_thread(client.fetch_fighter_detail_page, path_or_url)
+
+    if logger is None:
+        return await fetch()
+    return await _fetch_tapology_with_elapsed_log(logger, kind, path_or_url, fetch, **context)
 
 
 async def _fetch_tapology_bout_detail_page(
     client: TapologyClient,
     crawler_fn: Callable | None,
     path_or_url: str,
+    *,
+    logger: logging.Logger | None = None,
+    kind: str = "bout_detail",
+    **context,
 ) -> str | None:
-    if crawler_fn:
-        return await crawler_fn(path_or_url)
-    return await asyncio.to_thread(client.fetch_bout_detail_page, path_or_url)
+    async def fetch() -> str | None:
+        if crawler_fn:
+            return await crawler_fn(path_or_url)
+        return await asyncio.to_thread(client.fetch_bout_detail_page, path_or_url)
+
+    if logger is None:
+        return await fetch()
+    return await _fetch_tapology_with_elapsed_log(logger, kind, path_or_url, fetch, **context)
 
 
 async def _fetch_tapology_event_detail_page(
     client: TapologyClient,
     crawler_fn: Callable | None,
     path_or_url: str,
+    *,
+    logger: logging.Logger | None = None,
+    kind: str = "event_detail",
+    **context,
 ) -> str | None:
-    if crawler_fn:
-        return await crawler_fn(path_or_url)
-    return await asyncio.to_thread(client.fetch_event_detail_page, path_or_url)
+    async def fetch() -> str | None:
+        if crawler_fn:
+            return await crawler_fn(path_or_url)
+        return await asyncio.to_thread(client.fetch_event_detail_page, path_or_url)
+
+    if logger is None:
+        return await fetch()
+    return await _fetch_tapology_with_elapsed_log(logger, kind, path_or_url, fetch, **context)
+
+
+async def _fetch_tapology_with_elapsed_log(
+    logger: logging.Logger,
+    kind: str,
+    target: str,
+    fetch: Callable[[], Awaitable[str | None]],
+    **context,
+) -> str | None:
+    context_text = _format_fetch_context(context)
+    logger.info(
+        "Tapology fetch started: kind=%s target=%s%s",
+        kind,
+        target,
+        context_text,
+    )
+    started_at = time.perf_counter()
+    try:
+        html = await fetch()
+    except Exception as exc:
+        elapsed = time.perf_counter() - started_at
+        logger.warning(
+            "Tapology fetch exception: kind=%s target=%s elapsed=%.2fs%s error=%s",
+            kind,
+            target,
+            elapsed,
+            context_text,
+            exc,
+        )
+        raise
+
+    elapsed = time.perf_counter() - started_at
+    if html:
+        logger.info(
+            "Tapology fetch completed: kind=%s target=%s elapsed=%.2fs bytes=%d%s",
+            kind,
+            target,
+            elapsed,
+            len(html),
+            context_text,
+        )
+    else:
+        logger.warning(
+            "Tapology fetch empty: kind=%s target=%s elapsed=%.2fs%s",
+            kind,
+            target,
+            elapsed,
+            context_text,
+        )
+    return html
+
+
+def _format_fetch_context(context: dict) -> str:
+    parts = [
+        f"{key}={value}"
+        for key, value in context.items()
+        if value is not None
+    ]
+    if not parts:
+        return ""
+    return " " + " ".join(parts)

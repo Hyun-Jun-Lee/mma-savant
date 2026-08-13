@@ -106,6 +106,14 @@ def test_tapology_scrapling_options_enable_cloudflare_solver_for_kwargs_fetcher(
     assert kwargs["solve_cloudflare"] is True
 
 
+def test_tapology_scrapling_options_use_fail_fast_settings():
+    kwargs = crawler._build_tapology_scrapling_fetch_kwargs(_FetcherWithKwargs)
+
+    assert kwargs["timeout"] == 45_000
+    assert kwargs["wait"] == 1_500
+    assert kwargs["retries"] == 1
+
+
 def test_tapology_scrapling_options_skip_cloudflare_solver_when_unsupported():
     kwargs = crawler._build_tapology_scrapling_fetch_kwargs(_FetcherWithoutCloudflareSolver)
 

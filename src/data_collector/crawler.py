@@ -125,13 +125,14 @@ def _fetch_tapology_with_scrapling(url: str) -> str | None:
 def _build_tapology_scrapling_fetch_kwargs(fetcher: Any) -> dict[str, Any]:
     kwargs = {
         "headless": True,
-        "timeout": 90_000,
-        "wait": 3_000,
+        "timeout": 45_000,
+        "wait": 1_500,
         "network_idle": False,
         "google_search": True,
         "os_randomize": False,
         "block_webrtc": True,
         "allow_webgl": True,
+        "retries": 1,
     }
 
     fetch_signature = inspect.signature(fetcher.fetch)

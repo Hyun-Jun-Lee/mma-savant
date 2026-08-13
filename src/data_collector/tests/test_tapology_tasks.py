@@ -309,6 +309,53 @@ async def test_enrich_fighter_tapology_profile_batch_skips_ambiguous_match():
 
 
 @pytest.mark.asyncio
+async def test_fetch_tapology_search_page_logs_elapsed_context(caplog):
+    client = FakeTapologyClient({
+        "Alex Pereira": """
+        <a href="/fightcenter/fighters/117305-alex-pereira">Alex Pereira</a>
+        """,
+    })
+    logger = logging.getLogger(__name__)
+
+    with caplog.at_level(logging.INFO):
+        html = await tapology_tasks._fetch_tapology_search_page(
+            client,
+            None,
+            "Alex Pereira",
+            logger=logger,
+            kind="profile_search",
+            fighter_id=1,
+            name="Alex Pereira",
+        )
+
+    assert "Alex Pereira" in html
+    assert "Tapology fetch started: kind=profile_search target=Alex Pereira fighter_id=1 name=Alex Pereira" in caplog.text
+    assert "Tapology fetch completed: kind=profile_search target=Alex Pereira" in caplog.text
+    assert "bytes=" in caplog.text
+
+
+@pytest.mark.asyncio
+async def test_fetch_tapology_search_page_logs_empty_result(caplog):
+    client = FakeTapologyClient({})
+    logger = logging.getLogger(__name__)
+
+    with caplog.at_level(logging.WARNING):
+        html = await tapology_tasks._fetch_tapology_search_page(
+            client,
+            None,
+            "Unknown Fighter",
+            logger=logger,
+            kind="profile_search",
+            fighter_id=9,
+            name="Unknown Fighter",
+        )
+
+    assert html is None
+    assert "Tapology fetch empty: kind=profile_search target=Unknown Fighter" in caplog.text
+    assert "fighter_id=9 name=Unknown Fighter" in caplog.text
+
+
+@pytest.mark.asyncio
 async def test_enrich_fighter_tapology_profile_batch_continues_after_parser_failure(monkeypatch):
     bad_url = "https://www.tapology.com/fightcenter/fighters/bad"
     good_url = "https://www.tapology.com/fightcenter/fighters/good"
