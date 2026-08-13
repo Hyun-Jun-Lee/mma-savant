@@ -141,7 +141,7 @@ log_info "Pulling flow_serve image..."
 docker compose -f "$COMPOSE_FILE" --profile manual pull flow_serve
 
 log_info "Recreating flow_serve container..."
-docker compose -f "$COMPOSE_FILE" --profile manual up -d --force-recreate flow_serve
+docker compose -f "$COMPOSE_FILE" --profile manual up -d --no-deps --force-recreate flow_serve
 
 if docker ps --filter "name=flow_serve" --filter "status=running" | grep -q flow_serve; then
     log_success "flow_serve is running."
