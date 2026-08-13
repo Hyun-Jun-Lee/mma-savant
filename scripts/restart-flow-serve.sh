@@ -112,15 +112,31 @@ log_info "==================================="
 cd "$PROJECT_DIR"
 
 log_info "Starting infrastructure services (DB, Redis)..."
-docker compose -f "$COMPOSE_FILE" up -d savant_db redis
+docker compose -f "$COMPOSE_FILE" up -d --no-recreate savant_db redis
 
 log_info "Waiting for DB and Redis to be healthy..."
 MAX_INFRA_RETRIES=30
 INFRA_RETRY=0
 
+get_compose_container_id() {
+    docker compose -f "$COMPOSE_FILE" ps -q "$1" 2>/dev/null || true
+}
+
+get_container_health() {
+    SERVICE_NAME="$1"
+    CONTAINER_ID="$(get_compose_container_id "$SERVICE_NAME")"
+
+    if [ -z "$CONTAINER_ID" ]; then
+        echo "missing"
+        return
+    fi
+
+    docker inspect --format='{{if .State.Health}}{{.State.Health.Status}}{{else}}{{.State.Status}}{{end}}' "$CONTAINER_ID" 2>/dev/null || echo "missing"
+}
+
 while [ "$INFRA_RETRY" -lt "$MAX_INFRA_RETRIES" ]; do
-    DB_STATUS=$(docker inspect --format='{{.State.Health.Status}}' savant_db 2>/dev/null || echo "starting")
-    REDIS_STATUS=$(docker inspect --format='{{.State.Health.Status}}' savant_redis 2>/dev/null || echo "starting")
+    DB_STATUS="$(get_container_health savant_db)"
+    REDIS_STATUS="$(get_container_health redis)"
 
     if [ "$DB_STATUS" = "healthy" ] && [ "$REDIS_STATUS" = "healthy" ]; then
         log_success "Infrastructure services are healthy!"
