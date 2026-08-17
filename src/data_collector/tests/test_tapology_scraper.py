@@ -1,4 +1,3 @@
-from datetime import date
 from pathlib import Path
 
 from data_collector.scrapers.tapology_scraper import (
@@ -22,10 +21,10 @@ def test_parse_tapology_fighter_profile_with_all_fields():
     assert profile.fighting_out_of == "Bethel, Connecticut"
     assert profile.affiliation == "Teixeira MMA & Fitness"
     assert profile.gym == "Teixeira MMA & Fitness"
-    assert profile.current_streak == "1 Win"
-    assert profile.last_fight_name == "October 04, 2025 in UFC"
-    assert profile.last_fight_date == date(2025, 10, 4)
-    assert profile.last_fight_promotion == "UFC"
+    assert profile.current_streak is None
+    assert profile.last_fight_name is None
+    assert profile.last_fight_date is None
+    assert profile.last_fight_promotion is None
     assert profile.promotion_records[0].promotion_name == "UFC - Ultimate Fighting Championship"
     assert profile.promotion_records[1].promotion_name == "LFA - Legacy Fighting Alliance"
     assert profile.method_records[0].result == "win"
@@ -41,7 +40,7 @@ def test_parse_tapology_fighter_profile_missing_optional_fields():
     """)
 
     assert profile.born == "Brazil"
-    assert profile.current_streak == "N/A"
+    assert profile.current_streak is None
     assert profile.affiliation is None
     assert profile.gym is None
     assert profile.fighting_out_of is None

@@ -122,7 +122,14 @@ async def sqlite_session():
 
 @pytest.mark.asyncio
 async def test_save_tapology_fighter_enrichment_updates_profile_only(sqlite_session):
-    fighter = FighterModel(name="Alex Pereira", born="Existing Born")
+    fighter = FighterModel(
+        name="Alex Pereira",
+        born="Existing Born",
+        current_streak="Existing Streak",
+        last_fight_name="Existing Fight",
+        last_fight_date=datetime(2024, 4, 13).date(),
+        last_fight_promotion="Existing Promotion",
+    )
     sqlite_session.add(fighter)
     await sqlite_session.commit()
     fighter_id = fighter.id
@@ -132,6 +139,9 @@ async def test_save_tapology_fighter_enrichment_updates_profile_only(sqlite_sess
         fighting_out_of="Bethel, Connecticut",
         affiliation="Teixeira MMA & Fitness",
         current_streak="1 Win",
+        last_fight_name="October 04, 2025 in UFC",
+        last_fight_date=datetime(2025, 10, 4).date(),
+        last_fight_promotion="UFC",
     )
 
     await save_tapology_fighter_enrichment(
@@ -145,6 +155,10 @@ async def test_save_tapology_fighter_enrichment_updates_profile_only(sqlite_sess
     refreshed = await sqlite_session.get(FighterModel, fighter_id)
     assert refreshed.born == "Existing Born"
     assert refreshed.fighting_out_of == "Bethel, Connecticut"
+    assert refreshed.current_streak == "Existing Streak"
+    assert refreshed.last_fight_name == "Existing Fight"
+    assert refreshed.last_fight_date == datetime(2024, 4, 13).date()
+    assert refreshed.last_fight_promotion == "Existing Promotion"
     assert refreshed.tapology_url == "https://www.tapology.com/fightcenter/fighters/117305-alex-pereira"
 
     second_profile = TapologyFighterProfile(

@@ -43,10 +43,6 @@ TAPOLOGY_FIGHTER_PROFILE_FIELDS = {
     "fighting_out_of",
     "affiliation",
     "gym",
-    "current_streak",
-    "last_fight_name",
-    "last_fight_date",
-    "last_fight_promotion",
 }
 
 UFC_PROMOTION_NAMES = {

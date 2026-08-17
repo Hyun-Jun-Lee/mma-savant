@@ -1,6 +1,6 @@
 import re
 from dataclasses import dataclass, field
-from datetime import date, datetime
+from datetime import date
 from typing import Iterable
 
 from bs4 import BeautifulSoup
@@ -70,9 +70,6 @@ def parse_tapology_fighter_profile(html: str) -> TapologyFighterProfile:
     soup = BeautifulSoup(html, "html.parser")
     lines = _text_lines(soup)
 
-    last_fight = _value_after_label(lines, ["Last Fight"])
-    last_fight_date, last_fight_promotion = _parse_last_fight(last_fight)
-
     affiliation = _value_after_label(lines, ["Affiliation"])
     gym = _value_after_label(lines, ["Team/Gym", "Team", "Gym"]) or affiliation
 
@@ -81,10 +78,6 @@ def parse_tapology_fighter_profile(html: str) -> TapologyFighterProfile:
         fighting_out_of=_value_after_label(lines, ["Fighting out of", "Fighting Out Of"]),
         affiliation=affiliation,
         gym=gym,
-        current_streak=_value_after_label(lines, ["Current MMA Streak", "Current Streak"]),
-        last_fight_name=last_fight,
-        last_fight_date=last_fight_date,
-        last_fight_promotion=last_fight_promotion,
         promotion_records=parse_tapology_promotion_records(html),
         method_records=parse_tapology_method_records(html),
     )
@@ -262,25 +255,6 @@ def _parse_bout_status(lines: list[str], cancellation_reason: str | None) -> str
     return None
 
 
-def _parse_last_fight(value: str | None) -> tuple[date | None, str | None]:
-    if not value:
-        return None, None
-    date_text, promotion = _split_once(value, " in ")
-    parsed_date = _parse_date(date_text)
-    return parsed_date, promotion
-
-
-def _parse_date(value: str | None) -> date | None:
-    if not value:
-        return None
-    for fmt in ("%B %d, %Y", "%Y %b %d", "%Y %B %d"):
-        try:
-            return datetime.strptime(value.strip(), fmt).date()
-        except ValueError:
-            continue
-    return None
-
-
 def _text_lines(node: BeautifulSoup | Tag) -> list[str]:
     lines: list[str] = []
     for child in node.descendants:
@@ -384,13 +358,6 @@ def _first_text(node: Tag | None) -> str | None:
 
 def _clean_text(value: str) -> str:
     return re.sub(r"\s+", " ", value).strip()
-
-
-def _split_once(value: str, separator: str) -> tuple[str, str | None]:
-    if separator not in value:
-        return value, None
-    left, right = value.split(separator, 1)
-    return left.strip(), right.strip() or None
 
 
 def _int_value(value) -> int:
