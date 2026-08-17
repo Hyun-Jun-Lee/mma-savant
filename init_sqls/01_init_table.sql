@@ -255,20 +255,30 @@ CREATE TABLE IF NOT EXISTS message (
 -- 성능을 위한 인덱스 생성
 CREATE INDEX IF NOT EXISTS idx_fighter_name ON fighter(name);
 CREATE INDEX IF NOT EXISTS idx_fighter_tapology_url ON fighter(tapology_url);
+CREATE UNIQUE INDEX IF NOT EXISTS uq_fighter_detail_url ON fighter(detail_url) WHERE detail_url IS NOT NULL;
+CREATE UNIQUE INDEX IF NOT EXISTS uq_fighter_tapology_url ON fighter(tapology_url) WHERE tapology_url IS NOT NULL;
 CREATE INDEX IF NOT EXISTS idx_fighter_promotion_record_fighter_id ON fighter_promotion_record(fighter_id);
 CREATE INDEX IF NOT EXISTS idx_fighter_promotion_record_name ON fighter_promotion_record(promotion_name);
 CREATE UNIQUE INDEX IF NOT EXISTS uq_fighter_promotion_record_key ON fighter_promotion_record(fighter_id, promotion_name);
 CREATE INDEX IF NOT EXISTS idx_fighter_method_record_fighter_id ON fighter_method_record(fighter_id);
 CREATE UNIQUE INDEX IF NOT EXISTS uq_fighter_method_record_key ON fighter_method_record(fighter_id, scope, result, method_category);
+CREATE UNIQUE INDEX IF NOT EXISTS uq_event_url ON event(url) WHERE url IS NOT NULL;
+CREATE UNIQUE INDEX IF NOT EXISTS uq_event_tapology_url ON event(tapology_url) WHERE tapology_url IS NOT NULL;
 CREATE INDEX IF NOT EXISTS idx_match_event_id ON match(event_id);
 CREATE INDEX IF NOT EXISTS idx_match_weight_class_id ON match(weight_class_id);
 CREATE INDEX IF NOT EXISTS idx_match_tapology_bout_url ON match(tapology_bout_url);
+CREATE UNIQUE INDEX IF NOT EXISTS uq_match_detail_url ON match(detail_url) WHERE detail_url IS NOT NULL;
+CREATE UNIQUE INDEX IF NOT EXISTS uq_match_tapology_bout_url ON match(tapology_bout_url) WHERE tapology_bout_url IS NOT NULL;
 CREATE INDEX IF NOT EXISTS idx_match_bout_status ON match(bout_status);
 CREATE INDEX IF NOT EXISTS idx_fighter_match_fighter_id ON fighter_match(fighter_id);
 CREATE INDEX IF NOT EXISTS idx_fighter_match_match_id ON fighter_match(match_id);
+CREATE UNIQUE INDEX IF NOT EXISTS uq_fighter_match_fighter_match ON fighter_match(fighter_id, match_id);
 CREATE INDEX IF NOT EXISTS idx_ranking_fighter_id ON ranking(fighter_id);
+CREATE UNIQUE INDEX IF NOT EXISTS uq_ranking_fighter_weight_class ON ranking(fighter_id, weight_class_id) WHERE fighter_id IS NOT NULL AND weight_class_id IS NOT NULL;
 CREATE INDEX IF NOT EXISTS idx_strike_detail_fighter_match_id ON strike_detail(fighter_match_id);
+CREATE UNIQUE INDEX IF NOT EXISTS uq_strike_detail_fm_round ON strike_detail(fighter_match_id, round);
 CREATE INDEX IF NOT EXISTS idx_match_statistics_fighter_match_id ON match_statistics(fighter_match_id);
+CREATE UNIQUE INDEX IF NOT EXISTS uq_match_statistics_fm_round ON match_statistics(fighter_match_id, round);
 
 -- 새로 추가된 테이블의 인덱스
 CREATE INDEX IF NOT EXISTS idx_user_email ON "user"(email);
