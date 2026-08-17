@@ -9,7 +9,7 @@ class _DummyLogger:
 
 
 @pytest.mark.asyncio
-async def test_scheduled_flow_runs_tapology_enrichment_with_scrapling(monkeypatch):
+async def test_scheduled_flow_runs_tapology_profiles_with_scrapling(monkeypatch):
     calls = []
     playwright_crawler = object()
     tapology_crawler = object()
@@ -44,11 +44,6 @@ async def test_scheduled_flow_runs_tapology_enrichment_with_scrapling(monkeypatc
     monkeypatch.setattr(ufc_stats_flow, "enrich_event_geocoding_task", geocoding_task)
     monkeypatch.setattr(ufc_stats_flow, "scrap_event_detail_task", make_task("event-detail"))
     monkeypatch.setattr(ufc_stats_flow, "scrap_match_detail_task", make_task("match-detail"))
-    monkeypatch.setattr(
-        ufc_stats_flow,
-        "enrich_match_tapology_metadata_task",
-        make_task("tapology-bouts"),
-    )
     monkeypatch.setattr(ufc_stats_flow, "scrap_rankings_task", make_task("rankings"))
 
     await ufc_stats_flow.run_ufc_stats_flow.fn()
@@ -62,7 +57,6 @@ async def test_scheduled_flow_runs_tapology_enrichment_with_scrapling(monkeypatc
         ("geocoding", None),
         ("event-detail", playwright_crawler),
         ("match-detail", playwright_crawler),
-        ("tapology-bouts", tapology_crawler),
         ("rankings", playwright_crawler),
         ("close", None),
     ]

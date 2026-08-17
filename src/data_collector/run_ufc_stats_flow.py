@@ -50,7 +50,6 @@ ALL_TASKS = [
     "event-geocoding",
     "event-detail",
     "match-detail",
-    "tapology-bouts",
     "rankings",
 ]
 NO_CRAWLER_TASKS = {

@@ -6,7 +6,7 @@ from data_collector.workflows import tasks as workflow_tasks
 
 
 @pytest.mark.asyncio
-async def test_default_cli_flow_includes_tapology_tasks(monkeypatch):
+async def test_default_cli_flow_includes_tapology_profiles_only(monkeypatch):
     calls = []
     playwright_crawler = object()
     tapology_crawler = object()
@@ -48,7 +48,6 @@ async def test_default_cli_flow_includes_tapology_tasks(monkeypatch):
         ("event-geocoding", None),
         ("event-detail", playwright_crawler),
         ("match-detail", playwright_crawler),
-        ("tapology-bouts", tapology_crawler),
         ("rankings", playwright_crawler),
         ("close", None),
     ]
