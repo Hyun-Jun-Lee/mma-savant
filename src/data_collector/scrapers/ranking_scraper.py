@@ -2,7 +2,7 @@ import asyncio
 import logging
 import traceback
 
-from typing import List, Callable, Dict
+from typing import List, Callable, Dict, Tuple
 from bs4 import BeautifulSoup
 
 from fighter.models import RankingSchema
@@ -28,7 +28,14 @@ DIVISION_MAPPING = {
     "여성 밴텀급": "women's bantamweight",
 }
 
-def parse_ufc_rankings_from_html(html_content: str) -> Dict[str, Dict[int, str]]:
+POUND_FOR_POUND_DIVISIONS = {
+    "men's pound-for-pound",
+    "women's pound-for-pound",
+}
+
+RankingRows = Dict[str, List[Tuple[int, str]]]
+
+def parse_ufc_rankings_from_html(html_content: str) -> RankingRows:
     """
     UFC 랭킹 HTML에서 체급별 랭킹을 추출하는 함수
 
@@ -36,7 +43,7 @@ def parse_ufc_rankings_from_html(html_content: str) -> Dict[str, Dict[int, str]]
         html_content: HTML 텍스트
 
     Returns:
-        {체급명: {순위: 선수명}} 형태의 딕셔너리
+        {체급명: [(순위, 선수명)]} 형태의 딕셔너리
         챔피언은 0순위로 처리
     """
     soup = BeautifulSoup(html_content, 'html.parser')
@@ -59,17 +66,19 @@ def parse_ufc_rankings_from_html(html_content: str) -> Dict[str, Dict[int, str]]
             logging.warning(f"알 수 없는 체급: {division_raw}")
             continue
 
-        rankings[division] = {}
+        rankings[division] = []
 
         # 챔피언 추출 (순위 0)
+        # P4P 섹션의 상단 선수는 Champion이 아니라 Top Rank 표시이며,
+        # 테이블 rank 1에도 다시 나오므로 중복 저장하지 않는다.
         champion_div = grouping.find('div', class_='rankings--athlete--champion')
-        if champion_div:
+        if champion_div and division not in POUND_FOR_POUND_DIVISIONS:
             champion_h5 = champion_div.find('h5')
             if champion_h5:
                 champion_link = champion_h5.find('a')
                 if champion_link:
                     champion_name = champion_link.get_text(strip=True)
-                    rankings[division][0] = champion_name
+                    rankings[division].append((0, champion_name))
                     logging.debug(f"{division} 챔피언: {champion_name}")
 
         # 랭커 추출 (순위 1-15)
@@ -102,15 +111,17 @@ def parse_ufc_rankings_from_html(html_content: str) -> Dict[str, Dict[int, str]]
                 continue
 
             fighter_name = fighter_link.get_text(strip=True)
-            rankings[division][rank] = fighter_name
+            rankings[division].append((rank, fighter_name))
             logging.debug(f"{division} {rank}위: {fighter_name}")
 
     return rankings
 
-async def mapping_ranking_fighter(session, ranking_dict: Dict[str, Dict[int, str]]) -> List[RankingSchema]:
+async def mapping_ranking_fighter(session, ranking_dict: RankingRows) -> List[RankingSchema]:
     rankings = []
+    ranking_index_by_key = {}
+
     for division, fighters in ranking_dict.items():
-        for rank, fighter_name in fighters.items():
+        for rank, fighter_name in fighters:
             weight_class_id = WeightClassSchema.get_id_by_name(division.lower())
             if not weight_class_id:
                 logging.warning(f"체급 ID를 찾을 수 없습니다: {division}")
@@ -123,6 +134,17 @@ async def mapping_ranking_fighter(session, ranking_dict: Dict[str, Dict[int, str
                     logging.warning(f"파이터를 찾을 수 없습니다: {fighter_name}")
                     continue
 
+                ranking_key = (fighter.id, weight_class_id)
+                if ranking_key in ranking_index_by_key:
+                    logging.warning(
+                        "중복 랭킹을 건너뜁니다: %s (%s, rank=%s)",
+                        fighter_name,
+                        division,
+                        rank,
+                    )
+                    continue
+
+                ranking_index_by_key[ranking_key] = len(rankings)
                 rankings.append(RankingSchema(
                     weight_class_id=weight_class_id,
                     ranking=rank,
