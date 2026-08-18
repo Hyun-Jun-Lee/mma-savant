@@ -124,6 +124,7 @@ async def sqlite_session():
 async def test_save_tapology_fighter_enrichment_updates_profile_only(sqlite_session):
     fighter = FighterModel(
         name="Alex Pereira",
+        nationality="Existing Nationality",
         born="Existing Born",
         current_streak="Existing Streak",
         last_fight_name="Existing Fight",
@@ -153,6 +154,7 @@ async def test_save_tapology_fighter_enrichment_updates_profile_only(sqlite_sess
     )
 
     refreshed = await sqlite_session.get(FighterModel, fighter_id)
+    assert refreshed.nationality == "Existing Nationality"
     assert refreshed.born == "Existing Born"
     assert refreshed.fighting_out_of == "Bethel, Connecticut"
     assert refreshed.current_streak == "Existing Streak"
@@ -162,6 +164,7 @@ async def test_save_tapology_fighter_enrichment_updates_profile_only(sqlite_sess
     assert refreshed.tapology_url == "https://www.tapology.com/fightcenter/fighters/117305-alex-pereira"
 
     second_profile = TapologyFighterProfile(
+        nationality="Brazil",
         born="Sao Bernardo do Campo, Brazil",
     )
     await save_tapology_fighter_enrichment(
@@ -173,6 +176,7 @@ async def test_save_tapology_fighter_enrichment_updates_profile_only(sqlite_sess
     )
 
     refreshed = await sqlite_session.get(FighterModel, fighter_id)
+    assert refreshed.nationality == "Brazil"
     assert refreshed.born == "Sao Bernardo do Campo, Brazil"
     assert refreshed.fighting_out_of == "Bethel, Connecticut"
 

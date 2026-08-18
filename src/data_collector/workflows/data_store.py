@@ -39,6 +39,7 @@ TAPOLOGY_MATCH_FIELDS = {
 }
 
 TAPOLOGY_FIGHTER_PROFILE_FIELDS = {
+    "nationality",
     "born",
     "fighting_out_of",
     "affiliation",

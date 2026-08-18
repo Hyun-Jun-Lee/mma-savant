@@ -6,6 +6,8 @@ from typing import Iterable
 from bs4 import BeautifulSoup
 from bs4.element import Tag
 
+from data_collector.scrapers.nationality import extract_nationality_from_tapology_profile
+
 
 @dataclass
 class TapologyPromotionRecord:
@@ -26,6 +28,7 @@ class TapologyMethodRecord:
 
 @dataclass
 class TapologyFighterProfile:
+    nationality: str | None = None
     born: str | None = None
     fighting_out_of: str | None = None
     affiliation: str | None = None
@@ -74,6 +77,7 @@ def parse_tapology_fighter_profile(html: str) -> TapologyFighterProfile:
     gym = _value_after_label(lines, ["Team/Gym", "Team", "Gym"]) or affiliation
 
     return TapologyFighterProfile(
+        nationality=extract_nationality_from_tapology_profile(html),
         born=_value_after_label(lines, ["Born"]),
         fighting_out_of=_value_after_label(lines, ["Fighting out of", "Fighting Out Of"]),
         affiliation=affiliation,

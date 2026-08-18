@@ -33,7 +33,6 @@ async def test_scheduled_flow_runs_tapology_profiles_with_scrapling(monkeypatch)
     monkeypatch.setattr(ufc_stats_flow, "close_playwright_crawler", close_playwright)
 
     monkeypatch.setattr(ufc_stats_flow, "scrap_all_fighter_task", make_task("fighters"))
-    monkeypatch.setattr(ufc_stats_flow, "enrich_fighter_nationality_task", make_task("nationality"))
     monkeypatch.setattr(
         ufc_stats_flow,
         "enrich_fighter_tapology_profile_task",
@@ -50,7 +49,6 @@ async def test_scheduled_flow_runs_tapology_profiles_with_scrapling(monkeypatch)
 
     assert calls == [
         ("fighters", playwright_crawler),
-        ("nationality", playwright_crawler),
         ("tapology-profiles", tapology_crawler),
         ("events", playwright_crawler),
         ("upcoming-events", playwright_crawler),

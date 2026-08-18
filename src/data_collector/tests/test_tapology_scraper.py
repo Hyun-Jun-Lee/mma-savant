@@ -17,6 +17,7 @@ def _fixture(name: str) -> str:
 def test_parse_tapology_fighter_profile_with_all_fields():
     profile = parse_tapology_fighter_profile(_fixture("tapology_fighter_profile_full.html"))
 
+    assert profile.nationality == "Brazil"
     assert profile.born == "Sao Bernardo do Campo, Sao Paulo, Brazil"
     assert profile.fighting_out_of == "Bethel, Connecticut"
     assert profile.affiliation == "Teixeira MMA & Fitness"
@@ -40,6 +41,7 @@ def test_parse_tapology_fighter_profile_missing_optional_fields():
     """)
 
     assert profile.born == "Brazil"
+    assert profile.nationality is None
     assert profile.current_streak is None
     assert profile.affiliation is None
     assert profile.gym is None

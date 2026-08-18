@@ -17,7 +17,6 @@ from data_collector.workflows.tasks import (
     scrap_event_detail_task,
     scrap_match_detail_task,
     scrap_rankings_task,
-    enrich_fighter_nationality_task,
     enrich_event_geocoding_task,
     enrich_fighter_tapology_profile_task,
 )
@@ -36,11 +35,6 @@ async def run_ufc_stats_flow():
         logger.info("Fighters scraping started")
         await scrap_all_fighter_task(crawl_with_playwright)
         logger.info("Fighters scraping completed")
-
-        # enrich fighter nationality
-        logger.info("Fighter nationality enrichment started")
-        await enrich_fighter_nationality_task(crawl_with_playwright)
-        logger.info("Fighter nationality enrichment completed")
 
         # enrich Tapology fighter profiles
         logger.info("Tapology fighter profile enrichment started")

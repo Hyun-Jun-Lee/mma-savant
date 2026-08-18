@@ -41,7 +41,6 @@ async def test_default_cli_flow_includes_tapology_profiles_only(monkeypatch):
 
     assert calls == [
         ("fighters", playwright_crawler),
-        ("nationality", playwright_crawler),
         ("tapology-profiles", tapology_crawler),
         ("events", playwright_crawler),
         ("upcoming-events", playwright_crawler),

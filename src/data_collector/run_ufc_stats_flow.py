@@ -43,7 +43,6 @@ TASK_MAP = {
 # 전체 실행 순서
 ALL_TASKS = [
     "fighters",
-    "nationality",
     "tapology-profiles",
     "events",
     "upcoming-events",
@@ -175,7 +174,7 @@ Available tasks:
   event-detail     - 이벤트 상세 정보 크롤링
   match-detail     - 매치 상세 정보 크롤링
   rankings         - 랭킹 정보 크롤링
-  nationality      - 파이터 국적 enrichment (Tapology + UFC.com fallback)
+  nationality      - 파이터 국적 fallback enrichment (Tapology + UFC.com)
   event-geocoding  - 이벤트 위치 geocoding enrichment
   tapology-profiles - Tapology fighter profile enrichment
   tapology-bouts   - Tapology bout metadata enrichment
