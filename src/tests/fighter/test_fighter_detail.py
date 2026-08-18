@@ -9,7 +9,12 @@ import pytest_asyncio
 from datetime import date, timedelta
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from fighter.models import FighterModel, RankingModel
+from fighter.models import (
+    FighterMethodRecordModel,
+    FighterModel,
+    FighterPromotionRecordModel,
+    RankingModel,
+)
 from match.models import MatchModel, FighterMatchModel, BasicMatchStatModel, SigStrMatchStatModel
 from event.models import EventModel
 from fighter import repositories as fighter_repo
@@ -50,6 +55,11 @@ async def fighter_detail_data(clean_test_session):
         reach_cm=185.0,
         birthdate="1991-10-27",
         nationality="Russia",
+        tapology_url="https://www.tapology.com/fightcenter/fighters/detail-test-a",
+        born="Makhachkala, Dagestan",
+        fighting_out_of="Rostov-on-Don, Russia",
+        affiliation="Peresvet FT",
+        gym="Peresvet FT",
     )
     fighter_b = FighterModel(
         name="Detail Test Fighter B",
@@ -64,6 +74,44 @@ async def fighter_detail_data(clean_test_session):
     # === Rankings ===
     ranking = RankingModel(fighter_id=fighter_a.id, weight_class_id=4, ranking=0)  # champion
     session.add(ranking)
+    await session.flush()
+
+    # === Non-UFC Tapology career records ===
+    promotion_records = [
+        FighterPromotionRecordModel(
+            fighter_id=fighter_a.id,
+            promotion_name="LFA - Legacy Fighting Alliance",
+            wins=2,
+            losses=0,
+            draws=0,
+            no_contests=0,
+        ),
+        FighterPromotionRecordModel(
+            fighter_id=fighter_a.id,
+            promotion_name="PFL - Professional Fighters League",
+            wins=1,
+            losses=1,
+            draws=0,
+            no_contests=0,
+        ),
+    ]
+    method_records = [
+        FighterMethodRecordModel(
+            fighter_id=fighter_a.id,
+            scope="non_ufc",
+            result="loss",
+            method_category="DEC",
+            count=1,
+        ),
+        FighterMethodRecordModel(
+            fighter_id=fighter_a.id,
+            scope="non_ufc",
+            result="win",
+            method_category="KO/TKO",
+            count=2,
+        ),
+    ]
+    session.add_all(promotion_records + method_records)
     await session.flush()
 
     # === Events (oldest → newest) ===
@@ -172,6 +220,8 @@ async def fighter_detail_data(clean_test_session):
         "fms_a": fms_a,
         "fms_b": fms_b,
         "ranking": ranking,
+        "promotion_records": promotion_records,
+        "method_records": method_records,
     }
 
 
@@ -414,10 +464,49 @@ async def test_get_fighter_detail_success(fighter_detail_data, clean_test_sessio
     assert profile.birthdate == "1991-10-27"
     assert profile.age is not None
     assert profile.age > 30
+    assert profile.tapology_url == "https://www.tapology.com/fightcenter/fighters/detail-test-a"
+    assert profile.born == "Makhachkala, Dagestan"
+    assert profile.fighting_out_of == "Rostov-on-Don, Russia"
+    assert profile.affiliation == "Peresvet FT"
+    assert profile.gym == "Peresvet FT"
 
     # rankings
     assert "lightweight" in profile.rankings
     assert profile.rankings["lightweight"] == 0  # champion
+
+
+@pytest.mark.asyncio
+async def test_get_fighter_detail_non_ufc_records(fighter_detail_data, clean_test_session):
+    """non-UFC Tapology 커리어 기록 확인"""
+    fighter_a = fighter_detail_data["fighter_a"]
+
+    result = await fighter_services.get_fighter_detail(clean_test_session, fighter_a.id)
+
+    assert [
+        (
+            record.promotion_name,
+            record.wins,
+            record.losses,
+            record.draws,
+            record.no_contests,
+        )
+        for record in result.non_ufc_promotion_records
+    ] == [
+        ("LFA - Legacy Fighting Alliance", 2, 0, 0, 0),
+        ("PFL - Professional Fighters League", 1, 1, 0, 0),
+    ]
+    assert [
+        (
+            record.scope,
+            record.result,
+            record.method_category,
+            record.count,
+        )
+        for record in result.non_ufc_method_records
+    ] == [
+        ("non_ufc", "loss", "DEC", 1),
+        ("non_ufc", "win", "KO/TKO", 2),
+    ]
 
 
 @pytest.mark.asyncio
@@ -578,6 +667,8 @@ async def test_get_fighter_detail_no_matches(fighter_no_matches, clean_test_sess
 
     # fight_history 빈 배열
     assert result.fight_history == []
+    assert result.non_ufc_promotion_records == []
+    assert result.non_ufc_method_records == []
 
 
 @pytest.mark.asyncio

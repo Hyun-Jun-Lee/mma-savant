@@ -8,6 +8,7 @@ from fighter.dto import (
     FighterWithRankingsDTO, WeightClassRankingsDTO, RankedFighterDTO,
     FighterProfileDTO, FinishBreakdownDTO, FighterRecordDTO,
     StrikingStatsDTO, GrapplingStatsDTO, CareerStatsDTO,
+    FighterMethodRecordDTO, FighterPromotionRecordDTO,
     OpponentDTO, PerMatchBasicStatsDTO, PerMatchSigStrDTO, PerMatchStatsDTO,
     FightHistoryItemDTO, FighterDetailResponseDTO,
 )
@@ -235,15 +236,19 @@ async def get_fighter_detail(session: AsyncSession, fighter_id: int) -> FighterD
         # 3. fight history
         fight_history_rows = await fighter_repo.get_fight_history(session, fighter_id)
 
-        # 4. finish breakdown
+        # 4. non-UFC career records
+        promotion_record_rows = await fighter_repo.get_fighter_promotion_records(session, fighter_id)
+        method_record_rows = await fighter_repo.get_fighter_method_records(session, fighter_id)
+
+        # 5. finish breakdown
         finish_data = await fighter_repo.get_finish_breakdown(session, fighter_id)
 
-        # 5. career aggregate stats (기존 함수 재사용)
+        # 6. career aggregate stats (기존 함수 재사용)
         basic_agg = await match_repo.get_fighter_basic_stats_aggregate(session, fighter_id)
         sig_str_agg = await match_repo.get_fighter_sig_str_stats_aggregate(session, fighter_id)
         top_sub = await fighter_repo.get_top_submission_technique(session, fighter_id)
 
-        # 6. per-match stats 배치 조회
+        # 7. per-match stats 배치 조회
         fm_ids = [row["fighter_match_id"] for row in fight_history_rows]
         per_match_map = await fighter_repo.get_per_match_stats(session, fm_ids) if fm_ids else {}
 
@@ -263,6 +268,11 @@ async def get_fighter_detail(session: AsyncSession, fighter_id: int) -> FighterD
             name=fighter.name,
             nickname=fighter.nickname,
             nationality=fighter.nationality,
+            tapology_url=fighter.tapology_url,
+            born=fighter.born,
+            fighting_out_of=fighter.fighting_out_of,
+            affiliation=fighter.affiliation,
+            gym=fighter.gym,
             stance=fighter.stance,
             belt=fighter.belt,
             height_cm=fighter.height_cm if fighter.height_cm else None,
@@ -394,11 +404,33 @@ async def get_fighter_detail(session: AsyncSession, fighter_id: int) -> FighterD
                 stats=match_stats,
             ))
 
+        non_ufc_promotion_records = [
+            FighterPromotionRecordDTO(
+                promotion_name=row.promotion_name,
+                wins=row.wins or 0,
+                losses=row.losses or 0,
+                draws=row.draws or 0,
+                no_contests=row.no_contests or 0,
+            )
+            for row in promotion_record_rows
+        ]
+        non_ufc_method_records = [
+            FighterMethodRecordDTO(
+                scope=row.scope,
+                result=row.result,
+                method_category=row.method_category,
+                count=row.count or 0,
+            )
+            for row in method_record_rows
+        ]
+
         return FighterDetailResponseDTO(
             profile=profile,
             record=record,
             stats=stats,
             fight_history=fight_history,
+            non_ufc_promotion_records=non_ufc_promotion_records,
+            non_ufc_method_records=non_ufc_method_records,
         )
 
     except FighterNotFoundError:

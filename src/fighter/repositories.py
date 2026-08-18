@@ -4,7 +4,16 @@ from sqlalchemy import select, delete, or_, text, func
 from sqlalchemy.orm import aliased
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from fighter.models import FighterModel, RankingModel, FighterSchema, RankingSchema
+from fighter.models import (
+    FighterMethodRecordModel,
+    FighterMethodRecordSchema,
+    FighterModel,
+    FighterPromotionRecordModel,
+    FighterPromotionRecordSchema,
+    FighterSchema,
+    RankingModel,
+    RankingSchema,
+)
 from match.models import FighterMatchModel, MatchModel, BasicMatchStatModel, SigStrMatchStatModel
 from event.models import EventModel
 from common.utils import normalize_name
@@ -88,6 +97,42 @@ async def get_ranking_by_fighter_id(session: AsyncSession, fighter_id: int) -> L
     )
     rankings = result.scalars().all()
     return [ranking.to_schema() for ranking in rankings]
+
+
+async def get_fighter_promotion_records(
+    session: AsyncSession,
+    fighter_id: int,
+) -> List[FighterPromotionRecordSchema]:
+    """
+    fighter_id로 해당 선수의 non-UFC promotion 기록을 조회합니다.
+    """
+    result = await session.execute(
+        select(FighterPromotionRecordModel)
+        .where(FighterPromotionRecordModel.fighter_id == fighter_id)
+        .order_by(FighterPromotionRecordModel.promotion_name)
+    )
+    records = result.scalars().all()
+    return [record.to_schema() for record in records]
+
+
+async def get_fighter_method_records(
+    session: AsyncSession,
+    fighter_id: int,
+) -> List[FighterMethodRecordSchema]:
+    """
+    fighter_id로 해당 선수의 non-UFC method 기록을 조회합니다.
+    """
+    result = await session.execute(
+        select(FighterMethodRecordModel)
+        .where(FighterMethodRecordModel.fighter_id == fighter_id)
+        .order_by(
+            FighterMethodRecordModel.scope,
+            FighterMethodRecordModel.result,
+            FighterMethodRecordModel.method_category,
+        )
+    )
+    records = result.scalars().all()
+    return [record.to_schema() for record in records]
 
 async def get_fighters_by_weight_class_ranking(session: AsyncSession, weight_class_id: int) -> List[FighterSchema]:
     """
