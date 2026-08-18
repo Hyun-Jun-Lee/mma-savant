@@ -1,4 +1,4 @@
-import { Users, Swords, Calendar, Clock } from 'lucide-react'
+import { Clock } from 'lucide-react'
 import { StatCard } from '../StatCard'
 import { ChartCard } from '../ChartCard'
 import { RecentEvents } from './RecentEvents'
@@ -24,9 +24,9 @@ export function HomeTab({ data }: HomeTabProps) {
     <div className="space-y-6">
       {/* Summary Stats */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-        <StatCard label="Total Fighters" value={summary.total_fighters} icon={Users} iconColor="text-blue-400" index={0} />
-        <StatCard label="Total Matches" value={summary.total_matches} icon={Swords} iconColor="text-red-400" index={1} />
-        <StatCard label="Total Events" value={summary.total_events} icon={Calendar} iconColor="text-amber-400" index={2} />
+        <StatCard label="Total Fighters" value={summary.total_fighters} index={0} />
+        <StatCard label="Total Matches" value={summary.total_matches} index={1} />
+        <StatCard label="Total Events" value={summary.total_events} index={2} />
       </div>
       {/* Events Row */}
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
