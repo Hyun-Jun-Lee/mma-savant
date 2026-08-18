@@ -46,8 +46,14 @@ export function FighterDetailClient({ fighterId }: Props) {
       <ProfileHeader profile={data.profile} />
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-        <RecordCard record={data.record} />
-        <FinishBreakdownChart breakdown={data.record.finish_breakdown} />
+        <RecordCard
+          record={data.record}
+          nonUfcPromotionRecords={data.non_ufc_promotion_records}
+        />
+        <FinishBreakdownChart
+          breakdown={data.record.finish_breakdown}
+          nonUfcMethodRecords={data.non_ufc_method_records}
+        />
       </div>
 
       <CareerStatsCard stats={data.stats} submissionWins={data.record.finish_breakdown.submission} />

@@ -2,7 +2,7 @@
 
 import { motion } from 'framer-motion'
 import type { FighterProfile } from '@/types/fighter'
-import { Crown, Ruler, Weight, Target, User } from 'lucide-react'
+import { Building2, Calendar, Crown, Dumbbell, MapPin, Ruler, Weight, Target, User } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { toTitleCase } from '@/lib/utils'
 
@@ -34,7 +34,7 @@ export function ProfileHeader({ profile }: Props) {
       </div>
 
       {/* Nationality & Stance */}
-      <div className="mt-2 flex flex-wrap items-center gap-4 text-sm text-zinc-400">
+      <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-2 text-sm text-zinc-400">
         {profile.nationality && (
           <span className="flex items-center gap-1.5">
             <User className="h-3.5 w-3.5" />
@@ -49,6 +49,30 @@ export function ProfileHeader({ profile }: Props) {
         )}
         {profile.age != null && (
           <span>Age: {profile.age}</span>
+        )}
+        {profile.born && (
+          <span className="flex min-w-0 max-w-full items-center gap-1.5">
+            <Calendar className="h-3.5 w-3.5 shrink-0 text-zinc-500" />
+            <span className="truncate">Born: {profile.born}</span>
+          </span>
+        )}
+        {profile.fighting_out_of && (
+          <span className="flex min-w-0 max-w-full items-center gap-1.5">
+            <MapPin className="h-3.5 w-3.5 shrink-0 text-zinc-500" />
+            <span className="truncate">Fighting out of: {profile.fighting_out_of}</span>
+          </span>
+        )}
+        {profile.affiliation && (
+          <span className="flex min-w-0 max-w-full items-center gap-1.5">
+            <Building2 className="h-3.5 w-3.5 shrink-0 text-zinc-500" />
+            <span className="truncate">Affiliation: {profile.affiliation}</span>
+          </span>
+        )}
+        {profile.gym && (
+          <span className="flex min-w-0 max-w-full items-center gap-1.5">
+            <Dumbbell className="h-3.5 w-3.5 shrink-0 text-zinc-500" />
+            <span className="truncate">Gym: {profile.gym}</span>
+          </span>
         )}
       </div>
 

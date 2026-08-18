@@ -23,19 +23,51 @@ function formatControlTime(seconds: number): string {
   return `${m}:${s.toString().padStart(2, '0')}`
 }
 
+const RESULT_COLLECTION_GRACE_DAYS = 2
+const MS_PER_DAY = 24 * 60 * 60 * 1000
+
+function getCalendarDaysSince(eventDate?: string | null): number | null {
+  if (!eventDate) return null
+
+  const dateOnly = eventDate.match(/^(\d{4})-(\d{2})-(\d{2})/)
+  const parsed = dateOnly
+    ? new Date(Number(dateOnly[1]), Number(dateOnly[2]) - 1, Number(dateOnly[3]))
+    : new Date(eventDate)
+
+  if (Number.isNaN(parsed.getTime())) return null
+
+  const today = new Date()
+  const eventDay = Date.UTC(parsed.getFullYear(), parsed.getMonth(), parsed.getDate())
+  const todayDay = Date.UTC(today.getFullYear(), today.getMonth(), today.getDate())
+
+  return Math.floor((todayDay - eventDay) / MS_PER_DAY)
+}
+
+function isCanceledFight(result: string, method?: string | null, eventDate?: string | null): boolean {
+  const lower = result.toLowerCase()
+  const isTapologyCancellation = lower === 'nc' && method?.toUpperCase() === 'CNC'
+  const daysSinceEvent = getCalendarDaysSince(eventDate)
+
+  return (
+    isTapologyCancellation ||
+    (lower === 'unknown' &&
+      daysSinceEvent != null &&
+      daysSinceEvent > RESULT_COLLECTION_GRACE_DAYS)
+  )
+}
+
 function ResultBadge({ result, method, eventDate }: { result: string; method?: string | null; eventDate?: string | null }) {
   const lower = result.toLowerCase()
   const isNc = lower === 'nc'
-  const isCanceled = isNc && method?.toUpperCase() === 'CNC'
-  const isPastUnknown = lower === 'unknown' && eventDate && new Date(eventDate) < new Date()
+  const isCanceled = isCanceledFight(result, method, eventDate)
   const variant =
     lower === 'win' ? 'win'
     : lower === 'loss' ? 'loss'
     : isNc ? 'canceled'
-    : isPastUnknown ? 'canceled'
+    : isCanceled ? 'canceled'
     : lower === 'unknown' ? 'draw'
     : 'draw'
-  const label = isPastUnknown ? 'Canceled' : isCanceled ? 'Canceled' : lower === 'unknown' ? 'TBD' : isNc ? 'NC' : result
+  const label = isCanceled ? 'Canceled' : lower === 'unknown' ? 'TBD' : isNc ? 'NC' : result
   return (
     <Badge variant={variant} className="text-[10px] font-semibold uppercase">
       {label}
@@ -151,10 +183,11 @@ export function FightHistoryTable({ fights }: Props) {
         </h3>
         {/* Recent 5 fights result dots */}
         <div className="ml-auto flex items-center gap-1">
-          {fights.slice(0, 5).map((f, i) => {
+          {fights.slice(0, 5).map((f) => {
             const r = f.result.toLowerCase()
             const isNc = r === 'nc'
-            const isCanceled = (isNc && f.method?.toUpperCase() === 'CNC') || (r === 'unknown' && f.event_date && new Date(f.event_date) < new Date())
+            const isTapologyCancellation = isNc && f.method?.toUpperCase() === 'CNC'
+            const isCanceled = isCanceledFight(f.result, f.method, f.event_date)
             const color =
               r === 'win'
                 ? 'bg-emerald-400'
@@ -163,7 +196,18 @@ export function FightHistoryTable({ fights }: Props) {
                   : (isNc || isCanceled)
                     ? 'bg-amber-400'
                     : 'bg-zinc-500'
-            const label = r === 'win' ? 'W' : r === 'loss' ? 'L' : isCanceled ? 'CNC' : isNc ? 'NC' : 'D'
+            const label =
+              r === 'win'
+                ? 'W'
+                : r === 'loss'
+                  ? 'L'
+                  : isTapologyCancellation
+                    ? 'CNC'
+                    : isCanceled
+                      ? 'Canceled'
+                      : isNc
+                        ? 'NC'
+                        : 'D'
             return (
               <Tooltip key={f.match_id}>
                 <TooltipTrigger asChild>

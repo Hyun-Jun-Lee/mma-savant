@@ -3,6 +3,11 @@ export interface FighterProfile {
   name: string
   nickname: string | null
   nationality: string | null
+  tapology_url: string | null
+  born: string | null
+  fighting_out_of: string | null
+  affiliation: string | null
+  gym: string | null
   stance: string | null
   belt: boolean
   height_cm: number | null
@@ -27,6 +32,21 @@ export interface FighterRecord {
   win_rate: number
   current_streak: { type: string; count: number }
   finish_breakdown: FinishBreakdown
+}
+
+export interface FighterPromotionRecord {
+  promotion_name: string
+  wins: number
+  losses: number
+  draws: number
+  no_contests: number
+}
+
+export interface FighterMethodRecord {
+  scope: string
+  result: string
+  method_category: string
+  count: number
 }
 
 export interface StrikingStats {
@@ -119,4 +139,6 @@ export interface FighterDetailResponse {
   record: FighterRecord
   stats: CareerStats | null
   fight_history: FightHistoryItem[]
+  non_ufc_promotion_records: FighterPromotionRecord[]
+  non_ufc_method_records: FighterMethodRecord[]
 }
