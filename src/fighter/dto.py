@@ -39,6 +39,11 @@ class FighterProfileDTO(BaseModel):
     name: str
     nickname: Optional[str] = None
     nationality: Optional[str] = None
+    tapology_url: Optional[str] = None
+    born: Optional[str] = None
+    fighting_out_of: Optional[str] = None
+    affiliation: Optional[str] = None
+    gym: Optional[str] = None
     stance: Optional[str] = None
     belt: bool = False
     height_cm: Optional[float] = None
@@ -48,6 +53,21 @@ class FighterProfileDTO(BaseModel):
     age: Optional[int] = None
     weight_class: Optional[str] = None
     rankings: Dict[str, int] = {}
+
+
+class FighterPromotionRecordDTO(BaseModel):
+    promotion_name: str
+    wins: int = 0
+    losses: int = 0
+    draws: int = 0
+    no_contests: int = 0
+
+
+class FighterMethodRecordDTO(BaseModel):
+    scope: str
+    result: str
+    method_category: str
+    count: int = 0
 
 
 class FinishBreakdownDTO(BaseModel):
@@ -155,3 +175,5 @@ class FighterDetailResponseDTO(BaseModel):
     record: FighterRecordDTO
     stats: Optional[CareerStatsDTO] = None
     fight_history: List[FightHistoryItemDTO] = []
+    non_ufc_promotion_records: List[FighterPromotionRecordDTO] = []
+    non_ufc_method_records: List[FighterMethodRecordDTO] = []

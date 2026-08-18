@@ -6,7 +6,14 @@ from datetime import date, datetime
 from typing import List
 
 import database
-from fighter.models import FighterModel, FighterSchema, RankingModel, RankingSchema
+from fighter.models import (
+    FighterMethodRecordModel,
+    FighterModel,
+    FighterPromotionRecordModel,
+    FighterSchema,
+    RankingModel,
+    RankingSchema,
+)
 from fighter import repositories as fighter_repo
 from common.utils import normalize_name
 
@@ -169,6 +176,100 @@ async def test_get_ranking_by_fighter_id_no_rankings(clean_test_session):
 
     assert isinstance(result, list)
     assert len(result) == 0
+
+
+# =============================================================================
+# get_fighter_promotion_records / get_fighter_method_records 테스트
+# =============================================================================
+
+@pytest.mark.asyncio
+async def test_get_fighter_promotion_records_ordered(clean_test_session):
+    """non-UFC promotion 기록을 promotion_name 순서로 조회"""
+    fighter = FighterModel(name="Promotion Record Fighter", wins=10, losses=2, draws=0)
+    clean_test_session.add(fighter)
+    await clean_test_session.flush()
+
+    records = [
+        FighterPromotionRecordModel(
+            fighter_id=fighter.id,
+            promotion_name="PFL",
+            wins=1,
+            losses=1,
+        ),
+        FighterPromotionRecordModel(
+            fighter_id=fighter.id,
+            promotion_name="LFA",
+            wins=2,
+            losses=0,
+        ),
+    ]
+    clean_test_session.add_all(records)
+    await clean_test_session.flush()
+
+    result = await fighter_repo.get_fighter_promotion_records(clean_test_session, fighter.id)
+
+    assert [(record.promotion_name, record.wins, record.losses) for record in result] == [
+        ("LFA", 2, 0),
+        ("PFL", 1, 1),
+    ]
+
+
+@pytest.mark.asyncio
+async def test_get_fighter_method_records_ordered(clean_test_session):
+    """non-UFC method 기록을 scope/result/method_category 순서로 조회"""
+    fighter = FighterModel(name="Method Record Fighter", wins=10, losses=2, draws=0)
+    clean_test_session.add(fighter)
+    await clean_test_session.flush()
+
+    records = [
+        FighterMethodRecordModel(
+            fighter_id=fighter.id,
+            scope="non_ufc",
+            result="win",
+            method_category="SUB",
+            count=1,
+        ),
+        FighterMethodRecordModel(
+            fighter_id=fighter.id,
+            scope="non_ufc",
+            result="loss",
+            method_category="DEC",
+            count=2,
+        ),
+        FighterMethodRecordModel(
+            fighter_id=fighter.id,
+            scope="non_ufc",
+            result="win",
+            method_category="KO/TKO",
+            count=3,
+        ),
+    ]
+    clean_test_session.add_all(records)
+    await clean_test_session.flush()
+
+    result = await fighter_repo.get_fighter_method_records(clean_test_session, fighter.id)
+
+    assert [
+        (record.scope, record.result, record.method_category, record.count)
+        for record in result
+    ] == [
+        ("non_ufc", "loss", "DEC", 2),
+        ("non_ufc", "win", "KO/TKO", 3),
+        ("non_ufc", "win", "SUB", 1),
+    ]
+
+
+@pytest.mark.asyncio
+async def test_get_fighter_non_ufc_records_empty(clean_test_session):
+    """기록이 없거나 존재하지 않는 fighter_id는 빈 리스트 반환"""
+    fighter = FighterModel(name="No Non UFC Records Fighter", wins=4, losses=1, draws=0)
+    clean_test_session.add(fighter)
+    await clean_test_session.flush()
+
+    assert await fighter_repo.get_fighter_promotion_records(clean_test_session, fighter.id) == []
+    assert await fighter_repo.get_fighter_method_records(clean_test_session, fighter.id) == []
+    assert await fighter_repo.get_fighter_promotion_records(clean_test_session, 99999) == []
+    assert await fighter_repo.get_fighter_method_records(clean_test_session, 99999) == []
 
 
 # =============================================================================
