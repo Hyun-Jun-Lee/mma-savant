@@ -7,7 +7,7 @@ if __name__ == "__main__":
         name="ufc_stats_flow",
         schedules=[
             Cron(
-                "0 0 * * 3"
+                "0 0 * * 2"
             )
         ]
     )
