@@ -1,5 +1,5 @@
 """MMA Multi-Agent Graph State 정의"""
-from typing import TypedDict, Annotated, Literal, Optional
+from typing import TypedDict, Annotated, Literal, Optional, NotRequired
 
 from langgraph.graph.message import add_messages
 from langchain_core.messages import BaseMessage
@@ -13,9 +13,18 @@ class AgentResult(TypedDict):
     columns: list[str]               # 결과 컬럼명
     row_count: int                   # 결과 행 수
     reasoning: str                   # 에이전트의 자연어 분석 (텍스트 응답 재사용 가능)
+    success: NotRequired[bool]       # SQL tool execution status when available
+    error: NotRequired[str]          # SQL/tool error message when available
 
 
-ValidationStatus = Literal["passed", "retry_needed", "valid_empty", "unsupported"]
+ValidationStatus = Literal[
+    "passed",
+    "retry_needed",
+    "valid_empty",
+    "unsupported",
+    "no_sql_needed",
+    "invalid_result",
+]
 
 
 def reduce_agent_results(
@@ -41,6 +50,8 @@ def _error_agent_result(agent_name: str, error: str) -> AgentResult:
         "columns": [],
         "row_count": 0,
         "reasoning": error,
+        "success": False,
+        "error": error,
     }
 
 

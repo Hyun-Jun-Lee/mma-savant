@@ -99,6 +99,8 @@ async def mma_analysis_node(state: MainState, llm) -> dict:
                 "columns": columns,
                 "row_count": row_count,
                 "reasoning": reasoning,
+                "success": sql_result.get("success", False),
+                "error": sql_result.get("error"),
             }],
         }
 

@@ -4,7 +4,7 @@
 각 노드가 필요한 필드만 보도록 Input/Output TypedDict를 정의.
 그래프 구조는 변경 없음. 노드 함수의 타입 힌트만 변경.
 """
-from typing import TypedDict, Annotated, Literal, Optional
+from typing import TypedDict, Annotated, Literal, Optional, NotRequired
 
 from langgraph.graph.message import add_messages
 from langchain_core.messages import BaseMessage
@@ -17,9 +17,18 @@ class AgentResult(TypedDict):
     columns: list[str]
     row_count: int
     reasoning: str
+    success: NotRequired[bool]
+    error: NotRequired[str]
 
 
-ValidationStatus = Literal["passed", "retry_needed", "valid_empty", "unsupported"]
+ValidationStatus = Literal[
+    "passed",
+    "retry_needed",
+    "valid_empty",
+    "unsupported",
+    "no_sql_needed",
+    "invalid_result",
+]
 
 
 def reduce_agent_results(
@@ -39,6 +48,8 @@ def _error_agent_result(agent_name: str, error: str) -> AgentResult:
         "columns": [],
         "row_count": 0,
         "reasoning": error,
+        "success": False,
+        "error": error,
     }
 
 

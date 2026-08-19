@@ -9,6 +9,7 @@ from langchain_core.messages import SystemMessage, HumanMessage
 
 from llm.graph.state import MainState, AgentResult, ValidationStatus
 from llm.graph.prompts import CRITIC_LLM_PROMPT
+from llm.tools.sql_tool import _validate_query
 from common.logging_config import get_logger
 
 LOGGER = get_logger(__name__)
@@ -100,166 +101,82 @@ def _has_any(text: str, needles: tuple[str, ...]) -> bool:
     return any(needle in text for needle in needles)
 
 
-def _extract_intents(resolved_query: str) -> dict[str, bool]:
-    text = _normalize_text(resolved_query)
-    has_decision = _has_any(text, ("판정", "decision", "dec"))
-    asks_for_wins = _has_any(text, ("승리", "승수", "win", "wins"))
-    asks_for_fights = _has_any(text, ("경기", "참여", "participation", "fight", "fights"))
-    return {
-        "recent": _has_any(text, ("recent", "latest", "last", "최근", "마지막")),
-        "upcoming": _has_any(text, ("upcoming", "next", "다음", "예정")),
-        "win_rate": _has_any(text, ("승률", "win rate")),
-        "clean_win_rate": _has_any(text, ("clean win", "clean rate", "무승부", "노컨테스트", "제외")),
-        "ko_tko_wins": _has_any(text, ("ko/tko", "ko 승", "ko 승리", "tko 승", "tko 승리")),
-        "submission_wins": _has_any(text, ("submission win", "submission wins", "서브미션 승", "서브미션 승리")),
-        "decision_wins": has_decision and asks_for_wins,
-        "decision_participation": has_decision and asks_for_fights and not asks_for_wins,
-    }
-
-
 def _is_unsupported_result(result: AgentResult) -> bool:
     reasoning = _normalize_text(result.get("reasoning", ""))
     return not result.get("query") and "unsupported" in reasoning
 
 
 def _looks_like_error_result(result: AgentResult) -> bool:
-    reasoning = result.get("reasoning", "")
-    return not result.get("query") and bool(reasoning) and any(
-        kw in reasoning for kw in ("초과", "복잡", "실패", "Error", "error")
-    )
-
-
-def _has_ambiguous_text_filter(query: str) -> bool:
-    return bool(re.search(
-        r"\b(name|fighter_name|method|result|event_name)\b\s+(?:i?like|=)",
-        query,
-    ))
-
-
-def _has_completed_scope(query: str) -> bool:
-    return (
-        "v_completed_fighter_fights" in query
-        or (
-            "event_date <=" in query
-            and ("current_date" in query or "current date" in query)
-            and ("result is not null" in query or "result is not null" in query)
-        )
-    )
-
-
-def _has_upcoming_scope(query: str) -> bool:
-    return "event_date >" in query and ("current_date" in query or "current date" in query)
-
-
-def _has_win_condition(query: str) -> bool:
-    return "result = 'win'" in query or 'result = "win"' in query
-
-
-def _has_submission_bucket(query: str) -> bool:
-    return "sub-%" in query or "is_submission" in query or "submission_wins" in query
-
-
-def _has_ko_tko_bucket(query: str) -> bool:
-    return "ko/tko%" in query or "is_ko_tko" in query or "ko_tko_wins" in query
-
-
-def _has_decision_bucket(query: str) -> bool:
-    return "%dec%" in query or "u-dec" in query or "s-dec" in query or "m-dec" in query or "is_decision" in query or "decision_" in query
-
-
-def _matches_win_rate_policy(query: str, clean_requested: bool) -> bool:
-    if "v_fighter_record_summary" in query:
+    error = result.get("error") or ""
+    if result.get("success") is False and error and "No SQL result found" not in error:
         return True
-    if clean_requested:
-        return "wins + losses" in query and "draws" not in query and "no_contests" not in query
-    return "wins + losses + draws + no_contests" in query
+
+    reasoning = result.get("reasoning", "")
+    if result.get("query") or not reasoning:
+        return False
+
+    return _has_any(
+        _normalize_text(reasoning),
+        (
+            "sql execution failed",
+            "query failed",
+            "database error",
+            "db error",
+            "permission",
+            "timeout",
+            "timed out",
+            "connection",
+            "syntax error",
+            "undefinedtable",
+            "error",
+            "failed",
+            "실패",
+            "오류",
+            "에러",
+            "초과",
+        ),
+    )
 
 
 # =============================================================================
 # Phase A: 규칙 기반 검증
 # =============================================================================
 
-def _validate_sql_syntax(result: AgentResult) -> str | None:
-    """SQL 쿼리 기본 검증"""
+def _validate_readonly_sql(result: AgentResult) -> str | None:
+    """SQL 쿼리 안전성과 기본 shape 검증. query가 있을 때만 검사한다."""
     query = result.get("query", "")
     if not query:
-        return "SQL 쿼리가 비어있습니다."
-    # 기본 SQL 키워드 존재 확인
-    upper = query.upper()
-    if not any(kw in upper for kw in ("SELECT", "WITH")):
-        return f"유효하지 않은 SQL: SELECT/WITH 키워드 없음"
-    return None
-
-
-def _validate_result_not_empty(result: AgentResult) -> str | None:
-    """결과 데이터 비어있는지 확인"""
-    if result.get("row_count", 0) == 0 and not result.get("data"):
-        return "SQL 실행 결과가 비어있습니다 (0행). 쿼리 조건을 확인하세요."
-    return None
-
-
-def _validate_value_ranges(result: AgentResult) -> str | None:
-    """결과 값 범위 타당성 검증"""
-    data = result.get("data", [])
-    if not data:
         return None
-
-    for row in data[:5]:  # 상위 5행만 샘플 검증
-        if not isinstance(row, dict):
-            continue
-        for key, val in row.items():
-            if not isinstance(val, (int, float)):
-                continue
-            lower_key = key.lower()
-            # 비율/퍼센트 필드 검증
-            if any(kw in lower_key for kw in ("rate", "pct", "ratio", "accuracy", "percentage")):
-                if val < 0 or val > 100:
-                    return f"비율 필드 '{key}'의 값 {val}이 0~100 범위를 벗어남"
-            # 음수 카운트 검증
-            if any(kw in lower_key for kw in ("count", "wins", "losses", "total", "fights")):
-                if val < 0:
-                    return f"카운트 필드 '{key}'의 값 {val}이 음수"
+    try:
+        _validate_query(query)
+    except ValueError as e:
+        return str(e)
     return None
 
 
-def _validate_intent_guardrails(query: str, intents: dict[str, bool]) -> str | None:
-    if intents["recent"] and not _has_completed_scope(query):
-        return "recent fights 질문에는 completed-fight scope가 필요합니다."
-    if intents["upcoming"] and not _has_upcoming_scope(query):
-        return "upcoming 질문에는 future event 조건이 필요합니다."
-    if intents["win_rate"] and not _matches_win_rate_policy(query, intents["clean_win_rate"]):
-        if intents["clean_win_rate"]:
-            return "clean win/loss rate 질문에는 wins / (wins + losses) denominator가 필요합니다."
-        return "win rate 질문에는 wins / (wins + losses + draws + no_contests) denominator가 필요합니다."
-    if intents["ko_tko_wins"]:
-        if not _has_win_condition(query):
-            return "KO/TKO wins 질문에는 result = 'win' 조건이 필요합니다."
-        if not _has_ko_tko_bucket(query):
-            return "KO/TKO wins 질문에는 KO/TKO method bucket이 필요합니다."
-    if intents["submission_wins"]:
-        if not _has_win_condition(query):
-            return "submission wins 질문에는 result = 'win' 조건이 필요합니다."
-        if not _has_submission_bucket(query):
-            return "submission wins 질문에는 submission method bucket이 필요합니다."
-    if intents["decision_wins"]:
-        if not _has_win_condition(query):
-            return "decision wins 질문에는 result = 'win' 조건이 필요합니다."
-        if not _has_decision_bucket(query):
-            return "decision wins 질문에는 decision method bucket이 필요합니다."
-    if intents["decision_participation"]:
-        if not _has_decision_bucket(query):
-            return "decision participation 질문에는 decision method bucket이 필요합니다."
-        if _has_win_condition(query):
-            return "decision participation 질문에는 result = 'win'을 강제하면 안 됩니다."
+def _validate_payload_shape(result: AgentResult) -> str | None:
+    """Downstream 노드가 처리할 수 있는 AgentResult payload인지 검증."""
+    data = result.get("data", [])
+    columns = result.get("columns", [])
+    row_count = result.get("row_count", 0)
+
+    if not isinstance(data, list):
+        return "Agent result data must be a list."
+    if not isinstance(columns, list):
+        return "Agent result columns must be a list."
+    if not isinstance(row_count, int) or row_count < 0:
+        return "Agent result row_count must be a non-negative integer."
+    if data and row_count == 0:
+        return "Agent result row_count is 0 but data is not empty."
+
+    for idx, row in enumerate(data[:5]):
+        if not isinstance(row, dict):
+            return f"Agent result data row {idx} must be an object."
     return None
 
 
 def _classify_empty_result(query: str) -> PhaseAOutcome:
-    if _has_ambiguous_text_filter(query):
-        return PhaseAOutcome(
-            validation_status="retry_needed",
-            feedback="0행 결과입니다. name/method/result/weight_class/event text filter 값을 다시 검증하세요.",
-        )
+    _ = query
     return PhaseAOutcome(validation_status="valid_empty")
 
 
@@ -268,7 +185,7 @@ def _run_phase_a(agent_results: list[AgentResult], resolved_query: str) -> Phase
 
     Returns: deterministic validation status and feedback.
     """
-    intents = _extract_intents(resolved_query)
+    _ = resolved_query
 
     for result in agent_results:
         agent_name = result.get("agent_name", "unknown")
@@ -283,10 +200,20 @@ def _run_phase_a(agent_results: list[AgentResult], resolved_query: str) -> Phase
         if _looks_like_error_result(result):
             return PhaseAOutcome(
                 validation_status="retry_needed",
-                feedback=f"[{agent_name}] 에이전트 실행 실패: {result['reasoning']}",
+                feedback=f"[{agent_name}] 에이전트 실행 실패: {result.get('error') or result.get('reasoning', '')}",
             )
 
-        feedback = _validate_sql_syntax(result)
+        feedback = _validate_payload_shape(result)
+        if feedback:
+            return PhaseAOutcome(validation_status="invalid_result", feedback=f"[{agent_name}] {feedback}")
+
+        if not result.get("query"):
+            return PhaseAOutcome(
+                validation_status="no_sql_needed",
+                feedback=result.get("reasoning"),
+            )
+
+        feedback = _validate_readonly_sql(result)
         if feedback:
             return PhaseAOutcome(validation_status="retry_needed", feedback=f"[{agent_name}] {feedback}")
 
@@ -295,14 +222,6 @@ def _run_phase_a(agent_results: list[AgentResult], resolved_query: str) -> Phase
             if empty_outcome.validation_status != "valid_empty":
                 return empty_outcome
             continue
-
-        feedback = _validate_intent_guardrails(query, intents)
-        if feedback:
-            return PhaseAOutcome(validation_status="retry_needed", feedback=f"[{agent_name}] {feedback}")
-
-        feedback = _validate_value_ranges(result)
-        if feedback:
-            return PhaseAOutcome(validation_status="retry_needed", feedback=f"[{agent_name}] {feedback}")
 
     has_valid_empty = any(
         result.get("row_count", 0) == 0 and not result.get("data")
@@ -361,6 +280,13 @@ async def critic_node(state: MainState, llm) -> dict:
     if phase_a_outcome.validation_status == "retry_needed":
         LOGGER.info(f"❌ Critic Phase A failed: {phase_a_outcome.feedback}")
         return _failure_return(retry_count, phase_a_outcome.feedback or "검증 실패")
+    if phase_a_outcome.validation_status == "invalid_result":
+        LOGGER.info(f"❌ Critic Phase A invalid result: {phase_a_outcome.feedback}")
+        return _failure_return(
+            retry_count,
+            phase_a_outcome.feedback or "에이전트 결과 형식이 올바르지 않습니다.",
+            validation_status="invalid_result",
+        )
     if phase_a_outcome.validation_status == "unsupported":
         LOGGER.info(f"⚠️ Critic Phase A unsupported: {phase_a_outcome.feedback}")
         return {
@@ -374,6 +300,14 @@ async def critic_node(state: MainState, llm) -> dict:
         return {
             "critic_passed": True,
             "validation_status": "valid_empty",
+            "critic_feedback": None,
+            "needs_visualization": False,
+        }
+    if phase_a_outcome.validation_status == "no_sql_needed":
+        LOGGER.info("✅ Critic Phase A no SQL needed")
+        return {
+            "critic_passed": True,
+            "validation_status": "no_sql_needed",
             "critic_feedback": None,
             "needs_visualization": False,
         }
@@ -418,7 +352,11 @@ async def critic_node(state: MainState, llm) -> dict:
         }
 
 
-def _failure_return(current_retry_count: int, feedback: str) -> dict:
+def _failure_return(
+    current_retry_count: int,
+    feedback: str,
+    validation_status: ValidationStatus = "retry_needed",
+) -> dict:
     """Critic 실패 시 반환값 생성"""
     new_retry_count = current_retry_count + 1
 
@@ -427,7 +365,7 @@ def _failure_return(current_retry_count: int, feedback: str) -> dict:
         LOGGER.error(f"❌ Critic retries exhausted ({MAX_RETRIES})")
         return {
             "critic_passed": False,
-            "validation_status": "retry_needed",
+            "validation_status": validation_status,
             "retry_count": new_retry_count,
             "agent_results": [],
             "final_response": "분석 결과의 품질 검증에 실패했습니다. 질문을 더 구체적으로 바꿔주세요.",
@@ -438,7 +376,7 @@ def _failure_return(current_retry_count: int, feedback: str) -> dict:
     # 재시도 가능 → 피드백 + agent_results 초기화
     return {
         "critic_passed": False,
-        "validation_status": "retry_needed",
+        "validation_status": validation_status,
         "critic_feedback": feedback,
         "retry_count": new_retry_count,
         "agent_results": [],  # reducer가 초기화

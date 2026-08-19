@@ -323,13 +323,9 @@ CRITIC_LLM_PROMPT = """당신은 MMA 데이터 분석 결과의 semantic SQL cri
 - raw table SQL이라는 이유만으로 실패시키지 마라
 - canonical view를 쓰지 않았더라도 metric, window, filter 의미가 맞으면 통과시켜라
 - DB 결과를 모델 지식으로 뒤집지 마라
-- 질문과 SQL의 의미 불일치가 확실할 때만 실패시켜라
-
-## 실패시켜야 하는 경우
-1. 질문이 요구한 metric 정의가 잘못되었을 때
-2. 질문이 요구한 window 또는 time scope가 잘못되었을 때
-3. 질문이 요구한 filter, comparison basis, denominator가 잘못되었을 때
-4. 질문은 participation인데 SQL이 wins만 세는 등 비교 기준이 바뀌었을 때
+- 사용자가 명시한 기준이 있으면 일반 정책보다 사용자 기준을 우선하라
+- 제공된 schema/view metadata나 입력 hint가 있을 때만 도메인 정책의 근거로 사용하라
+- 질문과 SQL의 의미 불일치가 명확한 증거로 확인될 때만 실패시켜라
 
 ## 실패시키면 안 되는 경우
 - SQL이 비효율적이지만 의미는 맞는 경우
