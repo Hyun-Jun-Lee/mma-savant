@@ -25,6 +25,8 @@ TAPOLOGY_FETCH_WORKER_TIMEOUT = "worker_timeout"
 TAPOLOGY_FETCH_WORKER_CRASH = "worker_crash"
 TAPOLOGY_FETCH_PROTOCOL_ERROR = "protocol_error"
 TAPOLOGY_FETCH_EXCEPTION = "fetch_exception"
+UFC_RANKINGS_MAX_ATTEMPTS = 3
+UFC_RANKINGS_RETRY_DELAY_SECONDS = 2.0
 
 
 def _parse_delay_range(value: str | None) -> tuple[float, float]:
@@ -74,10 +76,25 @@ def _selector_for_url(url: str) -> Optional[str]:
         if path.startswith("/fight-details/"):
             return "table.b-fight-details__table"
 
-    if host.endswith("ufc.com") and path.endswith("/rankings"):
-        return "div.view-grouping"
+    if _is_ufc_rankings_url(url):
+        return "#rankings-panel-media"
 
     return None
+
+
+def _is_ufc_rankings_url(url: str) -> bool:
+    parsed_url = urlparse(url)
+    return (
+        parsed_url.netloc.lower().endswith("ufc.com")
+        and parsed_url.path.rstrip("/").endswith("/rankings")
+    )
+
+
+def _is_ufc_edge_forbidden_html(html_content: str | None) -> bool:
+    if not html_content:
+        return False
+
+    return "403 Forbidden" in html_content and "Varnish cache server" in html_content
 
 
 async def crawl_with_playwright(url: str) -> str:
@@ -85,15 +102,42 @@ async def crawl_with_playwright(url: str) -> str:
     page = None
     try:
         await driver.initialize()
-        page = await driver.new_page()
-        await page.goto(url, wait_until="domcontentloaded")
-
+        max_attempts = UFC_RANKINGS_MAX_ATTEMPTS if _is_ufc_rankings_url(url) else 1
         wait_selector = _selector_for_url(url)
-        if wait_selector:
-            await page.wait_for_selector(wait_selector, state="attached", timeout=15000)
 
-        html_content = await page.content()
-        return html_content
+        for attempt in range(1, max_attempts + 1):
+            if page:
+                await page.close()
+
+            page = await driver.new_page()
+            await page.goto(url, wait_until="domcontentloaded")
+
+            try:
+                if wait_selector:
+                    await page.wait_for_selector(wait_selector, state="attached", timeout=15000)
+            except Exception:
+                html_content = await page.content()
+                if _is_ufc_rankings_url(url) and _is_ufc_edge_forbidden_html(html_content):
+                    if attempt < max_attempts:
+                        logging.warning(
+                            "UFC rankings page returned edge forbidden response; retrying (%s/%s)",
+                            attempt,
+                            max_attempts,
+                        )
+                        await page.close()
+                        page = None
+                        await asyncio.sleep(UFC_RANKINGS_RETRY_DELAY_SECONDS * attempt)
+                        continue
+
+                    logging.warning("UFC rankings page returned edge forbidden response after %s attempts", max_attempts)
+                    return None
+
+                raise
+
+            html_content = await page.content()
+            return html_content
+
+        return None
     except Exception as e:
         print(f"크롤링 중 오류 발생: {traceback.format_exc()}")
         return None

@@ -59,6 +59,44 @@ def test_parse_rankings_keeps_regular_division_champion_as_rank_zero():
     ]
 
 
+def test_parse_rankings_prefers_media_panel_when_meta_panel_also_exists():
+    html = """
+    <div id="rankings-panel-media">
+      <div class="view-grouping">
+        <div class="view-grouping-header">플라이급</div>
+        <div class="rankings--athlete--champion">
+          <h5><a>Media Champion</a></h5>
+        </div>
+        <table>
+          <tbody>
+            <tr><td>1</td><td><a>Media Fighter</a></td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+    <div id="rankings-panel-meta">
+      <div class="view-grouping">
+        <div class="view-grouping-header">플라이급</div>
+        <div class="rankings--athlete--champion">
+          <h5><a>Meta Champion</a></h5>
+        </div>
+        <table>
+          <tbody>
+            <tr><td>1</td><td><a>Meta Fighter</a></td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+    """
+
+    rankings = parse_ufc_rankings_from_html(html)
+
+    assert rankings["flyweight"] == [
+        (0, "Media Champion"),
+        (1, "Media Fighter"),
+    ]
+
+
 @pytest.mark.asyncio
 async def test_mapping_ranking_fighter_skips_duplicate_fighter_weight_class(
     monkeypatch,
@@ -69,7 +107,7 @@ async def test_mapping_ranking_fighter_skips_duplicate_fighter_weight_class(
 
     monkeypatch.setattr(
         ranking_scraper,
-        "get_fighter_by_name_best_record",
+        "get_fighter_by_ranking_display_name",
         get_same_fighter,
     )
 

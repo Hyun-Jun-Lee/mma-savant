@@ -7,7 +7,7 @@ from bs4 import BeautifulSoup
 
 from fighter.models import RankingSchema
 from common.models import WeightClassSchema
-from fighter.repositories import get_fighter_by_name_best_record
+from fighter.repositories import get_fighter_by_ranking_display_name
 
 # 한글-영문 체급 매핑 (DB weight_class.name과 일치)
 DIVISION_MAPPING = {
@@ -49,8 +49,10 @@ def parse_ufc_rankings_from_html(html_content: str) -> RankingRows:
     soup = BeautifulSoup(html_content, 'html.parser')
     rankings = {}
 
-    # 모든 view-grouping 찾기
-    groupings = soup.find_all('div', class_='view-grouping')
+    # UFC.com now renders Meta and Media rankings on the same page.
+    # Preserve the existing DB meaning by collecting the traditional media panel.
+    ranking_root = soup.select_one("#rankings-panel-media") or soup
+    groupings = ranking_root.find_all('div', class_='view-grouping')
 
     for grouping in groupings:
         # 체급명 추출
@@ -129,7 +131,7 @@ async def mapping_ranking_fighter(session, ranking_dict: RankingRows) -> List[Ra
 
             try:
                 # 동명이인이 있을 경우 승수가 가장 많은 선수 선택
-                fighter = await get_fighter_by_name_best_record(session, fighter_name)
+                fighter = await get_fighter_by_ranking_display_name(session, fighter_name)
                 if not fighter:
                     logging.warning(f"파이터를 찾을 수 없습니다: {fighter_name}")
                     continue

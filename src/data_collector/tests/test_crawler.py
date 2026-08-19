@@ -29,8 +29,65 @@ def test_selector_for_ufcstats_pages():
 
 
 def test_selector_for_ufc_rankings():
-    assert _selector_for_url("https://kr.ufc.com/rankings") == "div.view-grouping"
-    assert _selector_for_url("https://www.ufc.com/rankings") == "div.view-grouping"
+    assert _selector_for_url("https://kr.ufc.com/rankings") == "#rankings-panel-media"
+    assert _selector_for_url("https://www.ufc.com/rankings") == "#rankings-panel-media"
+
+
+def test_detects_ufc_edge_forbidden_html():
+    html = "<body>Error 403 Forbidden Details: cache-icn Varnish cache server</body>"
+
+    assert crawler._is_ufc_edge_forbidden_html(html) is True
+    assert crawler._is_ufc_edge_forbidden_html("<body>Error 403 Forbidden</body>") is False
+
+
+@pytest.mark.asyncio
+async def test_crawl_with_playwright_retries_ufc_rankings_edge_forbidden(monkeypatch):
+    first_html = "<body>Error 403 Forbidden Details: cache-icn Varnish cache server</body>"
+    second_html = '<body><div id="rankings-panel-media">rankings</div></body>'
+
+    class FakePage:
+        def __init__(self):
+            self.html_by_attempt = [first_html, second_html]
+            self.goto_calls = 0
+            self.wait_selectors = []
+
+        async def goto(self, url, wait_until):
+            self.goto_calls += 1
+
+        async def wait_for_selector(self, selector, state, timeout):
+            self.wait_selectors.append(selector)
+            html = await self.content()
+            if selector == "#rankings-panel-media" and 'id="rankings-panel-media"' in html:
+                return
+            if selector not in html:
+                raise RuntimeError("selector timeout")
+
+        async def content(self):
+            return self.html_by_attempt[self.goto_calls - 1]
+
+        async def close(self):
+            pass
+
+    fake_page = FakePage()
+
+    class FakeDriver:
+        async def initialize(self):
+            pass
+
+        async def new_page(self):
+            return fake_page
+
+    async def fake_sleep(delay):
+        pass
+
+    monkeypatch.setattr(crawler, "PlaywrightDriver", FakeDriver)
+    monkeypatch.setattr(crawler.asyncio, "sleep", fake_sleep)
+
+    html = await crawler.crawl_with_playwright("https://kr.ufc.com/rankings")
+
+    assert html == second_html
+    assert fake_page.goto_calls == 2
+    assert fake_page.wait_selectors == ["#rankings-panel-media", "#rankings-panel-media"]
 
 
 def test_selector_for_unknown_url():

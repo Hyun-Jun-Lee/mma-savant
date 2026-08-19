@@ -1,3 +1,6 @@
+import logging
+import re
+
 from typing import List, Optional, Dict, Literal
 
 from sqlalchemy import select, delete, or_, text, func
@@ -17,6 +20,38 @@ from fighter.models import (
 from match.models import FighterMatchModel, MatchModel, BasicMatchStatModel, SigStrMatchStatModel
 from event.models import EventModel
 from common.utils import normalize_name
+
+RANKING_NAME_TOKEN_RE = re.compile(r"[a-z0-9]+")
+
+
+def _ranking_name_tokens(value: str | None) -> List[str]:
+    if not value:
+        return []
+
+    return RANKING_NAME_TOKEN_RE.findall(normalize_name(value))
+
+
+def _ranking_display_matches_name_and_nickname(
+    display_name: str,
+    fighter_name: str | None,
+    fighter_nickname: str | None,
+) -> bool:
+    display_tokens = _ranking_name_tokens(display_name)
+    name_tokens = _ranking_name_tokens(fighter_name)
+    nickname_tokens = _ranking_name_tokens(fighter_nickname)
+    if not display_tokens or not name_tokens or not nickname_tokens:
+        return False
+
+    display_key = tuple(display_tokens)
+    nickname_inserted_after_first_name = tuple(
+        [name_tokens[0], *nickname_tokens, *name_tokens[1:]]
+    )
+
+    return display_key in {
+        nickname_inserted_after_first_name,
+        tuple([*name_tokens, *nickname_tokens]),
+        tuple([*nickname_tokens, *name_tokens]),
+    }
 
 async def get_all_fighter(
     session: AsyncSession,
@@ -86,6 +121,54 @@ async def get_fighter_by_name_best_record(session: AsyncSession, name: str) -> O
     fighter_model = result.scalars().first()
 
     return fighter_model.to_schema() if fighter_model else None
+
+
+async def get_fighter_by_ranking_display_name(session: AsyncSession, name: str) -> Optional[FighterSchema]:
+    """
+    UFC rankings display name을 canonical fighter로 해석합니다.
+
+    UFC rankings는 "Michael Venom Page"처럼 nickname을 이름 중간에 넣어
+    표시할 수 있지만, fighter 테이블은 name="michael page", nickname="Venom"처럼
+    분리 저장합니다. 일반 검색 동작은 유지하고 ranking mapping에서만 이 조합을 허용합니다.
+    """
+    direct_match = await get_fighter_by_name_best_record(session, name)
+    if direct_match:
+        return direct_match
+
+    if len(_ranking_name_tokens(name)) < 3:
+        return None
+
+    result = await session.execute(
+        select(FighterModel).where(
+            FighterModel.nickname.is_not(None),
+            FighterModel.nickname != "",
+        )
+    )
+    candidates = [
+        fighter
+        for fighter in result.scalars().all()
+        if _ranking_display_matches_name_and_nickname(
+            name,
+            fighter.name,
+            fighter.nickname,
+        )
+    ]
+
+    if len(candidates) == 1:
+        return candidates[0].to_schema()
+
+    if len(candidates) > 1:
+        candidate_names = ", ".join(
+            f"{fighter.id}:{fighter.name} ({fighter.nickname})"
+            for fighter in candidates
+        )
+        logging.warning(
+            "랭킹 표시명 매핑이 모호합니다: %s -> %s",
+            name,
+            candidate_names,
+        )
+
+    return None
 
 async def get_ranking_by_fighter_id(session: AsyncSession, fighter_id: int) -> List[RankingSchema]:
     """

@@ -3,6 +3,7 @@ Fighter Repository Layer 테스트 - Test Database 사용
 """
 import pytest
 from datetime import date, datetime
+from types import SimpleNamespace
 from typing import List
 
 import database
@@ -95,6 +96,111 @@ async def test_get_all_fighter_pagination(clean_test_session):
 # get_fighter_by_name_best_record 테스트
 # =============================================================================
 
+
+def test_ranking_display_matches_inserted_nickname():
+    assert fighter_repo._ranking_display_matches_name_and_nickname(
+        "Michael Venom Page",
+        "michael page",
+        "Venom",
+    )
+    assert fighter_repo._ranking_display_matches_name_and_nickname(
+        'Michael "Venom" Page',
+        "michael page",
+        "Venom",
+    )
+
+
+def test_ranking_display_match_requires_complete_name_and_nickname():
+    assert not fighter_repo._ranking_display_matches_name_and_nickname(
+        "Michael Page",
+        "michael page",
+        "Venom",
+    )
+    assert not fighter_repo._ranking_display_matches_name_and_nickname(
+        "Michael Another Page",
+        "michael page",
+        "Venom",
+    )
+
+
+@pytest.mark.asyncio
+async def test_get_fighter_by_ranking_display_name_uses_inserted_nickname_fallback(
+    monkeypatch,
+):
+    async def no_direct_match(session, name):
+        return None
+
+    expected = FighterSchema(
+        id=2984,
+        name="michael page",
+        nickname="Venom",
+        wins=25,
+        losses=3,
+        draws=0,
+    )
+    candidate = SimpleNamespace(
+        id=2984,
+        name="michael page",
+        nickname="Venom",
+        to_schema=lambda: expected,
+    )
+
+    class FakeScalarResult:
+        def all(self):
+            return [candidate]
+
+    class FakeExecuteResult:
+        def scalars(self):
+            return FakeScalarResult()
+
+    class FakeSession:
+        async def execute(self, query):
+            return FakeExecuteResult()
+
+    monkeypatch.setattr(fighter_repo, "get_fighter_by_name_best_record", no_direct_match)
+
+    result = await fighter_repo.get_fighter_by_ranking_display_name(
+        FakeSession(),
+        "Michael Venom Page",
+    )
+
+    assert result == expected
+
+
+@pytest.mark.asyncio
+async def test_get_fighter_by_ranking_display_name_does_not_guess_ambiguous_fallback(
+    monkeypatch,
+):
+    async def no_direct_match(session, name):
+        return None
+
+    candidates = [
+        SimpleNamespace(id=1, name="john smith", nickname="Ace", to_schema=lambda: None),
+        SimpleNamespace(id=2, name="john smith", nickname="Ace", to_schema=lambda: None),
+    ]
+
+    class FakeScalarResult:
+        def all(self):
+            return candidates
+
+    class FakeExecuteResult:
+        def scalars(self):
+            return FakeScalarResult()
+
+    class FakeSession:
+        async def execute(self, query):
+            return FakeExecuteResult()
+
+    monkeypatch.setattr(fighter_repo, "get_fighter_by_name_best_record", no_direct_match)
+
+    result = await fighter_repo.get_fighter_by_ranking_display_name(
+        FakeSession(),
+        "John Ace Smith",
+    )
+
+    assert result is None
+
+
 @pytest.mark.asyncio
 async def test_get_fighter_by_name_best_record_finds_best(clean_test_session):
     """동명이인 중 가장 좋은 전적의 파이터 조회"""
@@ -142,6 +248,53 @@ async def test_get_fighter_by_name_best_record_by_nickname(clean_test_session):
 async def test_get_fighter_by_name_best_record_not_found(clean_test_session):
     """파이터를 찾지 못한 경우"""
     result = await fighter_repo.get_fighter_by_name_best_record(clean_test_session, "Nonexistent Fighter")
+
+    assert result is None
+
+
+@pytest.mark.asyncio
+async def test_get_fighter_by_ranking_display_name_matches_inserted_nickname(clean_test_session):
+    """랭킹 표시명이 이름 중간에 닉네임을 포함해도 canonical fighter를 찾는다."""
+    test_fighter = FighterModel(
+        name="michael page",
+        nickname="Venom",
+        wins=25,
+        losses=3,
+        draws=0,
+    )
+    clean_test_session.add(test_fighter)
+    await clean_test_session.flush()
+
+    legacy_result = await fighter_repo.get_fighter_by_name_best_record(
+        clean_test_session,
+        "Michael Venom Page",
+    )
+    result = await fighter_repo.get_fighter_by_ranking_display_name(
+        clean_test_session,
+        "Michael Venom Page",
+    )
+
+    assert legacy_result is None
+    assert result is not None
+    assert result.id == test_fighter.id
+
+
+@pytest.mark.asyncio
+async def test_get_fighter_by_ranking_display_name_skips_ambiguous_nickname_matches(
+    clean_test_session,
+):
+    """닉네임 조합으로 여러 명이 맞으면 자동 매핑하지 않는다."""
+    fighters = [
+        FighterModel(name="john smith", nickname="Ace", wins=10, losses=1, draws=0),
+        FighterModel(name="john smith", nickname="Ace", wins=8, losses=2, draws=0),
+    ]
+    clean_test_session.add_all(fighters)
+    await clean_test_session.flush()
+
+    result = await fighter_repo.get_fighter_by_ranking_display_name(
+        clean_test_session,
+        "John Ace Smith",
+    )
 
     assert result is None
 
