@@ -41,3 +41,13 @@ def test_supervisor_prompt_distinguishes_group_comparison_from_named_fighters():
 def test_sql_grounded_response_refuses_unsupported_data():
     assert "current database cannot answer" in graph_prompts.SQL_GROUNDED_RESPONSE_STYLE
     assert "Do not infer it from model knowledge" in graph_prompts.SQL_GROUNDED_RESPONSE_STYLE
+
+
+def test_critic_prompt_uses_evidence_based_principles_not_domain_checklist():
+    prompt = graph_prompts.CRITIC_LLM_PROMPT
+
+    assert "사용자가 명시한 기준이 있으면 일반 정책보다 사용자 기준을 우선하라" in prompt
+    assert "schema/view metadata나 입력 hint" in prompt
+    assert "명확한 증거로 확인될 때만 실패" in prompt
+    assert "질문이 요구한 metric 정의가 잘못되었을 때" not in prompt
+    assert "질문은 participation인데 SQL이 wins만 세는" not in prompt

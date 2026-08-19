@@ -13,6 +13,11 @@ CREATE TABLE IF NOT EXISTS fighter (
     birthdate VARCHAR,
     belt BOOLEAN DEFAULT FALSE,
     detail_url VARCHAR,
+    wins INTEGER DEFAULT 0,
+    losses INTEGER DEFAULT 0,
+    draws INTEGER DEFAULT 0,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     nationality VARCHAR,
     tapology_url VARCHAR,
     born VARCHAR,
@@ -27,12 +32,7 @@ CREATE TABLE IF NOT EXISTS fighter (
     tapology_attempt_status VARCHAR,
     tapology_last_attempt_at TIMESTAMP,
     tapology_failure_stage VARCHAR,
-    tapology_failure_reason VARCHAR,
-    wins INTEGER DEFAULT 0,
-    losses INTEGER DEFAULT 0,
-    draws INTEGER DEFAULT 0,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    tapology_failure_reason VARCHAR
 );
 
 -- fighter_promotion_record 테이블
@@ -83,11 +83,11 @@ CREATE TABLE IF NOT EXISTS event (
     location VARCHAR,
     event_date DATE,
     url VARCHAR,
-    tapology_url VARCHAR,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     latitude FLOAT,
     longitude FLOAT,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    tapology_url VARCHAR
 );
 
 -- match 테이블
@@ -100,6 +100,9 @@ CREATE TABLE IF NOT EXISTS match (
     time VARCHAR,
     "order" INTEGER,
     is_main_event BOOLEAN,
+    detail_url VARCHAR,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     is_title_bout BOOLEAN DEFAULT FALSE,
     bout_status VARCHAR,
     cancellation_reason VARCHAR,
@@ -109,9 +112,6 @@ CREATE TABLE IF NOT EXISTS match (
     tapology_last_attempt_at TIMESTAMP,
     tapology_failure_stage VARCHAR,
     tapology_failure_reason VARCHAR,
-    detail_url VARCHAR,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     
     -- 외래키 제약조건
     CONSTRAINT fk_match_event 
@@ -142,11 +142,11 @@ CREATE TABLE IF NOT EXISTS fighter_match (
     fighter_id INTEGER,
     match_id INTEGER,
     result VARCHAR,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     weigh_in_result VARCHAR,
     fight_night_weight VARCHAR,
     weight_gain VARCHAR,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     
     -- 외래키 제약조건
     CONSTRAINT fk_fighter_match_fighter 
@@ -241,11 +241,11 @@ CREATE TABLE IF NOT EXISTS message (
     message_id VARCHAR NOT NULL UNIQUE,
     conversation_id INTEGER NOT NULL,
     content TEXT NOT NULL,
-    role VARCHAR NOT NULL CHECK (role IN ('user', 'assistant')),
+    role VARCHAR NOT NULL CHECK (((role)::text = ANY (ARRAY[('user'::character varying)::text, ('assistant'::character varying)::text]))),
     tool_results JSONB,
-    visualization JSONB,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    visualization JSONB,
 
     -- 외래키 제약조건
     CONSTRAINT fk_message_conversation
@@ -256,20 +256,22 @@ CREATE TABLE IF NOT EXISTS message (
 CREATE INDEX IF NOT EXISTS idx_fighter_name ON fighter(name);
 CREATE INDEX IF NOT EXISTS idx_fighter_tapology_url ON fighter(tapology_url);
 CREATE UNIQUE INDEX IF NOT EXISTS uq_fighter_detail_url ON fighter(detail_url) WHERE detail_url IS NOT NULL;
-CREATE UNIQUE INDEX IF NOT EXISTS uq_fighter_tapology_url ON fighter(tapology_url) WHERE tapology_url IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_fighter_tapology_attempt_status ON fighter(tapology_attempt_status);
+CREATE INDEX IF NOT EXISTS idx_fighter_tapology_last_attempt_at ON fighter(tapology_last_attempt_at);
 CREATE INDEX IF NOT EXISTS idx_fighter_promotion_record_fighter_id ON fighter_promotion_record(fighter_id);
 CREATE INDEX IF NOT EXISTS idx_fighter_promotion_record_name ON fighter_promotion_record(promotion_name);
 CREATE UNIQUE INDEX IF NOT EXISTS uq_fighter_promotion_record_key ON fighter_promotion_record(fighter_id, promotion_name);
 CREATE INDEX IF NOT EXISTS idx_fighter_method_record_fighter_id ON fighter_method_record(fighter_id);
 CREATE UNIQUE INDEX IF NOT EXISTS uq_fighter_method_record_key ON fighter_method_record(fighter_id, scope, result, method_category);
 CREATE UNIQUE INDEX IF NOT EXISTS uq_event_url ON event(url) WHERE url IS NOT NULL;
-CREATE UNIQUE INDEX IF NOT EXISTS uq_event_tapology_url ON event(tapology_url) WHERE tapology_url IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_event_tapology_url ON event(tapology_url);
 CREATE INDEX IF NOT EXISTS idx_match_event_id ON match(event_id);
 CREATE INDEX IF NOT EXISTS idx_match_weight_class_id ON match(weight_class_id);
 CREATE INDEX IF NOT EXISTS idx_match_tapology_bout_url ON match(tapology_bout_url);
 CREATE UNIQUE INDEX IF NOT EXISTS uq_match_detail_url ON match(detail_url) WHERE detail_url IS NOT NULL;
-CREATE UNIQUE INDEX IF NOT EXISTS uq_match_tapology_bout_url ON match(tapology_bout_url) WHERE tapology_bout_url IS NOT NULL;
 CREATE INDEX IF NOT EXISTS idx_match_bout_status ON match(bout_status);
+CREATE INDEX IF NOT EXISTS idx_match_tapology_attempt_status ON match(tapology_attempt_status);
+CREATE INDEX IF NOT EXISTS idx_match_tapology_last_attempt_at ON match(tapology_last_attempt_at);
 CREATE INDEX IF NOT EXISTS idx_fighter_match_fighter_id ON fighter_match(fighter_id);
 CREATE INDEX IF NOT EXISTS idx_fighter_match_match_id ON fighter_match(match_id);
 CREATE UNIQUE INDEX IF NOT EXISTS uq_fighter_match_fighter_match ON fighter_match(fighter_id, match_id);

@@ -130,6 +130,29 @@ class TestGraphBuilder:
         assert len(sends) == 1
         assert sends[0].node == "text_response"
 
+    def test_critic_route_no_sql_needed_goes_to_text_response(self):
+        from llm.graph.graph_builder import critic_route
+        sends = critic_route({
+            "critic_passed": True,
+            "validation_status": "no_sql_needed",
+            "needs_visualization": False,
+        })
+        assert len(sends) == 1
+        assert sends[0].node == "text_response"
+
+    def test_critic_route_invalid_result_retries(self):
+        from llm.graph.graph_builder import critic_route
+        from langgraph.graph import END
+        sends = critic_route({
+            "critic_passed": False,
+            "validation_status": "invalid_result",
+            "retry_count": 1,
+            "active_agents": ["mma_analysis"],
+        })
+        assert sends != END
+        assert len(sends) == 1
+        assert sends[0].node == "mma_analysis"
+
     def test_critic_route_exhausted(self):
         from llm.graph.graph_builder import critic_route
         from langgraph.graph import END
@@ -190,18 +213,18 @@ class TestSqlQueryValidation:
 
 
 # =============================================================================
-# Critic Phase A deterministic guardrail 테스트
+# Critic Phase A hard gate 테스트
 # =============================================================================
 
 class TestCriticPhaseA:
-    """critic deterministic Phase A semantic guardrail 테스트"""
+    """critic deterministic Phase A packet hard gate 테스트"""
 
-    def _result(self, query, data=None, row_count=1, columns=None, reasoning="ok"):
+    def _result(self, query, data=None, row_count=1, columns=None, reasoning="ok", success=None, error=None):
         if data is None:
             data = [{"value": 1}] if row_count else []
         if columns is None:
             columns = list(data[0].keys()) if data else []
-        return {
+        result = {
             "agent_name": "mma_analysis",
             "query": query,
             "data": data,
@@ -209,129 +232,55 @@ class TestCriticPhaseA:
             "row_count": row_count,
             "reasoning": reasoning,
         }
+        if success is not None:
+            result["success"] = success
+        if error is not None:
+            result["error"] = error
+        return result
 
-    def test_win_rate_rejects_total_fights_denominator(self):
+    def test_query_absence_with_no_sql_needed_reasoning_does_not_retry(self):
         from llm.graph.nodes.critic import _run_phase_a
 
         outcome = _run_phase_a([
             self._result(
-                "SELECT wins * 100.0 / total_fights AS win_rate FROM fighter_record"
+                "",
+                row_count=0,
+                reasoning="no_sql_needed: this request can be answered without a database query",
             )
-        ], "존 존스 승률 알려줘")
+        ], "너는 어떤 데이터를 조회할 수 있어?")
 
-        assert outcome.validation_status == "retry_needed"
-        assert "wins + losses + draws + no_contests" in outcome.feedback
+        assert outcome.validation_status == "no_sql_needed"
 
-    def test_win_rate_accepts_canonical_record_summary_view(self):
+    def test_query_absence_from_no_tool_result_does_not_retry_by_itself(self):
         from llm.graph.nodes.critic import _run_phase_a
 
         outcome = _run_phase_a([
             self._result(
-                "SELECT fighter_name, win_rate FROM v_fighter_record_summary"
+                "",
+                row_count=0,
+                reasoning="이 질문은 데이터베이스 조회가 필요하지 않습니다.",
+                success=False,
+                error="No SQL result found in agent output",
             )
-        ], "존 존스 승률 알려줘")
+        ], "너는 어떤 일을 할 수 있어?")
 
-        assert outcome.validation_status == "passed"
+        assert outcome.validation_status == "no_sql_needed"
 
-    def test_win_rate_accepts_raw_sql_agent_denominator(self):
-        from llm.graph.nodes.critic import _run_phase_a
-
-        outcome = _run_phase_a([
-            self._result("""
-                SELECT
-                  wins * 100.0 / NULLIF(wins + losses + draws + no_contests, 0) AS win_rate
-                FROM record_cte
-            """)
-        ], "존 존스 승률 알려줘")
-
-        assert outcome.validation_status == "passed"
-
-    def test_clean_win_loss_rate_accepts_clean_denominator_when_requested(self):
+    def test_query_absence_with_execution_error_retries(self):
         from llm.graph.nodes.critic import _run_phase_a
 
         outcome = _run_phase_a([
             self._result(
-                "SELECT wins * 100.0 / NULLIF(wins + losses, 0) AS clean_win_rate FROM record_cte"
+                "",
+                row_count=0,
+                reasoning="SQL execution failed: database timeout",
+                success=False,
+                error="database timeout",
             )
-        ], "존 존스의 무승부와 노컨테스트를 제외한 clean win loss rate 알려줘")
-
-        assert outcome.validation_status == "passed"
-
-    def test_recent_fights_rejects_missing_completed_scope(self):
-        from llm.graph.nodes.critic import _run_phase_a
-
-        outcome = _run_phase_a([
-            self._result("SELECT fighter_name, event_date FROM v_fighter_fight_results ORDER BY event_date DESC")
         ], "존 존스 최근 경기 알려줘")
 
         assert outcome.validation_status == "retry_needed"
-        assert "completed" in outcome.feedback
-
-    def test_recent_fights_accepts_completed_view(self):
-        from llm.graph.nodes.critic import _run_phase_a
-
-        outcome = _run_phase_a([
-            self._result("SELECT fighter_name, event_date FROM v_completed_fighter_fights ORDER BY event_date DESC")
-        ], "존 존스 최근 경기 알려줘")
-
-        assert outcome.validation_status == "passed"
-
-    def test_ko_tko_wins_require_win_condition(self):
-        from llm.graph.nodes.critic import _run_phase_a
-
-        outcome = _run_phase_a([
-            self._result("SELECT COUNT(*) AS ko_tko_wins FROM match WHERE method ILIKE 'KO/TKO%'")
-        ], "KO/TKO 승리 수 알려줘")
-
-        assert outcome.validation_status == "retry_needed"
-        assert "result = 'win'" in outcome.feedback
-
-    def test_ko_tko_wins_accept_win_and_method_bucket(self):
-        from llm.graph.nodes.critic import _run_phase_a
-
-        outcome = _run_phase_a([
-            self._result(
-                "SELECT COUNT(*) AS ko_tko_wins FROM v_completed_fighter_fights WHERE result = 'win' AND method ILIKE 'KO/TKO%'"
-            )
-        ], "KO/TKO 승리 수 알려줘")
-
-        assert outcome.validation_status == "passed"
-
-    def test_decision_participation_rejects_forced_win_filter(self):
-        from llm.graph.nodes.critic import _run_phase_a
-
-        outcome = _run_phase_a([
-            self._result(
-                "SELECT COUNT(*) AS decision_fights FROM v_completed_fighter_fights WHERE result = 'win' AND method ILIKE '%DEC%'"
-            )
-        ], "판정으로 간 경기 수 알려줘")
-
-        assert outcome.validation_status == "retry_needed"
-        assert "result = 'win'" in outcome.feedback
-
-    def test_valid_empty_result_passes_without_retry(self):
-        from llm.graph.nodes.critic import _run_phase_a
-
-        outcome = _run_phase_a([
-            self._result(
-                "SELECT fighter_name FROM v_current_rankings WHERE weight_class_name = 'women heavyweight'",
-                row_count=0,
-            )
-        ], "여성 헤비급 챔피언 알려줘")
-
-        assert outcome.validation_status == "valid_empty"
-
-    def test_ambiguous_empty_result_requests_retry(self):
-        from llm.graph.nodes.critic import _run_phase_a
-
-        outcome = _run_phase_a([
-            self._result(
-                "SELECT fighter_name FROM fighter WHERE name ILIKE '%jon jons%'",
-                row_count=0,
-            )
-        ], "존 존스 알려줘")
-
-        assert outcome.validation_status == "retry_needed"
+        assert "database timeout" in outcome.feedback
 
     def test_unsupported_result_routes_without_retry(self):
         from llm.graph.nodes.critic import _run_phase_a
@@ -345,6 +294,126 @@ class TestCriticPhaseA:
         ], "선수의 PPV 구매 수 알려줘")
 
         assert outcome.validation_status == "unsupported"
+
+    def test_sql_tool_error_with_query_retries(self):
+        from llm.graph.nodes.critic import _run_phase_a
+
+        outcome = _run_phase_a([
+            self._result(
+                "SELECT * FROM missing_view",
+                data=[],
+                row_count=0,
+                columns=[],
+                reasoning="attempted query",
+                success=False,
+                error='relation "missing_view" does not exist',
+            )
+        ], "최근 경기 알려줘")
+
+        assert outcome.validation_status == "retry_needed"
+        assert "missing_view" in outcome.feedback
+
+    def test_malformed_data_payload_is_invalid_result(self):
+        from llm.graph.nodes.critic import _run_phase_a
+
+        outcome = _run_phase_a([
+            self._result("SELECT 1", data={"value": 1}, columns=["value"], row_count=1)
+        ], "테스트")
+
+        assert outcome.validation_status == "invalid_result"
+        assert "data must be a list" in outcome.feedback
+
+    def test_non_object_data_row_is_invalid_result(self):
+        from llm.graph.nodes.critic import _run_phase_a
+
+        outcome = _run_phase_a([
+            self._result("SELECT 1", data=[["value", 1]], columns=["value"], row_count=1)
+        ], "테스트")
+
+        assert outcome.validation_status == "invalid_result"
+        assert "data row 0" in outcome.feedback
+
+    def test_row_count_zero_with_data_is_invalid_result(self):
+        from llm.graph.nodes.critic import _run_phase_a
+
+        outcome = _run_phase_a([
+            self._result("SELECT 1", data=[{"value": 1}], columns=["value"], row_count=0)
+        ], "테스트")
+
+        assert outcome.validation_status == "invalid_result"
+        assert "row_count is 0" in outcome.feedback
+
+    def test_dangerous_sql_retries(self):
+        from llm.graph.nodes.critic import _run_phase_a
+
+        outcome = _run_phase_a([
+            self._result("UPDATE fighter SET name = 'bad'")
+        ], "테스트")
+
+        assert outcome.validation_status == "retry_needed"
+        assert "Only SELECT queries are allowed" in outcome.feedback
+
+    def test_valid_empty_result_passes_without_retry(self):
+        from llm.graph.nodes.critic import _run_phase_a
+
+        outcome = _run_phase_a([
+            self._result(
+                "SELECT fighter_name FROM v_current_rankings WHERE weight_class_name = 'women heavyweight'",
+                row_count=0,
+            )
+        ], "여성 헤비급 챔피언 알려줘")
+
+        assert outcome.validation_status == "valid_empty"
+
+    def test_ambiguous_empty_result_is_valid_empty_not_retry(self):
+        from llm.graph.nodes.critic import _run_phase_a
+
+        outcome = _run_phase_a([
+            self._result(
+                "SELECT fighter_name FROM fighter WHERE name ILIKE '%jon jons%'",
+                row_count=0,
+            )
+        ], "존 존스 알려줘")
+
+        assert outcome.validation_status == "valid_empty"
+
+    def test_semantic_recent_scope_mismatch_passes_phase_a(self):
+        from llm.graph.nodes.critic import _run_phase_a
+
+        outcome = _run_phase_a([
+            self._result("SELECT fighter_name, event_date FROM v_fighter_fight_results ORDER BY event_date DESC")
+        ], "존 존스 최근 경기 알려줘")
+
+        assert outcome.validation_status == "passed"
+
+    def test_semantic_win_rate_denominator_mismatch_passes_phase_a(self):
+        from llm.graph.nodes.critic import _run_phase_a
+
+        outcome = _run_phase_a([
+            self._result("SELECT wins * 100.0 / total_fights AS win_rate FROM fighter_record")
+        ], "존 존스 승률 알려줘")
+
+        assert outcome.validation_status == "passed"
+
+    def test_semantic_ko_tko_missing_win_condition_passes_phase_a(self):
+        from llm.graph.nodes.critic import _run_phase_a
+
+        outcome = _run_phase_a([
+            self._result("SELECT COUNT(*) AS ko_tko_wins FROM match WHERE method ILIKE 'KO/TKO%'")
+        ], "KO/TKO 승리 수 알려줘")
+
+        assert outcome.validation_status == "passed"
+
+    def test_semantic_decision_participation_win_filter_passes_phase_a(self):
+        from llm.graph.nodes.critic import _run_phase_a
+
+        outcome = _run_phase_a([
+            self._result(
+                "SELECT COUNT(*) AS decision_fights FROM v_completed_fighter_fights WHERE result = 'win' AND method ILIKE '%DEC%'"
+            )
+        ], "판정으로 간 경기 수 알려줘")
+
+        assert outcome.validation_status == "passed"
 
 
 # =============================================================================

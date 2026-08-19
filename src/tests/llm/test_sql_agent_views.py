@@ -13,6 +13,8 @@ async def _apply_sql_agent_views(session):
     for statement in sql.split(";"):
         statement = statement.strip()
         if statement:
+            if statement.startswith("\\set") or "GRANT SELECT ON" in statement.upper():
+                continue
             await session.execute(text(statement))
 
 

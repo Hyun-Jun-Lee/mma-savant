@@ -3,7 +3,7 @@
 메인 그래프의 State와 분석 서브그래프의 State를 분리.
 서브그래프는 자체 State, 에지, retry 로직을 캡슐화.
 """
-from typing import TypedDict, Annotated, Literal, Optional
+from typing import TypedDict, Annotated, Literal, Optional, NotRequired
 
 from langgraph.graph.message import add_messages
 from langchain_core.messages import BaseMessage
@@ -16,9 +16,18 @@ class AgentResult(TypedDict):
     columns: list[str]
     row_count: int
     reasoning: str
+    success: NotRequired[bool]
+    error: NotRequired[str]
 
 
-ValidationStatus = Literal["passed", "retry_needed", "valid_empty", "unsupported"]
+ValidationStatus = Literal[
+    "passed",
+    "retry_needed",
+    "valid_empty",
+    "unsupported",
+    "no_sql_needed",
+    "invalid_result",
+]
 
 
 def reduce_agent_results(
@@ -38,6 +47,8 @@ def _error_agent_result(agent_name: str, error: str) -> AgentResult:
         "columns": [],
         "row_count": 0,
         "reasoning": error,
+        "success": False,
+        "error": error,
     }
 
 
