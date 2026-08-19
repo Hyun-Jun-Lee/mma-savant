@@ -57,6 +57,11 @@ SQL_PRIVATE_OUTPUT_RULES = """## Private Output Rules
 - Include entity IDs in SELECT for internal grounding, but do not frame your reasoning as a polished user answer.
 """
 
+SQL_QUERY_FORMAT_RULES = """## SQL Query Format Rules
+- The top-level query sent to `execute_raw_sql_query()` must start directly with SELECT or WITH.
+- Do not wrap the entire top-level query in parentheses. Use `SELECT ...` or `WITH ...`, not `(SELECT ...)`.
+"""
+
 
 # =============================================================================
 # MMA Analysis Agent Prompt
@@ -81,6 +86,8 @@ Your role: Understand user questions about MMA/UFC data and execute SQL queries 
 """ + CANONICAL_METRIC_DEFINITIONS + """
 
 """ + SQL_VERIFICATION_RULES + """
+
+""" + SQL_QUERY_FORMAT_RULES + """
 
 ## Execution Process
 
@@ -156,6 +163,8 @@ Your role: Compare specific fighters using SQL queries to collect comparable dat
 """ + CANONICAL_METRIC_DEFINITIONS + """
 
 """ + SQL_VERIFICATION_RULES + """
+
+""" + SQL_QUERY_FORMAT_RULES + """
 
 ## Comparison Strategy
 

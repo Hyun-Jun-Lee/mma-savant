@@ -7,7 +7,7 @@ from pydantic import BaseModel, Field
 class VisualizationDecision(BaseModel):
     """시각화 결정 스키마 (LLM은 메타데이터만, data는 코드에서 agent_results로 구성)"""
     selected_visualization: Literal[
-        "bar_chart", "horizontal_bar", "stacked_bar",
+        "table", "bar_chart", "horizontal_bar", "stacked_bar",
         "pie_chart", "line_chart", "area_chart", "radar_chart",
         "scatter_plot", "ring_list", "lollipop_chart",
     ] = Field(description="차트 타입")

@@ -28,6 +28,91 @@ class TestMmaAnalysisHelpers:
         assert result["success"] is True
         assert result["row_count"] == 1
 
+    def test_extract_sql_results_preserves_multiple_successful_tool_messages(self):
+        from llm.graph.nodes.mma_analysis import _extract_sql_results
+        first_result = json.dumps({
+            "success": True,
+            "data": [{"fighter_name": "islam makhachev", "wins": 27}],
+            "columns": ["fighter_name", "wins"],
+            "row_count": 1,
+            "query": "SELECT fighter_name, wins FROM v_fighter_record_summary",
+        })
+        second_result = json.dumps({
+            "success": True,
+            "data": [{"fighter_name": "islam makhachev", "opponent_name": "charles oliveira"}],
+            "columns": ["fighter_name", "opponent_name"],
+            "row_count": 1,
+            "query": "SELECT fighter_name, opponent_name FROM v_fighter_opponents",
+        })
+        messages = [
+            HumanMessage(content="test"),
+            ToolMessage(content=first_result, tool_call_id="1"),
+            ToolMessage(content=second_result, tool_call_id="2"),
+        ]
+
+        results = _extract_sql_results(messages)
+
+        assert [result["query"] for result in results] == [
+            "SELECT fighter_name, wins FROM v_fighter_record_summary",
+            "SELECT fighter_name, opponent_name FROM v_fighter_opponents",
+        ]
+
+    def test_extract_sql_results_keeps_successes_when_later_tool_call_failed(self):
+        from llm.graph.nodes.mma_analysis import _extract_sql_results
+        success_result = json.dumps({
+            "success": True,
+            "data": [{"fighter_name": "charles oliveira", "wins": 35}],
+            "columns": ["fighter_name", "wins"],
+            "row_count": 1,
+            "query": "SELECT fighter_name, wins FROM v_fighter_record_summary",
+        })
+        failed_result = json.dumps({
+            "success": False,
+            "data": [],
+            "columns": [],
+            "row_count": 0,
+            "query": "(SELECT * FROM bad_view)",
+            "error": "relation does not exist",
+        })
+        messages = [
+            HumanMessage(content="test"),
+            ToolMessage(content=success_result, tool_call_id="1"),
+            ToolMessage(content=failed_result, tool_call_id="2"),
+        ]
+
+        results = _extract_sql_results(messages)
+
+        assert len(results) == 1
+        assert results[0]["success"] is True
+        assert results[0]["query"] == "SELECT fighter_name, wins FROM v_fighter_record_summary"
+
+    def test_build_agent_results_creates_one_agent_result_per_sql_result(self):
+        from llm.graph.nodes.mma_analysis import _build_agent_results
+        sql_results = [
+            {
+                "success": True,
+                "query": "SELECT record",
+                "data": [{"wins": 1}],
+                "columns": ["wins"],
+                "row_count": 1,
+            },
+            {
+                "success": True,
+                "query": "SELECT recent",
+                "data": [{"opponent": "test"}],
+                "columns": ["opponent"],
+                "row_count": 1,
+            },
+        ]
+
+        agent_results = _build_agent_results("fighter_comparison", sql_results, "done")
+
+        assert [result["agent_name"] for result in agent_results] == [
+            "fighter_comparison[1]",
+            "fighter_comparison[2]",
+        ]
+        assert [result["query"] for result in agent_results] == ["SELECT record", "SELECT recent"]
+
     def test_no_tool_message_returns_failure(self):
         from llm.graph.nodes.mma_analysis import _extract_sql_result
         messages = [HumanMessage(content="test"), AIMessage(content="ok")]
@@ -177,6 +262,15 @@ class TestSqlQueryValidation:
     def test_with_cte_allowed(self):
         from llm.tools.sql_tool import _validate_query
         _validate_query("WITH top AS (SELECT * FROM fighter) SELECT * FROM top")
+
+    def test_clean_query_removes_single_outer_parentheses_wrapper(self):
+        from llm.tools.sql_tool import _clean_query
+        assert _clean_query("(SELECT * FROM v_fighter_record_summary)") == "SELECT * FROM v_fighter_record_summary"
+
+    def test_clean_query_does_not_remove_partial_parentheses(self):
+        from llm.tools.sql_tool import _clean_query
+        query = "SELECT COUNT(*) FROM fighter WHERE name IN ('islam makhachev')"
+        assert _clean_query(query) == query
 
     def test_select_case_insensitive(self):
         from llm.tools.sql_tool import _validate_query
