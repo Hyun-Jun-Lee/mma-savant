@@ -10,6 +10,7 @@ GENERAL_MMA_STYLE = """## 일반 MMA 응답 스타일
 - 엔티티 ID(예: id: 2386, fighter id 123)는 절대 포함하지 말 것 (내부 시스템용)
 - "데이터 분석 결과", "데이터상", "식별되었습니다", "확인됩니다" 같은 기술적 표현 금지
 - 수치는 정확하게, 어투는 자연스럽게
+- 범위 표기는 물결표(~) 대신 하이픈 또는 자연어를 사용할 것 (예: 80-90%, 80%에서 90%)
 - MMA/UFC 일반 지식은 설명할 수 있지만, 실시간 선수 전적/랭킹/결과를 DB 조회 없이 단정하지 말 것"""
 
 SQL_GROUNDED_RESPONSE_STYLE = """## SQL 기반 응답 스타일
@@ -17,6 +18,7 @@ SQL_GROUNDED_RESPONSE_STYLE = """## SQL 기반 응답 스타일
 - 엔티티 ID(예: id: 2386, fighter id 123)는 절대 포함하지 말 것 (내부 시스템용)
 - "데이터 분석 결과", "데이터상", "식별되었습니다", "확인됩니다" 같은 기술적 표현 금지
 - 수치는 정확하게, 어투는 자연스럽게
+- 범위 표기는 물결표(~) 대신 하이픈 또는 자연어를 사용할 것 (예: 80-90%, 80%에서 90%)
 - 제공된 SQL 결과 데이터만 사용하여 답변 — 결과에 없는 정보를 추가하지 마라
 - SQL 결과와 당신의 사전 지식이 다르면 SQL 결과가 맞다
 - If the requested data is not represented in the schema or SQL results, say that the current database cannot answer that part. Do not infer it from model knowledge."""
@@ -25,6 +27,7 @@ VISUALIZATION_DECISION_STYLE = """## 시각화 응답 스타일
 - 실제 반환된 컬럼만 사용하여 차트 메타데이터를 생성
 - SQL 결과에 없는 컬럼명, 요약명, 번역명을 만들어내지 말 것
 - 제목과 인사이트는 한국어로 작성
+- 범위 표기는 물결표(~) 대신 하이픈 또는 자연어를 사용할 것 (예: 80-90%, 80%에서 90%)
 - 엔티티 ID는 사용자에게 보여줄 제목/인사이트에 포함하지 말 것"""
 
 
@@ -142,10 +145,11 @@ VISUALIZE_PROMPT = f"""당신은 MMA 데이터 시각화 전문가입니다. SQL
 - ⚠️ data는 코드에서 자동 구성됩니다 — 직접 생성하지 마세요
 
 ## 차트 옵션
-- bar_chart: 카테고리 비교 (항목 수 적을 때). 1행+다중 숫자 컬럼일 때도 적합 (각 컬럼이 하나의 막대)
-- horizontal_bar: 랭킹/순위표 (⚠️ 반드시 3행 이상일 때만 사용, 1~2행이면 bar_chart 사용)
+- table: 순위, 랭킹, 명단, 최근 경기 목록처럼 숫자 크기보다 행별 정보를 읽는 것이 중요한 경우
+- bar_chart: 카테고리 비교 (항목 수 적을 때). 1행+다중 숫자 컬럼에도 가능하지만, 전적 구성 비율이면 pie_chart를 우선
+- horizontal_bar: 숫자 지표의 크기를 비교하는 랭킹/순위표. 단순 공식 랭킹 순서 자체에는 table을 우선
 - stacked_bar: 구성 비율 분석 (라운드별 승리 방법 등)
-- pie_chart: 비율/분포 (3행 이상일 때 적합)
+- pie_chart: 비율/분포 (3행 이상일 때 적합). 단일 선수 전적/승률 질문에서 wins/losses/draws/no_contests 구성 컬럼이 있으면 1행 wide 데이터에도 적합
 - line_chart: 시간별 추이 (단일 시리즈)
 - area_chart: 다중 시리즈 시간별 추이 비교
 - radar_chart: 다차원 스탯 비교 (2~3명 선수 비교 시 최적, 4+ 수치 컬럼 필요)
@@ -154,9 +158,11 @@ VISUALIZE_PROMPT = f"""당신은 MMA 데이터 시각화 전문가입니다. SQL
 - lollipop_chart: 개별 값과 평균 비교 (5행 이상 권장)
 
 ## 행 수별 차트 선택 가이드
-- **1행 + 4개 이상 수치 컬럼**: bar_chart (x_axis=null, y_axis=null) 또는 radar_chart
-- **1행 + 3개 이하 수치 컬럼**: bar_chart (x_axis=null, y_axis=null)
+- **1행 + wins/losses/draws/no_contests 전적 구성 컬럼**: pie_chart 우선 (x_axis=null, y_axis=null)
+- **1행 + 4개 이상 수치 컬럼**: 전적 구성 비율이면 pie_chart, 아니면 bar_chart (x_axis=null, y_axis=null) 또는 radar_chart
+- **1행 + 3개 이하 수치 컬럼**: 전적 구성 비율이면 pie_chart, 아니면 bar_chart (x_axis=null, y_axis=null)
 - **2~3행 + 다중 수치 컬럼**: radar_chart (선수 비교), bar_chart
+- **랭킹/명단/최근 경기 목록**: table 우선. ranking, display_rank, fighter_name, weight_class_name 같은 컬럼은 막대 길이보다 표가 적합
 - **3~10행**: bar_chart, horizontal_bar, pie_chart, ring_list
 - **10행 이상**: horizontal_bar, scatter_plot, lollipop_chart
 
@@ -168,6 +174,7 @@ VISUALIZE_PROMPT = f"""당신은 MMA 데이터 시각화 전문가입니다. SQL
 - bar_chart/lollipop_chart: x_axis=문자열 컬럼, y_axis=숫자 컬럼
 - horizontal_bar: x_axis=숫자 컬럼, y_axis=문자열 컬럼 (⚠️ 일반 bar_chart와 반대)
 - pie_chart/ring_list: x_axis=이름 컬럼, y_axis=숫자 컬럼
+- table: x_axis=null, y_axis=null
 - line_chart/area_chart: x_axis=시간/순서 컬럼, y_axis=숫자 컬럼
 - radar_chart: x_axis=차원 컬럼, y_axis=숫자 컬럼
 - scatter_plot: x_axis=x숫자 컬럼, y_axis=y숫자 컬럼
@@ -175,6 +182,8 @@ VISUALIZE_PROMPT = f"""당신은 MMA 데이터 시각화 전문가입니다. SQL
 ## 1행 다중 숫자 컬럼 (피벗 데이터) 처리
 데이터가 1행이고 모든 값이 숫자이면(예: total_head=2317, total_body=438, ...):
 - 적절한 차트 선택 (bar_chart, horizontal_bar, pie_chart 등)
+- 단일 선수의 전적/승률 질문에서 wins, losses, draws, no_contests 같은 전적 구성 컬럼이 있으면 pie_chart를 우선 고려
+- win_rate, finish_rate, total_completed_fights 같은 파생/전체 값은 pie 조각으로 해석하지 말 것
 - x_axis=null, y_axis=null로 설정 (컬럼명이 곧 카테고리이므로 매핑 불가)
 
 ## 중요
@@ -336,4 +345,5 @@ CRITIC_LLM_PROMPT = """당신은 MMA 데이터 분석 결과의 semantic SQL cri
 ## 출력 규칙
 - passed: true 또는 false
 - feedback: 실패 시 정확한 문제와 최소 수정 방향만 적어라
+- feedback에는 COUNT, CASE WHEN 같은 특정 SQL 구현 방식을 지시하지 마라
 - feedback에는 "DB가 틀렸다", "실제 사실과 다르다" 같은 판단을 넣지 마라"""

@@ -15,6 +15,7 @@ import { HorizontalBarVisualization } from "./HorizontalBarVisualization"
 import { StackedBarVisualization } from "./StackedBarVisualization"
 import { RingListVisualization } from "./RingListVisualization"
 import { LollipopVisualization } from "./LollipopVisualization"
+import { TableVisualization } from "./TableVisualization"
 import { InsightsSummary } from "./InsightsSummary"
 import { BarChart3, PieChart, TrendingUp, Activity, Radar, ScatterChart, MessageSquare, AlignLeft, Layers, Target, Minus } from "lucide-react"
 
@@ -33,6 +34,8 @@ export function ChartRenderer({ data }: ChartRendererProps) {
 
   const getIcon = () => {
     switch (selected_visualization) {
+      case "table":
+        return <AlignLeft className="w-5 h-5" />
       case "bar_chart":
         return <BarChart3 className="w-5 h-5" />
       case "pie_chart":
@@ -68,6 +71,8 @@ export function ChartRenderer({ data }: ChartRendererProps) {
     }
 
     switch (selected_visualization) {
+      case "table":
+        return <TableVisualization data={normalizedData} />
       case "bar_chart":
         return <BarChartVisualization {...commonProps} />
       case "pie_chart":

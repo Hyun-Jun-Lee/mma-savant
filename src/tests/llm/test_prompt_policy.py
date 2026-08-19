@@ -1,5 +1,6 @@
 from llm import prompts as sql_prompts
 from llm.graph import prompts as graph_prompts
+from llm.graph.schemas import VisualizationDecision
 
 
 def test_sql_agent_prompt_uses_verification_decision_tree():
@@ -20,6 +21,12 @@ def test_sql_prompts_include_canonical_metric_definitions():
         assert "COALESCE(bout_status, 'completed') NOT IN" in prompt
 
 
+def test_sql_prompts_disallow_top_level_parentheses_wrapper():
+    for prompt in (sql_prompts.SQL_AGENT_PROMPT, sql_prompts.FIGHTER_COMPARISON_PROMPT):
+        assert "top-level query sent to `execute_raw_sql_query()` must start directly with SELECT or WITH" in prompt
+        assert "not `(SELECT ...)`" in prompt
+
+
 def test_response_style_fragments_are_node_specific():
     assert "GENERAL_MMA_STYLE" in dir(graph_prompts)
     assert "SQL_GROUNDED_RESPONSE_STYLE" in dir(graph_prompts)
@@ -28,6 +35,16 @@ def test_response_style_fragments_are_node_specific():
     assert "제공된 SQL 결과 데이터만 사용" not in graph_prompts.DIRECT_RESPONSE_PROMPT
     assert "제공된 SQL 결과 데이터만 사용" in graph_prompts.TEXT_RESPONSE_PROMPT
     assert "실제 반환된 컬럼" in graph_prompts.VISUALIZE_PROMPT
+
+
+def test_response_prompts_avoid_markdown_strikethrough_ranges():
+    for prompt in (
+        graph_prompts.GENERAL_MMA_STYLE,
+        graph_prompts.SQL_GROUNDED_RESPONSE_STYLE,
+        graph_prompts.VISUALIZATION_DECISION_STYLE,
+    ):
+        assert "물결표(~) 대신 하이픈 또는 자연어" in prompt
+        assert "80-90%" in prompt
 
 
 def test_supervisor_prompt_distinguishes_group_comparison_from_named_fighters():
@@ -43,11 +60,41 @@ def test_sql_grounded_response_refuses_unsupported_data():
     assert "Do not infer it from model knowledge" in graph_prompts.SQL_GROUNDED_RESPONSE_STYLE
 
 
+def test_visualize_prompt_prefers_pie_for_single_fighter_record_composition():
+    prompt = graph_prompts.VISUALIZE_PROMPT
+
+    assert "단일 선수 전적/승률 질문" in prompt
+    assert "wins/losses/draws/no_contests 구성 컬럼" in prompt
+    assert "1행 wide 데이터에도 적합" in prompt
+    assert "win_rate, finish_rate, total_completed_fights 같은 파생/전체 값은 pie 조각" in prompt
+
+
+def test_visualize_prompt_prefers_table_for_plain_rankings():
+    prompt = graph_prompts.VISUALIZE_PROMPT
+
+    assert "table: 순위, 랭킹, 명단, 최근 경기 목록" in prompt
+    assert "단순 공식 랭킹 순서 자체에는 table을 우선" in prompt
+    assert "ranking, display_rank, fighter_name, weight_class_name" in prompt
+
+
+def test_visualization_schema_allows_table():
+    decision = VisualizationDecision(
+        selected_visualization="table",
+        title="페더급 랭킹",
+        x_axis=None,
+        y_axis=None,
+        insights=[],
+    )
+
+    assert decision.selected_visualization == "table"
+
+
 def test_critic_prompt_uses_evidence_based_principles_not_domain_checklist():
     prompt = graph_prompts.CRITIC_LLM_PROMPT
 
     assert "사용자가 명시한 기준이 있으면 일반 정책보다 사용자 기준을 우선하라" in prompt
     assert "schema/view metadata나 입력 hint" in prompt
     assert "명확한 증거로 확인될 때만 실패" in prompt
+    assert "COUNT, CASE WHEN 같은 특정 SQL 구현 방식을 지시하지 마라" in prompt
     assert "질문이 요구한 metric 정의가 잘못되었을 때" not in prompt
     assert "질문은 participation인데 SQL이 wins만 세는" not in prompt

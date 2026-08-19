@@ -138,6 +138,55 @@ def _clean_query(query: str) -> str:
         query = re.sub(r'\n?```$', '', query)
         query = query.strip()
 
+    query = _strip_single_outer_parentheses(query)
+
     return query
 
 
+def _strip_single_outer_parentheses(query: str) -> str:
+    """Remove one pair of parentheses only when it wraps the entire SELECT/WITH query."""
+    stripped = query.strip()
+    if not (stripped.startswith("(") and stripped.endswith(")")):
+        return stripped
+
+    depth = 0
+    in_single_quote = False
+    in_double_quote = False
+
+    idx = 0
+    while idx < len(stripped):
+        char = stripped[idx]
+        if char == "'" and not in_double_quote:
+            if in_single_quote and idx + 1 < len(stripped) and stripped[idx + 1] == "'":
+                idx += 2
+                continue
+            in_single_quote = not in_single_quote
+            idx += 1
+            continue
+
+        if char == '"' and not in_single_quote:
+            in_double_quote = not in_double_quote
+            idx += 1
+            continue
+
+        if in_single_quote or in_double_quote:
+            idx += 1
+            continue
+
+        if char == "(":
+            depth += 1
+        elif char == ")":
+            depth -= 1
+            if depth == 0 and idx != len(stripped) - 1:
+                return stripped
+            if depth < 0:
+                return stripped
+        idx += 1
+
+    if depth != 0:
+        return stripped
+
+    candidate = stripped[1:-1].strip()
+    if re.match(r'^(SELECT|WITH)\b', candidate, re.IGNORECASE):
+        return candidate
+    return stripped

@@ -143,7 +143,22 @@ FROM v_completed_fighter_fights
 GROUP BY fighter_id, fighter_name;
 
 -- Refresh readonly access when these views are created or replaced manually.
+-- SQL agents prefer canonical views, but may still query raw MMA tables when
+-- a requested dimension is outside the views' scope.
 \set sql_agent_readonly_user `printf '%s' "${DB_READONLY_USER:-mma_readonly}"`
+
+GRANT USAGE ON SCHEMA public TO :"sql_agent_readonly_user";
+
+GRANT SELECT ON
+    fighter,
+    fighter_match,
+    event,
+    match,
+    match_statistics,
+    strike_detail,
+    ranking,
+    weight_class
+TO :"sql_agent_readonly_user";
 
 GRANT SELECT ON
     v_fighter_fight_results,

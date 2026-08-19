@@ -8,7 +8,8 @@ from langchain_core.messages import HumanMessage
 from llm.graph.react_agent import build_react_agent
 from llm.graph.state import MainState, _error_agent_result
 from llm.graph.nodes.mma_analysis import (
-    _extract_sql_result,
+    _build_agent_results,
+    _extract_sql_results,
     _extract_reasoning,
 )
 from llm.tools.sql_tool import execute_raw_sql_query
@@ -57,29 +58,19 @@ async def fighter_comparison_node(state: MainState, llm) -> dict:
         )
 
         agent_messages = result.get("messages", [])
-        sql_result = _extract_sql_result(agent_messages)
+        sql_results = _extract_sql_results(agent_messages)
         reasoning = _extract_reasoning(agent_messages)
 
-        data = sql_result.get("data", [])
-        columns = sql_result.get("columns", [])
-        row_count = sql_result.get("row_count", 0)
+        total_rows = sum(sql_result.get("row_count", 0) for sql_result in sql_results)
+        all_successful = all(sql_result.get("success") is True for sql_result in sql_results)
 
         LOGGER.info(
-            f"✅ Fighter Comparison completed: success={sql_result.get('success')}, "
-            f"rows={row_count}"
+            f"✅ Fighter Comparison completed: success={all_successful}, "
+            f"result_sets={len(sql_results)}, rows={total_rows}"
         )
 
         return {
-            "agent_results": [{
-                "agent_name": "fighter_comparison",
-                "query": sql_result.get("query", ""),
-                "data": data,
-                "columns": columns,
-                "row_count": row_count,
-                "reasoning": reasoning,
-                "success": sql_result.get("success", False),
-                "error": sql_result.get("error"),
-            }],
+            "agent_results": _build_agent_results("fighter_comparison", sql_results, reasoning),
         }
 
     except GraphRecursionError:

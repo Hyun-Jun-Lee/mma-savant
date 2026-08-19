@@ -13,9 +13,18 @@ async def _apply_sql_agent_views(session):
     for statement in sql.split(";"):
         statement = statement.strip()
         if statement:
-            if statement.startswith("\\set") or "GRANT SELECT ON" in statement.upper():
+            if "\\set" in statement or "GRANT " in statement.upper():
                 continue
             await session.execute(text(statement))
+
+
+def test_sql_agent_view_script_refreshes_readonly_grants():
+    sql = VIEW_SQL_PATH.read_text(encoding="utf-8")
+
+    assert 'GRANT USAGE ON SCHEMA public TO :"sql_agent_readonly_user"' in sql
+    assert "fighter_match" in sql
+    assert "v_fighter_opponents" in sql
+    assert sql.count("GRANT SELECT ON") >= 2
 
 
 async def _scalar_id(session, statement: str, **params):
