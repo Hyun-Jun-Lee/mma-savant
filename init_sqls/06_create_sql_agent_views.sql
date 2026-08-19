@@ -141,3 +141,15 @@ SELECT
     ) AS finish_rate
 FROM v_completed_fighter_fights
 GROUP BY fighter_id, fighter_name;
+
+-- Refresh readonly access when these views are created or replaced manually.
+\set sql_agent_readonly_user `printf '%s' "${DB_READONLY_USER:-mma_readonly}"`
+
+GRANT SELECT ON
+    v_fighter_fight_results,
+    v_completed_fighter_fights,
+    v_fighter_opponents,
+    v_current_rankings,
+    v_fighter_record_summary,
+    v_fighter_method_summary
+TO :"sql_agent_readonly_user";
