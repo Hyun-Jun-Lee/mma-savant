@@ -1,8 +1,11 @@
+from dataclasses import dataclass
 from datetime import datetime, timedelta
 from typing import Dict, List, Callable
 import asyncio
 import traceback
 import logging
+import posixpath
+from urllib.parse import urlparse
 
 from bs4 import BeautifulSoup
 
@@ -22,10 +25,46 @@ _PLURAL_TO_SINGULAR = {
     'Headbutts': 'Headbutt',
     'Slams': 'Slam',
 }
+_TITLE_BOUT_ICON_FILE = "belt.png"
+_FIGHT_OF_THE_NIGHT_ICON_FILE = "fight.png"
+_PERFORMANCE_OF_THE_NIGHT_ICON_FILE = "perf.png"
+_KNOWN_EVENT_ROW_ICON_FILES = {
+    _TITLE_BOUT_ICON_FILE,
+    _FIGHT_OF_THE_NIGHT_ICON_FILE,
+    _PERFORMANCE_OF_THE_NIGHT_ICON_FILE,
+}
+
+
+@dataclass(frozen=True)
+class EventRowIconMetadata:
+    is_title_bout: bool = False
+    has_fight_of_the_night_bonus: bool = False
+    has_performance_of_the_night_bonus: bool = False
+
 
 def _normalize_method(method: str) -> str:
     """복수형 기술명을 단수형으로 통일 (KO/TKO-Punches → KO/TKO-Punch)"""
     return _PLURAL_SUFFIX.sub(lambda m: _PLURAL_TO_SINGULAR[m.group()], method)
+
+
+def _extract_event_row_icon_metadata(weight_class_cell) -> EventRowIconMetadata:
+    """UFCStats 이벤트 row의 weight-class cell 이미지 파일명에서 보너스 메타데이터 추출."""
+    icon_files = set()
+    for image in weight_class_cell.find_all("img"):
+        src = image.get("src") or ""
+        icon_file = posixpath.basename(urlparse(src).path).lower()
+        if icon_file:
+            icon_files.add(icon_file)
+
+    unknown_icon_files = tuple(sorted(icon_files - _KNOWN_EVENT_ROW_ICON_FILES))
+    if unknown_icon_files:
+        logging.info("Unknown UFCStats event row icon files ignored: %s", unknown_icon_files)
+
+    return EventRowIconMetadata(
+        is_title_bout=_TITLE_BOUT_ICON_FILE in icon_files,
+        has_fight_of_the_night_bonus=_FIGHT_OF_THE_NIGHT_ICON_FILE in icon_files,
+        has_performance_of_the_night_bonus=_PERFORMANCE_OF_THE_NIGHT_ICON_FILE in icon_files,
+    )
 
 
 async def scrap_event_detail(crawler_fn: Callable, event_url: str, event_id: int, fighter_name_to_id_map: Dict[str, int]) -> List[Dict]:
@@ -131,7 +170,9 @@ async def scrap_event_detail(crawler_fn: Callable, event_url: str, event_id: int
 
         # Get fight details
         if len(fights) == 0 or fights[-1]['fighters']:
-            weight_class = cols[6].get_text(strip=True)
+            weight_class_cell = cols[6]
+            weight_class = weight_class_cell.get_text(strip=True)
+            icon_metadata = _extract_event_row_icon_metadata(weight_class_cell)
             method_text = cols[7].get_text().lstrip().replace('\n', '').split('  ')
             method_list = [m.strip() for m in method_text if m.strip()]
             if len(method_list)>1:
@@ -161,10 +202,26 @@ async def scrap_event_detail(crawler_fn: Callable, event_url: str, event_id: int
                 method=method,
                 result_round=round_num,
                 time=time,
-                is_main_event=(current_order == total_fights)),
+                is_main_event=(current_order == total_fights),
+                is_title_bout=icon_metadata.is_title_bout,
+                has_fight_of_the_night_bonus=icon_metadata.has_fight_of_the_night_bonus),
                 "fighters" : [
-                    {"fighter_id": fighter_1_id, "result": fighter_1_result},
-                    {"fighter_id": fighter_2_id, "result": fighter_2_result}
+                    {
+                        "fighter_id": fighter_1_id,
+                        "result": fighter_1_result,
+                        "has_performance_of_the_night_bonus": (
+                            icon_metadata.has_performance_of_the_night_bonus
+                            and fighter_1_result == "win"
+                        ),
+                    },
+                    {
+                        "fighter_id": fighter_2_id,
+                        "result": fighter_2_result,
+                        "has_performance_of_the_night_bonus": (
+                            icon_metadata.has_performance_of_the_night_bonus
+                            and fighter_2_result == "win"
+                        ),
+                    }
                 ]
             }
             current_order -= 1

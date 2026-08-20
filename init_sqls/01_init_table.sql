@@ -104,6 +104,7 @@ CREATE TABLE IF NOT EXISTS match (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     is_title_bout BOOLEAN DEFAULT FALSE,
+    has_fight_of_the_night_bonus BOOLEAN NOT NULL DEFAULT FALSE,
     bout_status VARCHAR,
     cancellation_reason VARCHAR,
     tapology_bout_url VARCHAR,
@@ -147,6 +148,7 @@ CREATE TABLE IF NOT EXISTS fighter_match (
     weigh_in_result VARCHAR,
     fight_night_weight VARCHAR,
     weight_gain VARCHAR,
+    has_performance_of_the_night_bonus BOOLEAN NOT NULL DEFAULT FALSE,
     
     -- 외래키 제약조건
     CONSTRAINT fk_fighter_match_fighter 

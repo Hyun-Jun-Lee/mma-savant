@@ -227,7 +227,16 @@ async def process_event_detail(
                     for fighter_info in match_data["fighters"]:
                         fighter_id = fighter_info["fighter_id"]
                         result = fighter_info["result"]
-                        await save_fighter_match(session, fighter_id, match_id, result)
+                        await save_fighter_match(
+                            session,
+                            fighter_id,
+                            match_id,
+                            result,
+                            has_performance_of_the_night_bonus=fighter_info.get(
+                                "has_performance_of_the_night_bonus",
+                                False,
+                            ),
+                        )
                     saved_match_count += 1
             except Exception as e:
                 logger.error("%s event detail scraping failed: event_id=%s error=%s", progress, event_id, str(e))

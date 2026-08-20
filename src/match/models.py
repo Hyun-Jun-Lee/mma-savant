@@ -54,6 +54,7 @@ class MatchSchema(BaseSchema):
     order: Optional[int] = 0
     is_main_event: bool = False
     is_title_bout: bool = False
+    has_fight_of_the_night_bonus: bool = False
     bout_status: Optional[str] = None
     cancellation_reason: Optional[str] = None
     tapology_bout_url: Optional[str] = None
@@ -73,6 +74,7 @@ class FighterMatchSchema(BaseSchema):
     weigh_in_result: Optional[str] = None
     fight_night_weight: Optional[str] = None
     weight_gain: Optional[str] = None
+    has_performance_of_the_night_bonus: bool = False
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -91,6 +93,7 @@ class MatchModel(BaseModel):
     order = Column(Integer)
     is_main_event = Column(Boolean)
     is_title_bout = Column(Boolean, default=False)
+    has_fight_of_the_night_bonus = Column(Boolean, default=False, nullable=False)
     bout_status = Column(String)
     cancellation_reason = Column(String)
     tapology_bout_url = Column(String)
@@ -116,6 +119,7 @@ class MatchModel(BaseModel):
             order=match.order,
             is_main_event=match.is_main_event,
             is_title_bout=match.is_title_bout,
+            has_fight_of_the_night_bonus=match.has_fight_of_the_night_bonus,
             bout_status=match.bout_status,
             cancellation_reason=match.cancellation_reason,
             tapology_bout_url=match.tapology_bout_url,
@@ -139,6 +143,7 @@ class MatchModel(BaseModel):
             order=self.order,
             is_main_event=self.is_main_event,
             is_title_bout=bool(self.is_title_bout),
+            has_fight_of_the_night_bonus=bool(self.has_fight_of_the_night_bonus),
             bout_status=self.bout_status,
             cancellation_reason=self.cancellation_reason,
             tapology_bout_url=self.tapology_bout_url,
@@ -162,6 +167,7 @@ class FighterMatchModel(BaseModel):
     weigh_in_result = Column(String)
     fight_night_weight = Column(String)
     weight_gain = Column(String)
+    has_performance_of_the_night_bonus = Column(Boolean, default=False, nullable=False)
     
     fighter = relationship("FighterModel", back_populates="fighter_matches")
     match = relationship("MatchModel", back_populates="fighter_matches")
@@ -189,6 +195,7 @@ class FighterMatchModel(BaseModel):
             weigh_in_result=self.weigh_in_result,
             fight_night_weight=self.fight_night_weight,
             weight_gain=self.weight_gain,
+            has_performance_of_the_night_bonus=bool(self.has_performance_of_the_night_bonus),
             created_at=self.created_at,
             updated_at=self.updated_at,
         )

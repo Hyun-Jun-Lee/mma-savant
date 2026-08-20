@@ -38,6 +38,11 @@ TAPOLOGY_MATCH_FIELDS = {
     "tapology_failure_reason",
 }
 
+PRESERVE_TRUE_MATCH_FIELDS = {
+    "is_title_bout",
+    "has_fight_of_the_night_bonus",
+}
+
 TAPOLOGY_FIGHTER_PROFILE_FIELDS = {
     "nationality",
     "born",
@@ -137,7 +142,7 @@ async def save_match(session, match: MatchSchema) -> MatchSchema:
         for key, value in match.model_dump(exclude={'id', 'created_at', 'updated_at'}).items():
             if key in TAPOLOGY_MATCH_FIELDS and value is None and getattr(existing_model, key, None) is not None:
                 continue
-            if key == "is_title_bout" and value is False and getattr(existing_model, key, None) is True:
+            if key in PRESERVE_TRUE_MATCH_FIELDS and value is False and getattr(existing_model, key, None) is True:
                 continue
             setattr(existing_model, key, value)
         return_model = existing_model
@@ -359,7 +364,8 @@ async def save_tapology_match_enrichment(
     has_ufcstats_result = any(fighter_match.result for fighter_match, _ in fighter_matches)
     tapology_cancelled = metadata.bout_status in {"cancelled", "canceled", "postponed"}
 
-    existing_model.is_title_bout = metadata.is_title_bout
+    if metadata.is_title_bout or existing_model.is_title_bout is not True:
+        existing_model.is_title_bout = metadata.is_title_bout
     if tapology_bout_url:
         existing_model.tapology_bout_url = tapology_bout_url
     existing_model.tapology_last_scraped_at = scraped_at
@@ -448,7 +454,13 @@ def _normalize_match_name(value: str) -> str:
     return re.sub(r"\s+", " ", normalized).strip()
     
 
-async def save_fighter_match(session, fighter_id: int, match_id: int, result: str) -> FighterMatchSchema:
+async def save_fighter_match(
+    session,
+    fighter_id: int,
+    match_id: int,
+    result: str | None,
+    has_performance_of_the_night_bonus: bool = False,
+) -> FighterMatchSchema:
     existing_model_query = await session.execute(
         select(FighterMatchModel).where(FighterMatchModel.fighter_id == fighter_id, FighterMatchModel.match_id == match_id)
     )
@@ -457,13 +469,16 @@ async def save_fighter_match(session, fighter_id: int, match_id: int, result: st
     if existing_model:
         # 업데이트
         existing_model.result = result
+        if has_performance_of_the_night_bonus or existing_model.has_performance_of_the_night_bonus is not True:
+            existing_model.has_performance_of_the_night_bonus = has_performance_of_the_night_bonus
         return_model = existing_model
     else:
         # 새로 생성
         new_match = FighterMatchModel(
             fighter_id=fighter_id,
             match_id=match_id,
-            result=result
+            result=result,
+            has_performance_of_the_night_bonus=has_performance_of_the_night_bonus,
         )
         session.add(new_match)
         return_model = new_match

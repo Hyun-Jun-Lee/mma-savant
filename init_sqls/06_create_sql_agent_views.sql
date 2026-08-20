@@ -20,6 +20,8 @@ SELECT
     m.time,
     COALESCE(m.is_main_event, false) AS is_main_event,
     COALESCE(m.is_title_bout, false) AS is_title_bout,
+    COALESCE(m.has_fight_of_the_night_bonus, false) AS has_fight_of_the_night_bonus,
+    COALESCE(fm.has_performance_of_the_night_bonus, false) AS has_performance_of_the_night_bonus,
     m.bout_status,
     m.cancellation_reason,
     m."order" AS fight_order
@@ -75,6 +77,8 @@ SELECT
     c.result_round,
     c.time,
     c.is_title_bout,
+    c.has_fight_of_the_night_bonus,
+    c.has_performance_of_the_night_bonus,
     c.fight_order
 FROM v_completed_fighter_fights c
 JOIN fighter_match opp_fm

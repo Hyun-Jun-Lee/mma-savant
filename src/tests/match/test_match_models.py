@@ -41,6 +41,7 @@ class TestMatchSchema:
         assert match_schema.time == "15:00"
         assert match_schema.order == 1
         assert match_schema.is_main_event is False  # 기본값
+        assert match_schema.has_fight_of_the_night_bonus is False  # 기본값
         assert match_schema.detail_url is None  # 선택적 필드
     
     def test_match_schema_creation_with_all_fields(self):
@@ -55,6 +56,7 @@ class TestMatchSchema:
             "time": "3:24",
             "order": 8,
             "is_main_event": True,
+            "has_fight_of_the_night_bonus": True,
             "detail_url": "http://example.com/match/123",
             "created_at": utc_now(),
             "updated_at": utc_now()
@@ -66,9 +68,36 @@ class TestMatchSchema:
         # Then: 모든 필드가 올바르게 설정됨
         assert match_schema.id == 123
         assert match_schema.is_main_event is True
+        assert match_schema.has_fight_of_the_night_bonus is True
         assert match_schema.detail_url == "http://example.com/match/123"
         assert match_schema.created_at is not None
         assert match_schema.updated_at is not None
+
+    def test_match_model_bonus_round_trip(self):
+        """MatchModel 보너스 필드 스키마 변환 테스트"""
+        # Given: Fight of the Night 보너스가 있는 매치 모델
+        match_model = MatchModel(
+            id=1,
+            event_id=1,
+            weight_class_id=5,
+            method="KO/TKO",
+            result_round=2,
+            time="3:24",
+            order=8,
+            is_main_event=True,
+            is_title_bout=True,
+            has_fight_of_the_night_bonus=True,
+            detail_url="http://example.com/match/123",
+            created_at=utc_now(),
+            updated_at=utc_now(),
+        )
+
+        # When: 스키마로 변환
+        match_schema = match_model.to_schema()
+
+        # Then: 보너스 필드가 유지됨
+        assert match_schema.has_fight_of_the_night_bonus is True
+        assert match_schema.is_title_bout is True
     
     def test_match_schema_validation_errors(self):
         """MatchSchema 유효성 검증 실패 테스트"""
@@ -103,6 +132,26 @@ class TestFighterMatchSchema:
         assert fighter_match_schema.fighter_id == 10
         assert fighter_match_schema.match_id == 5
         assert fighter_match_schema.result == "win"
+        assert fighter_match_schema.has_performance_of_the_night_bonus is False
+
+    def test_fighter_match_model_bonus_round_trip(self):
+        """FighterMatchModel 보너스 필드 스키마 변환 테스트"""
+        # Given: Performance of the Night 보너스가 있는 파이터 매치 모델
+        fighter_match_model = FighterMatchModel(
+            id=1,
+            fighter_id=10,
+            match_id=5,
+            result="win",
+            has_performance_of_the_night_bonus=True,
+            created_at=utc_now(),
+            updated_at=utc_now(),
+        )
+
+        # When: 스키마로 변환
+        fighter_match_schema = fighter_match_model.to_schema()
+
+        # Then: 보너스 필드가 유지됨
+        assert fighter_match_schema.has_performance_of_the_night_bonus is True
     
     def test_fighter_match_schema_result_values(self):
         """FighterMatchSchema result 필드 값 테스트"""

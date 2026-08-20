@@ -6,16 +6,23 @@ from sqlalchemy import text
 
 
 VIEW_SQL_PATH = Path(__file__).resolve().parents[3] / "init_sqls" / "06_create_sql_agent_views.sql"
+BONUS_METADATA_SQL_PATH = (
+    Path(__file__).resolve().parents[3] / "init_sqls" / "06_add_ufcstats_bonus_metadata.sql"
+)
 
 
-async def _apply_sql_agent_views(session):
-    sql = VIEW_SQL_PATH.read_text(encoding="utf-8")
+async def _apply_sql_file(session, path: Path):
+    sql = path.read_text(encoding="utf-8")
     for statement in sql.split(";"):
         statement = statement.strip()
         if statement:
             if "\\set" in statement or "GRANT " in statement.upper():
                 continue
             await session.execute(text(statement))
+
+
+async def _apply_sql_agent_views(session):
+    await _apply_sql_file(session, VIEW_SQL_PATH)
 
 
 def test_sql_agent_view_script_refreshes_readonly_grants():
@@ -34,6 +41,7 @@ async def _scalar_id(session, statement: str, **params):
 
 @pytest.mark.asyncio
 async def test_priority_one_sql_agent_views(clean_test_session):
+    await _apply_sql_file(clean_test_session, BONUS_METADATA_SQL_PATH)
     await _apply_sql_agent_views(clean_test_session)
 
     alpha_id = await _scalar_id(
@@ -66,9 +74,10 @@ async def test_priority_one_sql_agent_views(clean_test_session):
         clean_test_session,
         """
         INSERT INTO match (
-            event_id, weight_class_id, method, result_round, time, "order", is_main_event, is_title_bout, bout_status
+            event_id, weight_class_id, method, result_round, time, "order", is_main_event,
+            is_title_bout, has_fight_of_the_night_bonus, bout_status
         )
-        VALUES (:event_id, 4, 'KO/TKO-Punch', 2, '3:12', 12, true, true, NULL)
+        VALUES (:event_id, 4, 'KO/TKO-Punch', 2, '3:12', 12, true, true, true, NULL)
         RETURNING id
         """,
         event_id=past_event_id,
@@ -95,13 +104,15 @@ async def test_priority_one_sql_agent_views(clean_test_session):
     await clean_test_session.execute(
         text(
             """
-            INSERT INTO fighter_match (fighter_id, match_id, result) VALUES
-            (:alpha_id, :completed_match_id, 'win'),
-            (:beta_id, :completed_match_id, 'loss'),
-            (:alpha_id, :cancelled_match_id, NULL),
-            (:gamma_id, :cancelled_match_id, NULL),
-            (:alpha_id, :future_match_id, NULL),
-            (:gamma_id, :future_match_id, NULL)
+            INSERT INTO fighter_match (
+                fighter_id, match_id, result, has_performance_of_the_night_bonus
+            ) VALUES
+            (:alpha_id, :completed_match_id, 'win', true),
+            (:beta_id, :completed_match_id, 'loss', false),
+            (:alpha_id, :cancelled_match_id, NULL, false),
+            (:gamma_id, :cancelled_match_id, NULL, false),
+            (:alpha_id, :future_match_id, NULL, false),
+            (:gamma_id, :future_match_id, NULL, false)
             """
         ),
         {
@@ -120,19 +131,54 @@ async def test_priority_one_sql_agent_views(clean_test_session):
 
     completed_rows = (
         await clean_test_session.execute(
-            text("SELECT fighter_id, result, is_ko_tko, is_finish FROM v_completed_fighter_fights ORDER BY fighter_id")
+            text(
+                """
+                SELECT
+                    fighter_id,
+                    result,
+                    is_title_bout,
+                    has_fight_of_the_night_bonus,
+                    has_performance_of_the_night_bonus,
+                    is_ko_tko,
+                    is_finish
+                FROM v_completed_fighter_fights
+                WHERE event_name = 'UFC Completed'
+                ORDER BY fighter_id
+                """
+            )
         )
     ).mappings().all()
     assert completed_rows == [
-        {"fighter_id": alpha_id, "result": "win", "is_ko_tko": True, "is_finish": True},
-        {"fighter_id": beta_id, "result": "loss", "is_ko_tko": True, "is_finish": True},
+        {
+            "fighter_id": alpha_id,
+            "result": "win",
+            "is_title_bout": True,
+            "has_fight_of_the_night_bonus": True,
+            "has_performance_of_the_night_bonus": True,
+            "is_ko_tko": True,
+            "is_finish": True,
+        },
+        {
+            "fighter_id": beta_id,
+            "result": "loss",
+            "is_title_bout": True,
+            "has_fight_of_the_night_bonus": True,
+            "has_performance_of_the_night_bonus": False,
+            "is_ko_tko": True,
+            "is_finish": True,
+        },
     ]
 
     opponent = (
         await clean_test_session.execute(
             text(
                 """
-                SELECT opponent_id, opponent_name, is_title_bout
+                SELECT
+                    opponent_id,
+                    opponent_name,
+                    is_title_bout,
+                    has_fight_of_the_night_bonus,
+                    has_performance_of_the_night_bonus
                 FROM v_fighter_opponents
                 WHERE fighter_id = :fighter_id
                 """
@@ -144,6 +190,8 @@ async def test_priority_one_sql_agent_views(clean_test_session):
         "opponent_id": beta_id,
         "opponent_name": "Beta Fighter",
         "is_title_bout": True,
+        "has_fight_of_the_night_bonus": True,
+        "has_performance_of_the_night_bonus": True,
     }
 
     method_summary = (

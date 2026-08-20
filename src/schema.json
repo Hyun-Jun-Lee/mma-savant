@@ -523,6 +523,12 @@
           "description": "Whether this fight is a title bout"
         },
         {
+          "column": "has_fight_of_the_night_bonus",
+          "type": "boolean",
+          "nullable": false,
+          "description": "Whether this fight received Fight of the Night bonus"
+        },
+        {
           "column": "bout_status",
           "type": "character varying",
           "nullable": true,
@@ -676,6 +682,12 @@
           "type": "character varying",
           "nullable": true,
           "description": "Tapology weight gain from weigh-in to fight night for this fighter in this match"
+        },
+        {
+          "column": "has_performance_of_the_night_bonus",
+          "type": "boolean",
+          "nullable": false,
+          "description": "Whether this fighter received Performance of the Night bonus for this match"
         }
       ]
     },
@@ -1078,6 +1090,8 @@
         {"column": "time", "type": "character varying", "description": "Time the fight ended within the round"},
         {"column": "is_main_event", "type": "boolean", "description": "Whether this fight is the main event"},
         {"column": "is_title_bout", "type": "boolean", "description": "Whether this fight is a title bout"},
+        {"column": "has_fight_of_the_night_bonus", "type": "boolean", "description": "Whether this fight received Fight of the Night bonus"},
+        {"column": "has_performance_of_the_night_bonus", "type": "boolean", "description": "Whether this fighter received Performance of the Night bonus"},
         {"column": "bout_status", "type": "character varying", "description": "Tapology-derived bout status"},
         {"column": "cancellation_reason", "type": "character varying", "description": "Cancellation or postponement reason when available"},
         {"column": "fight_order", "type": "integer", "description": "Fight order on card"}
@@ -1110,6 +1124,9 @@
         {"column": "weight_class_name", "type": "character varying", "description": "Weight class name"},
         {"column": "result", "type": "character varying", "description": "Fighter-side result"},
         {"column": "method", "type": "character varying", "description": "Bout finish method"},
+        {"column": "is_title_bout", "type": "boolean", "description": "Whether this fight is a title bout"},
+        {"column": "has_fight_of_the_night_bonus", "type": "boolean", "description": "Whether this fight received Fight of the Night bonus"},
+        {"column": "has_performance_of_the_night_bonus", "type": "boolean", "description": "Whether this fighter received Performance of the Night bonus"},
         {"column": "is_win", "type": "boolean", "description": "result = 'win'"},
         {"column": "is_loss", "type": "boolean", "description": "result = 'loss'"},
         {"column": "is_draw", "type": "boolean", "description": "result = 'draw'"},
@@ -1147,6 +1164,8 @@
         {"column": "result_round", "type": "integer", "description": "Round the fight ended"},
         {"column": "time", "type": "character varying", "description": "Time the fight ended within the round"},
         {"column": "is_title_bout", "type": "boolean", "description": "Whether this fight is a title bout"},
+        {"column": "has_fight_of_the_night_bonus", "type": "boolean", "description": "Whether this fight received Fight of the Night bonus"},
+        {"column": "has_performance_of_the_night_bonus", "type": "boolean", "description": "Whether this fighter received Performance of the Night bonus"},
         {"column": "fight_order", "type": "integer", "description": "Fight order on card"}
       ]
     },

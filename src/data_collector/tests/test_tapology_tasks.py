@@ -598,6 +598,40 @@ async def test_save_tapology_match_enrichment_updates_title_and_weigh_in(sqlite_
 
 
 @pytest.mark.asyncio
+async def test_save_tapology_match_enrichment_preserves_existing_title_bout_true(sqlite_session):
+    event = EventModel(name="UFC Title Event", event_date=datetime(2025, 1, 18).date())
+    fighter_1 = FighterModel(name="Champion Fighter")
+    fighter_2 = FighterModel(name="Challenger Fighter")
+    sqlite_session.add_all([event, fighter_1, fighter_2])
+    await sqlite_session.flush()
+
+    match = MatchModel(event_id=event.id, is_title_bout=True, is_main_event=False)
+    sqlite_session.add(match)
+    await sqlite_session.flush()
+    sqlite_session.add_all([
+        FighterMatchModel(fighter_id=fighter_1.id, match_id=match.id),
+        FighterMatchModel(fighter_id=fighter_2.id, match_id=match.id),
+    ])
+    await sqlite_session.commit()
+
+    metadata = TapologyBoutMetadata(
+        is_title_bout=False,
+        bout_status="completed",
+    )
+
+    await save_tapology_match_enrichment(
+        sqlite_session,
+        match.id,
+        "https://www.tapology.com/fightcenter/bouts/non-title",
+        metadata,
+        datetime(2026, 8, 6, 1, 2, 3),
+    )
+
+    refreshed = await sqlite_session.get(MatchModel, match.id)
+    assert refreshed.is_title_bout is True
+
+
+@pytest.mark.asyncio
 async def test_save_tapology_match_enrichment_preserves_completed_result_on_cancelled_conflict(sqlite_session):
     event = EventModel(name="UFC Fight Night", event_date=datetime(2025, 1, 18).date())
     fighter_1 = FighterModel(name="Fighter One")
