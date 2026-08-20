@@ -27,6 +27,8 @@ TAPOLOGY_FETCH_PROTOCOL_ERROR = "protocol_error"
 TAPOLOGY_FETCH_EXCEPTION = "fetch_exception"
 UFC_RANKINGS_MAX_ATTEMPTS = 3
 UFC_RANKINGS_RETRY_DELAY_SECONDS = 2.0
+UFCSTATS_FIGHT_DETAIL_MAX_ATTEMPTS = 2
+UFCSTATS_FIGHT_DETAIL_RETRY_DELAY_SECONDS = 2.0
 
 
 def _parse_delay_range(value: str | None) -> tuple[float, float]:
@@ -90,6 +92,14 @@ def _is_ufc_rankings_url(url: str) -> bool:
     )
 
 
+def _is_ufcstats_fight_details_url(url: str) -> bool:
+    parsed_url = urlparse(url)
+    return (
+        parsed_url.netloc.lower().endswith("ufcstats.com")
+        and parsed_url.path.rstrip("/").startswith("/fight-details/")
+    )
+
+
 def _is_ufc_edge_forbidden_html(html_content: str | None) -> bool:
     if not html_content:
         return False
@@ -97,12 +107,20 @@ def _is_ufc_edge_forbidden_html(html_content: str | None) -> bool:
     return "403 Forbidden" in html_content and "Varnish cache server" in html_content
 
 
+def _max_playwright_attempts_for_url(url: str) -> int:
+    if _is_ufc_rankings_url(url):
+        return UFC_RANKINGS_MAX_ATTEMPTS
+    if _is_ufcstats_fight_details_url(url):
+        return UFCSTATS_FIGHT_DETAIL_MAX_ATTEMPTS
+    return 1
+
+
 async def crawl_with_playwright(url: str) -> str:
     driver = PlaywrightDriver()
     page = None
     try:
         await driver.initialize()
-        max_attempts = UFC_RANKINGS_MAX_ATTEMPTS if _is_ufc_rankings_url(url) else 1
+        max_attempts = _max_playwright_attempts_for_url(url)
         wait_selector = _selector_for_url(url)
 
         for attempt in range(1, max_attempts + 1):
@@ -110,13 +128,16 @@ async def crawl_with_playwright(url: str) -> str:
                 await page.close()
 
             page = await driver.new_page()
-            await page.goto(url, wait_until="domcontentloaded")
-
             try:
+                await page.goto(url, wait_until="domcontentloaded")
                 if wait_selector:
                     await page.wait_for_selector(wait_selector, state="attached", timeout=15000)
-            except Exception:
-                html_content = await page.content()
+            except Exception as exc:
+                try:
+                    html_content = await page.content()
+                except Exception:
+                    html_content = None
+
                 if _is_ufc_rankings_url(url) and _is_ufc_edge_forbidden_html(html_content):
                     if attempt < max_attempts:
                         logging.warning(
@@ -131,6 +152,19 @@ async def crawl_with_playwright(url: str) -> str:
 
                     logging.warning("UFC rankings page returned edge forbidden response after %s attempts", max_attempts)
                     return None
+
+                if _is_ufcstats_fight_details_url(url) and attempt < max_attempts:
+                    logging.warning(
+                        "UFCStats fight detail crawl failed; retrying (%s/%s): url=%s error=%s",
+                        attempt,
+                        max_attempts,
+                        url,
+                        exc,
+                    )
+                    await page.close()
+                    page = None
+                    await asyncio.sleep(UFCSTATS_FIGHT_DETAIL_RETRY_DELAY_SECONDS * attempt)
+                    continue
 
                 raise
 

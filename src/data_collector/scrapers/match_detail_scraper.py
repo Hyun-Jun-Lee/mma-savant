@@ -91,6 +91,10 @@ async def scrap_match_basic_statistics(crawler_fn: Callable, match_detail_url: s
     """
     try:
         html_content = await crawler_fn(match_detail_url)
+        if not html_content:
+            logging.warning("HTML content is empty: %s", match_detail_url)
+            return []
+
         soup = BeautifulSoup(html_content, 'html.parser')
     except Exception as e:
         logging.error(f"매치 기본 통계 크롤링 중 오류 발생: {e} - {traceback.format_exc()}")
@@ -184,6 +188,10 @@ async def scrap_match_significant_strikes(crawler_fn: Callable, match_detail_url
     """
     try:
         html_content = await crawler_fn(match_detail_url)
+        if not html_content:
+            logging.warning("HTML content is empty: %s", match_detail_url)
+            return []
+
         soup = BeautifulSoup(html_content, 'html.parser')
     except Exception as e:
         logging.error(f"유의미한 타격 통계 크롤링 중 오류 발생: {traceback.format_exc()}")

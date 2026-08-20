@@ -90,6 +90,105 @@ async def test_crawl_with_playwright_retries_ufc_rankings_edge_forbidden(monkeyp
     assert fake_page.wait_selectors == ["#rankings-panel-media", "#rankings-panel-media"]
 
 
+@pytest.mark.asyncio
+async def test_crawl_with_playwright_retries_ufcstats_fight_detail_once(monkeypatch):
+    first_html = "<body>Checking your browser…</body>"
+    second_html = '<body><table class="b-fight-details__table">fight stats</table></body>'
+
+    class FakePage:
+        def __init__(self):
+            self.html_by_attempt = [first_html, second_html]
+            self.goto_calls = 0
+            self.wait_selectors = []
+
+        async def goto(self, url, wait_until):
+            self.goto_calls += 1
+
+        async def wait_for_selector(self, selector, state, timeout):
+            self.wait_selectors.append(selector)
+            html = await self.content()
+            if selector == "table.b-fight-details__table" and 'class="b-fight-details__table"' in html:
+                return
+            raise RuntimeError("selector timeout")
+
+        async def content(self):
+            return self.html_by_attempt[self.goto_calls - 1]
+
+        async def close(self):
+            pass
+
+    fake_page = FakePage()
+
+    class FakeDriver:
+        async def initialize(self):
+            pass
+
+        async def new_page(self):
+            return fake_page
+
+    async def fake_sleep(delay):
+        pass
+
+    monkeypatch.setattr(crawler, "PlaywrightDriver", FakeDriver)
+    monkeypatch.setattr(crawler.asyncio, "sleep", fake_sleep)
+
+    html = await crawler.crawl_with_playwright("http://ufcstats.com/fight-details/d14fea43712707f0")
+
+    assert html == second_html
+    assert fake_page.goto_calls == 2
+    assert fake_page.wait_selectors == [
+        "table.b-fight-details__table",
+        "table.b-fight-details__table",
+    ]
+
+
+@pytest.mark.asyncio
+async def test_crawl_with_playwright_stops_ufcstats_fight_detail_after_one_retry(monkeypatch):
+    blocked_html = "<body>Checking your browser…</body>"
+
+    class FakePage:
+        def __init__(self):
+            self.goto_calls = 0
+            self.wait_selectors = []
+
+        async def goto(self, url, wait_until):
+            self.goto_calls += 1
+
+        async def wait_for_selector(self, selector, state, timeout):
+            self.wait_selectors.append(selector)
+            raise RuntimeError("selector timeout")
+
+        async def content(self):
+            return blocked_html
+
+        async def close(self):
+            pass
+
+    fake_page = FakePage()
+
+    class FakeDriver:
+        async def initialize(self):
+            pass
+
+        async def new_page(self):
+            return fake_page
+
+    async def fake_sleep(delay):
+        pass
+
+    monkeypatch.setattr(crawler, "PlaywrightDriver", FakeDriver)
+    monkeypatch.setattr(crawler.asyncio, "sleep", fake_sleep)
+
+    html = await crawler.crawl_with_playwright("http://ufcstats.com/fight-details/d14fea43712707f0")
+
+    assert html is None
+    assert fake_page.goto_calls == 2
+    assert fake_page.wait_selectors == [
+        "table.b-fight-details__table",
+        "table.b-fight-details__table",
+    ]
+
+
 def test_selector_for_unknown_url():
     assert _selector_for_url("https://example.com") is None
 
